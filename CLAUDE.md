@@ -23,7 +23,6 @@ First persona: **Product Managers** writing PRDs, specs, comms, and decision doc
 This is not a style preference. It is the product's reason to exist and its defense against
 becoming Grammarly-with-extra-steps. **Never add apply/auto-fix/rewrite affordances.** If a
 feature request implies the AI editing the user's text, stop and flag it against this principle.
-
 ## Document map — read what's relevant to your task
 
 | File | Read it when… |
@@ -32,9 +31,10 @@ feature request implies the AI editing the user's text, stop and flag it against
 | `docs/features.md` | You're building UX, the observation taxonomy, message lifecycle, archive, export. |
 | `docs/architecture.md` | You're building the eval pipeline, claim ledger, persistence, model router, editor internals. |
 | `docs/plan.md` | You need to know what phase we're in and what's in/out of scope right now. |
+| `docs/projects/` | Deeper design documents for specific features/subsystems not fully covered by general plan overviews. |
 
 **Always check `docs/plan.md` for the current phase before adding functionality.** Scope creep
-is the main risk on this project. If something belongs to a later phase, say so and don't build it.
+is the main risk on this project. If something belongs to a later phase, say so and don't build it. Deep-dive specifications for complex features reside in `docs/projects/`.
 
 ## Tech stack at a glance
 

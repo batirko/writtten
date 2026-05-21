@@ -1,14 +1,26 @@
 import type { LLMRequest, LLMResponse, ModelRouter } from "./router";
 
 const GEMINI_API_BASE = "https://generativelanguage.googleapis.com/v1beta/models";
-const FLASH_MODEL = "gemini-2.0-flash";
+const FLASH_MODEL = "gemini-3.5-flash";
 
 async function callGemini(model: string, req: LLMRequest, apiKey: string): Promise<LLMResponse> {
   const url = `${GEMINI_API_BASE}/${model}:generateContent?key=${apiKey}`;
+
+  const generationConfig: {
+    temperature: number;
+    responseMimeType?: string;
+  } = {
+    temperature: 0.2,
+  };
+
+  if (req.json) {
+    generationConfig.responseMimeType = "application/json";
+  }
+
   const body = {
     system_instruction: { parts: [{ text: req.system }] },
     contents: [{ role: "user", parts: [{ text: req.user }] }],
-    generationConfig: { temperature: 0.2 },
+    generationConfig,
   };
 
   const res = await fetch(url, {
@@ -30,7 +42,6 @@ async function callGemini(model: string, req: LLMRequest, apiKey: string): Promi
 export function createGeminiRouter(apiKey: string): ModelRouter {
   return {
     fast: (req) => callGemini(FLASH_MODEL, req, apiKey),
-    // Phase 0: both tiers use Flash; promote strong to Pro when needed.
     strong: (req) => callGemini(FLASH_MODEL, req, apiKey),
   };
 }

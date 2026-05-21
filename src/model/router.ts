@@ -1,6 +1,7 @@
 export interface LLMRequest {
   system: string;
   user: string;
+  json?: boolean;
 }
 
 export interface LLMResponse {

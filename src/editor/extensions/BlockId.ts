@@ -20,8 +20,7 @@ export const BlockId = Extension.create({
           blockId: {
             default: null,
             parseHTML: (el) => el.getAttribute(BLOCK_ID_ATTR),
-            renderHTML: (attrs) =>
-              attrs.blockId ? { [BLOCK_ID_ATTR]: attrs.blockId } : {},
+            renderHTML: (attrs) => (attrs.blockId ? { [BLOCK_ID_ATTR]: attrs.blockId } : {}),
           },
         },
       },
