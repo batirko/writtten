@@ -12,12 +12,12 @@
 
 Milestones:
 
-- [ ] Project scaffolding (TypeScript, build tooling, lint/test). **Record the real install/dev/build/test/lint commands in `CLAUDE.md` once they exist.**
-- [ ] TipTap editor renders; rich text editing works; Markdown-friendly schema.
-- [ ] Stable per-block ids assigned and persisted across edits (ProseMirror plugin).
-- [ ] Client-side persistence (IndexedDB): document saves and reloads.
-- [ ] Two-panel layout shell: editor + empty sidecar feed.
-- [ ] Model-router interface stubbed (`fast`/`strong`), with one cheap provider wired and a trivial test call proving the path works.
+- [x] Project scaffolding (TypeScript, build tooling, lint/test). **Record the real install/dev/build/test/lint commands in `CLAUDE.md` once they exist.**
+- [x] TipTap editor renders; rich text editing works; Markdown-friendly schema.
+- [x] Stable per-block ids assigned and persisted across edits (ProseMirror plugin).
+- [x] Client-side persistence (IndexedDB): document saves and reloads.
+- [x] Two-panel layout shell: editor + empty sidecar feed.
+- [x] Model-router interface stubbed (`fast`/`strong`), with one cheap provider wired and a trivial test call proving the path works.
 
 **Exit criteria:** open the app, write a multi-paragraph doc, reload, content persists; block ids are stable; a manual test call through the router returns a response.
 
@@ -31,15 +31,15 @@ Milestones:
 
 Scope is ruthless. Only:
 
-- [ ] **Settled-block detection** (debounce + terminal punctuation + min length). Quiet while drafting.
-- [ ] **Block summarization** on settle, with trivial-change short-circuit (hash diff).
-- [ ] **Claim ledger** (extract → upsert/retire per block; orphan on block delete).
-- [ ] **Two checks only:** `clarity` (span) and `contradiction` (against the ledger / stage).
-- [ ] **Sidecar feed** rendering active observations.
-- [ ] **Hover → highlight** the referenced span(s); contradiction highlights both sides.
-- [ ] **Anchoring via position mapping** so highlights track text through edits.
-- [ ] **Auto-close** observations resolved by an edit (incl. close when the span is deleted).
-- [ ] Minimal stage definition as a plain editable field (inference comes later).
+- [x] **Settled-block detection** (debounce + terminal punctuation + min length). Quiet while drafting. → see `docs/projects/message_generation_workflow--idea.md`
+- [x] **Block summarization** on settle, with trivial-change short-circuit (hash diff). Merge summarize + claims + clarity into one structured-output `router.fast` call per block to stay within free-tier RPM limits. → see `docs/projects/model_rotation_and_debugging--idea.md`
+- [x] **Claim ledger** (extract → upsert/retire per block; orphan on block delete).
+- [x] **Two checks only:** `clarity` (span) and `contradiction` (against the ledger / stage).
+- [x] **Sidecar feed** rendering active observations. → see `docs/projects/message_generation_workflow--idea.md`
+- [x] **Hover → highlight** the referenced span(s); contradiction highlights both sides.
+- [x] **Anchoring via position mapping** so highlights track text through edits.
+- [x] **Auto-close** observations resolved by an edit (incl. close when the span is deleted). → see `docs/projects/message_generation_workflow--idea.md`
+- [x] Minimal stage definition as a plain editable field (inference comes later).
 
 **Exit criteria (the demo script):** write a doc containing a self-contradiction; within a few seconds of the second claim settling, a `contradiction` observation appears referencing both spans; hovering highlights both; editing one side to resolve it auto-closes the observation — **and at no point did the tool offer to fix the text.**
 
@@ -55,12 +55,12 @@ Milestones:
 
 - [ ] Remaining span checks: `unsupported_claim`, `undefined_jargon`.
 - [ ] Remaining doc-level checks: `missing_topic`, `underexposed_topic`, `structure_flow`, `audience_mismatch`.
-- [ ] Content threshold gating for doc-level checks (warm-up curve).
-- [ ] **Dismissal** + "dismissal teaches" suppression (per-doc; per-user optional).
-- [ ] Full message lifecycle: `auto_closed` / `dismissed` / `superseded`.
+- [ ] Content threshold gating for doc-level checks (warm-up curve). → see `docs/projects/message_generation_workflow--idea.md`
+- [ ] **Dismissal** + "dismissal teaches" suppression (per-doc; per-user optional). → see `docs/projects/message_generation_workflow--idea.md`
+- [ ] Full message lifecycle: `auto_closed` / `dismissed` / `superseded`. → see `docs/projects/message_generation_workflow--idea.md`
 - [ ] **Archive** UI: browsable, filterable by type and state.
-- [ ] **Stage inference** with one-click confirm/edit ("Looks like a PRD for … — right?").
-- [ ] Master-summary maintenance hardened.
+- [ ] **Stage inference** with one-click confirm/edit ("Looks like a PRD for … — right?"). → see `docs/projects/message_generation_workflow--idea.md` (stage-changed trigger)
+- [ ] Master-summary maintenance hardened. → see `docs/projects/message_generation_workflow--idea.md`
 
 **Exit criteria:** a PM can write a real PRD start-to-finish and the feed behaves well throughout — quiet early, useful during revision, no re-nagging on dismissed items, archive populated correctly, stage inferred sensibly.
 
@@ -74,10 +74,11 @@ Milestones:
 
 Milestones:
 
-- [ ] Model **tiering** live: cheap/fast for summaries + span checks; strong for doc-level adjudication.
+- [ ] Model **tiering** live: cheap/fast for summaries + span checks; strong for doc-level adjudication. → see `docs/projects/model_rotation_and_debugging--idea.md`
+- [x] **Rate limit resiliency**: rotation pools, cool-down registry, LLM debug panel (Ollama offline fallback skipped for now). → see `docs/projects/model_rotation_and_debugging--idea.md`
 - [ ] **BYO-key** flow: settings UI, local key storage, direct-from-client provider calls.
-- [ ] Embedding-based **prefiltering** for the claim ledger so contradiction checks stay bounded as documents grow.
-- [ ] Cost/latency instrumentation (local only) to tune debounce, thresholds, and tier routing.
+- [ ] Embedding-based **prefiltering** for the claim ledger so contradiction checks stay bounded as documents grow. → see `docs/projects/message_generation_workflow--idea.md`
+- [ ] Cost/latency instrumentation (local only) to tune debounce, thresholds, and tier routing. → see `docs/projects/message_generation_workflow--idea.md` (orchestrator queue)
 - [ ] Decision point (log it here): does the free tier need a thin shared proxy, or can it stay fully client-side? Keep client-side if at all possible.
 
 **Exit criteria:** free tier works with no key and acceptable latency/cost; adding a key visibly improves observation quality; large documents don't blow up the contradiction check.

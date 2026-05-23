@@ -216,6 +216,48 @@ export async function loadActiveObservationsForDocument(docId: string): Promise<
   return results;
 }
 
+export async function clearDocumentData(docId: string): Promise<void> {
+  const db = await getDb();
+
+  // Clear document record
+  await db.delete("documents", docId);
+
+  // Clear block summaries — no index by doc, so scan and delete matching
+  {
+    const tx = db.transaction("block_summaries", "readwrite");
+    let cursor = await tx.store.openCursor();
+    while (cursor) {
+      if ((cursor.value as BlockSummary).docId === docId) await cursor.delete();
+      cursor = await cursor.continue();
+    }
+    await tx.done;
+  }
+
+  // Clear claim ledger entries for this doc
+  {
+    const tx = db.transaction("claim_ledger", "readwrite");
+    const docIndex = tx.store.index("by_doc");
+    let cursor = await docIndex.openCursor(IDBKeyRange.only(docId));
+    while (cursor) {
+      await cursor.delete();
+      cursor = await cursor.continue();
+    }
+    await tx.done;
+  }
+
+  // Clear observations for this doc
+  {
+    const tx = db.transaction("observations", "readwrite");
+    const docIndex = tx.store.index("by_doc");
+    let cursor = await docIndex.openCursor(IDBKeyRange.only(docId));
+    while (cursor) {
+      await cursor.delete();
+      cursor = await cursor.continue();
+    }
+    await tx.done;
+  }
+}
+
 export async function updateObservationStatus(
   id: string,
   status: Observation["status"]

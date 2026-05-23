@@ -94,13 +94,41 @@ export async function evaluateBlock(
   }
 
   try {
-    // 3. Re-summarize the block
-    const summaryRes = await router.fast({
-      system:
-        "You are a writing assistant sidecar. Summarize the following block of text in a single, short sentence. Focus on the core claim, point, or commitment made.",
+    // 3. Re-summarize the block, extract claims, and run clarity checks in a single call
+    const mergedPromptSystem = `You are an AI assistant sidecar evaluating a specific text block for three things:
+1. A summary: Summarize the block in a single, short sentence. Focus on the core claim, point, or commitment made.
+2. Claims: Extract any assertions, commitments, metric goals, constraints, or definitions.
+3. Clarity: Analyze the text for clarity, vagueness, or ambiguity. Do not edit or suggest a rewrite. Focus only on observing where the text is unclear or poorly specified.
+
+Return a JSON object with exactly three keys:
+- 'summary' (a string)
+- 'claims' (an array of objects, each with 'text' and 'kind'. 'kind' must be one of: 'commitment', 'fact_claim', 'definition', 'constraint', 'metric')
+- 'clarity_observations' (an array of objects, each with 'text' for the observation message and 'substring' for the exact literal text from the input that is unclear. It must match the original text exactly, case-sensitive.)
+
+If there are no claims, return an empty array for 'claims'.
+If the text is clear, return an empty array for 'clarity_observations'.
+Do NOT include any text other than the raw JSON.`;
+
+    const mergedRes = await router.fast({
+      system: mergedPromptSystem,
       user: cleanText,
+      json: true,
     });
-    const summaryText = summaryRes.text.trim();
+
+    interface ClarityObservation {
+      text: string;
+      substring: string;
+    }
+
+    const parsedMerged = parseJSONResponse(mergedRes.text) as {
+      summary?: string;
+      claims?: Omit<ClaimLedgerEntry, "id" | "docId" | "sourceBlockId" | "status">[];
+      clarity_observations?: ClarityObservation[];
+    };
+
+    const summaryText = parsedMerged.summary?.trim() || "";
+    const extractedClaims = parsedMerged.claims || [];
+    const clarityObservations = parsedMerged.clarity_observations || [];
 
     // Save summary
     await saveBlockSummary({
@@ -110,55 +138,10 @@ export async function evaluateBlock(
       hash: textHash,
     });
 
-    // 4. Extract claims from block
-    const claimsPromptSystem = `You are an AI extracting commitments and assertions from text. 
-Analyze the text and extract any assertions, commitments, metric goals, constraints, or definitions. 
-Return a JSON object with a single key 'claims' which is an array of objects. 
-Each claim object must have:
-- 'text' (a normalized, self-contained statement of the claim, e.g. 'The product will support offline mode')
-- 'kind' (one of: 'commitment', 'fact_claim', 'definition', 'constraint', 'metric')
-
-If no claims are found, return an empty array for 'claims'.
-Do NOT include any text other than the raw JSON.`;
-
-    const claimsRes = await router.fast({
-      system: claimsPromptSystem,
-      user: cleanText,
-      json: true,
-    });
-
-    const parsedClaims = parseJSONResponse(claimsRes.text) as {
-      claims?: Omit<ClaimLedgerEntry, "id" | "docId" | "sourceBlockId" | "status">[];
-    };
-    const extractedClaims = parsedClaims.claims || [];
-
+    // Save claims
     await saveClaimsForBlock(docId, blockId, extractedClaims);
 
-    // 5. Run clarity check (span check)
-    const clarityPromptSystem = `You are a critical reader analyzing a specific text block for clarity, vagueness, or ambiguity. 
-Do not edit or suggest a rewrite. Focus only on observing where the text is unclear or poorly specified. 
-Return a JSON object with a key 'observations', containing an array of objects. Each object must have:
-- 'text' (the observation message, observing the issue without fixing it, e.g., 'This section is vague about when the feature launches.')
-- 'substring' (the exact substring from the input text that is unclear. It must match the original text exactly, case-sensitive.)
-
-If the text is clear, return an empty array for 'observations'.
-Do NOT include any text other than the raw JSON.`;
-
-    const clarityRes = await router.fast({
-      system: clarityPromptSystem,
-      user: cleanText,
-      json: true,
-    });
-
-    interface ClarityObservation {
-      text: string;
-      substring: string;
-    }
-    const parsedClarity = parseJSONResponse(clarityRes.text) as {
-      observations?: ClarityObservation[];
-    };
-    const clarityObservations = parsedClarity.observations || [];
-
+    // Save clarity observations
     for (const obs of clarityObservations) {
       if (!obs.substring || !obs.text) continue;
 

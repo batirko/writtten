@@ -17,6 +17,7 @@ interface Props {
   hoveredObservationId: string | null;
   onObservationCollapsed: (id: string) => void;
   onEvaluationComplete: () => void;
+  clearTrigger?: number;
 }
 
 export function Editor({
@@ -26,6 +27,7 @@ export function Editor({
   hoveredObservationId,
   onObservationCollapsed,
   onEvaluationComplete,
+  clearTrigger,
 }: Props) {
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const evalTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
@@ -147,6 +149,12 @@ export function Editor({
       }
     });
   }, [editor]);
+
+  // Reset editor content when clearTrigger increments
+  useEffect(() => {
+    if (!editor || clearTrigger === undefined || clearTrigger === 0) return;
+    editor.commands.clearContent(true);
+  }, [editor, clearTrigger]);
 
   // Sync observations with the highlighter extension
   useEffect(() => {

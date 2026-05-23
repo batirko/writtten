@@ -114,18 +114,12 @@ describe("evaluator - evaluateBlock", () => {
     vi.mocked(db.loadActiveClaimsForDocument).mockResolvedValueOnce([]);
 
     // Mock Gemini router responses
-    // 1. Summarization
-    mockFast.mockResolvedValueOnce({ text: "This is a summary." });
-    // 2. Claim extraction
+    // Merged Fast Call: summary, claims, clarity
     mockFast.mockResolvedValueOnce({
       text: JSON.stringify({
+        summary: "This is a summary.",
         claims: [{ text: "We plan to launch in Q3.", kind: "commitment" }],
-      }),
-    });
-    // 3. Clarity check
-    mockFast.mockResolvedValueOnce({
-      text: JSON.stringify({
-        observations: [{ text: "Vague launch date", substring: "in Q3" }],
+        clarity_observations: [{ text: "Vague launch date", substring: "in Q3" }],
       }),
     });
 
@@ -179,15 +173,14 @@ describe("evaluator - evaluateBlock", () => {
     ]);
 
     // Mock Gemini router responses
-    mockFast.mockResolvedValueOnce({ text: "Launch in Q3." }); // Summary
+    // Merged Fast Call
     mockFast.mockResolvedValueOnce({
       text: JSON.stringify({
+        summary: "Launch in Q3.",
         claims: [{ text: "Launch in Q3.", kind: "commitment" }],
+        clarity_observations: [],
       }),
-    }); // Claim extraction
-    mockFast.mockResolvedValueOnce({
-      text: JSON.stringify({ observations: [] }),
-    }); // Clarity check (none)
+    });
 
     // Contradiction check
     mockStrong.mockResolvedValueOnce({

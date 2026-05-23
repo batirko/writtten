@@ -31,10 +31,28 @@ feature request implies the AI editing the user's text, stop and flag it against
 | `docs/features.md` | You're building UX, the observation taxonomy, message lifecycle, archive, export. |
 | `docs/architecture.md` | You're building the eval pipeline, claim ledger, persistence, model router, editor internals. |
 | `docs/plan.md` | You need to know what phase we're in and what's in/out of scope right now. |
-| `docs/projects/` | Deeper design documents for specific features/subsystems not fully covered by general plan overviews. |
+| `docs/projects/` | Deeper design docs for specific features/subsystems. Each file is a self-contained spec with status, phased plan, and per-phase todo list. |
 
 **Always check `docs/plan.md` for the current phase before adding functionality.** Scope creep
-is the main risk on this project. If something belongs to a later phase, say so and don't build it. Deep-dive specifications for complex features reside in `docs/projects/`.
+is the main risk on this project. If something belongs to a later phase, say so and don't build it.
+
+### `docs/projects/` conventions
+
+**Status is encoded in the filename** using a double-dash suffix:
+
+| Suffix | Meaning |
+|---|---|
+| `--idea` | Design is written; not yet scheduled or started. |
+| `--in-progress` | Actively being built (linked from current phase in `docs/plan.md`). |
+| `--done` | Fully shipped and verified. |
+
+**Each project file must contain** (in order):
+1. A `## Status` block at the top — status badge, phase scope, one-line summary.
+2. A `## Phased Plan` section — which plan phases this work spans and what each phase contributes.
+3. A `## Todo` section with a concrete checklist scoped per phase.
+4. The detailed design sections below.
+
+**`docs/plan.md` references a project file only when there is a direct connection** — i.e., the project is actively in scope for a specific phase milestone. Use a `→ see docs/projects/...` inline note on the relevant milestone line. Do not add blanket "see projects/" links.
 
 ## Tech stack at a glance
 

@@ -4,8 +4,10 @@ import { SidecarFeed } from "./sidecar/SidecarFeed";
 import {
   loadActiveObservationsForDocument,
   updateObservationStatus,
+  clearDocumentData,
   type Observation,
 } from "./store/db";
+import { llmLogger, type LLMLogEntry } from "./model/logger";
 
 const DOC_ID = "default";
 
@@ -24,6 +26,18 @@ export default function App() {
 
   const [observations, setObservations] = useState<Observation[]>([]);
   const [hoveredObservationId, setHoveredObservationId] = useState<string | null>(null);
+  const [clearTrigger, setClearTrigger] = useState(0);
+  
+  const [logs, setLogs] = useState<LLMLogEntry[]>([]);
+  const [activeProvider, setActiveProvider] = useState<string>("gemini-2.0-flash");
+
+  useEffect(() => {
+    const unsubscribe = llmLogger.subscribe((newLogs, provider) => {
+      setLogs(newLogs);
+      setActiveProvider(provider);
+    });
+    return unsubscribe;
+  }, []);
 
   // Sync settings to localStorage
   useEffect(() => {
@@ -46,6 +60,13 @@ export default function App() {
     refreshObservations();
   }, []);
 
+  const handleClearWorkspace = async () => {
+    await clearDocumentData(DOC_ID);
+    setObservations([]);
+    setStage("");
+    setClearTrigger((n) => n + 1);
+  };
+
   const handleDismissObservation = async (id: string) => {
     await updateObservationStatus(id, "dismissed");
     refreshObservations();
@@ -66,6 +87,7 @@ export default function App() {
           hoveredObservationId={hoveredObservationId}
           onObservationCollapsed={handleObservationCollapsed}
           onEvaluationComplete={refreshObservations}
+          clearTrigger={clearTrigger}
         />
       </main>
       <SidecarFeed
@@ -77,6 +99,9 @@ export default function App() {
         hoveredObservationId={hoveredObservationId}
         onHoverObservation={setHoveredObservationId}
         onDismissObservation={handleDismissObservation}
+        onClearWorkspace={handleClearWorkspace}
+        logs={logs}
+        activeProvider={activeProvider}
       />
     </div>
   );
