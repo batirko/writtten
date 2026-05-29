@@ -210,11 +210,34 @@ export function SidecarFeed({
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
               {logs.map(log => {
+                // Trigger entries render as a compact one-liner audit trail
+                if (log.type === 'trigger') {
+                  return (
+                    <div
+                      key={log.id}
+                      style={{
+                        background: '#eef2ff',
+                        border: '1px solid #c7d2fe',
+                        borderRadius: '4px',
+                        padding: '3px 6px',
+                        fontSize: '0.7rem',
+                        color: '#4338ca',
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        fontFamily: 'monospace',
+                      }}
+                    >
+                      <span>▶ trigger={log.triggerKind} block={log.blockId?.slice(0, 8)}</span>
+                      <span style={{ opacity: 0.7 }}>{log.timestamp.toLocaleTimeString()}</span>
+                    </div>
+                  );
+                }
+
                 const color = log.type === 'error' ? '#ffebee' : log.type === 'retry' ? '#fff8e1' : log.type === 'response' ? '#e8f5e9' : 'transparent';
                 const isExpanded = expandedLogId === log.id;
                 return (
                   <div key={log.id} style={{ background: color, border: '1px solid #ccc', borderRadius: '4px', padding: '4px' }}>
-                    <div 
+                    <div
                       style={{ display: 'flex', justifyContent: 'space-between', cursor: 'pointer', fontWeight: 'bold' }}
                       onClick={() => setExpandedLogId(isExpanded ? null : log.id)}
                     >

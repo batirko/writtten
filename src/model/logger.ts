@@ -3,7 +3,7 @@ import { nanoid } from "nanoid";
 export interface LLMLogEntry {
   id: string;
   timestamp: Date;
-  type: "request" | "response" | "retry" | "fallback" | "error";
+  type: "trigger" | "request" | "response" | "retry" | "fallback" | "error";
   model: string;
   endpoint: string;
   latencyMs?: number;
@@ -14,6 +14,9 @@ export interface LLMLogEntry {
   };
   response?: string;
   errorMessage?: string;
+  // Populated for "trigger" entries
+  triggerKind?: string;
+  blockId?: string;
 }
 
 type LogCallback = (logs: LLMLogEntry[], activeProvider: string) => void;

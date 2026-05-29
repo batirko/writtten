@@ -8,15 +8,20 @@ import {
   loadActiveObservationsForDocument,
   updateObservationStatus,
   type ClaimLedgerEntry,
+  type Observation,
 } from "../store/db";
 import { nanoid } from "nanoid";
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
 
 function hashCode(str: string): string {
   let hash = 0;
   for (let i = 0; i < str.length; i++) {
     const chr = str.charCodeAt(i);
     hash = (hash << 5) - hash + chr;
-    hash |= 0; // Convert to 32bit integer
+    hash |= 0;
   }
   return Math.abs(hash).toString(36);
 }
@@ -26,76 +31,123 @@ export function parseJSONResponse(text: string): unknown {
   try {
     return JSON.parse(cleaned);
   } catch {
-    // Attempt to extract JSON from markdown code block
     const match = cleaned.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
     if (match) {
       try {
         return JSON.parse(match[1].trim());
-      } catch {
-        // fallback
-      }
+      } catch { /* fallback */ }
     }
-    // Try finding the first '[' or '{' and last ']' or '}'
     const firstBrace = cleaned.indexOf("{");
     const lastBrace = cleaned.lastIndexOf("}");
     if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
       try {
         return JSON.parse(cleaned.substring(firstBrace, lastBrace + 1));
-      } catch {
-        // fallback
-      }
+      } catch { /* fallback */ }
     }
     throw new Error(`Failed to parse JSON response: ${text.substring(0, 100)}...`);
   }
 }
 
-export async function evaluateBlock(
+// ---------------------------------------------------------------------------
+// Reconciliation: dedupe / supersede / auto-close / insert
+// See docs/projects/message_generation_workflow--idea.md §7
+// ---------------------------------------------------------------------------
+
+/** Canonical key for "is this the same observation slot?" */
+function spanSig(obs: {
+  type: string;
+  startOffset?: number;
+  endOffset?: number;
+  conflictingBlockId?: string;
+}): string {
+  return `${obs.type}:${obs.startOffset ?? ""}:${obs.endOffset ?? ""}:${obs.conflictingBlockId ?? ""}`;
+}
+
+function normalizeText(text: string): string {
+  return text.trim().toLowerCase();
+}
+
+function spansOverlap(
+  a: { startOffset?: number; endOffset?: number },
+  b: { startOffset?: number; endOffset?: number },
+): boolean {
+  if (a.startOffset == null || a.endOffset == null) return false;
+  if (b.startOffset == null || b.endOffset == null) return false;
+  return a.startOffset < b.endOffset && b.startOffset < a.endOffset;
+}
+
+type NewObservation = Omit<Observation, "id" | "docId" | "status">;
+
+/**
+ * Compare the freshly-computed set of observations for a block against what is
+ * already active in the DB, then apply the decision table:
+ *
+ *   same (type + span + text)  → dedupe  (keep existing id)
+ *   same type + overlapping span, different text → supersede old, insert new
+ *   new type / new span        → insert
+ *   existing with no new match → auto_close
+ *
+ * This replaces the old blanket "close everything, re-insert" approach that
+ * caused observation flicker and broke dismissal suppression.
+ */
+async function reconcileObservations(
   docId: string,
   blockId: string,
-  text: string,
-  stage?: string,
-  apiKey?: string
+  newObs: NewObservation[],
 ): Promise<void> {
-  if (!apiKey) {
-    console.warn("Evaluator: No API key provided, skipping check.");
-    return;
-  }
+  const allActive = await loadActiveObservationsForDocument(docId);
+  const existing = allActive.filter((o) => o.blockId === blockId);
+  const matchedExistingIds = new Set<string>();
 
-  const router = createGeminiRouter(apiKey);
-  const textHash = hashCode(text);
+  for (const newO of newObs) {
+    const newSig = spanSig(newO);
 
-  // 1. Check if the block has changed compared to its last summary
-  const existingSummary = await loadBlockSummary(blockId);
-  if (existingSummary && existingSummary.hash === textHash) {
-    // Text has not changed, skip evaluation
-    return;
-  }
+    // 1. Exact match → dedupe: keep the existing record untouched
+    const exactMatch = existing.find(
+      (e) =>
+        spanSig(e) === newSig &&
+        normalizeText(e.text) === normalizeText(newO.text) &&
+        !matchedExistingIds.has(e.id),
+    );
+    if (exactMatch) {
+      matchedExistingIds.add(exactMatch.id);
+      continue;
+    }
 
-  // 2. Auto-close / archive existing active observations related to this block before running new checks
-  const activeObservations = await loadActiveObservationsForDocument(docId);
-  const relatedObs = activeObservations.filter(
-    (o) => o.blockId === blockId || o.conflictingBlockId === blockId
-  );
-  for (const obs of relatedObs) {
-    await updateObservationStatus(obs.id, "auto_closed");
-  }
+    // 2. Same type + overlapping span, different text → supersede old, insert new
+    const supersedable = existing.find(
+      (e) =>
+        e.type === newO.type &&
+        spansOverlap(e, newO) &&
+        !matchedExistingIds.has(e.id),
+    );
+    if (supersedable) {
+      await updateObservationStatus(supersedable.id, "superseded");
+      matchedExistingIds.add(supersedable.id);
+    }
 
-  // If text is empty or too short, retire its summary/claims and stop
-  const cleanText = text.trim();
-  if (cleanText.length < 10) {
-    await saveBlockSummary({
-      blockId,
+    // 3. Insert new observation
+    await saveObservation({
+      id: nanoid(10),
       docId,
-      summary: "",
-      hash: textHash,
+      status: "active",
+      ...newO,
     });
-    await saveClaimsForBlock(docId, blockId, []);
-    return;
   }
 
-  try {
-    // 3. Re-summarize the block, extract claims, and run clarity checks in a single call
-    const mergedPromptSystem = `You are an AI assistant sidecar evaluating a specific text block for three things:
+  // 4. Auto-close existing observations that have no counterpart in the new set
+  for (const e of existing) {
+    if (!matchedExistingIds.has(e.id)) {
+      await updateObservationStatus(e.id, "auto_closed");
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Prompts
+// ---------------------------------------------------------------------------
+
+const MERGED_SYSTEM_PROMPT = `You are an AI assistant sidecar evaluating a specific text block for three things:
 1. A summary: Summarize the block in a single, short sentence. Focus on the core claim, point, or commitment made.
 2. Claims: Extract any assertions, commitments, metric goals, constraints, or definitions.
 3. Clarity: Analyze the text for clarity, vagueness, or ambiguity. Do not edit or suggest a rewrite. Focus only on observing where the text is unclear or poorly specified.
@@ -109,16 +161,75 @@ If there are no claims, return an empty array for 'claims'.
 If the text is clear, return an empty array for 'clarity_observations'.
 Do NOT include any text other than the raw JSON.`;
 
+const CONTRADICTION_SYSTEM_PROMPT = `You are a critical editor detecting logical contradictions or conflicts in a document.
+You will be given a set of 'New Claims' from a newly written block, and a list of 'Existing Claims' from the rest of the document.
+Compare each new claim against the existing claims. If a new claim contradicts, conflicts with, or directly opposes an existing claim, identify the contradiction.
+
+Return a JSON object with a key 'contradictions', which is an array of objects. Each object must have:
+- 'newClaimText' (the text of the new claim that has the conflict)
+- 'existingClaimId' (the numeric ID of the conflicting existing claim)
+- 'message' (a short, confident observation explaining the contradiction — e.g. "This contradicts the Q3 target date set in the project overview." Never hedge with "might" or "possibly".)
+
+If no contradictions are found, return an empty array for 'contradictions'.
+Do NOT include any text other than the raw JSON.`;
+
+// ---------------------------------------------------------------------------
+// Public evaluator
+// ---------------------------------------------------------------------------
+
+interface ClarityObservation {
+  text: string;
+  substring: string;
+}
+
+interface ContradictionObservation {
+  newClaimText: string;
+  existingClaimId: number | string;
+  message: string;
+}
+
+export async function evaluateBlock(
+  docId: string,
+  blockId: string,
+  text: string,
+  stage?: string,
+  apiKey?: string,
+): Promise<void> {
+  if (!apiKey) {
+    console.warn("Evaluator: No API key provided, skipping check.");
+    return;
+  }
+
+  const router = createGeminiRouter(apiKey);
+  const cleanText = text.trim();
+  const textHash = hashCode(cleanText);
+
+  // 1. Skip if text hasn't changed since last eval
+  const existingSummary = await loadBlockSummary(blockId);
+  if (existingSummary && existingSummary.hash === textHash) {
+    return;
+  }
+
+  // 2. If block is now empty / too short, retire its data and close its observations
+  if (cleanText.length < 10) {
+    await saveBlockSummary({ blockId, docId, summary: "", hash: textHash });
+    await saveClaimsForBlock(docId, blockId, []);
+    await reconcileObservations(docId, blockId, []);
+    return;
+  }
+
+  try {
+    // 3. Merged fast call: summary + claims + clarity in one round-trip
+    //    Include stage in user content so the model can calibrate jargon / tone.
+    const userContent = stage
+      ? `${cleanText}\n\nDocument context: ${stage}`
+      : cleanText;
+
     const mergedRes = await router.fast({
-      system: mergedPromptSystem,
-      user: cleanText,
+      system: MERGED_SYSTEM_PROMPT,
+      user: userContent,
       json: true,
     });
-
-    interface ClarityObservation {
-      text: string;
-      substring: string;
-    }
 
     const parsedMerged = parseJSONResponse(mergedRes.text) as {
       summary?: string;
@@ -130,115 +241,74 @@ Do NOT include any text other than the raw JSON.`;
     const extractedClaims = parsedMerged.claims || [];
     const clarityObservations = parsedMerged.clarity_observations || [];
 
-    // Save summary
-    await saveBlockSummary({
-      blockId,
-      docId,
-      summary: summaryText,
-      hash: textHash,
-    });
-
-    // Save claims
+    // 4. Persist summary and claims first — observations may reference ledger IDs
+    await saveBlockSummary({ blockId, docId, summary: summaryText, hash: textHash });
     await saveClaimsForBlock(docId, blockId, extractedClaims);
 
-    // Save clarity observations
+    // 5. Collect all new observations (do not write to DB yet)
+    const newObs: NewObservation[] = [];
+
     for (const obs of clarityObservations) {
       if (!obs.substring || !obs.text) continue;
-
       const startOffset = cleanText.indexOf(obs.substring);
       if (startOffset !== -1) {
-        const endOffset = startOffset + obs.substring.length;
-
-        await saveObservation({
-          id: nanoid(10),
-          docId,
+        newObs.push({
           type: "clarity",
           scope: "span",
           nature: "defect",
           text: obs.text,
-          status: "active",
           blockId,
           startOffset,
-          endOffset,
+          endOffset: startOffset + obs.substring.length,
         });
       }
     }
 
-    // 6. Run contradiction check (cross-document check)
+    // 6. Contradiction check (cross-document, uses claim ledger)
     const existingClaims = await loadActiveClaimsForDocument(docId);
-    // Exclude claims from the current block
     const otherClaims = existingClaims.filter((c) => c.sourceBlockId !== blockId);
 
     if (extractedClaims.length > 0 && otherClaims.length > 0) {
-      const contradictionPromptSystem = `You are a critical editor detecting logical contradictions or conflicts in a document. 
-You will be given a set of 'New Claims' from a newly written block, and a list of 'Existing Claims' from the rest of the document.
-Compare each new claim against the existing claims. If a new claim contradicts, conflicts with, or directly opposes an existing claim, identify the contradiction.
-
-Return a JSON object with a key 'contradictions', which is an array of objects. Each object must have:
-- 'newClaimText' (the text of the new claim that has the conflict)
-- 'existingClaimId' (the numeric ID of the conflicting existing claim)
-- 'message' (a short message explaining the contradiction, e.g., 'This contradicts the Q3 target date set in the project overview.')
-
-If no contradictions are found, return an empty array for 'contradictions'.
-Do NOT include any text other than the raw JSON.`;
-
-      const userContent = `New Claims:
-${extractedClaims.map((c, i) => `[New Claim #${i}]: "${c.text}"`).join("\n")}
-
-Existing Claims:
-${otherClaims.map((c) => `[Existing Claim ID ${c.id}]: "${c.text}"`).join("\n")}
-
-${stage ? `Document Context: ${stage}` : ""}`;
+      const contradictionUser = `New Claims:\n${extractedClaims
+        .map((c, i) => `[New Claim #${i}]: "${c.text}"`)
+        .join("\n")}\n\nExisting Claims:\n${otherClaims
+        .map((c) => `[Existing Claim ID ${c.id}]: "${c.text}"`)
+        .join("\n")}${stage ? `\n\nDocument Context: ${stage}` : ""}`;
 
       const contradictionRes = await router.strong({
-        system: contradictionPromptSystem,
-        user: userContent,
+        system: CONTRADICTION_SYSTEM_PROMPT,
+        user: contradictionUser,
         json: true,
       });
 
-      interface ContradictionObservation {
-        newClaimText: string;
-        existingClaimId: number | string;
-        message: string;
-      }
       const parsedContradictions = parseJSONResponse(contradictionRes.text) as {
         contradictions?: ContradictionObservation[];
       };
-      const contradictionsList = parsedContradictions.contradictions || [];
 
-      for (const con of contradictionsList) {
-        const matchingExisting = otherClaims.find((c) => c.id === Number(con.existingClaimId));
+      for (const con of parsedContradictions.contradictions || []) {
+        const matchingExisting = otherClaims.find(
+          (c) => c.id === Number(con.existingClaimId),
+        );
         if (!matchingExisting) continue;
 
-        // Try to locate which new claim triggered it to get the approximate span offset
-        const newClaimIndex = extractedClaims.findIndex((c) => c.text === con.newClaimText);
-        const startOffset = 0;
-        const endOffset = cleanText.length;
-
-        if (newClaimIndex !== -1) {
-          // Find if the claim text shares keywords with the original text to highlight
-          // For now, default to the entire block range, as claims are synthesized statements
-          // and may not match raw text substrings directly.
-        }
-
-        await saveObservation({
-          id: nanoid(10),
-          docId,
+        newObs.push({
           type: "contradiction",
           scope: "span",
           nature: "defect",
           text: con.message,
-          status: "active",
           blockId,
-          startOffset,
-          endOffset,
+          startOffset: 0,
+          endOffset: cleanText.length,
           conflictingBlockId: matchingExisting.sourceBlockId,
-          // Highlight the whole conflicting block by default
           conflictingStartOffset: 0,
-          conflictingEndOffset: 9999, // default to end of block
+          conflictingEndOffset: 9999,
         });
       }
     }
+
+    // 7. Reconcile new observations against existing active ones for this block
+    //    (dedupe / supersede / auto-close / insert — no blanket clear)
+    await reconcileObservations(docId, blockId, newObs);
   } catch (error) {
     console.error("Evaluation error for block", blockId, error);
   }
