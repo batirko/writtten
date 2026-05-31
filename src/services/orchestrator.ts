@@ -9,7 +9,7 @@
  *     without an LLM call.
  *   - Trigger logging: every dispatch gets a "trigger" entry in the debug log.
  *
- * See docs/projects/message_generation_workflow--idea.md §6.
+ * See docs/projects/message_generation_workflow.md §6.
  */
 
 import { type EvalTrigger, type EvalContext } from "./types";

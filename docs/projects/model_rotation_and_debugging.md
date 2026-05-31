@@ -1,8 +1,16 @@
+---
+status: in-progress
+phases: [1, 3]
+summary: Handles Gemini free-tier rate limits via call batching, model rotation, and a debug panel; adds local Ollama fallback for offline dev.
+---
+
 # Model Rotation, Rate Limit Resiliency, and LLM Debugging
 
 ## Status
 
-**Status:** Idea **Phase scope:** Phase 1 (call batching) · Phase 3 (rotation, cool-down, Ollama, debug panel) **Summary:** Handles Gemini free-tier rate limits via call batching, model rotation, and a debug panel; adds local Ollama fallback for offline dev.
+> Canonical status lives in the frontmatter above and is mirrored in the Projects Index in `docs/plan.md`. This block carries the human-readable scope only.
+
+**Phase scope:** Phase 1 (call batching ✅) · Phase 3 (rotation, cool-down, debug panel ✅; Ollama + tiering pending) **Summary:** Handles Gemini free-tier rate limits via call batching, model rotation, and a debug panel; adds local Ollama fallback for offline dev.
 
 ---
 
@@ -66,10 +74,10 @@ All retry, rotation, and backoff logic belongs inside the **model-router** modul
 
 Rate limits in Google AI Studio are tracked **per model**, so rotating to a different model under the same API key can bypass a limit.
 
-| Tier         | Primary            | Fallback pool (in order)                   | Notes                                                                                                                                                                                       |
-| ------------ | ------------------ | ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **`fast`**   | `gemini-3.5-flash` | `gemini-2.5-flash`                         | Fast and reliable fallbacks.                                                                                                                                                                |
-| **`strong`** | `gemini-3.5-flash` | `gemini-2.5-flash`                         | Used for deeper checks.                                                                                                                                                                     |
+| Tier         | Primary            | Fallback pool (in order) | Notes                        |
+| ------------ | ------------------ | ------------------------ | ---------------------------- |
+| **`fast`**   | `gemini-3.5-flash` | `gemini-2.5-flash`       | Fast and reliable fallbacks. |
+| **`strong`** | `gemini-3.5-flash` | `gemini-2.5-flash`       | Used for deeper checks.      |
 
 ### Rotation & Cool-down Flow
 

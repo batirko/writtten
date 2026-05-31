@@ -1,7 +1,7 @@
 /**
  * Discriminated union of every event that may cause an LLM evaluation to be
  * scheduled. The set is closed — new triggers go here first with a written
- * reason. See docs/projects/message_generation_workflow--idea.md §5.
+ * reason. See docs/projects/message_generation_workflow.md §5.
  */
 export type EvalTrigger =
   | { kind: "block-settle-pause"; blockId: string }

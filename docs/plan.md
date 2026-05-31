@@ -6,6 +6,19 @@
 
 ---
 
+## Projects index
+
+> **Completeness contract:** every file in `docs/projects/` appears in this table — if it isn't listed here, it doesn't exist. When you create a project file you **must** add a row here (minimum); if it's scoped to specific phases, **also** add `→ see` links on those milestone lines below (maximum). Status is the file's frontmatter `status:` field, mirrored here — never encoded in the filename. `docs/projects.index.test.ts` enforces folder ↔ table ↔ frontmatter consistency.
+
+| Project                      | Status      | Phases            | One-line                                                                                                                                  |
+| ---------------------------- | ----------- | ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| [message_generation_workflow](projects/message_generation_workflow.md) | in-progress | 1 ✅ · 2 · 3       | The contract between editor, evaluator, model router, and feed — when observations fire, what context the LLM sees, how the feed behaves. |
+| [model_rotation_and_debugging](projects/model_rotation_and_debugging.md) | in-progress | 1 ✅ · 3 (partial) | Gemini free-tier rate-limit resiliency: call batching, model rotation, cool-down registry, LLM debug panel.                               |
+| [ai_tooling_integration](projects/ai_tooling_integration.md) | idea | 2 · 3 · 4 | SkillOpt, LEANN, and markitdown — when to adopt, what each needs, and how each maps to a specific phase milestone. |
+| [agent_acceptance_harness](projects/agent_acceptance_harness.md) | idea | 1 · 2 | Dev-only observability + control surface (debug state API, structured event stream, readiness signal, seedable state, mock LLM) so an agent can drive and verify acceptance tests deterministically. |
+
+---
+
 ## Phase 0 — Foundation
 
 **Goal:** a running local-first app where the user can write and persist a document, with the plumbing the eval loop will later need — but no AI behavior yet.
@@ -31,14 +44,14 @@ Milestones:
 
 Scope is ruthless. Only:
 
-- [x] **Settled-block detection** (debounce + terminal punctuation + min length). Quiet while drafting. → see `docs/projects/message_generation_workflow--idea.md`
-- [x] **Block summarization** on settle, with trivial-change short-circuit (hash diff). Merge summarize + claims + clarity into one structured-output `router.fast` call per block to stay within free-tier RPM limits. → see `docs/projects/model_rotation_and_debugging--idea.md`
+- [x] **Settled-block detection** (debounce + terminal punctuation + min length). Quiet while drafting. → see `docs/projects/message_generation_workflow.md`
+- [x] **Block summarization** on settle, with trivial-change short-circuit (hash diff). Merge summarize + claims + clarity into one structured-output `router.fast` call per block to stay within free-tier RPM limits. → see `docs/projects/model_rotation_and_debugging.md`
 - [x] **Claim ledger** (extract → upsert/retire per block; orphan on block delete).
 - [x] **Two checks only:** `clarity` (span) and `contradiction` (against the ledger / stage).
-- [x] **Sidecar feed** rendering active observations. → see `docs/projects/message_generation_workflow--idea.md`
+- [x] **Sidecar feed** rendering active observations. → see `docs/projects/message_generation_workflow.md`
 - [x] **Hover → highlight** the referenced span(s); contradiction highlights both sides.
 - [x] **Anchoring via position mapping** so highlights track text through edits.
-- [x] **Auto-close** observations resolved by an edit (incl. close when the span is deleted). → see `docs/projects/message_generation_workflow--idea.md`
+- [x] **Auto-close** observations resolved by an edit (incl. close when the span is deleted). → see `docs/projects/message_generation_workflow.md`
 - [x] Minimal stage definition as a plain editable field (inference comes later).
 
 **Exit criteria (the demo script):** write a doc containing a self-contradiction; within a few seconds of the second claim settling, a `contradiction` observation appears referencing both spans; hovering highlights both; editing one side to resolve it auto-closes the observation — **and at no point did the tool offer to fix the text.**
@@ -55,12 +68,12 @@ Milestones:
 
 - [ ] Remaining span checks: `unsupported_claim`, `undefined_jargon`.
 - [ ] Remaining doc-level checks: `missing_topic`, `underexposed_topic`, `structure_flow`, `audience_mismatch`.
-- [ ] Content threshold gating for doc-level checks (warm-up curve). → see `docs/projects/message_generation_workflow--idea.md`
-- [ ] **Dismissal** + "dismissal teaches" suppression (per-doc; per-user optional). → see `docs/projects/message_generation_workflow--idea.md`
-- [ ] Full message lifecycle: `auto_closed` / `dismissed` / `superseded`. → see `docs/projects/message_generation_workflow--idea.md`
+- [ ] Content threshold gating for doc-level checks (warm-up curve). → see `docs/projects/message_generation_workflow.md`
+- [ ] **Dismissal** + "dismissal teaches" suppression (per-doc; per-user optional). → see `docs/projects/message_generation_workflow.md`
+- [ ] Full message lifecycle: `auto_closed` / `dismissed` / `superseded`. → see `docs/projects/message_generation_workflow.md`
 - [ ] **Archive** UI: browsable, filterable by type and state.
-- [ ] **Stage inference** with one-click confirm/edit ("Looks like a PRD for … — right?"). → see `docs/projects/message_generation_workflow--idea.md` (stage-changed trigger)
-- [ ] Master-summary maintenance hardened. → see `docs/projects/message_generation_workflow--idea.md`
+- [ ] **Stage inference** with one-click confirm/edit ("Looks like a PRD for … — right?"). → see `docs/projects/message_generation_workflow.md` (stage-changed trigger)
+- [ ] Master-summary maintenance hardened. → see `docs/projects/message_generation_workflow.md`
 
 **Exit criteria:** a PM can write a real PRD start-to-finish and the feed behaves well throughout — quiet early, useful during revision, no re-nagging on dismissed items, archive populated correctly, stage inferred sensibly.
 
@@ -74,11 +87,11 @@ Milestones:
 
 Milestones:
 
-- [ ] Model **tiering** live: cheap/fast for summaries + span checks; strong for doc-level adjudication. → see `docs/projects/model_rotation_and_debugging--idea.md`
-- [x] **Rate limit resiliency**: rotation pools, cool-down registry, LLM debug panel (Ollama offline fallback skipped for now). → see `docs/projects/model_rotation_and_debugging--idea.md`
+- [ ] Model **tiering** live: cheap/fast for summaries + span checks; strong for doc-level adjudication. → see `docs/projects/model_rotation_and_debugging.md`
+- [x] **Rate limit resiliency**: rotation pools, cool-down registry, LLM debug panel (Ollama offline fallback skipped for now). → see `docs/projects/model_rotation_and_debugging.md`
 - [ ] **BYO-key** flow: settings UI, local key storage, direct-from-client provider calls.
-- [ ] Embedding-based **prefiltering** for the claim ledger so contradiction checks stay bounded as documents grow. → see `docs/projects/message_generation_workflow--idea.md`
-- [ ] Cost/latency instrumentation (local only) to tune debounce, thresholds, and tier routing. → see `docs/projects/message_generation_workflow--idea.md` (orchestrator queue)
+- [ ] Embedding-based **prefiltering** for the claim ledger so contradiction checks stay bounded as documents grow. → see `docs/projects/message_generation_workflow.md` · `docs/projects/ai_tooling_integration.md` (LEANN as candidate engine)
+- [ ] Cost/latency instrumentation (local only) to tune debounce, thresholds, and tier routing. → see `docs/projects/message_generation_workflow.md` (orchestrator queue)
 - [ ] Decision point (log it here): does the free tier need a thin shared proxy, or can it stay fully client-side? Keep client-side if at all possible.
 
 **Exit criteria:** free tier works with no key and acceptable latency/cost; adding a key visibly improves observation quality; large documents don't blow up the contradiction check.
@@ -93,7 +106,7 @@ Milestones:
 
 - [ ] Export: Markdown and PDF.
 - [ ] Copy to clipboard: rich text and Markdown.
-- [ ] Import / lossless round-trip of existing Markdown drafts.
+- [ ] Import / lossless round-trip of existing Markdown drafts. → see `docs/projects/ai_tooling_integration.md` (markitdown for binary-format import; decision point: path choice logged before writing code)
 - [ ] PWA: installable, offline-capable, polished empty/early states that express the "quiet by design" intent.
 - [ ] Accessibility and keyboard-first polish in the feed and hover/highlight interactions.
 

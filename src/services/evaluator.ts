@@ -50,7 +50,7 @@ export function parseJSONResponse(text: string): unknown {
 
 // ---------------------------------------------------------------------------
 // Reconciliation: dedupe / supersede / auto-close / insert
-// See docs/projects/message_generation_workflow--idea.md §7
+// See docs/projects/message_generation_workflow.md §7
 // ---------------------------------------------------------------------------
 
 /** Canonical key for "is this the same observation slot?" */

@@ -1,8 +1,16 @@
+---
+status: in-progress
+phases: [1, 2, 3]
+summary: The contract between editor, evaluator, model router, and sidecar feed — when observations are generated, what context the LLM sees, how the feed behaves, and what the user feels.
+---
+
 # Message Generation Workflow
 
 ## Status
 
-**Status:** In-progress **Phase scope:** Phase 1 ✅ · Phase 2 (doc-level triggers, dismissal-teaches, archive integration) · Phase 3 (queue economics, batching, prefiltering) **Summary:** End-to-end model of _when_ observations are generated, _what context_ the LLM sees, _how_ the feed behaves as new messages arrive on top of old ones, and _what the user feels_ sitting in front of it.
+> Canonical status lives in the frontmatter above and is mirrored in the Projects Index in `docs/plan.md`. This block carries the human-readable scope only.
+
+**Phase scope:** Phase 1 ✅ · Phase 2 (doc-level triggers, dismissal-teaches, archive integration) · Phase 3 (queue economics, batching, prefiltering) **Summary:** End-to-end model of _when_ observations are generated, _what context_ the LLM sees, _how_ the feed behaves as new messages arrive on top of old ones, and _what the user feels_ sitting in front of it.
 
 This document is the contract between the editor, the evaluator, the model router, and the sidecar feed. If you change anything that breaks the rules below — trigger conditions, context envelope shape, lifecycle transitions, feed ordering — update this file first.
 
@@ -11,7 +19,7 @@ Read alongside:
 - `docs/concept.md` (the _why_ — provoke-don't-prescribe, quiet-while-generating).
 - `docs/features.md` (the taxonomy and lifecycle states).
 - `docs/architecture.md` (the incremental pipeline, claim ledger, model router).
-- `docs/projects/model_rotation_and_debugging--idea.md` (cost / rate-limit constraints the queue must respect).
+- `docs/projects/model_rotation_and_debugging.md` (cost / rate-limit constraints the queue must respect).
 
 ---
 
@@ -351,7 +359,7 @@ The discipline: **raw text crosses the wire only for the block being evaluated.*
 
 ### Batching that's worth doing
 
-- **Within a block:** already done (summary + claims + clarity merged into one structured-output call — see `model_rotation_and_debugging--idea.md` §Phase 1).
+- **Within a block:** already done (summary + claims + clarity merged into one structured-output call — see `model_rotation_and_debugging.md` §Phase 1).
 - **Across doc-level checks:** Phase 2 — `missing_topic`, `audience_mismatch`, `structure_flow` are all looking at the same envelope (summaries + ledger + stage). Run them as one `strong` call returning a structured response with three top-level keys. One call instead of three.
 - **Across blocks on paste:** when `block-paste` fires with N new blocks, batch their block-fast-pack calls — _but_ still as N separate prompts (each block needs its own summary/claims/clarity output). Send them on a single rotation cycle to avoid hammering the RPM budget.
 
