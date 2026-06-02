@@ -33,8 +33,8 @@ function wrap(call: (req: LLMRequest) => Promise<LLMResponse>) {
   };
 }
 
-export function createRouter(apiKey: string): ModelRouter {
-  const live = createGeminiRouter(apiKey);
+export function createRouter(apiKey: string, paidKey?: string): ModelRouter {
+  const live = createGeminiRouter(apiKey, paidKey);
   return {
     fast: wrap(live.fast),
     strong: wrap(live.strong),

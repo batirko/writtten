@@ -12,6 +12,7 @@ vi.mock("../store/db", () => {
     saveObservation: vi.fn(),
     loadActiveObservationsForDocument: vi.fn(async () => []),
     updateObservationStatus: vi.fn(),
+    loadSuppressionsForDocument: vi.fn(async () => []),
   };
 });
 
@@ -111,7 +112,9 @@ describe("evaluator - evaluateBlock", () => {
     // Mock database loads
     vi.mocked(db.loadBlockSummary).mockResolvedValueOnce(undefined);
     vi.mocked(db.loadActiveObservationsForDocument).mockResolvedValueOnce([]);
-    vi.mocked(db.loadActiveClaimsForDocument).mockResolvedValueOnce([]);
+    // loadActiveClaimsForDocument is called twice: once for glossary, once for
+    // contradiction check. Both return [] → no contradiction check runs.
+    vi.mocked(db.loadActiveClaimsForDocument).mockResolvedValue([]);
 
     // Mock Gemini router responses
     // Merged Fast Call: summary, claims, clarity
@@ -160,17 +163,20 @@ describe("evaluator - evaluateBlock", () => {
     vi.mocked(db.loadBlockSummary).mockResolvedValueOnce(undefined);
     vi.mocked(db.loadActiveObservationsForDocument).mockResolvedValueOnce([]);
 
-    // Existing active claims in DB from another block
-    vi.mocked(db.loadActiveClaimsForDocument).mockResolvedValueOnce([
-      {
-        id: 42,
-        docId,
-        sourceBlockId: "block2",
-        text: "Launch is delayed to Q4.",
-        kind: "commitment",
-        status: "active",
-      },
-    ]);
+    // loadActiveClaimsForDocument is called twice per evaluateBlock:
+    //   1st: glossary build (before fast call) — kind "commitment" filtered out, no glossary effect
+    //   2nd: contradiction check — needs the Q4 claim to detect the contradiction
+    const existingClaim = {
+      id: 42,
+      docId,
+      sourceBlockId: "block2",
+      text: "Launch is delayed to Q4.",
+      kind: "commitment" as const,
+      status: "active" as const,
+    };
+    vi.mocked(db.loadActiveClaimsForDocument)
+      .mockResolvedValueOnce([existingClaim])  // glossary call
+      .mockResolvedValueOnce([existingClaim]); // contradiction call
 
     // Mock Gemini router responses
     // Merged Fast Call

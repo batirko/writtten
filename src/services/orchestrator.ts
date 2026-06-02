@@ -13,7 +13,7 @@
  */
 
 import { type EvalTrigger, type EvalContext } from "./types";
-import { evaluateBlock } from "./evaluator";
+import { evaluateBlock, evaluateDocument } from "./evaluator";
 import {
   loadActiveObservationsForDocument,
   orphanClaimsForBlock,
@@ -21,6 +21,15 @@ import {
 } from "../store/db";
 import { llmLogger } from "../model/logger";
 import { harness } from "../debug/harness";
+import { isNearLimit } from "../model/rpmBudget";
+
+/**
+ * How long to defer a doc-idle call when RPM is near the free-tier limit.
+ * Gives the 60-second window time to drain before burning another strong call
+ * on doc-level checks. Block-settle and contradiction always go through
+ * immediately — only doc-idle is low enough priority to defer.
+ */
+const DOC_IDLE_RPM_DEFER_MS = 30_000;
 
 // ---------------------------------------------------------------------------
 // Module-level state (there is one editor / one doc at a time)
@@ -47,6 +56,9 @@ const coalesceTimers = new Map<string, CoalesceEntry>();
 const inFlightBlocks = new Set<string>();
 const pendingAfterInflight = new Map<string, PendingEntry>();
 
+let docIdleInFlight = false;
+let pendingDocIdle: { ctx: EvalContext; onComplete?: () => void } | null = null;
+
 // ---------------------------------------------------------------------------
 // Internal helpers
 // ---------------------------------------------------------------------------
@@ -56,7 +68,11 @@ const pendingAfterInflight = new Map<string, PendingEntry>();
 function recomputePending(): void {
   if (import.meta.env.DEV) {
     harness.setPending(
-      coalesceTimers.size + inFlightBlocks.size + pendingAfterInflight.size,
+      coalesceTimers.size +
+        inFlightBlocks.size +
+        pendingAfterInflight.size +
+        (docIdleInFlight ? 1 : 0) +
+        (pendingDocIdle ? 1 : 0),
     );
   }
 }
@@ -122,7 +138,7 @@ async function dispatch(
   if (import.meta.env.DEV) harness.emit("settle", { trigger: triggerKind, block: blockId });
 
   try {
-    await evaluateBlock(ctx.docId, blockId, text, ctx.stage, ctx.apiKey);
+    await evaluateBlock(ctx.docId, blockId, text, ctx.stage, ctx.apiKey, ctx.paidKey);
   } catch (err) {
     console.error("[orchestrator] evaluateBlock threw:", err);
   } finally {
@@ -139,6 +155,66 @@ async function dispatch(
       recomputePending();
     }
   }
+}
+
+// ---------------------------------------------------------------------------
+// Doc-idle and stage-changed handlers
+// ---------------------------------------------------------------------------
+
+async function handleDocIdle(ctx: EvalContext, onComplete?: () => void): Promise<void> {
+  if (docIdleInFlight) {
+    // Replace any pending re-run with the latest context
+    pendingDocIdle = { ctx, onComplete };
+    recomputePending();
+    return;
+  }
+
+  // RPM backpressure: doc-idle is low priority. If we're near the free-tier
+  // limit, defer by DOC_IDLE_RPM_DEFER_MS rather than burning a strong call
+  // that competes with settling blocks.
+  if (isNearLimit()) {
+    if (import.meta.env.DEV) {
+      harness.emit("settle", { trigger: "doc-idle-deferred", reason: "rpm-limit" });
+    }
+    setTimeout(() => handleDocIdle(ctx, onComplete), DOC_IDLE_RPM_DEFER_MS);
+    return;
+  }
+
+  docIdleInFlight = true;
+  recomputePending();
+  logTrigger("doc-idle", "");
+  if (import.meta.env.DEV) harness.emit("settle", { trigger: "doc-idle" });
+
+  try {
+    await evaluateDocument(ctx.docId, ctx.stage, ctx.apiKey, ctx.onStageSuggestion, ctx.paidKey);
+  } catch (err) {
+    console.error("[orchestrator] evaluateDocument threw:", err);
+  } finally {
+    docIdleInFlight = false;
+    onComplete?.();
+
+    const pending = pendingDocIdle;
+    if (pending) {
+      pendingDocIdle = null;
+      recomputePending();
+      handleDocIdle(pending.ctx, pending.onComplete);
+    } else {
+      recomputePending();
+    }
+  }
+}
+
+async function handleStageChanged(ctx: EvalContext, onComplete?: () => void): Promise<void> {
+  logTrigger("stage-changed", "");
+  if (import.meta.env.DEV) harness.emit("settle", { trigger: "stage-changed" });
+
+  // Supersede all active doc-level observations (they were graded against the old stage)
+  const active = await loadActiveObservationsForDocument(ctx.docId);
+  const docLevel = active.filter((o) => o.scope === "document");
+  await Promise.all(docLevel.map((o) => updateObservationStatus(o.id, "superseded")));
+
+  // Re-run doc-level checks with the new stage
+  await handleDocIdle(ctx, onComplete);
 }
 
 // ---------------------------------------------------------------------------
@@ -162,6 +238,16 @@ export function scheduleEval(
 ): void {
   if (trigger.kind === "block-removed") {
     handleBlockRemoved(trigger.blockId, ctx, onComplete);
+    return;
+  }
+
+  if (trigger.kind === "doc-idle") {
+    handleDocIdle(ctx, onComplete);
+    return;
+  }
+
+  if (trigger.kind === "stage-changed") {
+    handleStageChanged(ctx, onComplete);
     return;
   }
 

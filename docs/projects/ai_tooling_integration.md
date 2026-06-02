@@ -35,9 +35,9 @@ summary: SkillOpt, LEANN, and markitdown — external tooling anchored to specif
 
 ### Phase 3 — LEANN
 
-- [ ] At the start of the embedding-prefilter milestone: read LEANN's selective-recomputation architecture before designing (see [§LEANN](#leann--claim-ledger-embedding-prefilter)).
-- [ ] Evaluate LEANN as the backend via its MCP integration before rolling a bespoke solution.
-- [ ] **Decision point:** does the Python dependency fit the local-first TypeScript stack? Log the chosen path (LEANN via local MCP server / custom in-browser index / other) in `docs/plan.md` before writing code.
+- [x] Read LEANN's selective-recomputation architecture before designing. _(Done 2026-06-02.)_
+- [x] Evaluate LEANN as the backend.
+- [x] **Decision point logged in `docs/plan.md` (2026-06-02):** LEANN requires Python on the user's machine; ONNX in-browser adds significant bundle weight. Shipped a lexical prefilter (Jaccard token-overlap, top-10) instead — sufficient for <50 claims, zero external deps. → `src/services/prefilter.ts`. Revisit LEANN if claim density makes misses observable in practice.
 
 ### Phase 4 — markitdown
 

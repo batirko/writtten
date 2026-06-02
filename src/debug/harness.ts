@@ -24,11 +24,15 @@
 import {
   loadActiveClaimsForDocument,
   loadActiveObservationsForDocument,
+  loadSuppressionsForDocument,
   saveClaimsForBlock,
+  saveDismissalSuppression,
   type ClaimLedgerEntry,
+  type DismissalSuppression,
   type Observation,
 } from "../store/db";
-import { llmLogger } from "../model/logger";
+import { nanoid } from "nanoid";
+import { llmLogger, type SessionStats, type ApiStats } from "../model/logger";
 import {
   setLlmMode,
   getLlmMode,
@@ -65,6 +69,9 @@ export interface SidecarState {
   ledger: ClaimLedgerEntry[];
   observations: Observation[];
   activeModel: string;
+  suppressions: number;
+  /** Session-level cost/latency stats (Phase 3). */
+  sessionStats: SessionStats;
 }
 
 /** A document to install via loadDoc. `id` is optional — omit to let the
@@ -78,6 +85,13 @@ export type LedgerFixture = Array<{
   blockId: string;
   text: string;
   kind: ClaimLedgerEntry["kind"];
+}>;
+
+/** Suppressions to seed directly, bypassing the dismissal UI. */
+export type SuppressionsFixture = Array<{
+  type: DismissalSuppression["type"];
+  spanSignature?: string;
+  note?: string;
 }>;
 
 type BlockReader = () => BlockSnapshot[];
@@ -172,6 +186,20 @@ class Harness {
     this.docWriter(fixture);
   }
 
+  /** Seed dismissal suppressions directly (e.g. to test that observations
+   *  don't re-surface after dismissal). */
+  async loadSuppressions(fixture: SuppressionsFixture): Promise<void> {
+    for (const f of fixture) {
+      await saveDismissalSuppression({
+        id: nanoid(10),
+        docId: this.docId,
+        type: f.type,
+        spanSignature: f.spanSignature,
+        note: f.note,
+      });
+    }
+  }
+
   /** Write claims straight into the ledger, grouped by block. Does not run an
    *  evaluation — it seeds state for logic tests. */
   async loadLedger(fixture: LedgerFixture): Promise<void> {
@@ -198,9 +226,10 @@ class Harness {
   /** Read-only snapshot of everything an acceptance agent needs. Async: the
    *  ledger and observations live in IndexedDB. */
   async getState(): Promise<SidecarState> {
-    const [ledger, observations] = await Promise.all([
+    const [ledger, observations, suppressions] = await Promise.all([
       loadActiveClaimsForDocument(this.docId),
       loadActiveObservationsForDocument(this.docId),
+      loadSuppressionsForDocument(this.docId),
     ]);
     return {
       seq: this.seq,
@@ -209,6 +238,8 @@ class Harness {
       ledger,
       observations,
       activeModel: llmLogger.getActiveProvider(),
+      suppressions: suppressions.length,
+      sessionStats: llmLogger.getSessionStats(),
     };
   }
 
@@ -219,10 +250,12 @@ class Harness {
       // reads
       getState: () => this.getState(),
       getEvents: (sinceSeq?: number) => this.getEvents(sinceSeq),
+      getApiStats: (): ApiStats => llmLogger.getApiStats(),
       // write affordances (test setup)
       clear: () => this.clear(),
       loadDoc: (fixture: DocFixture) => this.loadDoc(fixture),
       loadLedger: (fixture: LedgerFixture) => this.loadLedger(fixture),
+      loadSuppressions: (fixture: SuppressionsFixture) => this.loadSuppressions(fixture),
       // LLM mock / record-replay
       setLlmMode: (mode: LlmMode) => setLlmMode(mode),
       getLlmMode: () => getLlmMode(),

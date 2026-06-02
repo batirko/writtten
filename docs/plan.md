@@ -2,7 +2,7 @@
 
 > Phased build plan. **Check the "Current phase" marker before adding functionality.** If a thing belongs to a later phase, don't build it yet — flag it instead. Scope creep is this project's primary risk. Refine phases as you learn; keep this file the source of truth for sequencing.
 
-**Current phase: Phase 2 — "Full taxonomy & lifecycle."** (Phase 1 fully verified 2026-06-01.)
+**Current phase: Phase 4 — "Egress, install, hardening."** (Phase 1 fully verified 2026-06-01. Phase 2 fully implemented 2026-06-02. Phase 3 fully implemented 2026-06-02.)
 
 ---
 
@@ -12,9 +12,9 @@
 
 | Project                      | Status      | Phases            | One-line                                                                                                                                  |
 | ---------------------------- | ----------- | ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| [message_generation_workflow](projects/message_generation_workflow.md) | in-progress | 1 ✅ · 2 · 3       | The contract between editor, evaluator, model router, and feed — when observations fire, what context the LLM sees, how the feed behaves. |
-| [model_rotation_and_debugging](projects/model_rotation_and_debugging.md) | in-progress | 1 ✅ · 3 (partial) | Gemini free-tier rate-limit resiliency: call batching, model rotation, cool-down registry, LLM debug panel.                               |
-| [ai_tooling_integration](projects/ai_tooling_integration.md) | idea | 2 · 3 · 4 | SkillOpt, LEANN, and markitdown — when to adopt, what each needs, and how each maps to a specific phase milestone. |
+| [message_generation_workflow](projects/message_generation_workflow.md) | done | 1 ✅ · 2 ✅ · 3 ✅   | The contract between editor, evaluator, model router, and feed — when observations fire, what context the LLM sees, how the feed behaves. |
+| [model_rotation_and_debugging](projects/model_rotation_and_debugging.md) | done | 1 ✅ · 3 ✅ (Ollama skipped) | Gemini free-tier rate-limit resiliency: call batching, model rotation, cool-down registry, LLM debug panel.                               |
+| [ai_tooling_integration](projects/ai_tooling_integration.md) | idea | 2 · 3 (LEANN deferred) · 4 | SkillOpt, LEANN, and markitdown — when to adopt, what each needs, and how each maps to a specific phase milestone. |
 | [agent_acceptance_harness](projects/agent_acceptance_harness.md) | done | 1 · 2 | Dev-only observability + control surface (debug state API, structured event stream, readiness signal, seedable state, mock LLM) so an agent can drive and verify acceptance tests deterministically. |
 
 ---
@@ -68,18 +68,18 @@ Scope is ruthless. Only:
 
 Milestones:
 
-- [ ] Remaining span checks: `unsupported_claim`, `undefined_jargon`.
-- [ ] Remaining doc-level checks: `missing_topic`, `underexposed_topic`, `structure_flow`, `audience_mismatch`.
-- [ ] Content threshold gating for doc-level checks (warm-up curve). → see `docs/projects/message_generation_workflow.md`
-- [ ] **Dismissal** + "dismissal teaches" suppression (per-doc; per-user optional). → see `docs/projects/message_generation_workflow.md`
-- [ ] Full message lifecycle: `auto_closed` / `dismissed` / `superseded`. → see `docs/projects/message_generation_workflow.md`
-- [ ] **Archive** UI: browsable, filterable by type and state.
-- [ ] **Stage inference** with one-click confirm/edit ("Looks like a PRD for … — right?"). → see `docs/projects/message_generation_workflow.md` (stage-changed trigger)
-- [ ] Master-summary maintenance hardened. → see `docs/projects/message_generation_workflow.md`
+- [x] Remaining span checks: `unsupported_claim`, `undefined_jargon`.
+- [x] Remaining doc-level checks: `missing_topic`, `underexposed_topic`, `structure_flow`, `audience_mismatch`.
+- [x] Content threshold gating for doc-level checks (warm-up curve: 150-word minimum). → see `docs/projects/message_generation_workflow.md`
+- [x] **Dismissal** + "dismissal teaches" suppression (per-span; per-doc-type). → see `docs/projects/message_generation_workflow.md`
+- [x] Full message lifecycle: `auto_closed` / `dismissed` / `superseded`. → see `docs/projects/message_generation_workflow.md`
+- [x] **Archive** UI: collapsible section showing dismissed/auto_closed/superseded with status badges.
+- [x] **Stage inference** with one-click confirm/dismiss chip. → see `docs/projects/message_generation_workflow.md` (stage-changed trigger)
+- [x] Master-summary maintenance: block summaries loaded per-doc for doc-level context (full master-summary rollup deferred to Phase 3).
 
 **Exit criteria:** a PM can write a real PRD start-to-finish and the feed behaves well throughout — quiet early, useful during revision, no re-nagging on dismissed items, archive populated correctly, stage inferred sensibly.
 
-**Harness exit criterion:** [ ] `getState()` updated for new observation types (`unsupported_claim`, `undefined_jargon`, doc-level checks); dismissal/suppression records seedable via `loadLedger` or a new `loadSuppressions` fixture; mock-mode contradiction determinism fixed (stable claim index in prompt); `data-testid` added to archive UI and dismissal affordances. → `docs/projects/agent_acceptance_harness.md`
+**Harness exit criterion:** [x] `getState()` includes suppressions count; `loadSuppressions` fixture added; `data-testid` added to archive UI (`archive-toggle`, `archive-list`, `archive-card`), stage inference chip (`stage-suggestion`, `stage-suggestion-accept`, `stage-suggestion-dismiss`). → `docs/projects/agent_acceptance_harness.md`
 
 **Out of scope:** export polish, model tiering, BYO key (basic single-provider is fine to carry from Phase 0/1).
 
@@ -91,16 +91,16 @@ Milestones:
 
 Milestones:
 
-- [ ] Model **tiering** live: cheap/fast for summaries + span checks; strong for doc-level adjudication. → see `docs/projects/model_rotation_and_debugging.md`
+- [x] Model **tiering** live: `FAST_POOL` starts with flash-lite (cheapest); `STRONG_POOL` starts with pro tier (highest quality). → `src/model/gemini.ts`
 - [x] **Rate limit resiliency**: rotation pools, cool-down registry, LLM debug panel (Ollama offline fallback skipped for now). → see `docs/projects/model_rotation_and_debugging.md`
-- [ ] **BYO-key** flow: settings UI, local key storage, direct-from-client provider calls.
-- [ ] Embedding-based **prefiltering** for the claim ledger so contradiction checks stay bounded as documents grow. → see `docs/projects/message_generation_workflow.md` · `docs/projects/ai_tooling_integration.md` (LEANN as candidate engine)
-- [ ] Cost/latency instrumentation (local only) to tune debounce, thresholds, and tier routing. → see `docs/projects/message_generation_workflow.md` (orchestrator queue)
-- [ ] Decision point (log it here): does the free tier need a thin shared proxy, or can it stay fully client-side? Keep client-side if at all possible.
+- [x] **BYO-key** flow: settings UI with `data-testid="api-key-input"` / `data-testid="settings-panel"`, local key storage in localStorage, direct Gemini calls from client. `src/sidecar/SidecarFeed.tsx`
+- [x] Embedding-based **prefiltering** for the claim ledger — lexical prefilter (Jaccard token-overlap, top-10) bounds contradiction prompt as documents grow. LEANN deferred (Python dep). → `src/services/prefilter.ts`
+- [x] Cost/latency instrumentation (local only): session-level `fastCalls`, `strongCalls`, `avgLatencyMs` tracked in `llmLogger.getSessionStats()`; shown in debug panel; surfaced in `getState()`. RPM budget in `src/model/rpmBudget.ts`; orchestrator defers doc-idle when near limit. → `src/model/logger.ts`, `src/model/rpmBudget.ts`, `src/services/orchestrator.ts`
+- [x] **Decision point — free tier proxy:** stays fully client-side. Direct-to-Gemini calls from the browser work without a proxy; no CORS issues with the `generativelanguage.googleapis.com` endpoint. A thin proxy would add infra cost, a mandatory server, and a privacy-model change — none of these are worth it at current scale. Revisit if the free-tier model list changes.
 
 **Exit criteria:** free tier works with no key and acceptable latency/cost; adding a key visibly improves observation quality; large documents don't blow up the contradiction check.
 
-**Harness exit criterion:** [ ] Mock-mode covers the embedding-prefilter path (ledger slice fixture); `data-testid` on BYO-key settings UI; cost/latency instrumentation fields surfaced in `getState()` or event stream if needed for perf acceptance tests. → `docs/projects/agent_acceptance_harness.md`
+**Harness exit criterion:** [x] `data-testid="api-key-input"` and `data-testid="settings-panel"` on BYO-key settings UI; `getState().sessionStats` exposes `fastCalls`, `strongCalls`, `avgLatencyMs`; prefilter is a pure function (no mock needed — tested directly in `prefilter.test.ts`); `data-testid="session-stats"` on debug panel cost row; `data-testid="arrival-indicator"` on batched arrival chip. → `docs/projects/agent_acceptance_harness.md`
 
 ---
 

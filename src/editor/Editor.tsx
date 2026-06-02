@@ -13,14 +13,20 @@ const DOC_ID = "default";
 const SAVE_DEBOUNCE_MS = 1000;
 /** Typing-pause settle: how long of silence (on this block) before we check. */
 const EVAL_DEBOUNCE_MS = 3000;
+/** No edits anywhere for this long → fire doc-level checks. */
+const DOC_IDLE_MS = 12000;
+/** Minimum word count before doc-level checks are worth running. */
+const CONTENT_THRESHOLD_WORDS = 150;
 
 interface Props {
   apiKey?: string;
+  paidKey?: string;
   stage?: string;
   observations: Observation[];
   hoveredObservationId: string | null;
   onObservationCollapsed: (id: string) => void;
   onEvaluationComplete: () => void;
+  onStageSuggestion?: (suggestion: string) => void;
   clearTrigger?: number;
 }
 
@@ -33,6 +39,16 @@ function getBlockIds(editor: ReturnType<typeof useEditor>): Set<string> {
     if (id) ids.add(id);
   });
   return ids;
+}
+
+/** Total word count across all top-level blocks. Used for doc-idle gating. */
+function getWordCount(editor: ReturnType<typeof useEditor>): number {
+  if (!editor) return 0;
+  let count = 0;
+  editor.state.doc.forEach((node) => {
+    count += node.textContent.split(/\s+/).filter(Boolean).length;
+  });
+  return count;
 }
 
 /** Live top-level blocks with their text — fed to the dev harness so an agent
@@ -51,16 +67,20 @@ function getBlocksWithText(
 
 export function Editor({
   apiKey,
+  paidKey,
   stage,
   observations,
   hoveredObservationId,
   onObservationCollapsed,
   onEvaluationComplete,
+  onStageSuggestion,
   clearTrigger,
 }: Props) {
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   /** Per-block typing-pause debounce timers. */
   const evalTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+  /** Doc-idle timer: fires after DOC_IDLE_MS of no edits anywhere. */
+  const docIdleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const lastActiveBlockId = useRef<string | null>(null);
   const lastActiveBlockText = useRef<string>("");
@@ -70,10 +90,14 @@ export function Editor({
   // Stable refs for props used inside event listeners / timers
   const apiKeyRef = useRef(apiKey);
   useEffect(() => { apiKeyRef.current = apiKey; }, [apiKey]);
+  const paidKeyRef = useRef(paidKey);
+  useEffect(() => { paidKeyRef.current = paidKey; }, [paidKey]);
   const stageRef = useRef(stage);
   useEffect(() => { stageRef.current = stage; }, [stage]);
   const onEvaluationCompleteRef = useRef(onEvaluationComplete);
   useEffect(() => { onEvaluationCompleteRef.current = onEvaluationComplete; }, [onEvaluationComplete]);
+  const onStageSuggestionRef = useRef(onStageSuggestion);
+  useEffect(() => { onStageSuggestionRef.current = onStageSuggestion; }, [onStageSuggestion]);
 
   const editor = useEditor({
     extensions: [
@@ -108,6 +132,7 @@ export function Editor({
           const ctx: EvalContext = {
             docId: DOC_ID,
             apiKey: apiKeyRef.current ?? "",
+            paidKey: paidKeyRef.current,
             stage: stageRef.current,
           };
           scheduleEval(
@@ -156,7 +181,9 @@ export function Editor({
             const ctx: EvalContext = {
               docId: DOC_ID,
               apiKey: apiKeyRef.current ?? "",
+            paidKey: paidKeyRef.current,
               stage: stageRef.current,
+              onStageSuggestion: onStageSuggestionRef.current,
             };
             scheduleEval(
               { kind: "block-settle-pause", blockId: capturedBlockId },
@@ -168,6 +195,34 @@ export function Editor({
         }, EVAL_DEBOUNCE_MS);
 
         evalTimers.current.set(blockId, timer);
+      }
+
+      // Reset the doc-idle timer on every edit. Fires a doc-level check after
+      // DOC_IDLE_MS of silence, but only when there's enough content.
+      const wordCount = getWordCount(editor);
+      console.log(`[TIMER-DEBUG] onUpdate fired. wordCount=${wordCount}, timerExists=${!!docIdleTimer.current}`);
+      if (docIdleTimer.current) {
+        clearTimeout(docIdleTimer.current);
+      }
+      if (wordCount >= CONTENT_THRESHOLD_WORDS) {
+        docIdleTimer.current = setTimeout(() => {
+          console.log(`[TIMER-DEBUG] onUpdate timer FIRED. wordCount=${getWordCount(editor)}`);
+          docIdleTimer.current = null;
+          const ctx: EvalContext = {
+            docId: DOC_ID,
+            apiKey: apiKeyRef.current ?? "",
+            paidKey: paidKeyRef.current,
+            stage: stageRef.current,
+            onStageSuggestion: onStageSuggestionRef.current,
+          };
+          scheduleEval(
+            { kind: "doc-idle" },
+            null,
+            ctx,
+            () => onEvaluationCompleteRef.current(),
+          );
+        }, DOC_IDLE_MS);
+        console.log(`[TIMER-DEBUG] onUpdate set timer id=${docIdleTimer.current}`);
       }
     },
 
@@ -203,7 +258,9 @@ export function Editor({
           const ctx: EvalContext = {
             docId: DOC_ID,
             apiKey: apiKeyRef.current ?? "",
+            paidKey: paidKeyRef.current,
             stage: stageRef.current,
+            onStageSuggestion: onStageSuggestionRef.current,
           };
           scheduleEval(
             { kind: "block-settle-blur", blockId: departedBlockId, reason: "cursor-departed" },
@@ -239,6 +296,7 @@ export function Editor({
         docId: DOC_ID,
         apiKey: apiKeyRef.current ?? "",
         stage: stageRef.current,
+        onStageSuggestion: onStageSuggestionRef.current,
       };
       scheduleEval(
         { kind: "block-settle-blur", blockId, reason: "window-blurred" },
@@ -249,7 +307,10 @@ export function Editor({
     };
 
     window.addEventListener("blur", handleWindowBlur);
-    return () => window.removeEventListener("blur", handleWindowBlur);
+    return () => {
+      window.removeEventListener("blur", handleWindowBlur);
+      if (docIdleTimer.current) clearTimeout(docIdleTimer.current);
+    };
   }, []); // refs are stable — no deps needed
 
   // Register live block read + fixture-doc write with the dev harness
@@ -276,6 +337,7 @@ export function Editor({
         docId: DOC_ID,
         apiKey: apiKeyRef.current ?? "",
         stage: stageRef.current,
+        onStageSuggestion: onStageSuggestionRef.current,
       };
       prevBlockIds.current = new Set(blocks.map((b) => b.id));
       for (const b of blocks) {
@@ -287,6 +349,40 @@ export function Editor({
             () => onEvaluationCompleteRef.current(),
           );
         }
+      }
+      // editor.commands.setContent() does not reliably fire onUpdate in
+      // programmatic (non-user-input) contexts, so the doc-idle timer set
+      // inside onUpdate never arms. Arm it explicitly here when the seeded
+      // document crosses the word-count threshold — the semantics are identical
+      // to what onUpdate would do: 12 s of silence → doc-level checks fire.
+      //
+      // Defer with a 0ms timeout so this runs after any pending React effects
+      // (e.g. the clearContent effect from clear()) have flushed. Without the
+      // defer, a clear() + loadDoc() sequence would have the clearContent
+      // onUpdate clear our timer immediately after we set it.
+      const seededWordCount = blocks.reduce(
+        (sum, b) => sum + b.text.split(/\s+/).filter(Boolean).length,
+        0,
+      );
+      console.log(`[TIMER-DEBUG] docWriter setContent done. seededWordCount=${seededWordCount}, threshold=${CONTENT_THRESHOLD_WORDS}`);
+      if (seededWordCount >= CONTENT_THRESHOLD_WORDS) {
+        setTimeout(() => {
+          console.log(`[TIMER-DEBUG] docWriter setTimeout 0ms callback running. timerExists=${!!docIdleTimer.current}`);
+          if (docIdleTimer.current) {
+            clearTimeout(docIdleTimer.current);
+          }
+          docIdleTimer.current = setTimeout(() => {
+            console.log(`[TIMER-DEBUG] docWriter timer FIRED. currentWordCount=${getWordCount(editor)}`);
+            docIdleTimer.current = null;
+            scheduleEval(
+              { kind: "doc-idle" },
+              null,
+              ctx,
+              () => onEvaluationCompleteRef.current(),
+            );
+          }, DOC_IDLE_MS);
+          console.log(`[TIMER-DEBUG] docWriter set timer id=${docIdleTimer.current}`);
+        }, 0);
       }
     });
   }, [editor]);

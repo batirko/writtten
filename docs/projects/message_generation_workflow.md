@@ -1,5 +1,5 @@
 ---
-status: in-progress
+status: done
 phases: [1, 2, 3]
 summary: The contract between editor, evaluator, model router, and sidecar feed — when observations are generated, what context the LLM sees, how the feed behaves, and what the user feels.
 ---
@@ -10,7 +10,7 @@ summary: The contract between editor, evaluator, model router, and sidecar feed 
 
 > Canonical status lives in the frontmatter above and is mirrored in the Projects Index in `docs/plan.md`. This block carries the human-readable scope only.
 
-**Phase scope:** Phase 1 ✅ · Phase 2 (doc-level triggers, dismissal-teaches, archive integration) · Phase 3 (queue economics, batching, prefiltering) **Summary:** End-to-end model of _when_ observations are generated, _what context_ the LLM sees, _how_ the feed behaves as new messages arrive on top of old ones, and _what the user feels_ sitting in front of it.
+**Phase scope:** Phase 1 ✅ · Phase 2 ✅ · Phase 3 ✅ **Summary:** End-to-end model of _when_ observations are generated, _what context_ the LLM sees, _how_ the feed behaves as new messages arrive on top of old ones, and _what the user feels_ sitting in front of it.
 
 This document is the contract between the editor, the evaluator, the model router, and the sidecar feed. If you change anything that breaks the rules below — trigger conditions, context envelope shape, lifecycle transitions, feed ordering — update this file first.
 
@@ -46,17 +46,17 @@ Read alongside:
 
 ### Phase 2
 
-- [ ] Add a **doc-idle trigger**: no edits anywhere in the document for ~10–15s → fire doc-level checks (single `router.strong` call covering missing-topic + audience + structure, see [§7](#7-llm-economy-batching-and-the-context-envelope)).
-- [ ] Add a **stage-change trigger**: when the user edits the stage definition, mark all doc-level observations `superseded` and re-run doc-level checks once the field re-settles.
-- [ ] Wire dismissal-teaches: every dismissal writes a short suppression record (`{type, term?, span_text?, reason?}`) that the _next_ eval injects into the system prompt as "the user has already waved off…".
-- [ ] Move closed/dismissed/superseded out of the live feed and into the archive view (Phase 2 feature in `docs/plan.md`); keep the underlying records intact.
+- [x] Add a **doc-idle trigger**: no edits anywhere in the document for ~12s → fire doc-level checks (single `router.strong` call covering missing-topic + audience + structure + underexposed_topic). → `DOC_IDLE_MS` in `src/editor/Editor.tsx`; `handleDocIdle()` in `src/services/orchestrator.ts`; `evaluateDocument()` in `src/services/evaluator.ts`
+- [x] Add a **stage-change trigger**: when the user edits the stage definition, mark all doc-level observations `superseded` and re-run doc-level checks once the field re-settles. → `handleStageChanged()` in `src/services/orchestrator.ts`; stage-change debounce in `src/App.tsx`
+- [x] Wire dismissal-teaches: every dismissal writes a `DismissalSuppression` record (type + spanSignature) that `reconcileObservations` checks before inserting. → `dismissal_suppressions` store in `src/store/db.ts`; suppression check in `src/services/evaluator.ts`
+- [x] Move closed/dismissed/superseded out of the live feed and into the archive view; keep the underlying records intact. → archive section in `src/sidecar/SidecarFeed.tsx`; `loadObservationsForDocument` split in `src/App.tsx`
 - [ ] Decide and, if warranted, implement **repetition handling for near-identical observations across different blocks** (e.g. the same boilerplate clarity note on two different vague pronouns). Prefer presentation-level grouping over any logic that suppresses a genuinely distinct span. → see [§12 Open Questions #7](#12-open-questions)
 
 ### Phase 3
 
-- [ ] Introduce an **eval queue** between the editor and the router: triggers enqueue intents, the queue dedupes, coalesces, and dispatches under an RPM budget.
-- [ ] Embedding-prefilter for contradiction candidate sets so large documents don't blow up the `strong` prompt.
-- [ ] **Batched arrival** in the feed: if 3 observations land within ~600ms of each other, animate them in as a group, not as a stutter.
+- [x] Introduce an **eval queue** between the editor and the router: triggers enqueue intents, the queue deduplicates and dispatches under an RPM budget. RPM backpressure: `isNearLimit()` check defers `doc-idle` by 30s when ≥12 calls in the last 60s; block-settle and contradiction always go through immediately. → `src/model/rpmBudget.ts`, `src/services/orchestrator.ts`
+- [x] Embedding-prefilter for contradiction candidate sets: lexical prefilter (Jaccard token-overlap, top-10) bounds prompt size as documents grow without Python/WASM deps. → `src/services/prefilter.ts`
+- [x] **Batched arrival** in the feed: if 3+ observations land within ~600ms, animate them as a group with a "+N new" indicator rather than individual stutter fades. → `src/sidecar/SidecarFeed.tsx`
 
 ---
 

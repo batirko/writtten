@@ -116,6 +116,24 @@ const st = await window.__sidecar__.getState();
 // st.activeModel  — currently active model name
 ```
 
+### API quota / usage stats (diagnosing 429s)
+
+```js
+const api = window.__sidecar__.getApiStats();   // sync — no await needed
+// api.day     — Pacific date the per-day counts bucket under (RPD resets at Pacific midnight)
+// api.totals  — { requests, successes, errors, rate429 } across all models
+// api.models  — per-model, sorted most-pressured first (least remaining budget):
+//   { model, requests, successes, errors, rate429,
+//     quota429: { perDay, perMinute, inputTokens, other },  // which quota the 429s violated
+//     dailyLimit, successesToday, remainingToday,           // RPD budget tracking
+//     lastStatus, lastRetryDelayMs, avgLatencyMs }
+```
+
+The binding free-tier constraint is **requests-per-day (RPD) per model** (e.g. 20 for
+most Flash variants, 0 for `gemini-2.5-pro`), *not* the RPM/TPM gauges AI Studio
+foregrounds — which is why 429s appear while the dashboard looks idle. `quota429`
+tells you which quota actually bit; `remainingToday` is the live daily budget.
+
 ### Waiting for idle (the right pattern)
 
 ```js
@@ -213,4 +231,4 @@ npm run format       # prettier --write src/
 
 ## Status
 
-See `docs/plan.md`. Phase 1 fully verified 2026-06-01. Current target: **Phase 2 — "Full taxonomy & lifecycle"** (remaining observation types, full message lifecycle, archive, stage inference).
+See `docs/plan.md`. Phase 1 fully verified 2026-06-01. Phase 2 fully implemented 2026-06-02. Phase 3 fully implemented 2026-06-02. Current target: **Phase 4 — "Egress, install, hardening"** (Markdown/PDF export, copy to clipboard, Markdown import, PWA, a11y polish).

@@ -1,14 +1,18 @@
 import { createRouter } from "../model/factory";
 import { getLlmMode } from "../model/mock";
+import { prefilterClaims } from "./prefilter";
 import {
   saveBlockSummary,
   loadBlockSummary,
   saveClaimsForBlock,
   loadActiveClaimsForDocument,
+  loadBlockSummariesForDocument,
   saveObservation,
   loadActiveObservationsForDocument,
   updateObservationStatus,
+  loadSuppressionsForDocument,
   type ClaimLedgerEntry,
+  type DismissalSuppression,
   type Observation,
 } from "../store/db";
 import { nanoid } from "nanoid";
@@ -92,16 +96,37 @@ type NewObservation = Omit<Observation, "id" | "docId" | "status">;
  * This replaces the old blanket "close everything, re-insert" approach that
  * caused observation flicker and broke dismissal suppression.
  */
+function isSpanSuppressed(
+  newO: NewObservation,
+  suppressions: DismissalSuppression[],
+): boolean {
+  const spanKey = newO.blockId != null
+    ? `${newO.blockId}:${newO.startOffset ?? ""}:${newO.endOffset ?? ""}`
+    : undefined;
+  return suppressions.some((s) => {
+    if (s.type !== newO.type) return false;
+    if (s.spanSignature) return s.spanSignature === spanKey;
+    // doc-level suppression (no spanSignature) should not affect span obs
+    return false;
+  });
+}
+
 async function reconcileObservations(
   docId: string,
   blockId: string,
   newObs: NewObservation[],
 ): Promise<void> {
-  const allActive = await loadActiveObservationsForDocument(docId);
+  const [allActive, suppressions] = await Promise.all([
+    loadActiveObservationsForDocument(docId),
+    loadSuppressionsForDocument(docId),
+  ]);
   const existing = allActive.filter((o) => o.blockId === blockId);
   const matchedExistingIds = new Set<string>();
 
   for (const newO of newObs) {
+    // Suppression check — never re-insert a dismissed span
+    if (isSpanSuppressed(newO, suppressions)) continue;
+
     const newSig = spanSig(newO);
 
     // 1. Exact match → dedupe: keep the existing record untouched
@@ -149,22 +174,102 @@ async function reconcileObservations(
   }
 }
 
+async function reconcileDocumentObservations(
+  docId: string,
+  newObs: NewObservation[],
+): Promise<void> {
+  const [allActive, suppressions] = await Promise.all([
+    loadActiveObservationsForDocument(docId),
+    loadSuppressionsForDocument(docId),
+  ]);
+  const existing = allActive.filter((o) => o.scope === "document");
+  const matchedExistingIds = new Set<string>();
+
+  for (const newO of newObs) {
+    // Doc-level suppression: keyed on type alone (no spanSignature)
+    const suppressed = suppressions.some(
+      (s) => s.type === newO.type && !s.spanSignature,
+    );
+    if (suppressed) continue;
+
+    // Exact match → dedupe
+    const exactMatch = existing.find(
+      (e) =>
+        e.type === newO.type &&
+        normalizeText(e.text) === normalizeText(newO.text) &&
+        !matchedExistingIds.has(e.id),
+    );
+    if (exactMatch) {
+      matchedExistingIds.add(exactMatch.id);
+      continue;
+    }
+
+    // Same type, different text → supersede
+    const supersedable = existing.find(
+      (e) => e.type === newO.type && !matchedExistingIds.has(e.id),
+    );
+    if (supersedable) {
+      await updateObservationStatus(supersedable.id, "superseded");
+      matchedExistingIds.add(supersedable.id);
+    }
+
+    await saveObservation({
+      id: nanoid(10),
+      docId,
+      status: "active",
+      ...newO,
+    });
+    if (import.meta.env.DEV) {
+      harness.emit("observation", { type: newO.type, blocks: [] });
+    }
+  }
+
+  // Auto-close orphaned doc-level observations
+  for (const e of existing) {
+    if (!matchedExistingIds.has(e.id)) {
+      await updateObservationStatus(e.id, "auto_closed");
+    }
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Prompts
 // ---------------------------------------------------------------------------
 
-const MERGED_SYSTEM_PROMPT = `You are an AI assistant sidecar evaluating a specific text block for three things:
-1. A summary: Summarize the block in a single, short sentence. Focus on the core claim, point, or commitment made.
-2. Claims: Extract any assertions, commitments, metric goals, constraints, or definitions.
-3. Clarity: Analyze the text for clarity, vagueness, or ambiguity. Do not edit or suggest a rewrite. Focus only on observing where the text is unclear or poorly specified.
+const MERGED_SYSTEM_PROMPT = `You are an AI sidecar evaluating a text block for five things:
+1. Summary: a single short sentence summarizing the block's core claim or point.
+2. Claims: factual assertions, commitments, metrics, constraints, or definitions made in the text.
+3. Clarity: places where the text is vague, ambiguous, or poorly specified.
+4. Unsupported claims: strong factual assertions made in the block that lack supporting evidence or grounding within the block itself. Only flag assertions of fact that would require evidence (data, studies, precedent) but provide none — not opinions, plans, or goals.
+5. Undefined jargon: technical terms, acronyms, or domain-specific language used without being defined and that may be unfamiliar to the implied reader. Do not flag terms already in the provided glossary.
 
-Return a JSON object with exactly three keys:
-- 'summary' (a string)
-- 'claims' (an array of objects, each with 'text' and 'kind'. 'kind' must be one of: 'commitment', 'fact_claim', 'definition', 'constraint', 'metric')
-- 'clarity_observations' (an array of objects, each with 'text' for the observation message and 'substring' for the exact literal text from the input that is unclear. It must match the original text exactly, case-sensitive.)
+Return a JSON object with exactly five keys:
+- "summary" (string)
+- "claims" (array of {text, kind} — kind is one of: commitment, fact_claim, definition, constraint, metric)
+- "clarity_observations" (array of {text, substring} — substring is the exact literal text from the input that is unclear, case-sensitive)
+- "unsupported_claim_observations" (array of {text, substring} — substring is the exact claim text lacking support)
+- "undefined_jargon_observations" (array of {text, substring} — substring is the exact jargon term or acronym)
 
-If there are no claims, return an empty array for 'claims'.
-If the text is clear, return an empty array for 'clarity_observations'.
+Return empty arrays for categories with no issues.
+Do NOT include any text other than the raw JSON.`;
+
+const DOC_LEVEL_SYSTEM_PROMPT = `You are a critical editor reviewing a document for high-level quality issues.
+You will receive the document's stage/context, a summary of each block, and the claim ledger.
+
+Analyze for four things:
+1. missing_topic: important topics expected for this document type and audience that are entirely absent.
+2. underexposed_topic: topics mentioned but not developed enough for the stated audience.
+3. audience_mismatch: language, jargon, or assumptions that do not fit the stated audience.
+4. structure_flow: sections or content that are out of logical order or disconnected from the document's flow.
+
+Return a JSON object with exactly five keys:
+- "missing_topic_observations" (array of {text} — short, confident observation per issue)
+- "underexposed_topic_observations" (array of {text})
+- "audience_mismatch_observations" (array of {text})
+- "structure_flow_observations" (array of {text})
+- "suggested_stage" (string or null — only if stage is empty and you can confidently infer the document type and audience; otherwise null)
+
+Keep observations short and specific. Do not hedge. Return empty arrays for categories with no issues.
 Do NOT include any text other than the raw JSON.`;
 
 const CONTRADICTION_SYSTEM_PROMPT = `You are a critical editor detecting logical contradictions or conflicts in a document.
@@ -183,7 +288,7 @@ Do NOT include any text other than the raw JSON.`;
 // Public evaluator
 // ---------------------------------------------------------------------------
 
-interface ClarityObservation {
+interface SpanObservation {
   text: string;
   substring: string;
 }
@@ -200,6 +305,7 @@ export async function evaluateBlock(
   text: string,
   stage?: string,
   apiKey?: string,
+  paidKey?: string,
 ): Promise<void> {
   // Mock mode replays canned responses, so it needs no key. Every other mode
   // hits the network and does.
@@ -208,7 +314,7 @@ export async function evaluateBlock(
     return;
   }
 
-  const router = createRouter(apiKey ?? "");
+  const router = createRouter(apiKey ?? "", paidKey);
   const cleanText = text.trim();
   const textHash = hashCode(cleanText);
 
@@ -227,11 +333,20 @@ export async function evaluateBlock(
   }
 
   try {
-    // 3. Merged fast call: summary + claims + clarity in one round-trip
-    //    Include stage in user content so the model can calibrate jargon / tone.
-    const userContent = stage
-      ? `${cleanText}\n\nDocument context: ${stage}`
-      : cleanText;
+    // 3. Merged fast call: summary + claims + span checks in one round-trip.
+    //    Include stage and a glossary of already-defined terms so the model
+    //    doesn't flag jargon the document has already introduced.
+    const existingClaimsForGlossary = await loadActiveClaimsForDocument(docId);
+    const definedTerms = existingClaimsForGlossary
+      .filter((c) => c.kind === "definition" && c.sourceBlockId !== blockId)
+      .map((c) => `- ${c.text}`);
+
+    const userParts: string[] = [cleanText];
+    if (stage) userParts.push(`\nDocument context: ${stage}`);
+    if (definedTerms.length > 0) {
+      userParts.push(`\nDefined terms (do not flag as undefined jargon):\n${definedTerms.join("\n")}`);
+    }
+    const userContent = userParts.join("");
 
     if (import.meta.env.DEV) harness.emit("request", { block: blockId, tier: "fast" });
     const mergedStartedAt = Date.now();
@@ -244,7 +359,9 @@ export async function evaluateBlock(
     const parsedMerged = parseJSONResponse(mergedRes.text) as {
       summary?: string;
       claims?: Omit<ClaimLedgerEntry, "id" | "docId" | "sourceBlockId" | "status">[];
-      clarity_observations?: ClarityObservation[];
+      clarity_observations?: SpanObservation[];
+      unsupported_claim_observations?: SpanObservation[];
+      undefined_jargon_observations?: SpanObservation[];
     };
     if (import.meta.env.DEV) {
       harness.emit("response", {
@@ -253,12 +370,16 @@ export async function evaluateBlock(
         latencyMs: Date.now() - mergedStartedAt,
         claims: parsedMerged.claims?.length ?? 0,
         clarity: parsedMerged.clarity_observations?.length ?? 0,
+        unsupported: parsedMerged.unsupported_claim_observations?.length ?? 0,
+        jargon: parsedMerged.undefined_jargon_observations?.length ?? 0,
       });
     }
 
     const summaryText = parsedMerged.summary?.trim() || "";
     const extractedClaims = parsedMerged.claims || [];
     const clarityObservations = parsedMerged.clarity_observations || [];
+    const unsupportedObservations = parsedMerged.unsupported_claim_observations || [];
+    const jargonObservations = parsedMerged.undefined_jargon_observations || [];
 
     // 4. Persist summary and claims first — observations may reference ledger IDs
     await saveBlockSummary({ blockId, docId, summary: summaryText, hash: textHash });
@@ -267,30 +388,44 @@ export async function evaluateBlock(
     // 5. Collect all new observations (do not write to DB yet)
     const newObs: NewObservation[] = [];
 
-    for (const obs of clarityObservations) {
-      if (!obs.substring || !obs.text) continue;
-      const startOffset = cleanText.indexOf(obs.substring);
-      if (startOffset !== -1) {
-        newObs.push({
-          type: "clarity",
-          scope: "span",
-          nature: "defect",
-          text: obs.text,
-          blockId,
-          startOffset,
-          endOffset: startOffset + obs.substring.length,
-        });
+    const addSpanObs = (
+      obsType: Observation["type"],
+      items: SpanObservation[],
+    ) => {
+      for (const obs of items) {
+        if (!obs.substring || !obs.text) continue;
+        const startOffset = cleanText.indexOf(obs.substring);
+        if (startOffset !== -1) {
+          newObs.push({
+            type: obsType,
+            scope: "span",
+            nature: "defect",
+            text: obs.text,
+            blockId,
+            startOffset,
+            endOffset: startOffset + obs.substring.length,
+          });
+        }
       }
-    }
+    };
+
+    addSpanObs("clarity", clarityObservations);
+    addSpanObs("unsupported_claim", unsupportedObservations);
+    addSpanObs("undefined_jargon", jargonObservations);
 
     // 6. Contradiction check (cross-document, uses claim ledger)
     const existingClaims = await loadActiveClaimsForDocument(docId);
     const otherClaims = existingClaims.filter((c) => c.sourceBlockId !== blockId);
 
+    // Prefilter to top-10 most semantically relevant claims so the contradiction
+    // prompt stays bounded as documents grow. With ≤10 claims this is a no-op.
+    const newClaimsText = extractedClaims.map((c) => c.text).join(" ");
+    const candidateClaims = prefilterClaims(newClaimsText, otherClaims, 10);
+
     // Sort existing claims to a stable order (text then blockId) so the
     // contradiction prompt is deterministic across runs — IDB auto-increment
     // ids change every session and would break mock-mode replay hashes.
-    const sortedOther = [...otherClaims].sort(
+    const sortedOther = [...candidateClaims].sort(
       (a, b) => a.text.localeCompare(b.text) || a.sourceBlockId.localeCompare(b.sourceBlockId),
     );
 
@@ -347,5 +482,107 @@ export async function evaluateBlock(
     await reconcileObservations(docId, blockId, newObs);
   } catch (error) {
     console.error("Evaluation error for block", blockId, error);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Doc-level evaluator (doc-idle trigger)
+// ---------------------------------------------------------------------------
+
+export async function evaluateDocument(
+  docId: string,
+  stage?: string,
+  apiKey?: string,
+  onStageSuggestion?: (suggestion: string) => void,
+  paidKey?: string,
+): Promise<void> {
+  if (!apiKey && getLlmMode() !== "mock") {
+    console.warn("Evaluator: No API key provided, skipping doc-level check.");
+    return;
+  }
+
+  const summaries = await loadBlockSummariesForDocument(docId);
+  const meaningful = summaries.filter((s) => s.summary.trim().length > 0);
+  // Need at least a couple of meaningful summaries to run doc-level checks
+  if (meaningful.length < 2) return;
+
+  const router = createRouter(apiKey ?? "", paidKey);
+  const claims = await loadActiveClaimsForDocument(docId);
+
+  const parts: string[] = [];
+  parts.push(stage ? `Stage/Context: ${stage}` : "Stage/Context: (none set)");
+  parts.push(
+    `\nBlock Summaries:\n${meaningful.map((s, i) => `[${i + 1}] ${s.summary}`).join("\n")}`,
+  );
+  if (claims.length > 0) {
+    parts.push(
+      `\nClaim Ledger:\n${claims.map((c, i) => `[${i + 1}] (${c.kind}): "${c.text}"`).join("\n")}`,
+    );
+  }
+  if (!stage) {
+    parts.push(
+      "\n\nIf you can confidently infer the document type and audience from the content, return it as suggested_stage. Otherwise null.",
+    );
+  }
+
+  if (import.meta.env.DEV) {
+    harness.emit("request", { tier: "strong", check: "doc-level" });
+  }
+  const startedAt = Date.now();
+
+  try {
+    const res = await router.strong({
+      system: DOC_LEVEL_SYSTEM_PROMPT,
+      user: parts.join(""),
+      json: true,
+    });
+
+    if (import.meta.env.DEV) {
+      harness.emit("response", {
+        tier: "strong",
+        check: "doc-level",
+        latencyMs: Date.now() - startedAt,
+      });
+    }
+
+    const parsed = parseJSONResponse(res.text) as {
+      missing_topic_observations?: { text: string }[];
+      underexposed_topic_observations?: { text: string }[];
+      audience_mismatch_observations?: { text: string }[];
+      structure_flow_observations?: { text: string }[];
+      suggested_stage?: string | null;
+    };
+
+    const newObs: NewObservation[] = [];
+
+    const addDocObs = (
+      type: Observation["type"],
+      nature: Observation["nature"],
+      items: { text: string }[] | undefined,
+    ) => {
+      for (const item of items ?? []) {
+        if (item.text?.trim()) {
+          newObs.push({ type, scope: "document", nature, text: item.text.trim() });
+        }
+      }
+    };
+
+    addDocObs("missing_topic", "opportunity", parsed.missing_topic_observations);
+    addDocObs("underexposed_topic", "opportunity", parsed.underexposed_topic_observations);
+    addDocObs("audience_mismatch", "defect", parsed.audience_mismatch_observations);
+    addDocObs("structure_flow", "defect", parsed.structure_flow_observations);
+
+    await reconcileDocumentObservations(docId, newObs);
+
+    if (
+      !stage &&
+      parsed.suggested_stage &&
+      typeof parsed.suggested_stage === "string" &&
+      parsed.suggested_stage.trim()
+    ) {
+      onStageSuggestion?.(parsed.suggested_stage.trim());
+    }
+  } catch (error) {
+    console.error("Doc-level evaluation error:", error);
   }
 }

@@ -1,5 +1,5 @@
 ---
-status: in-progress
+status: done
 phases: [1, 3]
 summary: Handles Gemini free-tier rate limits via call batching, model rotation, and a debug panel; adds local Ollama fallback for offline dev.
 ---
@@ -10,7 +10,7 @@ summary: Handles Gemini free-tier rate limits via call batching, model rotation,
 
 > Canonical status lives in the frontmatter above and is mirrored in the Projects Index in `docs/plan.md`. This block carries the human-readable scope only.
 
-**Phase scope:** Phase 1 (call batching ✅) · Phase 3 (rotation, cool-down, debug panel ✅; Ollama + tiering pending) **Summary:** Handles Gemini free-tier rate limits via call batching, model rotation, and a debug panel; adds local Ollama fallback for offline dev.
+**Phase scope:** Phase 1 (call batching ✅) · Phase 3 (rotation ✅, cool-down ✅, debug panel ✅, model tiering ✅, RPM budget ✅; Ollama skipped — no Python dep on user machine) **Summary:** Handles Gemini free-tier rate limits via call batching, model rotation, cool-down registry, LLM debug panel, and proactive RPM backpressure.
 
 ---
 
@@ -34,8 +34,8 @@ summary: Handles Gemini free-tier rate limits via call batching, model rotation,
 
 - [x] Implement **cool-down registry** inside the model router (not at call sites); mark a model unavailable on 429, honoring the `retry-delay` response header when present, defaulting to 45 s.
 - [x] Wire **rotation pools** (see §2 below) with exponential backoff (500 ms base).
-- [ ] Implement **Ollama health check** on startup; enable local fallbacks when active.
-- [ ] Proxy `/api/ollama` in `vite.config.ts` (CORS workaround).
+- [ ] Implement **Ollama health check** on startup; enable local fallbacks when active. _(Deferred — requires Python/Ollama on user machine; revisit if offline-dev need is confirmed.)_
+- [ ] Proxy `/api/ollama` in `vite.config.ts` (CORS workaround). _(Deferred with Ollama above.)_
 - [x] Surface active provider (model name + source) in the sidecar status bar and debug panel — never silently degrade without the user knowing.
 - [x] Build **LLM debug panel** (collapsible, bottom of sidecar feed) with structured `LLMLogEntry` log and JSON inspector.
 - [x] Log rotation/fallback events as `retry` and `fallback` entry types so degradation is always visible in debug mode.

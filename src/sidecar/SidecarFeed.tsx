@@ -1,9 +1,10 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import type { Observation } from "../store/db";
-import type { LLMLogEntry } from "../model/logger";
+import type { LLMLogEntry, SessionStats } from "../model/logger";
 
 interface Props {
   observations: Observation[];
+  archivedObservations?: Observation[];
   apiKey: string;
   onApiKeyChange: (key: string) => void;
   stage: string;
@@ -16,10 +17,15 @@ interface Props {
   activeProvider?: string;
   /** Dev harness readiness signal: 0 == idle, else evaluations outstanding. */
   pending?: number;
+  sessionStats?: SessionStats;
+  stageSuggestion?: string | null;
+  onAcceptStageSuggestion?: (s: string) => void;
+  onDismissStageSuggestion?: () => void;
 }
 
 export function SidecarFeed({
   observations,
+  archivedObservations = [],
   apiKey,
   onApiKeyChange,
   stage,
@@ -31,12 +37,43 @@ export function SidecarFeed({
   logs = [],
   activeProvider = "",
   pending = 0,
+  sessionStats,
+  stageSuggestion,
+  onAcceptStageSuggestion,
+  onDismissStageSuggestion,
 }: Props) {
   const [showSettings, setShowSettings] = useState(false);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
+  const [showArchive, setShowArchive] = useState(false);
   const [debugMode, setDebugMode] = useState(true);
   const [expandedLogId, setExpandedLogId] = useState<string | null>(null);
   const [copySuccess, setCopySuccess] = useState(false);
+
+  // --- Batched arrival animation ---
+  // When 3+ observations arrive within 600 ms, they animate in as a group
+  // with a "+N new" indicator rather than a stutter of individual fades.
+  // See docs/projects/message_generation_workflow.md §8 (arrival animation).
+  const prevObsIdsRef = useRef<Set<string>>(new Set());
+  const [arrivingIds, setArrivingIds] = useState<Set<string>>(new Set());
+  const [arrivalBatchCount, setArrivalBatchCount] = useState(0);
+
+  useEffect(() => {
+    const currentIds = new Set(observations.map((o) => o.id));
+    const newIds = [...currentIds].filter((id) => !prevObsIdsRef.current.has(id));
+    prevObsIdsRef.current = currentIds;
+
+    if (newIds.length === 0) return;
+
+    setArrivingIds(new Set(newIds));
+    setArrivalBatchCount(newIds.length);
+
+    const timer = setTimeout(() => {
+      setArrivingIds(new Set());
+      setArrivalBatchCount(0);
+    }, 600);
+
+    return () => clearTimeout(timer);
+  }, [observations]);
 
   const handleCopyLogs = async () => {
     try {
@@ -110,8 +147,22 @@ export function SidecarFeed({
               </span>
             )}
             {activeProvider && (
-              <span className="active-provider-chip" data-testid="provider-chip" style={{ fontSize: '0.75rem', padding: '2px 6px', background: '#e0e0e0', borderRadius: '4px' }}>
-                ⚡️ {activeProvider}
+              <span
+                className="active-provider-chip"
+                data-testid="provider-chip"
+                style={{
+                  fontSize: '0.75rem',
+                  padding: '2px 6px',
+                  background: activeProvider.includes('[paid]') ? '#fef3c7' : '#e0e0e0',
+                  borderRadius: '4px',
+                  color: activeProvider.includes('[paid]') ? '#92400e' : undefined,
+                  fontWeight: activeProvider.includes('[paid]') ? 600 : undefined,
+                }}
+              >
+                ⚡️ {activeProvider.replace(' [paid]', '')}
+                {activeProvider.includes('[paid]') && (
+                  <span style={{ marginLeft: 4, fontSize: '0.65rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>paid</span>
+                )}
               </span>
             )}
             <button
@@ -160,22 +211,28 @@ export function SidecarFeed({
         </div>
 
         {showSettings && (
-          <div className="settings-panel">
+          <div className="settings-panel" data-testid="settings-panel">
             <div className="setting-group">
               <label htmlFor="api-key-input">Gemini API Key</label>
               <input
                 id="api-key-input"
+                data-testid="api-key-input"
                 type="password"
-                placeholder="Enter VITE_GEMINI_API_KEY..."
+                placeholder="Paste your Gemini API key…"
                 value={apiKey}
                 onChange={(e) => onApiKeyChange(e.target.value)}
               />
-              <span className="setting-help">Keys are stored locally in your browser.</span>
+              <span className="setting-help">
+                {apiKey
+                  ? "✓ BYO key active — using your quota and model tier."
+                  : "No key set — free tier (rate-limited). Get one at aistudio.google.com."}
+              </span>
             </div>
             <div className="setting-group">
               <label htmlFor="stage-input">Document Context / Stage</label>
               <textarea
                 id="stage-input"
+                data-testid="stage-input"
                 rows={3}
                 placeholder="e.g., PRD for payments team, audience is engineers and designers."
                 value={stage}
@@ -184,10 +241,10 @@ export function SidecarFeed({
             </div>
             <div className="setting-group">
               <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
-                <input 
-                  type="checkbox" 
-                  checked={debugMode} 
-                  onChange={(e) => setDebugMode(e.target.checked)} 
+                <input
+                  type="checkbox"
+                  checked={debugMode}
+                  onChange={(e) => setDebugMode(e.target.checked)}
                 />
                 Enable LLM Debug Mode
               </label>
@@ -196,57 +253,166 @@ export function SidecarFeed({
         )}
       </div>
 
-      <div className="feed-container" style={{ flex: 1, overflowY: 'auto' }}>
-        {observations.length === 0 ? (
-          <div className="sidecar-empty">
-            <div className="empty-icon">✍️</div>
-            <p>Observations will appear here as you write.</p>
-            <span className="empty-subtext">Quiet for now — keep going.</span>
+      <div className="feed-container" style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
+        {stageSuggestion && (
+          <div
+            data-testid="stage-suggestion"
+            style={{
+              margin: '8px',
+              padding: '10px 12px',
+              background: '#f0f9ff',
+              border: '1px solid #bae6fd',
+              borderRadius: '6px',
+              fontSize: '0.85rem',
+            }}
+          >
+            <p style={{ margin: '0 0 8px', color: '#0c4a6e' }}>
+              Inferred context: <em>{stageSuggestion}</em>
+            </p>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <button
+                data-testid="stage-suggestion-accept"
+                onClick={() => onAcceptStageSuggestion?.(stageSuggestion)}
+                style={{ fontSize: '0.8rem', padding: '3px 10px', cursor: 'pointer', background: '#0ea5e9', color: '#fff', border: 'none', borderRadius: '4px' }}
+              >
+                Use this
+              </button>
+              <button
+                data-testid="stage-suggestion-dismiss"
+                onClick={() => onDismissStageSuggestion?.()}
+                style={{ fontSize: '0.8rem', padding: '3px 10px', cursor: 'pointer' }}
+              >
+                No thanks
+              </button>
+            </div>
           </div>
-        ) : (
-          <div className="observations-list">
-            {observations.map((obs) => {
-              const isActive = hoveredObservationId === obs.id;
-              return (
+        )}
+
+        <div style={{ flex: 1 }}>
+          {observations.length === 0 ? (
+            <div className="sidecar-empty">
+              <div className="empty-icon">✍️</div>
+              <p>Observations will appear here as you write.</p>
+              <span className="empty-subtext">Quiet for now — keep going.</span>
+            </div>
+          ) : (
+            <div className="observations-list">
+              {/* Batch arrival indicator: shown briefly when 3+ land at once */}
+              {arrivalBatchCount >= 3 && (
                 <div
-                  key={obs.id}
-                  className={`observation-card observation-${obs.type} ${isActive ? "observation-card-active" : ""}`}
-                  data-testid="obs-card"
-                  data-obs-type={obs.type}
-                  data-obs-id={obs.id}
-                  onMouseEnter={() => onHoverObservation(obs.id)}
-                  onMouseLeave={() => onHoverObservation(null)}
+                  data-testid="arrival-indicator"
+                  style={{
+                    padding: '4px 8px',
+                    fontSize: '0.75rem',
+                    color: '#6b7280',
+                    textAlign: 'center',
+                    animation: 'fadeIn 200ms ease-in',
+                  }}
                 >
-                  <div className="card-header">
-                    <span className={`tag tag-${obs.type}`}>{obs.type}</span>
-                    <button
-                      className="dismiss-btn"
-                      data-testid="obs-dismiss"
-                      data-obs-id={obs.id}
-                      onClick={() => onDismissObservation(obs.id)}
-                      title="Dismiss Observation"
-                    >
-                      <svg
-                        width="12"
-                        height="12"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2.5"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      >
-                        <line x1="18" y1="6" x2="6" y2="18"></line>
-                        <line x1="6" y1="6" x2="18" y2="18"></line>
-                      </svg>
-                    </button>
-                  </div>
-                  <div className="card-body">
-                    <p>{obs.text}</p>
-                  </div>
+                  +{arrivalBatchCount} new
                 </div>
-              );
-            })}
+              )}
+              {observations.map((obs) => {
+                const isActive = hoveredObservationId === obs.id;
+                const isArriving = arrivingIds.has(obs.id);
+                return (
+                  <div
+                    key={obs.id}
+                    className={`observation-card observation-${obs.type} ${isActive ? "observation-card-active" : ""} ${isArriving ? "observation-card-arriving" : ""}`}
+                    data-testid="obs-card"
+                    data-obs-type={obs.type}
+                    data-obs-id={obs.id}
+                    onMouseEnter={() => onHoverObservation(obs.id)}
+                    onMouseLeave={() => onHoverObservation(null)}
+                  >
+                    <div className="card-header">
+                      <span className={`tag tag-${obs.type}`}>{obs.type.replace(/_/g, ' ')}</span>
+                      <button
+                        className="dismiss-btn"
+                        data-testid="obs-dismiss"
+                        data-obs-id={obs.id}
+                        onClick={() => onDismissObservation(obs.id)}
+                        title="Dismiss Observation"
+                      >
+                        <svg
+                          width="12"
+                          height="12"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2.5"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
+                          <line x1="18" y1="6" x2="6" y2="18"></line>
+                          <line x1="6" y1="6" x2="18" y2="18"></line>
+                        </svg>
+                      </button>
+                    </div>
+                    <div className="card-body">
+                      <p>{obs.text}</p>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {archivedObservations.length > 0 && (
+          <div
+            data-testid="archive-section"
+            style={{ borderTop: '1px solid #e5e7eb', padding: '8px' }}
+          >
+            <button
+              data-testid="archive-toggle"
+              onClick={() => setShowArchive(!showArchive)}
+              style={{
+                width: '100%',
+                textAlign: 'left',
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                fontSize: '0.8rem',
+                color: '#6b7280',
+                padding: '4px 0',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+              }}
+            >
+              <span>{showArchive ? '▾' : '▸'}</span>
+              <span>Archive ({archivedObservations.length})</span>
+            </button>
+            {showArchive && (
+              <div data-testid="archive-list" style={{ marginTop: '4px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                {archivedObservations.map((obs) => (
+                  <div
+                    key={obs.id}
+                    data-testid="archive-card"
+                    data-obs-status={obs.status}
+                    data-obs-type={obs.type}
+                    style={{
+                      padding: '8px',
+                      background: '#f9fafb',
+                      border: '1px solid #e5e7eb',
+                      borderRadius: '6px',
+                      opacity: 0.75,
+                    }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                      <span className={`tag tag-${obs.type}`} style={{ fontSize: '0.7rem' }}>
+                        {obs.type.replace(/_/g, ' ')}
+                      </span>
+                      <span style={{ fontSize: '0.7rem', color: '#9ca3af' }}>
+                        {obs.status.replace(/_/g, ' ')}
+                      </span>
+                    </div>
+                    <p style={{ margin: 0, fontSize: '0.8rem', color: '#6b7280' }}>{obs.text}</p>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -257,7 +423,7 @@ export function SidecarFeed({
             <h4 style={{ margin: 0 }}>LLM Debug Logs</h4>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               {copySuccess && <span style={{ color: '#4caf50', fontSize: '0.7rem' }}>Copied!</span>}
-              <button 
+              <button
                 onClick={handleCopyLogs}
                 style={{ fontSize: '0.7rem', padding: '2px 8px', cursor: 'pointer' }}
               >
@@ -265,6 +431,24 @@ export function SidecarFeed({
               </button>
             </div>
           </div>
+          {sessionStats && sessionStats.totalCalls > 0 && (
+            <div
+              data-testid="session-stats"
+              style={{
+                marginBottom: '8px',
+                padding: '4px 6px',
+                background: '#f0fdf4',
+                border: '1px solid #bbf7d0',
+                borderRadius: '4px',
+                fontSize: '0.7rem',
+                color: '#166534',
+                fontFamily: 'monospace',
+              }}
+            >
+              Session: {sessionStats.fastCalls}f + {sessionStats.strongCalls}s calls
+              {sessionStats.avgLatencyMs > 0 && ` · avg ${sessionStats.avgLatencyMs}ms`}
+            </div>
+          )}
           {logs.length === 0 ? (
             <div style={{ color: '#888' }}>No logs yet.</div>
           ) : (

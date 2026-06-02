@@ -2,7 +2,7 @@ import { openDB, type IDBPDatabase } from "idb";
 import { harness } from "../debug/harness";
 
 const DB_NAME = "writtten";
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 
 export interface DocumentRecord {
   id: string;
@@ -55,12 +55,21 @@ export interface Observation {
   conflictingEndOffset?: number;
 }
 
+export interface DismissalSuppression {
+  id: string;
+  docId: string;
+  type: Observation["type"];
+  /** "blockId:startOffset:endOffset" for span obs; absent for doc-level obs. */
+  spanSignature?: string;
+  note?: string;
+}
+
 let _db: IDBPDatabase | null = null;
 
 async function getDb(): Promise<IDBPDatabase> {
   if (_db) return _db;
   _db = await openDB(DB_NAME, DB_VERSION, {
-    upgrade(db, oldVersion) {
+    upgrade(db, oldVersion, _newVersion, transaction) {
       if (oldVersion < 1) {
         db.createObjectStore("documents", { keyPath: "id" });
       }
@@ -77,6 +86,13 @@ async function getDb(): Promise<IDBPDatabase> {
         const obsStore = db.createObjectStore("observations", { keyPath: "id" });
         obsStore.createIndex("by_doc", "docId");
         obsStore.createIndex("by_status", "status");
+      }
+      if (oldVersion < 3) {
+        // Add docId index to block_summaries so we can load all summaries for a doc
+        transaction.objectStore("block_summaries").createIndex("by_doc", "docId");
+
+        const supStore = db.createObjectStore("dismissal_suppressions", { keyPath: "id" });
+        supStore.createIndex("by_doc", "docId");
       }
     },
   });
@@ -232,21 +248,19 @@ export async function loadActiveObservationsForDocument(docId: string): Promise<
 export async function clearDocumentData(docId: string): Promise<void> {
   const db = await getDb();
 
-  // Clear document record
   await db.delete("documents", docId);
 
-  // Clear block summaries — no index by doc, so scan and delete matching
   {
     const tx = db.transaction("block_summaries", "readwrite");
-    let cursor = await tx.store.openCursor();
+    const docIndex = tx.store.index("by_doc");
+    let cursor = await docIndex.openCursor(IDBKeyRange.only(docId));
     while (cursor) {
-      if ((cursor.value as BlockSummary).docId === docId) await cursor.delete();
+      await cursor.delete();
       cursor = await cursor.continue();
     }
     await tx.done;
   }
 
-  // Clear claim ledger entries for this doc
   {
     const tx = db.transaction("claim_ledger", "readwrite");
     const docIndex = tx.store.index("by_doc");
@@ -258,9 +272,19 @@ export async function clearDocumentData(docId: string): Promise<void> {
     await tx.done;
   }
 
-  // Clear observations for this doc
   {
     const tx = db.transaction("observations", "readwrite");
+    const docIndex = tx.store.index("by_doc");
+    let cursor = await docIndex.openCursor(IDBKeyRange.only(docId));
+    while (cursor) {
+      await cursor.delete();
+      cursor = await cursor.continue();
+    }
+    await tx.done;
+  }
+
+  {
+    const tx = db.transaction("dismissal_suppressions", "readwrite");
     const docIndex = tx.store.index("by_doc");
     let cursor = await docIndex.openCursor(IDBKeyRange.only(docId));
     while (cursor) {
@@ -284,4 +308,37 @@ export async function updateObservationStatus(
     await store.put(obs);
   }
   await tx.done;
+}
+
+// Block Summaries (by doc)
+export async function loadBlockSummariesForDocument(docId: string): Promise<BlockSummary[]> {
+  const db = await getDb();
+  const tx = db.transaction("block_summaries", "readonly");
+  const docIndex = tx.store.index("by_doc");
+  const results: BlockSummary[] = [];
+  let cursor = await docIndex.openCursor(IDBKeyRange.only(docId));
+  while (cursor) {
+    results.push(cursor.value);
+    cursor = await cursor.continue();
+  }
+  return results;
+}
+
+// Dismissal Suppressions
+export async function saveDismissalSuppression(sup: DismissalSuppression): Promise<void> {
+  const db = await getDb();
+  await db.put("dismissal_suppressions", sup);
+}
+
+export async function loadSuppressionsForDocument(docId: string): Promise<DismissalSuppression[]> {
+  const db = await getDb();
+  const tx = db.transaction("dismissal_suppressions", "readonly");
+  const docIndex = tx.store.index("by_doc");
+  const results: DismissalSuppression[] = [];
+  let cursor = await docIndex.openCursor(IDBKeyRange.only(docId));
+  while (cursor) {
+    results.push(cursor.value);
+    cursor = await cursor.continue();
+  }
+  return results;
 }

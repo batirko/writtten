@@ -2,13 +2,17 @@ import { useState, useEffect, useRef } from "react";
 import { Editor } from "./editor/Editor";
 import { SidecarFeed } from "./sidecar/SidecarFeed";
 import {
-  loadActiveObservationsForDocument,
+  loadObservationsForDocument,
   updateObservationStatus,
   clearDocumentData,
+  saveDismissalSuppression,
   type Observation,
 } from "./store/db";
-import { llmLogger, type LLMLogEntry } from "./model/logger";
+import { scheduleEval } from "./services/orchestrator";
+import type { EvalContext } from "./services/types";
+import { llmLogger, type LLMLogEntry, type SessionStats } from "./model/logger";
 import { harness } from "./debug/harness";
+import { nanoid } from "nanoid";
 
 const DOC_ID = "default";
 
@@ -21,24 +25,43 @@ export default function App() {
     );
   });
 
+  const paidKey: string | undefined =
+    (import.meta.env.VITE_GEMINI_PAID_KEY as string) || undefined;
+
   const [stage, setStage] = useState<string>(() => {
     return localStorage.getItem("writtten_stage") || "";
   });
 
   const [observations, setObservations] = useState<Observation[]>([]);
+  const [archivedObservations, setArchivedObservations] = useState<Observation[]>([]);
   const [hoveredObservationId, setHoveredObservationId] = useState<string | null>(null);
   const [clearTrigger, setClearTrigger] = useState(0);
-  
+  const [stageSuggestion, setStageSuggestion] = useState<string | null>(null);
+
   const [logs, setLogs] = useState<LLMLogEntry[]>([]);
   const [activeProvider, setActiveProvider] = useState<string>("gemini-2.0-flash");
+  const [sessionStats, setSessionStats] = useState<SessionStats>({
+    fastCalls: 0, strongCalls: 0, totalCalls: 0, totalLatencyMs: 0, avgLatencyMs: 0,
+  });
   const [pending, setPending] = useState(0);
   // Stable handle to the latest clear handler for __sidecar__.clear().
   const clearWorkspaceRef = useRef<() => void>(() => {});
+
+  // Stable refs for stage-change trigger
+  const apiKeyRef = useRef(apiKey);
+  useEffect(() => { apiKeyRef.current = apiKey; }, [apiKey]);
+  const stageRef = useRef(stage);
+  useEffect(() => { stageRef.current = stage; }, [stage]);
+  const stageSettleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Tracks the last stage value we've seen so we don't fire on initial mount
+  // (also handles React StrictMode double-invoke cleanly).
+  const prevStageValueRef = useRef(stage);
 
   useEffect(() => {
     const unsubscribe = llmLogger.subscribe((newLogs, provider) => {
       setLogs(newLogs);
       setActiveProvider(provider);
+      setSessionStats(llmLogger.getSessionStats());
     });
     return unsubscribe;
   }, []);
@@ -61,10 +84,11 @@ export default function App() {
     localStorage.setItem("writtten_stage", stage);
   }, [stage]);
 
-  // Load and refresh observations from DB
+  // Load and refresh observations from DB — splits active (feed) from archived
   const refreshObservations = () => {
-    loadActiveObservationsForDocument(DOC_ID).then((list) => {
-      setObservations(list);
+    loadObservationsForDocument(DOC_ID).then((all) => {
+      setObservations(all.filter((o) => o.status === "active"));
+      setArchivedObservations(all.filter((o) => o.status !== "active"));
     });
   };
 
@@ -76,12 +100,27 @@ export default function App() {
   const handleClearWorkspace = async () => {
     await clearDocumentData(DOC_ID);
     setObservations([]);
+    setArchivedObservations([]);
+    setStageSuggestion(null);
     setStage("");
     setClearTrigger((n) => n + 1);
   };
   clearWorkspaceRef.current = handleClearWorkspace;
 
   const handleDismissObservation = async (id: string) => {
+    const obs = observations.find((o) => o.id === id);
+    if (obs) {
+      const spanSignature =
+        obs.scope === "span" && obs.blockId != null
+          ? `${obs.blockId}:${obs.startOffset ?? ""}:${obs.endOffset ?? ""}`
+          : undefined;
+      await saveDismissalSuppression({
+        id: nanoid(10),
+        docId: DOC_ID,
+        type: obs.type,
+        spanSignature,
+      });
+    }
     await updateObservationStatus(id, "dismissed");
     refreshObservations();
   };
@@ -91,21 +130,53 @@ export default function App() {
     refreshObservations();
   };
 
+  // Fire stage-changed trigger when the stage field re-settles after being edited.
+  // prevStageValueRef guard prevents firing on initial mount and handles
+  // React StrictMode double-invoke (refs persist across remounts, value unchanged).
+  useEffect(() => {
+    if (stage === prevStageValueRef.current) return;
+    prevStageValueRef.current = stage;
+
+    if (stageSettleTimer.current) clearTimeout(stageSettleTimer.current);
+    stageSettleTimer.current = setTimeout(() => {
+      const ctx: EvalContext = {
+        docId: DOC_ID,
+        apiKey: apiKeyRef.current ?? "",
+        paidKey,
+        stage: stageRef.current,
+        onStageSuggestion: setStageSuggestion,
+      };
+      scheduleEval({ kind: "stage-changed" }, null, ctx, refreshObservations);
+    }, 3000);
+  }, [stage]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleAcceptStageSuggestion = (suggestion: string) => {
+    setStage(suggestion);
+    setStageSuggestion(null);
+  };
+
+  const handleDismissStageSuggestion = () => {
+    setStageSuggestion(null);
+  };
+
   return (
     <div className="app">
       <main className="editor-panel">
         <Editor
           apiKey={apiKey}
+          paidKey={paidKey}
           stage={stage}
           observations={observations}
           hoveredObservationId={hoveredObservationId}
           onObservationCollapsed={handleObservationCollapsed}
           onEvaluationComplete={refreshObservations}
+          onStageSuggestion={setStageSuggestion}
           clearTrigger={clearTrigger}
         />
       </main>
       <SidecarFeed
         observations={observations}
+        archivedObservations={archivedObservations}
         apiKey={apiKey}
         onApiKeyChange={setApiKey}
         stage={stage}
@@ -117,6 +188,10 @@ export default function App() {
         logs={logs}
         activeProvider={activeProvider}
         pending={pending}
+        sessionStats={sessionStats}
+        stageSuggestion={stageSuggestion}
+        onAcceptStageSuggestion={handleAcceptStageSuggestion}
+        onDismissStageSuggestion={handleDismissStageSuggestion}
       />
     </div>
   );
