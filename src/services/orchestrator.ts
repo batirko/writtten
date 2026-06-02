@@ -20,6 +20,7 @@ import {
   updateObservationStatus,
 } from "../store/db";
 import { llmLogger } from "../model/logger";
+import { harness } from "../debug/harness";
 
 // ---------------------------------------------------------------------------
 // Module-level state (there is one editor / one doc at a time)
@@ -50,6 +51,16 @@ const pendingAfterInflight = new Map<string, PendingEntry>();
 // Internal helpers
 // ---------------------------------------------------------------------------
 
+/** Push the current "work outstanding" count to the readiness signal. Idle (0)
+ *  means nothing is debouncing, queued, or in flight. */
+function recomputePending(): void {
+  if (import.meta.env.DEV) {
+    harness.setPending(
+      coalesceTimers.size + inFlightBlocks.size + pendingAfterInflight.size,
+    );
+  }
+}
+
 function logTrigger(triggerKind: string, blockId: string): void {
   llmLogger.log({
     type: "trigger",
@@ -73,8 +84,10 @@ async function handleBlockRemoved(
     coalesceTimers.delete(blockId);
   }
   pendingAfterInflight.delete(blockId);
+  recomputePending();
 
   logTrigger("block-removed", blockId);
+  if (import.meta.env.DEV) harness.emit("block-removed", { block: blockId });
 
   // Orphan claims — no LLM call needed
   await orphanClaimsForBlock(blockId);
@@ -99,11 +112,14 @@ async function dispatch(
   // If in-flight, queue a re-run with the latest data
   if (inFlightBlocks.has(blockId)) {
     pendingAfterInflight.set(blockId, { text, ctx, triggerKind: "rerun", onComplete });
+    recomputePending();
     return;
   }
 
   inFlightBlocks.add(blockId);
+  recomputePending();
   logTrigger(triggerKind, blockId);
+  if (import.meta.env.DEV) harness.emit("settle", { trigger: triggerKind, block: blockId });
 
   try {
     await evaluateBlock(ctx.docId, blockId, text, ctx.stage, ctx.apiKey);
@@ -117,7 +133,10 @@ async function dispatch(
     const pending = pendingAfterInflight.get(blockId);
     if (pending) {
       pendingAfterInflight.delete(blockId);
+      recomputePending();
       dispatch(blockId, pending.text, pending.ctx, pending.triggerKind, pending.onComplete);
+    } else {
+      recomputePending();
     }
   }
 }
@@ -166,8 +185,10 @@ export function scheduleEval(
 
   const timer = setTimeout(() => {
     coalesceTimers.delete(blockId);
+    recomputePending();
     dispatch(blockId, text, ctx, triggerKind, onComplete);
   }, COALESCE_MS);
 
   coalesceTimers.set(blockId, { timer, text, triggerKind, onComplete });
+  recomputePending();
 }

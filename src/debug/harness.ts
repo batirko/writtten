@@ -1,0 +1,247 @@
+/**
+ * Agent Acceptance Harness — Phase 1 observability primitives.
+ *
+ * Dev-only test/observability surface. See docs/projects/agent_acceptance_harness.md.
+ *
+ * Three primitives:
+ *   1. A structured, monotonic event stream (console + in-memory ring buffer).
+ *      Every meaningful lifecycle moment emits one event with a monotonic `seq`,
+ *      so an agent can wait for "an event newer than the one I last saw" instead
+ *      of grepping a string that also appears in history.
+ *   2. A readiness signal: `pending` (0 == idle), pushed to UI subscribers.
+ *   3. `window.__sidecar__` — read-only `getState()` / `getEvents()` so an agent
+ *      can inspect live blocks, the claim ledger, active observations, pending
+ *      count, active model, and last seq.
+ *
+ * Gating: call sites are wrapped in `if (import.meta.env.DEV)` so esbuild
+ * dead-code-eliminates them (and this module) from the production build. No
+ * server, telemetry, or egress — consistent with standing rule 5.
+ *
+ * "Observe, don't fabricate": this surfaces existing internal state only. It
+ * never computes new product behaviour and never edits the user's prose.
+ */
+
+import {
+  loadActiveClaimsForDocument,
+  loadActiveObservationsForDocument,
+  saveClaimsForBlock,
+  type ClaimLedgerEntry,
+  type Observation,
+} from "../store/db";
+import { llmLogger } from "../model/logger";
+import {
+  setLlmMode,
+  getLlmMode,
+  loadRecordings,
+  dumpRecordings,
+  type LlmMode,
+} from "../model/mock";
+
+export type HarnessEventType =
+  | "settle"
+  | "request"
+  | "response"
+  | "ledger-write"
+  | "observation"
+  | "block-removed"
+  | "error";
+
+export interface HarnessEvent {
+  seq: number;
+  t: number;
+  type: HarnessEventType;
+  [field: string]: unknown;
+}
+
+export interface BlockSnapshot {
+  id: string;
+  text: string;
+}
+
+export interface SidecarState {
+  seq: number;
+  pending: number;
+  blocks: BlockSnapshot[];
+  ledger: ClaimLedgerEntry[];
+  observations: Observation[];
+  activeModel: string;
+}
+
+/** A document to install via loadDoc. `id` is optional — omit to let the
+ *  BlockId plugin mint one. */
+export interface DocFixture {
+  blocks: Array<{ id?: string; text: string }>;
+}
+
+/** Claims to install directly into the ledger via loadLedger. */
+export type LedgerFixture = Array<{
+  blockId: string;
+  text: string;
+  kind: ClaimLedgerEntry["kind"];
+}>;
+
+type BlockReader = () => BlockSnapshot[];
+type DocWriter = (fixture: DocFixture) => void;
+type ClearFn = () => void;
+type PendingListener = (pending: number) => void;
+
+const MAX_EVENTS = 500;
+
+function formatField(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.join(",")}]`;
+  return String(value);
+}
+
+class Harness {
+  private seq = 0;
+  private events: HarnessEvent[] = [];
+  private pending = 0;
+  private pendingListeners = new Set<PendingListener>();
+  private blockReader: BlockReader | null = null;
+  private docWriter: DocWriter | null = null;
+  private clearFn: ClearFn | null = null;
+  private docId = "default";
+
+  /** Append one structured event; mirror it to the console as a greppable line. */
+  emit(type: HarnessEventType, fields: Record<string, unknown> = {}): void {
+    const event: HarnessEvent = { seq: ++this.seq, t: Date.now(), type, ...fields };
+    this.events.push(event);
+    if (this.events.length > MAX_EVENTS) this.events.shift();
+
+    const tail = Object.entries(fields)
+      .map(([k, v]) => `${k}=${formatField(v)}`)
+      .join(" ");
+    console.log(`[sidecar] ${type} seq=${event.seq}${tail ? ` ${tail}` : ""}`);
+  }
+
+  /** Tail of the event stream: only events strictly newer than `sinceSeq`. */
+  getEvents(sinceSeq = 0): HarnessEvent[] {
+    return this.events.filter((e) => e.seq > sinceSeq);
+  }
+
+  /** Current monotonic sequence number (last emitted event's seq). */
+  currentSeq(): number {
+    return this.seq;
+  }
+
+  // --- readiness signal ---
+
+  setPending(n: number): void {
+    if (n === this.pending) return;
+    this.pending = n;
+    for (const listener of this.pendingListeners) listener(n);
+  }
+
+  getPending(): number {
+    return this.pending;
+  }
+
+  subscribePending(listener: PendingListener): () => void {
+    this.pendingListeners.add(listener);
+    listener(this.pending); // initial push
+    return () => this.pendingListeners.delete(listener);
+  }
+
+  // --- live state wiring ---
+
+  /** The editor registers a reader so getState() can return live blocks+text. */
+  registerBlockReader(reader: BlockReader): void {
+    this.blockReader = reader;
+  }
+
+  /** The editor registers a writer so loadDoc() can install a fixture document. */
+  registerDocWriter(writer: DocWriter): void {
+    this.docWriter = writer;
+  }
+
+  /** The app registers its clear handler so clear() skips the confirm modal. */
+  registerClear(fn: ClearFn): void {
+    this.clearFn = fn;
+  }
+
+  // --- write affordances (test-only; namespaced so they're never mistaken for
+  //     product features — they manipulate *test setup*, never the user's prose
+  //     on the user's behalf). ---
+
+  /** Install a known document into the editor (replaces current content). */
+  loadDoc(fixture: DocFixture): void {
+    if (!this.docWriter) {
+      console.warn("[sidecar] loadDoc: no editor registered");
+      return;
+    }
+    this.docWriter(fixture);
+  }
+
+  /** Write claims straight into the ledger, grouped by block. Does not run an
+   *  evaluation — it seeds state for logic tests. */
+  async loadLedger(fixture: LedgerFixture): Promise<void> {
+    const byBlock = new Map<string, Array<{ text: string; kind: ClaimLedgerEntry["kind"] }>>();
+    for (const c of fixture) {
+      const arr = byBlock.get(c.blockId) ?? [];
+      arr.push({ text: c.text, kind: c.kind });
+      byBlock.set(c.blockId, arr);
+    }
+    for (const [blockId, claims] of byBlock) {
+      await saveClaimsForBlock(this.docId, blockId, claims);
+    }
+  }
+
+  /** Clear the workspace without the confirm modal. */
+  clear(): void {
+    if (!this.clearFn) {
+      console.warn("[sidecar] clear: no clear handler registered");
+      return;
+    }
+    this.clearFn();
+  }
+
+  /** Read-only snapshot of everything an acceptance agent needs. Async: the
+   *  ledger and observations live in IndexedDB. */
+  async getState(): Promise<SidecarState> {
+    const [ledger, observations] = await Promise.all([
+      loadActiveClaimsForDocument(this.docId),
+      loadActiveObservationsForDocument(this.docId),
+    ]);
+    return {
+      seq: this.seq,
+      pending: this.pending,
+      blocks: this.blockReader ? this.blockReader() : [],
+      ledger,
+      observations,
+      activeModel: llmLogger.getActiveProvider(),
+    };
+  }
+
+  /** Attach the read-only surface to `window`. Dev-only — call from a DEV guard. */
+  install(opts: { docId: string }): void {
+    this.docId = opts.docId;
+    (window as unknown as { __sidecar__: unknown }).__sidecar__ = {
+      // reads
+      getState: () => this.getState(),
+      getEvents: (sinceSeq?: number) => this.getEvents(sinceSeq),
+      // write affordances (test setup)
+      clear: () => this.clear(),
+      loadDoc: (fixture: DocFixture) => this.loadDoc(fixture),
+      loadLedger: (fixture: LedgerFixture) => this.loadLedger(fixture),
+      // LLM mock / record-replay
+      setLlmMode: (mode: LlmMode) => setLlmMode(mode),
+      getLlmMode: () => getLlmMode(),
+      loadRecordings: (entries: Record<string, string>) => loadRecordings(entries),
+      dumpRecordings: () => dumpRecordings(),
+    };
+  }
+
+  /** Test-only: reset all state between unit tests. */
+  _resetForTests(): void {
+    this.seq = 0;
+    this.events = [];
+    this.pending = 0;
+    this.pendingListeners.clear();
+    this.blockReader = null;
+    this.docWriter = null;
+    this.clearFn = null;
+    this.docId = "default";
+  }
+}
+
+export const harness = new Harness();

@@ -16,11 +16,11 @@ summary: SkillOpt, LEANN, and markitdown — external tooling anchored to specif
 
 ## Phased Plan
 
-| Phase | Tool | Contribution |
-| ----------- | --------- | ------------ |
-| **Phase 2+** | SkillOpt | Offline optimization of evaluator prompts — improve accuracy of contradiction/clarity checks without runtime overhead. Gated on building a labeled eval test set first. |
-| **Phase 3** | LEANN | Graph-based vector index as the engine for the claim-ledger embedding prefilter. Keeps contradiction checks bounded as documents grow. Local-first, MCP-native. |
-| **Phase 4** | markitdown | Binary-format → Markdown converter (DOCX, PDF) for the "import existing PRD" feature. Constraint: must run without a required server (local-first invariant). |
+| Phase        | Tool       | Contribution                                                                                                                                                            |
+| ------------ | ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Phase 2+** | SkillOpt   | Offline optimization of evaluator prompts — improve accuracy of contradiction/clarity checks without runtime overhead. Gated on building a labeled eval test set first. |
+| **Phase 3**  | LEANN      | Graph-based vector index as the engine for the claim-ledger embedding prefilter. Keeps contradiction checks bounded as documents grow. Local-first, MCP-native.         |
+| **Phase 4**  | markitdown | Binary-format → Markdown converter (DOCX, PDF) for the "import existing PRD" feature. Constraint: must run without a required server (local-first invariant).           |
 
 ---
 
@@ -88,15 +88,15 @@ Output lands in `--out_root` as `best_skill.md`. Copy the improved prompt text i
 
 **What it is.** Graph-based vector database with 97% storage reduction vs. traditional vector DBs ([github.com/StarTrail-org/LEANN](https://github.com/StarTrail-org/LEANN), MLsys2026). Rather than storing all embeddings, it stores a graph and recomputes embeddings for candidate nodes at query time. MCP-native, local-first, no cloud dependency.
 
-**Why it matters here.** Phase 3 requires: *"Embedding-based prefiltering for the claim ledger so contradiction checks stay bounded as documents grow."* As a document grows, sending all ledger claims to the contradiction prompt blows up context and cost. The prefilter semantic-searches the ledger and passes only the top-K candidate claims. LEANN is the reference architecture for this exact constraint: large corpus, bounded memory/disk, no egress. Read its selective-recomputation approach before designing an alternative.
+**Why it matters here.** Phase 3 requires: _"Embedding-based prefiltering for the claim ledger so contradiction checks stay bounded as documents grow."_ As a document grows, sending all ledger claims to the contradiction prompt blows up context and cost. The prefilter semantic-searches the ledger and passes only the top-K candidate claims. LEANN is the reference architecture for this exact constraint: large corpus, bounded memory/disk, no egress. Read its selective-recomputation approach before designing an alternative.
 
 **Architectural decision tree.**
 
-| Path | How | Trade-off |
-| ---- | --- | --------- |
-| **LEANN via local MCP server** | `pip install leann-core`; run as a local process; call from the TS app via MCP tool | Requires Python on user's machine; cleanest separation |
-| **Custom in-browser index** | ONNX Runtime Web + a small embedding model (e.g., all-MiniLM-L6-v2) | No external dep; more code; fidelity depends on model choice |
-| **Deferred** | Phase 3 ships with a simpler heuristic prefilter; embedding prefilter moves to Phase 4 | Safe if ledger stays small in practice |
+| Path                           | How                                                                                    | Trade-off                                                    |
+| ------------------------------ | -------------------------------------------------------------------------------------- | ------------------------------------------------------------ |
+| **LEANN via local MCP server** | `pip install leann-core`; run as a local process; call from the TS app via MCP tool    | Requires Python on user's machine; cleanest separation       |
+| **Custom in-browser index**    | ONNX Runtime Web + a small embedding model (e.g., all-MiniLM-L6-v2)                    | No external dep; more code; fidelity depends on model choice |
+| **Deferred**                   | Phase 3 ships with a simpler heuristic prefilter; embedding prefilter moves to Phase 4 | Safe if ledger stays small in practice                       |
 
 Log the decision in `docs/plan.md` when the milestone starts.
 
@@ -108,11 +108,13 @@ leann create claim_ledger_index
 ```
 
 Integration sketch — on each claim upsert:
+
 ```bash
 leann add claim_ledger_index --text "<claim text>" --id "<blockId:claimId>"
 ```
 
 At contradiction-check time, semantic-search and pass only top-K to the prompt:
+
 ```bash
 leann search claim_ledger_index "<new claim text>" --top-k 5
 ```
@@ -127,11 +129,11 @@ leann search claim_ledger_index "<new claim text>" --top-k 5
 
 **Hard constraint.** Local-first invariant (#5 in `CLAUDE.md`) prohibits a required server. markitdown is a Python library — three compliant paths:
 
-| Path | How | Trade-off |
-| ---- | --- | --------- |
-| **Optional local helper** | User installs `pip install markitdown`; app spawns it as a subprocess on demand | Requires Python; acceptable for power users who self-host |
-| **WASM port** | markitdown's core parsers compiled to WASM and bundled with the app | No Python dep; hard to build; fidelity may differ |
-| **Markdown-only (deferred)** | Phase 4 ships Markdown-only import; binary format support deferred | Safe default if neither path is feasible in Phase 4 |
+| Path                         | How                                                                             | Trade-off                                                 |
+| ---------------------------- | ------------------------------------------------------------------------------- | --------------------------------------------------------- |
+| **Optional local helper**    | User installs `pip install markitdown`; app spawns it as a subprocess on demand | Requires Python; acceptable for power users who self-host |
+| **WASM port**                | markitdown's core parsers compiled to WASM and bundled with the app             | No Python dep; hard to build; fidelity may differ         |
+| **Markdown-only (deferred)** | Phase 4 ships Markdown-only import; binary format support deferred              | Safe default if neither path is feasible in Phase 4       |
 
 Log the chosen path in `docs/plan.md` at Phase 4 start.
 

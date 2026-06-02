@@ -1,0 +1,13 @@
+{
+  "doc": {
+    "blocks": [
+      { "text": "We'll launch this in Q2." },
+      { "text": "This will ship in Q3." }
+    ]
+  },
+  "recordings": {
+    "rix70ca_1117": "{\n  \"summary\": \"The product will be launched in the second quarter.\",\n  \"claims\": [\n    {\n      \"text\": \"We'll launch this in Q2.\",\n      \"kind\": \"commitment\"\n    }\n  ],\n  \"clarity_observations\": [\n    {\n      \"text\": \"The specific year for the Q2 launch is not mentioned.\",\n      \"substring\": \"Q2\"\n    }\n  ]\n}",
+    "rr1neot_1114": "{\n  \"summary\": \"The product is scheduled to be released in the third quarter.\",\n  \"claims\": [\n    {\n      \"text\": \"This will ship in Q3.\",\n      \"kind\": \"commitment\"\n    }\n  ],\n  \"clarity_observations\": [\n    {\n      \"text\": \"It is unclear what 'This' refers to.\",\n      \"substring\": \"This\"\n    },\n    {\n      \"text\": \"It is unclear what 'Q3' refers to (e.g., which year).\",\n      \"substring\": \"Q3\"\n    }\n  ]\n}",
+    "rhk9bq0_1090": "{\n  \"contradictions\": [\n    {\n      \"newClaimText\": \"This will ship in Q3.\",\n      \"existingClaimId\": 0,\n      \"message\": \"This contradicts the Q2 launch date set in the existing claim.\"\n    }\n  ]\n}"
+  }
+}

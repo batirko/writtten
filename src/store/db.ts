@@ -1,4 +1,5 @@
 import { openDB, type IDBPDatabase } from "idb";
+import { harness } from "../debug/harness";
 
 const DB_NAME = "writtten";
 const DB_VERSION = 2;
@@ -119,11 +120,15 @@ export async function saveClaimsForBlock(
   const tx = db.transaction("claim_ledger", "readwrite");
   const store = tx.store;
 
-  // 1. Delete existing active claims for this block
+  // 1. Delete existing active claims for this block (count them — a prior
+  //    occupant means this write *overwrites* rather than inserts; the
+  //    block-id-collision bug shows up here as an unexpected overwrite).
   const blockIndex = store.index("by_block");
+  let deleted = 0;
   let cursor = await blockIndex.openCursor(IDBKeyRange.only(blockId));
   while (cursor) {
     await cursor.delete();
+    deleted++;
     cursor = await cursor.continue();
   }
 
@@ -138,6 +143,14 @@ export async function saveClaimsForBlock(
   }
 
   await tx.done;
+
+  if (import.meta.env.DEV) {
+    harness.emit("ledger-write", {
+      block: blockId,
+      action: deleted > 0 ? "overwrite" : "insert",
+      claims: claims.length,
+    });
+  }
 }
 
 export async function orphanClaimsForBlock(blockId: string): Promise<void> {

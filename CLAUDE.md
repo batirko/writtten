@@ -56,11 +56,124 @@ This is not a style preference. It is the product's reason to exist and its defe
 
 ## Browser testing
 
-**`chrome-devtools` MCP is configured globally** (in `~/Library/Application Support/Claude/claude_desktop_config.json`). Use it for any browser automation — opening the app, interacting with the editor, verifying observations, taking screenshots.
+Two browser-automation tools are available. Pick by job; fall back to the other if the chosen one misbehaves.
 
-Key tools (load via ToolSearch before first use): `mcp__chrome-devtools__new_page`, `navigate_page`, `take_screenshot`, `take_snapshot`, `type_text`, `click`, `hover`, `wait_for`, `press_key`, `evaluate_script`, `list_console_messages`.
+### claude-preview (Claude Preview MCP)
 
-The dev server runs at **`http://localhost:5173`** (`npm run dev`). Acceptance tests live in `docs/acceptance-testing/phase1.md` — that file defines the automated/human split for each test.
+Key tools (load via ToolSearch): `mcp__Claude_Preview__preview_start`, `preview_eval`, `preview_snapshot`, `preview_screenshot`, `preview_console_logs`, `preview_network`.
+
+**Prefer for:** anything that drives `window.__sidecar__` — polling state (`await preview_eval("window.__sidecar__.getState()")`), waiting for `pending === 0`, inspecting the ledger or event stream, running record/replay sessions, seeding fixtures. Async JS in `preview_eval` returns clean JSON and handles arbitrary polling logic in one call. Also good for quick structural snapshots and network-log inspection.
+
+**Watch out for:** `preview_eval` has a **30-second hard timeout** — don't embed `while` loops that could exceed it; break them into smaller calls. Not great for *real* input events (hover, keyboard) — the ProseMirror editor sometimes ignores synthetic events from `eval`.
+
+**Start the server:** `preview_start` with config name `"writtten"` (`.claude/launch.json` is already set up). The preview server and the existing `npm run dev` at `http://localhost:5173` are the same Vite dev server — you only need one running.
+
+---
+
+### chrome-devtools (chrome-devtools MCP)
+
+Configured globally in `~/Library/Application Support/Claude/claude_desktop_config.json`. Key tools (load via ToolSearch): `mcp__chrome-devtools__new_page`, `navigate_page`, `take_screenshot`, `take_snapshot`, `type_text`, `click`, `hover`, `wait_for`, `press_key`, `evaluate_script`, `list_console_messages`.
+
+**Prefer for:** interaction fidelity — hovering over observation cards to trigger highlights, real keyboard input into the ProseMirror editor, clicking UI elements by accessibility uid, native-dialog handling (`handle_dialog`). Also the right fallback whenever `preview_eval` is timing out or returning unexpected results.
+
+**Watch out for:** `wait_for` matches the **entire accessibility tree including history** — it can match stale text from a previous eval. Always wait for a string that will only appear *after* the action (e.g. `"idle"` on the `[data-testid="sidecar-status"]` element, which only transitions once `pending === 0`). Use `evaluate_script` to read `window.__sidecar__` state when the snapshot is too noisy.
+
+---
+
+### Decision table
+
+| Task | Reach for |
+|---|---|
+| Inspect ledger / observations / event stream | **preview_eval** |
+| Wait for eval to finish (`pending === 0`) | **preview_eval** polling loop, or `wait_for("[data-testid='sidecar-status']", ["idle"])` on either tool |
+| Seed a fixture doc / ledger | **preview_eval** → `__sidecar__.loadDoc` / `loadLedger` |
+| Record or replay LLM responses | **preview_eval** → `__sidecar__.setLlmMode` / `dumpRecordings` |
+| Hover a card to trigger highlights | **chrome-devtools** `hover` |
+| Type into the editor | **chrome-devtools** `type_text` (real events) |
+| Click a button | Either — but chrome-devtools is more reliable for complex UI |
+| Screenshot / visual check | Either |
+| Native confirm dialogs | **chrome-devtools** `handle_dialog` (or use `__sidecar__.clear()` to skip entirely) |
+
+**Fallback rule:** if the primary tool returns unexpected results (stale matches, eval timeouts, synthetic events ignored), switch to the other one for that step — don't retry the same tool indefinitely. Document the switch in a comment if it affects a reproducible test.
+
+The dev server runs at **`http://localhost:5173`** (`npm run dev`). Acceptance tests live in `docs/acceptance-testing/` — each file defines the automated/human split.
+
+## Dev harness (`window.__sidecar__`)
+
+A dev-only observability + control surface, live whenever `npm run dev` is running (stripped from production builds). See `docs/projects/agent_acceptance_harness.md` for the full spec.
+
+**Use it proactively — not just for acceptance testing.** Any time you're verifying that eval/ledger/feed behavior is correct (building a feature, debugging, confirming a fix), the harness is faster and more reliable than scraping the accessibility tree.
+
+### Reading state
+
+```js
+const st = await window.__sidecar__.getState();
+// st.blocks       — live editor blocks [{id, text}]
+// st.ledger       — active claim ledger entries
+// st.observations — active observation objects
+// st.pending      — in-flight evaluations; 0 means idle
+// st.seq          — monotonic event counter
+// st.activeModel  — currently active model name
+```
+
+### Waiting for idle (the right pattern)
+
+```js
+// In preview_eval — inline polling loop
+const start = Date.now();
+while (Date.now()-start < 25000) {
+  await new Promise(r => setTimeout(r, 1500));
+  const st = await window.__sidecar__.getState();
+  if (st.pending === 0 && <your condition>) break;
+}
+
+// In chrome-devtools — wait for the status chip
+wait_for('[data-testid="sidecar-status"]', ["idle"])
+```
+
+### Event stream (no stale-match problem)
+
+```js
+const events = window.__sidecar__.getEvents(sinceSeq);
+// Returns only events with seq > sinceSeq — never matches history.
+// Key event types: settle · request · response · ledger-write · observation · block-removed
+// ledger-write carries action=insert|overwrite — overwrite = the block-id collision bug
+```
+
+### Test setup (write affordances)
+
+```js
+window.__sidecar__.clear();                  // programmatic clear, no confirm modal
+window.__sidecar__.loadDoc({ blocks: [       // seed a document + trigger evaluation
+  { text: 'This will ship in Q3.' },
+  { text: "We'll launch this in Q2." },
+]});
+await window.__sidecar__.loadLedger([        // seed claims directly, no LLM round-trip
+  { blockId: 'b1', text: 'Ships in Q3.', kind: 'commitment' },
+  { blockId: 'b2', text: 'Ships in Q2.', kind: 'commitment' },
+]);
+```
+
+### Mock / record-replay LLM (quota-free, deterministic)
+
+```js
+// Record: capture real Gemini responses into a fixture
+window.__sidecar__.setLlmMode('record');
+// ... run the scenario ...
+const fixture = window.__sidecar__.dumpRecordings(); // save this JSON
+
+// Replay: serve from fixture, zero network calls, ~0ms latency
+window.__sidecar__.setLlmMode('mock');
+window.__sidecar__.loadRecordings(fixture);
+// ... run the same scenario ...
+window.__sidecar__.setLlmMode('live'); // reset when done
+```
+
+> **Known gap:** the contradiction `strong` call is not yet deterministic in mock mode — its prompt embeds a DB auto-increment id that changes per run. Fix path is in `docs/projects/agent_acceptance_harness.md`. Workaround: test contradiction logic by seeding via `loadLedger` and asserting `getState().ledger`, not by replaying.
+
+### testid selectors (stable targeting)
+
+`[data-testid="sidecar-status"]` · `[data-testid="obs-card"]` · `[data-testid="obs-dismiss"]` · `[data-testid="provider-chip"]` · `[data-testid="clear-workspace"]` · `[data-testid="clear-confirm"]` · `[data-testid="clear-cancel"]` · `[data-testid="debug-entry"]`
 
 ## Tech stack at a glance
 
@@ -100,4 +213,4 @@ npm run format       # prettier --write src/
 
 ## Status
 
-See `docs/plan.md`. Current target: **Phase 1 — "The Wow"** (smallest build that catches a contradiction the user wrote and makes them fix it themselves).
+See `docs/plan.md`. Phase 1 fully verified 2026-06-01. Current target: **Phase 2 — "Full taxonomy & lifecycle"** (remaining observation types, full message lifecycle, archive, stage inference).

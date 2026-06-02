@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Editor } from "./editor/Editor";
 import { SidecarFeed } from "./sidecar/SidecarFeed";
 import {
@@ -8,6 +8,7 @@ import {
   type Observation,
 } from "./store/db";
 import { llmLogger, type LLMLogEntry } from "./model/logger";
+import { harness } from "./debug/harness";
 
 const DOC_ID = "default";
 
@@ -30,6 +31,9 @@ export default function App() {
   
   const [logs, setLogs] = useState<LLMLogEntry[]>([]);
   const [activeProvider, setActiveProvider] = useState<string>("gemini-2.0-flash");
+  const [pending, setPending] = useState(0);
+  // Stable handle to the latest clear handler for __sidecar__.clear().
+  const clearWorkspaceRef = useRef<() => void>(() => {});
 
   useEffect(() => {
     const unsubscribe = llmLogger.subscribe((newLogs, provider) => {
@@ -37,6 +41,15 @@ export default function App() {
       setActiveProvider(provider);
     });
     return unsubscribe;
+  }, []);
+
+  // Dev-only acceptance harness: attach window.__sidecar__ and surface the
+  // readiness signal. Stripped from the production build via import.meta.env.DEV.
+  useEffect(() => {
+    if (!import.meta.env.DEV) return;
+    harness.install({ docId: DOC_ID });
+    harness.registerClear(() => clearWorkspaceRef.current());
+    return harness.subscribePending(setPending);
   }, []);
 
   // Sync settings to localStorage
@@ -66,6 +79,7 @@ export default function App() {
     setStage("");
     setClearTrigger((n) => n + 1);
   };
+  clearWorkspaceRef.current = handleClearWorkspace;
 
   const handleDismissObservation = async (id: string) => {
     await updateObservationStatus(id, "dismissed");
@@ -102,6 +116,7 @@ export default function App() {
         onClearWorkspace={handleClearWorkspace}
         logs={logs}
         activeProvider={activeProvider}
+        pending={pending}
       />
     </div>
   );

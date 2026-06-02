@@ -47,6 +47,10 @@ class LLMLogger {
     }
   }
 
+  getActiveProvider(): string {
+    return this.activeProvider;
+  }
+
   log(entry: Omit<LLMLogEntry, "id" | "timestamp">) {
     const fullEntry: LLMLogEntry = {
       ...entry,

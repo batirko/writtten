@@ -1,9 +1,48 @@
 import { Extension } from "@tiptap/core";
-import { Plugin, PluginKey } from "@tiptap/pm/state";
+import { Plugin, PluginKey, type Transaction } from "@tiptap/pm/state";
+import { type Node as PMNode } from "@tiptap/pm/model";
 import { nanoid } from "nanoid";
 
 const BLOCK_ID_ATTR = "data-block-id";
 const pluginKey = new PluginKey("blockId");
+
+/**
+ * Ensure every top-level block carries a unique `blockId`, mutating `tr` in
+ * place. A block keeps its id when it's the first to claim it; a null id — or
+ * one that duplicates a block seen earlier in the document — gets a fresh
+ * `nanoid(10)`.
+ *
+ * The collision branch is what fixes the Enter-split bug: ProseMirror copies
+ * the source node's attrs (including `blockId`) into the new paragraph, so the
+ * duplicate must be reissued rather than skipped (which would leave two blocks
+ * sharing one id and let the second's claims overwrite the first's in the
+ * ledger — see docs/acceptance-testing/phase1-results.md observation #1).
+ *
+ * @returns whether any node was modified (i.e. whether `tr` should be applied).
+ */
+export function assignBlockIds(doc: PMNode, tr: Transaction): boolean {
+  let modified = false;
+  const seen = new Set<string>();
+
+  doc.descendants((node, pos) => {
+    // Only top-level blocks (depth 0 resolve = direct children of doc)
+    if (doc.resolve(pos).depth !== 0) return;
+    if (!node.isBlock) return;
+
+    const id = node.attrs.blockId as string | null;
+    if (id && !seen.has(id)) {
+      seen.add(id);
+      return; // unique, stable id — leave it untouched
+    }
+
+    const newId = nanoid(10);
+    seen.add(newId);
+    tr.setNodeMarkup(pos, undefined, { ...node.attrs, blockId: newId });
+    modified = true;
+  });
+
+  return modified;
+}
 
 /**
  * Assigns a stable data-block-id attribute to every top-level block node.
@@ -33,22 +72,7 @@ export const BlockId = Extension.create({
         key: pluginKey,
         appendTransaction(_transactions, _oldState, newState) {
           const { doc, tr } = newState;
-          let modified = false;
-
-          doc.descendants((node, pos) => {
-            // Only top-level blocks (depth 1 in ProseMirror = direct children of doc)
-            if (doc.resolve(pos).depth !== 0) return;
-            if (!node.isBlock) return;
-            if (node.attrs.blockId) return; // already has an id
-
-            tr.setNodeMarkup(pos, undefined, {
-              ...node.attrs,
-              blockId: nanoid(10),
-            });
-            modified = true;
-          });
-
-          return modified ? tr : null;
+          return assignBlockIds(doc, tr) ? tr : null;
         },
       }),
     ];

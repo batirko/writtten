@@ -1,4 +1,5 @@
-import { createGeminiRouter } from "../model/gemini";
+import { createRouter } from "../model/factory";
+import { getLlmMode } from "../model/mock";
 import {
   saveBlockSummary,
   loadBlockSummary,
@@ -11,6 +12,7 @@ import {
   type Observation,
 } from "../store/db";
 import { nanoid } from "nanoid";
+import { harness } from "../debug/harness";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -133,6 +135,10 @@ async function reconcileObservations(
       status: "active",
       ...newO,
     });
+    if (import.meta.env.DEV) {
+      const blockIds = [newO.blockId, newO.conflictingBlockId].filter(Boolean);
+      harness.emit("observation", { type: newO.type, blocks: blockIds });
+    }
   }
 
   // 4. Auto-close existing observations that have no counterpart in the new set
@@ -167,7 +173,7 @@ Compare each new claim against the existing claims. If a new claim contradicts, 
 
 Return a JSON object with a key 'contradictions', which is an array of objects. Each object must have:
 - 'newClaimText' (the text of the new claim that has the conflict)
-- 'existingClaimId' (the numeric ID of the conflicting existing claim)
+- 'existingClaimId' (the index number shown in [Existing Claim #N] for the conflicting existing claim)
 - 'message' (a short, confident observation explaining the contradiction — e.g. "This contradicts the Q3 target date set in the project overview." Never hedge with "might" or "possibly".)
 
 If no contradictions are found, return an empty array for 'contradictions'.
@@ -195,12 +201,14 @@ export async function evaluateBlock(
   stage?: string,
   apiKey?: string,
 ): Promise<void> {
-  if (!apiKey) {
+  // Mock mode replays canned responses, so it needs no key. Every other mode
+  // hits the network and does.
+  if (!apiKey && getLlmMode() !== "mock") {
     console.warn("Evaluator: No API key provided, skipping check.");
     return;
   }
 
-  const router = createGeminiRouter(apiKey);
+  const router = createRouter(apiKey ?? "");
   const cleanText = text.trim();
   const textHash = hashCode(cleanText);
 
@@ -225,6 +233,8 @@ export async function evaluateBlock(
       ? `${cleanText}\n\nDocument context: ${stage}`
       : cleanText;
 
+    if (import.meta.env.DEV) harness.emit("request", { block: blockId, tier: "fast" });
+    const mergedStartedAt = Date.now();
     const mergedRes = await router.fast({
       system: MERGED_SYSTEM_PROMPT,
       user: userContent,
@@ -236,6 +246,15 @@ export async function evaluateBlock(
       claims?: Omit<ClaimLedgerEntry, "id" | "docId" | "sourceBlockId" | "status">[];
       clarity_observations?: ClarityObservation[];
     };
+    if (import.meta.env.DEV) {
+      harness.emit("response", {
+        block: blockId,
+        tier: "fast",
+        latencyMs: Date.now() - mergedStartedAt,
+        claims: parsedMerged.claims?.length ?? 0,
+        clarity: parsedMerged.clarity_observations?.length ?? 0,
+      });
+    }
 
     const summaryText = parsedMerged.summary?.trim() || "";
     const extractedClaims = parsedMerged.claims || [];
@@ -268,13 +287,24 @@ export async function evaluateBlock(
     const existingClaims = await loadActiveClaimsForDocument(docId);
     const otherClaims = existingClaims.filter((c) => c.sourceBlockId !== blockId);
 
-    if (extractedClaims.length > 0 && otherClaims.length > 0) {
+    // Sort existing claims to a stable order (text then blockId) so the
+    // contradiction prompt is deterministic across runs — IDB auto-increment
+    // ids change every session and would break mock-mode replay hashes.
+    const sortedOther = [...otherClaims].sort(
+      (a, b) => a.text.localeCompare(b.text) || a.sourceBlockId.localeCompare(b.sourceBlockId),
+    );
+
+    if (extractedClaims.length > 0 && sortedOther.length > 0) {
       const contradictionUser = `New Claims:\n${extractedClaims
         .map((c, i) => `[New Claim #${i}]: "${c.text}"`)
-        .join("\n")}\n\nExisting Claims:\n${otherClaims
-        .map((c) => `[Existing Claim ID ${c.id}]: "${c.text}"`)
+        .join("\n")}\n\nExisting Claims:\n${sortedOther
+        .map((c, i) => `[Existing Claim #${i}]: "${c.text}"`)
         .join("\n")}${stage ? `\n\nDocument Context: ${stage}` : ""}`;
 
+      if (import.meta.env.DEV) {
+        harness.emit("request", { block: blockId, tier: "strong", check: "contradiction" });
+      }
+      const contradictionStartedAt = Date.now();
       const contradictionRes = await router.strong({
         system: CONTRADICTION_SYSTEM_PROMPT,
         user: contradictionUser,
@@ -284,11 +314,17 @@ export async function evaluateBlock(
       const parsedContradictions = parseJSONResponse(contradictionRes.text) as {
         contradictions?: ContradictionObservation[];
       };
+      if (import.meta.env.DEV) {
+        harness.emit("response", {
+          block: blockId,
+          tier: "strong",
+          latencyMs: Date.now() - contradictionStartedAt,
+          contradictions: parsedContradictions.contradictions?.length ?? 0,
+        });
+      }
 
       for (const con of parsedContradictions.contradictions || []) {
-        const matchingExisting = otherClaims.find(
-          (c) => c.id === Number(con.existingClaimId),
-        );
+        const matchingExisting = sortedOther[Number(con.existingClaimId)];
         if (!matchingExisting) continue;
 
         newObs.push({

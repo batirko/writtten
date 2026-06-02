@@ -14,6 +14,8 @@ interface Props {
   onClearWorkspace: () => void;
   logs?: LLMLogEntry[];
   activeProvider?: string;
+  /** Dev harness readiness signal: 0 == idle, else evaluations outstanding. */
+  pending?: number;
 }
 
 export function SidecarFeed({
@@ -28,8 +30,10 @@ export function SidecarFeed({
   onClearWorkspace,
   logs = [],
   activeProvider = "",
+  pending = 0,
 }: Props) {
   const [showSettings, setShowSettings] = useState(false);
+  const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [debugMode, setDebugMode] = useState(true);
   const [expandedLogId, setExpandedLogId] = useState<string | null>(null);
   const [copySuccess, setCopySuccess] = useState(false);
@@ -47,22 +51,73 @@ export function SidecarFeed({
 
   return (
     <aside className="sidecar-panel">
+      {showClearConfirm && (
+        <div
+          className="modal-overlay"
+          data-testid="clear-modal"
+          style={{
+            position: 'fixed', inset: 0, zIndex: 1000,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            background: 'rgba(0,0,0,0.35)',
+          }}
+          onClick={() => setShowClearConfirm(false)}
+        >
+          <div
+            className="modal-card"
+            style={{ background: '#fff', borderRadius: '8px', padding: '16px', width: '80%', maxWidth: '320px', boxShadow: '0 8px 24px rgba(0,0,0,0.2)' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <p style={{ margin: '0 0 12px' }}>
+              Clear the workspace? This erases all text, observations, and history.
+            </p>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
+              <button
+                data-testid="clear-cancel"
+                onClick={() => setShowClearConfirm(false)}
+                style={{ padding: '6px 12px', cursor: 'pointer' }}
+              >
+                Cancel
+              </button>
+              <button
+                data-testid="clear-confirm"
+                onClick={() => { setShowClearConfirm(false); onClearWorkspace(); }}
+                style={{ padding: '6px 12px', cursor: 'pointer', background: '#d93025', color: '#fff', border: 'none', borderRadius: '4px' }}
+              >
+                Clear
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       <div className="sidecar-header">
         <div className="sidecar-title-bar" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <h3>Sidecar Feed</h3>
           <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+            {import.meta.env.DEV && (
+              <span
+                className="sidecar-status-chip"
+                data-testid="sidecar-status"
+                data-pending={pending}
+                style={{
+                  fontSize: '0.75rem',
+                  padding: '2px 6px',
+                  borderRadius: '4px',
+                  background: pending === 0 ? '#e6f4ea' : '#fff4e5',
+                  color: pending === 0 ? '#137333' : '#b06000',
+                }}
+              >
+                {pending === 0 ? 'idle' : `evaluating (${pending} pending)`}
+              </span>
+            )}
             {activeProvider && (
-              <span className="active-provider-chip" style={{ fontSize: '0.75rem', padding: '2px 6px', background: '#e0e0e0', borderRadius: '4px' }}>
+              <span className="active-provider-chip" data-testid="provider-chip" style={{ fontSize: '0.75rem', padding: '2px 6px', background: '#e0e0e0', borderRadius: '4px' }}>
                 ⚡️ {activeProvider}
               </span>
             )}
             <button
               className="settings-toggle-btn"
-              onClick={() => {
-                if (window.confirm("Clear the workspace? This will erase all text, observations, and history.")) {
-                  onClearWorkspace();
-                }
-              }}
+              data-testid="clear-workspace"
+              onClick={() => setShowClearConfirm(true)}
               title="Clear workspace"
             >
               <svg
@@ -156,6 +211,9 @@ export function SidecarFeed({
                 <div
                   key={obs.id}
                   className={`observation-card observation-${obs.type} ${isActive ? "observation-card-active" : ""}`}
+                  data-testid="obs-card"
+                  data-obs-type={obs.type}
+                  data-obs-id={obs.id}
                   onMouseEnter={() => onHoverObservation(obs.id)}
                   onMouseLeave={() => onHoverObservation(null)}
                 >
@@ -163,6 +221,8 @@ export function SidecarFeed({
                     <span className={`tag tag-${obs.type}`}>{obs.type}</span>
                     <button
                       className="dismiss-btn"
+                      data-testid="obs-dismiss"
+                      data-obs-id={obs.id}
                       onClick={() => onDismissObservation(obs.id)}
                       title="Dismiss Observation"
                     >
@@ -215,6 +275,8 @@ export function SidecarFeed({
                   return (
                     <div
                       key={log.id}
+                      data-testid="debug-entry"
+                      data-log-type="trigger"
                       style={{
                         background: '#eef2ff',
                         border: '1px solid #c7d2fe',
@@ -236,7 +298,7 @@ export function SidecarFeed({
                 const color = log.type === 'error' ? '#ffebee' : log.type === 'retry' ? '#fff8e1' : log.type === 'response' ? '#e8f5e9' : 'transparent';
                 const isExpanded = expandedLogId === log.id;
                 return (
-                  <div key={log.id} style={{ background: color, border: '1px solid #ccc', borderRadius: '4px', padding: '4px' }}>
+                  <div key={log.id} data-testid="debug-entry" data-log-type={log.type} style={{ background: color, border: '1px solid #ccc', borderRadius: '4px', padding: '4px' }}>
                     <div
                       style={{ display: 'flex', justifyContent: 'space-between', cursor: 'pointer', fontWeight: 'bold' }}
                       onClick={() => setExpandedLogId(isExpanded ? null : log.id)}

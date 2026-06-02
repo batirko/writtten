@@ -182,13 +182,14 @@ describe("evaluator - evaluateBlock", () => {
       }),
     });
 
-    // Contradiction check
+    // Contradiction check — existingClaimId is now the index into the sorted
+    // existing-claims list (not the DB id), so the single claim is index 0.
     mockStrong.mockResolvedValueOnce({
       text: JSON.stringify({
         contradictions: [
           {
             newClaimText: "Launch in Q3.",
-            existingClaimId: 42,
+            existingClaimId: 0,
             message: "Contradicts delayed launch to Q4.",
           },
         ],

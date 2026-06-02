@@ -6,6 +6,8 @@ import { ObservationHighlighter } from "./extensions/ObservationHighlighter";
 import { saveDocument, loadDocument, type Observation } from "../store/db";
 import { scheduleEval } from "../services/orchestrator";
 import type { EvalContext } from "../services/types";
+import { harness } from "../debug/harness";
+import { nanoid } from "nanoid";
 
 const DOC_ID = "default";
 const SAVE_DEBOUNCE_MS = 1000;
@@ -31,6 +33,20 @@ function getBlockIds(editor: ReturnType<typeof useEditor>): Set<string> {
     if (id) ids.add(id);
   });
   return ids;
+}
+
+/** Live top-level blocks with their text — fed to the dev harness so an agent
+ *  can read the document structure (and spot duplicate block ids). */
+function getBlocksWithText(
+  editor: ReturnType<typeof useEditor>,
+): { id: string; text: string }[] {
+  const blocks: { id: string; text: string }[] = [];
+  if (!editor) return blocks;
+  editor.state.doc.forEach((node) => {
+    const id = node.attrs?.blockId as string | undefined;
+    if (id) blocks.push({ id, text: node.textContent });
+  });
+  return blocks;
 }
 
 export function Editor({
@@ -235,6 +251,45 @@ export function Editor({
     window.addEventListener("blur", handleWindowBlur);
     return () => window.removeEventListener("blur", handleWindowBlur);
   }, []); // refs are stable — no deps needed
+
+  // Register live block read + fixture-doc write with the dev harness
+  // (dev-only; stripped in prod).
+  useEffect(() => {
+    if (!import.meta.env.DEV || !editor) return;
+    harness.registerBlockReader(() => getBlocksWithText(editor));
+    harness.registerDocWriter((fixture) => {
+      // Mint ids up front so they're known immediately (the BlockId plugin would
+      // otherwise assign them asynchronously, after we'd want to schedule evals).
+      const blocks = fixture.blocks.map((b) => ({ id: b.id ?? nanoid(10), text: b.text }));
+      editor.commands.setContent({
+        type: "doc",
+        content: blocks.map((b) => ({
+          type: "paragraph",
+          attrs: { blockId: b.id },
+          ...(b.text ? { content: [{ type: "text", text: b.text }] } : {}),
+        })),
+      });
+      // setContent leaves the cursor in a single block, so only that block would
+      // settle. Drive evaluation for every seeded block so loadDoc exercises the
+      // whole pipeline (this is what lets an agent seed a multi-block scenario).
+      const ctx: EvalContext = {
+        docId: DOC_ID,
+        apiKey: apiKeyRef.current ?? "",
+        stage: stageRef.current,
+      };
+      prevBlockIds.current = new Set(blocks.map((b) => b.id));
+      for (const b of blocks) {
+        if (b.text.trim().length >= 10) {
+          scheduleEval(
+            { kind: "block-settle-pause", blockId: b.id },
+            b.text,
+            ctx,
+            () => onEvaluationCompleteRef.current(),
+          );
+        }
+      }
+    });
+  }, [editor]);
 
   // Load persisted document on mount
   useEffect(() => {

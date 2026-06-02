@@ -2,7 +2,7 @@
 
 > Phased build plan. **Check the "Current phase" marker before adding functionality.** If a thing belongs to a later phase, don't build it yet — flag it instead. Scope creep is this project's primary risk. Refine phases as you learn; keep this file the source of truth for sequencing.
 
-**Current phase: Phase 1 — "The Wow."** (Phase 0 must be done first if not already.)
+**Current phase: Phase 2 — "Full taxonomy & lifecycle."** (Phase 1 fully verified 2026-06-01.)
 
 ---
 
@@ -15,7 +15,7 @@
 | [message_generation_workflow](projects/message_generation_workflow.md) | in-progress | 1 ✅ · 2 · 3       | The contract between editor, evaluator, model router, and feed — when observations fire, what context the LLM sees, how the feed behaves. |
 | [model_rotation_and_debugging](projects/model_rotation_and_debugging.md) | in-progress | 1 ✅ · 3 (partial) | Gemini free-tier rate-limit resiliency: call batching, model rotation, cool-down registry, LLM debug panel.                               |
 | [ai_tooling_integration](projects/ai_tooling_integration.md) | idea | 2 · 3 · 4 | SkillOpt, LEANN, and markitdown — when to adopt, what each needs, and how each maps to a specific phase milestone. |
-| [agent_acceptance_harness](projects/agent_acceptance_harness.md) | idea | 1 · 2 | Dev-only observability + control surface (debug state API, structured event stream, readiness signal, seedable state, mock LLM) so an agent can drive and verify acceptance tests deterministically. |
+| [agent_acceptance_harness](projects/agent_acceptance_harness.md) | done | 1 · 2 | Dev-only observability + control surface (debug state API, structured event stream, readiness signal, seedable state, mock LLM) so an agent can drive and verify acceptance tests deterministically. |
 
 ---
 
@@ -56,6 +56,8 @@ Scope is ruthless. Only:
 
 **Exit criteria (the demo script):** write a doc containing a self-contradiction; within a few seconds of the second claim settling, a `contradiction` observation appears referencing both spans; hovering highlights both; editing one side to resolve it auto-closes the observation — **and at no point did the tool offer to fix the text.**
 
+**Harness exit criterion:** [x] `getState()` exposes blocks, ledger, observations, pending, activeModel; event stream covers settle/request/response/ledger-write/observation/block-removed; `loadDoc`/`loadLedger`/`clear`/mock-mode all work; `data-testid` set covers feed cards, provider chip, status chip, clear modal. → `docs/projects/agent_acceptance_harness.md`
+
 **Explicitly out of scope:** archive UI, dismissal, the remaining observation types, document-level checks beyond contradiction, stage inference, BYO key, model tiering, export. Resist all of it.
 
 ---
@@ -77,6 +79,8 @@ Milestones:
 
 **Exit criteria:** a PM can write a real PRD start-to-finish and the feed behaves well throughout — quiet early, useful during revision, no re-nagging on dismissed items, archive populated correctly, stage inferred sensibly.
 
+**Harness exit criterion:** [ ] `getState()` updated for new observation types (`unsupported_claim`, `undefined_jargon`, doc-level checks); dismissal/suppression records seedable via `loadLedger` or a new `loadSuppressions` fixture; mock-mode contradiction determinism fixed (stable claim index in prompt); `data-testid` added to archive UI and dismissal affordances. → `docs/projects/agent_acceptance_harness.md`
+
 **Out of scope:** export polish, model tiering, BYO key (basic single-provider is fine to carry from Phase 0/1).
 
 ---
@@ -96,6 +100,8 @@ Milestones:
 
 **Exit criteria:** free tier works with no key and acceptable latency/cost; adding a key visibly improves observation quality; large documents don't blow up the contradiction check.
 
+**Harness exit criterion:** [ ] Mock-mode covers the embedding-prefilter path (ledger slice fixture); `data-testid` on BYO-key settings UI; cost/latency instrumentation fields surfaced in `getState()` or event stream if needed for perf acceptance tests. → `docs/projects/agent_acceptance_harness.md`
+
 ---
 
 ## Phase 4 — Egress, install, hardening
@@ -111,6 +117,8 @@ Milestones:
 - [ ] Accessibility and keyboard-first polish in the feed and hover/highlight interactions.
 
 **Exit criteria:** a user can import a draft, work in it, and export/copy clean output in all formats; the app installs and runs offline.
+
+**Harness exit criterion:** [ ] `data-testid` on export/copy affordances and PWA install prompt; `loadDoc` accepts Markdown string as an alternative to the block-array fixture so import round-trips are testable without typing. → `docs/projects/agent_acceptance_harness.md`
 
 ---
 

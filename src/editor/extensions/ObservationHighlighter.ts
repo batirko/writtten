@@ -44,9 +44,11 @@ export const ObservationHighlighter = Extension.create<ObservationHighlighterOpt
               newObservations !== undefined ? newObservations : value.observations;
             const hoveredId = newHoveredId !== undefined ? newHoveredId : value.hoveredId;
 
-            // Rebuild decorations if observations list or hovered ID changes, OR if block structure changes
-            const docChanged = tr.docChanged;
-            if (newObservations !== undefined || newHoveredId !== undefined || docChanged) {
+            // Rebuild decorations only when the observation set or hovered id changes.
+            // For all other doc edits (typing, insertions), the `map()` call above
+            // correctly position-maps existing decorations through ProseMirror's
+            // transaction mapping — no rebuild needed and no stored-offset drift.
+            if (newObservations !== undefined || newHoveredId !== undefined) {
               const decos: Decoration[] = [];
               const doc = newState.doc;
 
@@ -73,22 +75,51 @@ export const ObservationHighlighter = Extension.create<ObservationHighlighterOpt
                       const end =
                         textStart + Math.max(0, Math.min(obs.endOffset || textLength, textLength));
 
+                      const isHovered =
+                        hoveredId === obs.id ||
+                        (obs.type === "contradiction" &&
+                          (obs.blockId === hoveredId || obs.conflictingBlockId === hoveredId));
+
                       if (start < end) {
-                        const isHovered = hoveredId === obs.id;
-
-                        // If it's a contradiction and the hovered item is this contradiction or either of its conflicting blocks
-                        const isConflictHovered =
-                          hoveredId === obs.id ||
-                          (hoveredId &&
-                            obs.type === "contradiction" &&
-                            (obs.blockId === hoveredId || obs.conflictingBlockId === hoveredId));
-
                         decos.push(
                           Decoration.inline(start, end, {
-                            class: `obs-highlight obs-highlight-${obs.type} ${isHovered || isConflictHovered ? "obs-highlight-hovered" : ""}`,
+                            class: `obs-highlight obs-highlight-${obs.type} ${isHovered ? "obs-highlight-hovered" : ""}`,
                             "data-obs-id": obs.id,
                           })
                         );
+                      }
+
+                      // For contradictions, also highlight the conflicting block's span
+                      // so hovering the card lights up both sides simultaneously.
+                      if (obs.type === "contradiction" && obs.conflictingBlockId) {
+                        const conflictPos = blockPositions.get(obs.conflictingBlockId);
+                        if (conflictPos !== undefined) {
+                          const conflictNode = doc.nodeAt(conflictPos);
+                          if (conflictNode) {
+                            const cTextStart = conflictPos + 1;
+                            const cTextLength = conflictNode.textContent.length;
+                            const cStart =
+                              cTextStart +
+                              Math.max(
+                                0,
+                                Math.min(obs.conflictingStartOffset || 0, cTextLength),
+                              );
+                            const cEnd =
+                              cTextStart +
+                              Math.max(
+                                0,
+                                Math.min(obs.conflictingEndOffset || cTextLength, cTextLength),
+                              );
+                            if (cStart < cEnd) {
+                              decos.push(
+                                Decoration.inline(cStart, cEnd, {
+                                  class: `obs-highlight obs-highlight-${obs.type} ${isHovered ? "obs-highlight-hovered" : ""}`,
+                                  "data-obs-id": obs.id,
+                                })
+                              );
+                            }
+                          }
+                        }
                       }
                     }
                   }
