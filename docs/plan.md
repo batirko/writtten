@@ -16,6 +16,8 @@
 | [model_rotation_and_debugging](projects/model_rotation_and_debugging.md) | done | 1 ✅ · 3 ✅ (Ollama skipped) | Gemini free-tier rate-limit resiliency: call batching, model rotation, cool-down registry, LLM debug panel.                               |
 | [ai_tooling_integration](projects/ai_tooling_integration.md) | idea | 2 · 3 (LEANN deferred) · 4 | SkillOpt, LEANN, and markitdown — when to adopt, what each needs, and how each maps to a specific phase milestone. |
 | [agent_acceptance_harness](projects/agent_acceptance_harness.md) | done | 1 · 2 | Dev-only observability + control surface (debug state API, structured event stream, readiness signal, seedable state, mock LLM) so an agent can drive and verify acceptance tests deterministically. |
+| [evaluation_signal_quality](projects/evaluation_signal_quality.md) | idea | 1 · 2 · 3 (remediation) | Signal-to-noise findings from a real PRD paste-test — heading-only blocks hallucinate, the ledger self-pollutes, free-tier "strong" checks run on a weak model and emit confident false contradictions, observations duplicate — with a prioritized fix plan. |
+| [section_as_eval_unit](projects/section_as_eval_unit.md) | idea | 4 | Redesign the evaluation unit from individual ProseMirror blocks to semantic sections (heading + body), unifying typing and paste workflows and eliminating the heading-hallucination class of bugs. |
 
 ---
 
@@ -112,7 +114,7 @@ Milestones:
 
 - [ ] Export: Markdown and PDF.
 - [ ] Copy to clipboard: rich text and Markdown.
-- [ ] Import / lossless round-trip of existing Markdown drafts. → see `docs/projects/ai_tooling_integration.md` (markitdown for binary-format import; decision point: path choice logged before writing code)
+- [ ] Import / lossless round-trip of existing Markdown drafts. → see `docs/projects/ai_tooling_integration.md` (markitdown for binary-format import; decision point: path choice logged before writing code) · → see `docs/projects/section_as_eval_unit.md` (section-as-unit is a prerequisite for clean import evaluation)
 - [ ] PWA: installable, offline-capable, polished empty/early states that express the "quiet by design" intent.
 - [ ] Accessibility and keyboard-first polish in the feed and hover/highlight interactions.
 

@@ -40,6 +40,10 @@ summary: Handles Gemini free-tier rate limits via call batching, model rotation,
 - [x] Build **LLM debug panel** (collapsible, bottom of sidecar feed) with structured `LLMLogEntry` log and JSON inspector.
 - [x] Log rotation/fallback events as `retry` and `fallback` entry types so degradation is always visible in debug mode.
 
+### Security (unphased — schedule before next public sharing of debug output)
+
+- [ ] Alias API keys in all logged endpoints: replace `?key=<raw>` with `?key=<free>` or `?key=<byo>` at the point of recording in `llmLogger.ts` and the harness event stream. Raw key must never enter `LLMLogEntry.endpoint`. → §5
+
 ---
 
 ## 1. The Rate Limit Challenge
@@ -156,3 +160,18 @@ When Debug Mode is enabled:
 2. **Status colors:** green = success, yellow = retry/rotation/backoff, red = exhausted or fatal.
 3. **JSON inspector** on each entry — raw outgoing prompt (`system` + `user`) and response text or JSON.
 4. **Active provider chip** in the sidecar status bar (always visible, not just in debug mode) — shows the model that produced the last observation so the user knows when quality has degraded.
+
+---
+
+## 5. Security: API key aliasing in logs
+
+**Decision (2026-06-02):** API keys must never appear in logged endpoints, event-stream entries, or debug-panel output. Log the _tier_ instead: `key=<free>` / `key=<byo>`. The tier is the actionable signal; the raw key is a secret.
+
+**Why this matters:** every `endpoint` field in the current logger includes the full key as a query parameter (e.g. `?key=AIzaSy…`). Any debug dump shared externally — a bug report, a support ticket, a session transcript — leaks a live credential. This is a local-first product; the user's key should never leave their machine in plaintext, even in local logs.
+
+**Implementation scope:**
+
+- Alias the key at the point of _recording_ in `llmLogger.ts` / wherever the `endpoint` string is constructed — not as a display-layer scrub. The raw key must never enter the `LLMLogEntry.endpoint` field.
+- Replace `?key=<raw>` with `?key=<free>` or `?key=<byo>` (derived from which pool/key is active at call time).
+- The harness event stream (`harness.emit`) also logs endpoint strings — apply the same alias there.
+- No change to the actual API call; only the logged copy of the URL is aliased.

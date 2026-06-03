@@ -1,0 +1,112 @@
+---
+status: idea
+phases: [4]
+summary: Redesign the evaluation unit from individual ProseMirror blocks to semantic sections (heading + body), unifying the typing and paste workflows and eliminating the heading-hallucination class of bugs.
+---
+
+# Section as Evaluation Unit
+
+## Status
+
+> Canonical status lives in the frontmatter above and is mirrored in the Projects Index in `docs/plan.md`. This block carries the human-readable scope only.
+
+**Status: `idea`.** Design decision is settled; implementation not yet scheduled. This work directly resolves `evaluation_signal_quality.md` Finding 1 (heading-only block hallucination) and is the prerequisite for clean Phase 4 import/paste behaviour.
+
+The core shift: the **section** (heading + all body nodes until the next heading) becomes the atomic unit of evaluation. The **block** (individual ProseMirror node) remains the unit of *anchoring* — observations still reference spans within blocks, highlights still track through edits — but the LLM never sees a heading without its body.
+
+## Phased Plan
+
+| Phase | Contribution |
+| --- | --- |
+| **Phase 4** | Implement section resolver, replace per-block settle triggers with section-departure triggers, update orchestrator dispatch, verify paste + import workflow. |
+
+## Todo
+
+- [ ] Implement `resolveSection(doc, blockId)` — pure function, returns section boundary given any member block. → §Design: Section resolver
+- [ ] Add `sectionId` to `EvalContext` / trigger payloads; change orchestrator to key in-flight tracking on section, not block. → §Design: Trigger redesign
+- [ ] Update `Editor.tsx` cursor tracking to detect section-departure rather than block-departure. → §Design: Trigger redesign
+- [ ] Update `evaluateBlock` call site to pass `heading + body combinedText` as the eval input. → §Design: Eval payload
+- [ ] Preserve per-block anchoring: observations still carry `blockId` + `substring`; section context is input-only. → §Design: Anchoring
+- [ ] Update `loadDoc` / `loadLedger` harness methods to work with the section model. → §Design: Harness
+- [ ] Add acceptance test: paste `## Heading\nbody`; assert no observation anchors to heading alone; assert "section is empty" never fires.
+- [ ] Add acceptance test: type a section vs. paste a section; assert both produce the same evaluation (same trigger path, same payload shape).
+
+---
+
+## Background — why blocks alone are insufficient
+
+TipTap / ProseMirror represents every top-level node as a separate block, each with its own stable `blockId`. A heading is a block. A paragraph is a block. A bullet list is one block (all bullets concatenated). There is no schema-level "section" node.
+
+The current evaluation pipeline fires on individual blocks: a `settle-blur` or `settle-pause` trigger captures the *active block's* text and dispatches it to the evaluator. When a section is pasted, the heading and its body arrive as separate blocks, both qualifying for evaluation (the blur path requires only `text.trim().length >= 10`, no terminal-punctuation check). The heading is therefore evaluated in isolation — with no body — which is the source of the hallucination class documented in `evaluation_signal_quality.md` §Finding 1.
+
+Fixing this by "skip headings" or "merge heading with next block" is a patch, not a fix: it handles the simple case but not sections that span multiple paragraphs, bullet lists, and sub-headings. The right level of abstraction is the **section**.
+
+---
+
+## Design
+
+### Section resolver
+
+A pure function over the ProseMirror doc tree. It has no side effects and requires no schema changes — sections are derived, not stored.
+
+```
+resolveSection(doc, blockId) → {
+  sectionId,          // = the heading's blockId (or first-block id for intro)
+  headingText,        // empty string if no heading precedes
+  memberBlockIds[],   // ordered list of all top-level block ids in this section
+  combinedText,       // heading + "\n\n" + body text, joined in document order
+}
+```
+
+Algorithm: walk top-level nodes; start a new section at each `heading` node (any level); accumulate all following non-heading nodes until the next heading or end of doc. Content before the first heading is an implicit intro section keyed by its first block's id.
+
+**Schema unchanged.** Sections are not persisted — they are re-derived on each eval call from the live doc state. This is intentional: sections shift as the user edits headings or adds structure, and re-derivation is cheap (one linear walk).
+
+### Trigger redesign
+
+Replace *block-departure* with *section-departure* as the primary eval trigger.
+
+Current: the cursor tracks the active block; blur/pause fires on that block.
+
+New: the cursor tracks the active **section** (call `resolveSection` to find which section the active block belongs to). A section evaluates when:
+1. The cursor leaves the section (moves to a block in a different section).
+2. The window blurs while the cursor is in the section.
+3. The section reaches the settle-pause threshold (3 s silence with terminal punctuation in any member block).
+4. A new heading is inserted — creating a section boundary — and the cursor moves into the new section.
+
+**Paste / import unification:** when a section is pasted, the cursor lands at the end of the last pasted block (typically the last block of the pasted section). The user then pastes the next section, moving the cursor forward — which triggers section-departure on the just-pasted section. This is the same event sequence as typing a section and pressing Enter to start a new one. No special "paste mode" is needed.
+
+Within-section edits reset the section's debounce timer but do not fire intermediate evaluations. This reduces call frequency for sections that are typed incrementally.
+
+### Eval payload
+
+The `evaluateBlock` call receives `combinedText = heading + "\n\n" + body` as its content input instead of a single block's text. The section title is therefore always present in the LLM's view, making "section is empty" structurally impossible (if the heading evaluates, the body is in the payload; if there is no body yet, the section hasn't departed and no eval fires).
+
+The `blockId` passed to `evaluateBlock` becomes the **section's representative id** (the heading block's id, or first-block id for intro sections). Claims extracted from the section are ledgered under this id.
+
+### Anchoring — per-block spans survive
+
+The eval payload contains combined text, but the LLM still returns `substring` values anchoring observations to exact quoted text. On write, the observation engine already resolves `substring` against the live doc to find its host block — this is unchanged. A clarity observation quoting `"overly aggressive rules"` will still anchor to the paragraph block that contains it, regardless of whether the eval was triggered by section-departure.
+
+The one addition: the observation also records the `sectionId` (the heading block's id) as optional context for feed display ("in the Background section") — but this is display metadata, not structural.
+
+### Claim ledger impact
+
+Today claims are keyed by `blockId`. After this change, claims from a section eval are keyed by the **section's representative id** (heading block's id). For documents without headings, behaviour is unchanged (first block id). For documents with headings, a section re-eval (triggered by an edit deep in the body) will **overwrite** previous claims for that section under the same key — which is the correct behaviour (the section's claim set has changed).
+
+The prefilter and contradiction check are unaffected: they operate on the ledger's claim texts, not on block/section ids.
+
+### Harness
+
+`loadDoc({ blocks: [...] })` already seeds blocks in document order. The section resolver will correctly derive sections from seeded blocks. No harness API change required for seeding.
+
+For acceptance tests that need to assert "this section evaluated as one unit," the `getEvents(sinceSeq)` stream will show a single `settle` event with `sectionId` rather than multiple per-block events — testable without mocking.
+
+---
+
+## Constraints and non-goals
+
+- **No schema change.** Do not introduce a `section` node type. It would require custom input rules, auto-wrap paste handling, and interfere with Markdown import/export (Phase 4). The derived-section approach is equivalent without the schema cost.
+- **No change to anchoring or highlight mechanics.** `ObservationHighlighter.ts` and the position-mapping logic are not touched. Sections are input context only.
+- **Very long sections.** A section that exceeds a token threshold (e.g. a 2,000-word background narrative) should fall back to evaluating the body in chunks and merging claims — but this is an edge case; defer until observed in practice. Add a `MAX_SECTION_CHARS` guard that logs a warning and truncates gracefully if needed.
+- **Sub-headings.** `## H2` followed by `### H3` creates a nested section hierarchy. For v1, treat every heading at any level as a section boundary (flat sections). Hierarchical sections are a later refinement.
