@@ -29,6 +29,8 @@ interface Props {
   onObservationCollapsed: (id: string) => void;
   onEvaluationComplete: () => void;
   onStageSuggestion?: (suggestion: string) => void;
+  /** Called whenever the ordered list of blockIds changes (document-order, top→bottom). */
+  onBlockOrderChange?: (ids: string[]) => void;
   clearTrigger?: number;
   importContent?: { content: string; timestamp: number };
 }
@@ -77,6 +79,7 @@ export function Editor({
   onObservationCollapsed,
   onEvaluationComplete,
   onStageSuggestion,
+  onBlockOrderChange,
   clearTrigger,
   importContent,
 }: Props) {
@@ -102,6 +105,24 @@ export function Editor({
   useEffect(() => { onEvaluationCompleteRef.current = onEvaluationComplete; }, [onEvaluationComplete]);
   const onStageSuggestionRef = useRef(onStageSuggestion);
   useEffect(() => { onStageSuggestionRef.current = onStageSuggestion; }, [onStageSuggestion]);
+  const onBlockOrderChangeRef = useRef(onBlockOrderChange);
+  useEffect(() => { onBlockOrderChangeRef.current = onBlockOrderChange; }, [onBlockOrderChange]);
+  /** Last emitted ordered blockId string, for change-detection. */
+  const prevBlockOrderKeyRef = useRef<string>("");
+
+  /** Emit the document-order blockId array whenever it changes. */
+  const emitBlockOrderIfChanged = (ed: ReturnType<typeof useEditor>) => {
+    const ids: string[] = [];
+    ed?.state.doc.forEach((node) => {
+      const id = node.attrs?.blockId as string | undefined;
+      if (id) ids.push(id);
+    });
+    const key = ids.join("|");
+    if (key !== prevBlockOrderKeyRef.current) {
+      prevBlockOrderKeyRef.current = key;
+      onBlockOrderChangeRef.current?.(ids);
+    }
+  };
 
   const editor = useEditor({
     extensions: [
@@ -152,6 +173,9 @@ export function Editor({
         }
       }
       prevBlockIds.current = currentBlockIds;
+
+      // --- 2b. Emit updated document-order block ids to the feed ---
+      emitBlockOrderIfChanged(editor);
 
       // --- 3. Track cursor's section and schedule a settle-pause eval ---
       const { selection } = editor.state;
@@ -381,6 +405,8 @@ export function Editor({
         onStageSuggestion: onStageSuggestionRef.current,
       };
       prevBlockIds.current = new Set(blocks.map((b) => b.id));
+      // Emit document order immediately after seeding (setContent doesn't fire onUpdate).
+      emitBlockOrderIfChanged(editor);
       const sections = resolveSections(editor.state.doc);
       // Seed cursor tracking at the last section so subsequent edits depart cleanly.
       lastActiveSectionId.current = sections.length > 0 ? sections[sections.length - 1].sectionId : null;
@@ -438,6 +464,8 @@ export function Editor({
       if (record?.content) {
         editor.commands.setContent(record.content);
       }
+      // setContent() may not fire onUpdate; emit order explicitly after load.
+      emitBlockOrderIfChanged(editor);
     });
   }, [editor]);
 
@@ -446,26 +474,46 @@ export function Editor({
     if (!editor || clearTrigger === undefined || clearTrigger === 0) return;
     editor.commands.clearContent(true);
     prevBlockIds.current = new Set();
+    // Emit empty order on clear.
+    emitBlockOrderIfChanged(editor);
   }, [editor, clearTrigger]);
 
-  // Handle imported content
+  // Handle imported content: set doc, then fire one fast-tier section eval per
+  // section so the sidecar lights up immediately. The doc-idle (strong-tier)
+  // pass is intentionally NOT armed here — it fires only after the user's first
+  // edit, same as any freshly opened document. BlockId's appendTransaction
+  // handles ID assignment; no manual loop needed.
   useEffect(() => {
     if (!editor || !importContent) return;
-    editor.commands.setContent(importContent.content, true);
+    // false = don't emit update so onUpdate doesn't race with our eval dispatch below
+    editor.commands.setContent(importContent.content, false);
     prevBlockIds.current = new Set();
-    
-    // Explicitly re-assign block IDs for the newly imported content
-    const tr = editor.state.tr;
-    let modified = false;
-    editor.state.doc.descendants((node, pos) => {
-      if (editor.state.doc.resolve(pos).depth === 0 && node.isBlock) {
-        tr.setNodeMarkup(pos, undefined, { ...node.attrs, blockId: nanoid(10) });
-        modified = true;
+
+    // BlockId's appendTransaction fires synchronously on the next state update;
+    // defer by one tick so IDs are stable before we resolve sections.
+    setTimeout(() => {
+      if (editor.isDestroyed) return;
+      const ctx: EvalContext = {
+        docId: DOC_ID,
+        apiKey: apiKeyRef.current ?? "",
+        paidKey: paidKeyRef.current,
+        stage: stageRef.current,
+        onStageSuggestion: onStageSuggestionRef.current,
+      };
+      prevBlockIds.current = getBlockIds(editor);
+      emitBlockOrderIfChanged(editor);
+      const sections = resolveSections(editor.state.doc);
+      for (const section of sections) {
+        if (section.combinedText.trim().length >= 15) {
+          scheduleEval(
+            { kind: "block-settle-pause", sectionId: section.sectionId, members: section.members },
+            section.combinedText,
+            ctx,
+            () => onEvaluationCompleteRef.current(),
+          );
+        }
       }
-    });
-    if (modified) {
-      editor.view.dispatch(tr);
-    }
+    }, 0);
   }, [editor, importContent]);
 
   // Sync observations with the highlighter extension

@@ -85,19 +85,18 @@ Five milestones with a strict dependency spine, now split across Phase 4 (A·B·
 
 ### Milestone E — Feed: budget model + noisiness
 
-- [ ] In `src/sidecar/SidecarFeed.tsx`: sort active observations by `priority` (descending) instead of arrival order.
-- [ ] Implement a **budget model** (not a threshold): show the top-N observations by priority; the rest move into an "also noticed" drawer (collapsed by default). Initial N = 7 (tune after dogfooding). The drawer keeps everything visible on demand without the feed becoming a wall.
-- [ ] Kind floors and ceilings on the budget:
-  - `contradiction` observations always surface regardless of N (floor = show even if outside top-N, unless dismissed).
-  - `reflection` observations are never shown in the main feed count — they live in the reflections panel (Milestone D). They do not consume budget slots.
-  - `opportunity` observations can be toggled off without affecting `problem` observations.
-- [ ] Add a **noisiness control** in settings. Design as a discrete three-step switch rather than a continuous slider (simpler to reason about and implement):
-  - **Key issues only** — top-5, problems and contradictions only; opportunities and all reflections hidden.
-  - **Balanced** (default) — top-N budget with all kinds active.
-  - **Everything** — no budget cap; reflections panel auto-expands; opportunities surfaced aggressively.
-- [ ] The noisiness control is the **last thing** to build in this milestone. Priority-sort + budget deliver most of the calm-feed value with zero user-facing controls. Ship and dogfood those first; add the switch only if the default N needs user override in practice.
-- [ ] `data-testid="also-noticed-drawer"` · `data-testid="noisiness-control"`.
-- [ ] Update `docs/projects/message_generation_workflow.md` to reflect the new feed sort/budget contract.
+- [x] In `src/sidecar/SidecarFeed.tsx`: sort active observations by `priority` (descending) instead of arrival order. *(Budget-select by priority; display in document-order — see `src/sidecar/feedBudget.ts`.)*
+- [x] Implement a **budget model** (not a threshold): show the top-N observations by priority; the rest move into an "also noticed" drawer (collapsed by default). Initial N = 7 (tune after dogfooding). The drawer keeps everything visible on demand without the feed becoming a wall.
+- [x] Kind floors and ceilings on the budget:
+  - [x] `contradiction` observations always surface regardless of N (floor = show even if outside top-N, unless dismissed).
+  - [x] `reflection` observations are never shown in the main feed count — they live in the reflections panel (Milestone D). They do not consume budget slots.
+  - [ ] `opportunity` observations can be toggled off without affecting `problem` observations. *(Part of noisiness control — deferred.)*
+- [ ] Add a **noisiness control** in settings. Design as a discrete three-step switch rather than a continuous slider (simpler to reason about and implement): *(Intentionally deferred — ship and dogfood the default N=7 budget first; add the switch only if the default proves wrong in practice.)*
+  - [ ] **Key issues only** — top-5, problems and contradictions only; opportunities and all reflections hidden.
+  - [ ] **Balanced** (default) — top-N budget with all kinds active.
+  - [ ] **Everything** — no budget cap; reflections panel auto-expands; opportunities surfaced aggressively.
+- [x] `data-testid="also-noticed-drawer"` · `data-testid="noisiness-control"` *(drawer delivered; noisiness-control testid deferred with the control itself)*.
+- [x] Update `docs/projects/message_generation_workflow.md` to reflect the new feed sort/budget contract.
 
 ---
 

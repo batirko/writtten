@@ -2,10 +2,70 @@ import { useState, useEffect, useRef } from "react";
 import type { Observation } from "../store/db";
 import type { LLMLogEntry, SessionStats } from "../model/logger";
 import { subscribeStall } from "../model/stallSignal";
+import { partitionFeed, DEFAULT_FEED_BUDGET } from "./feedBudget";
+
+// ---------------------------------------------------------------------------
+// ObsCard — shared card markup for main feed and "also noticed" drawer
+// ---------------------------------------------------------------------------
+
+interface ObsCardProps {
+  obs: Observation;
+  isActive: boolean;
+  isArriving: boolean;
+  onHover: (id: string | null) => void;
+  onDismiss: (id: string) => void;
+}
+
+function ObsCard({ obs, isActive, isArriving, onHover, onDismiss }: ObsCardProps) {
+  return (
+    <div
+      className={`observation-card observation-${obs.type} ${isActive ? "observation-card-active" : ""} ${isArriving ? "observation-card-arriving" : ""}`}
+      data-testid="obs-card"
+      data-obs-type={obs.type}
+      data-obs-id={obs.id}
+      onMouseEnter={() => onHover(obs.id)}
+      onMouseLeave={() => onHover(null)}
+    >
+      <div className="card-header">
+        <span className={`tag tag-${obs.type}`}>{obs.type.replace(/_/g, ' ')}</span>
+        <button
+          className="dismiss-btn"
+          data-testid="obs-dismiss"
+          data-obs-id={obs.id}
+          onClick={() => onDismiss(obs.id)}
+          title="Dismiss Observation"
+        >
+          <svg
+            width="12"
+            height="12"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+      <div className="card-body">
+        <p>{obs.text}</p>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// SidecarFeed
+// ---------------------------------------------------------------------------
 
 interface Props {
   observations: Observation[];
   archivedObservations?: Observation[];
+  /** Ordered blockIds from the editor (top → bottom), for document-order display. */
+  blockOrder?: string[];
   apiKey: string;
   onApiKeyChange: (key: string) => void;
   stage: string;
@@ -28,6 +88,7 @@ interface Props {
 export function SidecarFeed({
   observations,
   archivedObservations = [],
+  blockOrder = [],
   apiKey,
   onApiKeyChange,
   stage,
@@ -48,6 +109,7 @@ export function SidecarFeed({
   const [showSettings, setShowSettings] = useState(false);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [showArchive, setShowArchive] = useState(false);
+  const [showAlsoNoticed, setShowAlsoNoticed] = useState(false);
   const [debugMode, setDebugMode] = useState(true);
   const [expandedLogId, setExpandedLogId] = useState<string | null>(null);
   const [copySuccess, setCopySuccess] = useState(false);
@@ -105,6 +167,12 @@ export function SidecarFeed({
       console.error("Failed to copy logs:", err);
     }
   };
+
+  // Partition observations: budget-select by priority, display in document order.
+  const { visible: visibleObs, alsoNoticed: alsoNoticedObs } = partitionFeed(observations, {
+    budget: DEFAULT_FEED_BUDGET,
+    blockOrder,
+  });
 
   return (
     <aside className="sidecar-panel">
@@ -366,49 +434,59 @@ export function SidecarFeed({
                   +{arrivalBatchCount} new
                 </div>
               )}
-              {observations.map((obs) => {
-                const isActive = hoveredObservationId === obs.id;
-                const isArriving = arrivingIds.has(obs.id);
-                return (
-                  <div
-                    key={obs.id}
-                    className={`observation-card observation-${obs.type} ${isActive ? "observation-card-active" : ""} ${isArriving ? "observation-card-arriving" : ""}`}
-                    data-testid="obs-card"
-                    data-obs-type={obs.type}
-                    data-obs-id={obs.id}
-                    onMouseEnter={() => onHoverObservation(obs.id)}
-                    onMouseLeave={() => onHoverObservation(null)}
+              {visibleObs.map((obs) => (
+                <ObsCard
+                  key={obs.id}
+                  obs={obs}
+                  isActive={hoveredObservationId === obs.id}
+                  isArriving={arrivingIds.has(obs.id)}
+                  onHover={onHoverObservation}
+                  onDismiss={onDismissObservation}
+                />
+              ))}
+
+              {/* "Also noticed" drawer — overflow below the budget */}
+              {alsoNoticedObs.length > 0 && (
+                <div
+                  data-testid="also-noticed-drawer"
+                  style={{ borderTop: '1px solid #e5e7eb', marginTop: '4px', paddingTop: '4px' }}
+                >
+                  <button
+                    data-testid="also-noticed-toggle"
+                    onClick={() => setShowAlsoNoticed(!showAlsoNoticed)}
+                    style={{
+                      width: '100%',
+                      textAlign: 'left',
+                      background: 'none',
+                      border: 'none',
+                      cursor: 'pointer',
+                      fontSize: '0.8rem',
+                      color: '#6b7280',
+                      padding: '4px 0',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                    }}
                   >
-                    <div className="card-header">
-                      <span className={`tag tag-${obs.type}`}>{obs.type.replace(/_/g, ' ')}</span>
-                      <button
-                        className="dismiss-btn"
-                        data-testid="obs-dismiss"
-                        data-obs-id={obs.id}
-                        onClick={() => onDismissObservation(obs.id)}
-                        title="Dismiss Observation"
-                      >
-                        <svg
-                          width="12"
-                          height="12"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2.5"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        >
-                          <line x1="18" y1="6" x2="6" y2="18"></line>
-                          <line x1="6" y1="6" x2="18" y2="18"></line>
-                        </svg>
-                      </button>
+                    <span>{showAlsoNoticed ? '▾' : '▸'}</span>
+                    <span>Also noticed ({alsoNoticedObs.length})</span>
+                  </button>
+                  {showAlsoNoticed && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                      {alsoNoticedObs.map((obs) => (
+                        <ObsCard
+                          key={obs.id}
+                          obs={obs}
+                          isActive={hoveredObservationId === obs.id}
+                          isArriving={arrivingIds.has(obs.id)}
+                          onHover={onHoverObservation}
+                          onDismiss={onDismissObservation}
+                        />
+                      ))}
                     </div>
-                    <div className="card-body">
-                      <p>{obs.text}</p>
-                    </div>
-                  </div>
-                );
-              })}
+                  )}
+                </div>
+              )}
             </div>
           )}
         </div>

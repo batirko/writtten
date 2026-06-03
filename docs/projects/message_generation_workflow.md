@@ -278,11 +278,19 @@ The feed accumulates state across many evaluations. The invariant: **the set of 
 
 The behavior described in [§4](#4-the-user-perceptible-behavior-model) imposes constraints on the feed renderer.
 
-### Ordering
+### Ordering (resolved 2026-06-03, Phase 4 Milestone E)
 
-Two reasonable orderings; we should commit to one. **Recommendation: document-order primary, recency secondary.** Observations are sorted by the document position of their anchor (top-of-doc first); document-level observations live in a small group at the top or bottom (see [Open Questions](#12-open-questions)). Within the same anchor, more recent first.
+**Priority governs membership; document-order governs display.** Two separate concerns:
 
-Why not pure recency: a recency-sorted feed shuffles when the user revises an earlier paragraph, violating the stability rule. Document-order means a newly-arriving observation slots into its natural place and the rest of the feed doesn't move.
+1. **Budget selection (by priority):** `partitionFeed()` in `src/sidecar/feedBudget.ts` sorts all active observations by `priority` descending and takes the top-N (default N=7) as the visible set. This is *selection*, not display — it decides which observations are in the main feed vs. the "also noticed" drawer.
+
+2. **Display (document-order):** within each group (visible or also-noticed), observations are sorted by the document position of their anchor block (top-of-doc first), then by `startOffset`. Document-scoped observations (no `blockId`) sort to the bottom of their group. A newly-arriving observation slots into its natural document position — **the rest of the feed does not shuffle** (feed stability preserved).
+
+3. **Contradiction floor:** every active `type === "contradiction"` observation is always in the visible set regardless of the budget. The user may dismiss it; dismissed observations leave the budget calculation.
+
+4. **"Also noticed" drawer:** overflow observations below the budget live in a collapsed drawer (`data-testid="also-noticed-drawer"`) below the main list. These are real active observations with full hover/dismiss behaviour — they are never dropped, just deprioritised.
+
+Open-Q#1 (*"doc-order or recency?"*) is **resolved**: document-order. Open-Q#2 (pinned "About this document" group for doc-scoped observations) remains a styling refinement for a later phase.
 
 ### Arrival animation
 
@@ -300,7 +308,7 @@ Already exists (SidecarFeed.tsx:54-58). Promote it: when the active provider cha
 ### What never happens in the feed
 
 - No "Apply" / "Fix" / "Rewrite" / "Accept suggestion" button. Ever. (`CLAUDE.md`, the hard invariant.)
-- No reordering on update.
+- No priority-shuffle on update — existing cards don't move when a new observation arrives or an old one closes. Observations slot into document position; the rest hold their place.
 - No global spinner during evaluation.
 - No "Re-scan document" button.
 - No toast popups for new observations — they live in the feed only.

@@ -34,6 +34,7 @@ export default function App() {
 
   const [observations, setObservations] = useState<Observation[]>([]);
   const [archivedObservations, setArchivedObservations] = useState<Observation[]>([]);
+  const [blockOrder, setBlockOrder] = useState<string[]>([]);
   const [hoveredObservationId, setHoveredObservationId] = useState<string | null>(null);
   const [clearTrigger, setClearTrigger] = useState(0);
   const [stageSuggestion, setStageSuggestion] = useState<string | null>(null);
@@ -182,6 +183,7 @@ export default function App() {
           onObservationCollapsed={handleObservationCollapsed}
           onEvaluationComplete={refreshObservations}
           onStageSuggestion={setStageSuggestion}
+          onBlockOrderChange={setBlockOrder}
           clearTrigger={clearTrigger}
           importContent={importContent}
         />
@@ -189,6 +191,7 @@ export default function App() {
       <SidecarFeed
         observations={observations}
         archivedObservations={archivedObservations}
+        blockOrder={blockOrder}
         apiKey={apiKey}
         onApiKeyChange={setApiKey}
         stage={stage}
