@@ -2,7 +2,7 @@ import { openDB, type IDBPDatabase } from "idb";
 import { harness } from "../debug/harness";
 
 const DB_NAME = "writtten";
-const DB_VERSION = 4;
+const DB_VERSION = 5;
 
 export interface DocumentRecord {
   id: string;
@@ -40,7 +40,16 @@ export interface Observation {
     | "structure_flow"
     | "audience_mismatch";
   scope: "span" | "document";
-  nature: "defect" | "opportunity";
+  /** Replaces the old `nature` field. Fixed, intrinsic to the observation type.
+   *  `problem` = something is wrong/missing; `opportunity` = could be stronger;
+   *  `reflection` = neutral structural mirror (Milestone D, not yet produced). */
+  kind: "problem" | "opportunity" | "reflection";
+  /** Per-instance urgency signal. Defaults to "medium"; Milestone B computes real values. */
+  severity: "low" | "medium" | "high";
+  /** How confident we are in this observation. Defaults to "medium"; Milestone B calibrates. */
+  confidence: "low" | "medium" | "high";
+  /** Computed sort key: higher = more urgent. Range [0, 3] once Milestone B lands; 0 until then. */
+  priority: number;
   text: string;
   status: "active" | "auto_closed" | "dismissed" | "superseded";
 
@@ -69,7 +78,7 @@ let _db: IDBPDatabase | null = null;
 async function getDb(): Promise<IDBPDatabase> {
   if (_db) return _db;
   _db = await openDB(DB_NAME, DB_VERSION, {
-    upgrade(db, oldVersion, _newVersion, transaction) {
+    async upgrade(db, oldVersion, _newVersion, transaction) {
       if (oldVersion < 1) {
         db.createObjectStore("documents", { keyPath: "id" });
       }
@@ -98,6 +107,27 @@ async function getDb(): Promise<IDBPDatabase> {
         // Per-doc hash of the last doc-level eval inputs, for the dirty-check
         // that skips redundant doc-level LLM calls.
         db.createObjectStore("doc_eval_state", { keyPath: "docId" });
+      }
+      if (oldVersion < 5) {
+        // Data-backfill migration: rename `nature` → `kind` and add the three
+        // new per-instance metadata axes (severity, confidence, priority).
+        // `defect` → `problem`; `opportunity` stays `opportunity`.
+        // New axes default to neutral values; Milestone B will compute real ones.
+        const obsStore = transaction.objectStore("observations");
+        let cursor = await obsStore.openCursor();
+        while (cursor) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const record = cursor.value as any;
+          if ("nature" in record) {
+            record.kind = record.nature === "defect" ? "problem" : "opportunity";
+            delete record.nature;
+          }
+          if (!("severity" in record)) record.severity = "medium";
+          if (!("confidence" in record)) record.confidence = "medium";
+          if (!("priority" in record)) record.priority = 0;
+          await cursor.update(record);
+          cursor = await cursor.continue();
+        }
       }
     },
   });

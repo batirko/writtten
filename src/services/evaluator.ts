@@ -499,7 +499,10 @@ export async function evaluateSection(
           newObs.push({
             type: obsType,
             scope: "span",
-            nature: "defect",
+            kind: "problem",
+            severity: "medium",
+            confidence: "medium",
+            priority: 0,
             text: obs.text,
             blockId: anchor.blockId,
             startOffset: anchor.startOffset,
@@ -572,7 +575,10 @@ export async function evaluateSection(
         newObs.push({
           type: "contradiction",
           scope: "span",
-          nature: "defect",
+          kind: "problem",
+          severity: "medium",
+          confidence: "medium",
+          priority: 0,
           text: con.message,
           blockId: exact?.blockId ?? fallback.blockId,
           startOffset: exact?.startOffset ?? 0,
@@ -702,20 +708,28 @@ export async function evaluateDocument(
 
     const addDocObs = (
       type: Observation["type"],
-      nature: Observation["nature"],
+      kind: Observation["kind"],
       items: { text: string }[] | undefined,
     ) => {
       for (const item of items ?? []) {
         if (item.text?.trim()) {
-          newObs.push({ type, scope: "document", nature, text: item.text.trim() });
+          newObs.push({
+            type,
+            scope: "document",
+            kind,
+            severity: "medium",
+            confidence: "medium",
+            priority: 0,
+            text: item.text.trim(),
+          });
         }
       }
     };
 
     addDocObs("missing_topic", "opportunity", parsed.missing_topic_observations);
     addDocObs("underexposed_topic", "opportunity", parsed.underexposed_topic_observations);
-    addDocObs("audience_mismatch", "defect", parsed.audience_mismatch_observations);
-    addDocObs("structure_flow", "defect", parsed.structure_flow_observations);
+    addDocObs("audience_mismatch", "problem", parsed.audience_mismatch_observations);
+    addDocObs("structure_flow", "problem", parsed.structure_flow_observations);
 
     await reconcileDocumentObservations(docId, newObs);
     // Remember the inputs we just reviewed so an unchanged doc skips next time.
