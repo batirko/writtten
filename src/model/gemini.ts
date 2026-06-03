@@ -1,8 +1,19 @@
 import type { LLMRequest, LLMResponse, ModelRouter } from "./router";
 import { llmLogger, parse429 } from "./logger";
 import { trackCall } from "./rpmBudget";
+import { reportStall, reportProgress } from "./stallSignal";
 
 const GEMINI_API_BASE = "https://generativelanguage.googleapis.com/v1beta/models";
+
+/**
+ * Per-request timeout. A real call observed at 40.6s justifies a hard cap: past
+ * this we abort, mark the call as a (retryable) failure so rotation moves to the
+ * next model, and raise the stall signal so the UI stops looking frozen.
+ */
+const REQUEST_TIMEOUT_MS: Record<"fast" | "strong", number> = {
+  fast: 30_000,
+  strong: 45_000,
+};
 
 /**
  * Model pools — free-tier ordering by RPD budget.
@@ -129,11 +140,40 @@ async function callGemini(
     keyTier,
   });
 
-  const res = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
+  const controller = new AbortController();
+  const timeoutMs = REQUEST_TIMEOUT_MS[tier];
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+      signal: controller.signal,
+    });
+  } catch (e) {
+    clearTimeout(timeoutId);
+    if (controller.signal.aborted) {
+      // Surface the stall to the UI and report a retryable error (503) so the
+      // rotation pool tries the next model rather than aborting the whole eval.
+      reportStall();
+      const latencyMs = Date.now() - startTime;
+      llmLogger.log({
+        type: "error",
+        model,
+        endpoint: url,
+        latencyMs,
+        statusCode: 503,
+        payload: { system: req.system, user: req.user },
+        errorMessage: `Request timeout (503) after ${timeoutMs}ms`,
+        keyTier,
+      });
+      throw new Error(`Gemini timeout (503) after ${timeoutMs}ms`);
+    }
+    throw e;
+  }
+  clearTimeout(timeoutId);
 
   const latencyMs = Date.now() - startTime;
 
@@ -179,6 +219,8 @@ async function callGemini(
 
   // Record call completion for RPM budget tracking.
   trackCall();
+  // A good response clears any prior stall state.
+  reportProgress();
 
   return { text };
 }

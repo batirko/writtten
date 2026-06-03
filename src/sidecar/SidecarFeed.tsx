@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import type { Observation } from "../store/db";
 import type { LLMLogEntry, SessionStats } from "../model/logger";
+import { subscribeStall } from "../model/stallSignal";
 
 interface Props {
   observations: Observation[];
@@ -48,6 +49,11 @@ export function SidecarFeed({
   const [debugMode, setDebugMode] = useState(true);
   const [expandedLogId, setExpandedLogId] = useState<string | null>(null);
   const [copySuccess, setCopySuccess] = useState(false);
+  // Stall state: raised when an LLM request exceeds its timeout, so the chip
+  // shows "still working…" instead of looking frozen. Cleared by the next good
+  // response. See src/model/stallSignal.ts.
+  const [stalled, setStalled] = useState(false);
+  useEffect(() => subscribeStall(setStalled), []);
 
   // --- Batched arrival animation ---
   // When 3+ observations arrive within 600 ms, they animate in as a group
@@ -130,20 +136,25 @@ export function SidecarFeed({
         <div className="sidecar-title-bar" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <h3>Sidecar Feed</h3>
           <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-            {import.meta.env.DEV && (
+            {(import.meta.env.DEV || stalled) && (
               <span
                 className="sidecar-status-chip"
                 data-testid="sidecar-status"
                 data-pending={pending}
+                data-stalled={stalled}
                 style={{
                   fontSize: '0.75rem',
                   padding: '2px 6px',
                   borderRadius: '4px',
-                  background: pending === 0 ? '#e6f4ea' : '#fff4e5',
-                  color: pending === 0 ? '#137333' : '#b06000',
+                  background: stalled ? '#fce8e6' : pending === 0 ? '#e6f4ea' : '#fff4e5',
+                  color: stalled ? '#b3261e' : pending === 0 ? '#137333' : '#b06000',
                 }}
               >
-                {pending === 0 ? 'idle' : `evaluating (${pending} pending)`}
+                {stalled
+                  ? 'still working…'
+                  : pending === 0
+                    ? 'idle'
+                    : `evaluating (${pending} pending)`}
               </span>
             )}
             {activeProvider && (

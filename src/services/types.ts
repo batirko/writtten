@@ -1,11 +1,28 @@
+/** A top-level block within a section, carried on settle triggers so the
+ *  evaluator can re-anchor span observations to the exact member block. */
+export interface SectionMember {
+  blockId: string;
+  text: string;
+}
+
 /**
  * Discriminated union of every event that may cause an LLM evaluation to be
  * scheduled. The set is closed — new triggers go here first with a written
  * reason. See docs/projects/message_generation_workflow.md §5.
+ *
+ * Settle triggers are keyed by **section** (heading + body), not by block: the
+ * LLM never sees a heading without its body. The `members` carry per-block text
+ * so observations still anchor to individual blocks. See
+ * docs/projects/section_as_eval_unit.md.
  */
 export type EvalTrigger =
-  | { kind: "block-settle-pause"; blockId: string }
-  | { kind: "block-settle-blur"; blockId: string; reason: "cursor-departed" | "window-blurred" }
+  | { kind: "block-settle-pause"; sectionId: string; members: SectionMember[] }
+  | {
+      kind: "block-settle-blur";
+      sectionId: string;
+      members: SectionMember[];
+      reason: "cursor-departed" | "window-blurred";
+    }
   | { kind: "block-removed"; blockId: string }
   | { kind: "block-paste"; blockIds: string[] } // Phase 3: batched fast call; not yet dispatched
   | { kind: "doc-idle" }

@@ -55,7 +55,7 @@ Each item below maps back to one or more of these.
 
 ### Phase 2
 
-- [x] **Seedable state:** `__sidecar__.loadDoc(fixture)` / `loadLedger(fixture)` to install a known document + ledger instantly. (#6) — `loadDoc` mints block ids up front and schedules a settle eval for **every** seeded block (plain `setContent` leaves the cursor in one block, so only that block would otherwise settle); `loadLedger` writes claims straight to IDB. → `src/debug/harness.ts`, `registerDocWriter` in `src/editor/Editor.tsx`
+- [x] **Seedable state:** `__sidecar__.loadDoc(fixture)` / `loadLedger(fixture)` to install a known document + ledger instantly. (#6) — `loadDoc` mints block ids up front, parses any leading Markdown heading (`## Foo`) into a heading node, and schedules one settle eval per **section** (heading + body) so seeding exercises the same section pipeline as typing/paste; `loadLedger` writes claims straight to IDB. → `src/debug/harness.ts`, `registerDocWriter` in `src/editor/Editor.tsx`
 - [x] **Mock / record-replay LLM mode:** canned responses keyed by a stable request hash; `record` captures real responses, `mock` replays them offline. Deterministic, fast, quota-free. (#6) → `src/model/mock.ts`, `src/model/factory.ts` (evaluator builds its router via `createRouter`)
 - [x] **`data-testid`** on feed cards (`obs-card`), dismiss buttons (`obs-dismiss`), provider chip, status element, clear button + modal, debug entries. → `src/sidecar/SidecarFeed.tsx`
 - [x] Replace native `confirm()` on destructive actions with an in-app modal; add `__sidecar__.clear()` that skips it. (#5) → `src/sidecar/SidecarFeed.tsx`, `registerClear` in `src/App.tsx`
@@ -104,7 +104,7 @@ interface SidecarDebugApi {
 Every meaningful lifecycle moment emits one structured event, both to `console.log` (so `list_console_messages` is a clean stream) and to an in-memory ring buffer (`getEvents`). Each event carries a **monotonic `seq`** and a stable id, which is what makes waiting reliable — the agent waits for "an event with `seq` greater than the one I last saw," never for a string that also appears in history.
 
 ```
-[sidecar] settle       seq=42 trigger=settle-pause block=gD-8uoum
+[sidecar] settle       seq=42 trigger=settle-pause sectionId=gD-8uoum
 [sidecar] request      seq=43 id=req_7 block=gD-8uoum tier=fast
 [sidecar] ledger-write seq=44 block=gD-8uoum action=overwrite   ← T6 bug, surfaced directly
 [sidecar] response     seq=45 id=req_7 latencyMs=2905 claims=1 observations=2

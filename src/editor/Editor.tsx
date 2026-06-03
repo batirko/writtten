@@ -3,11 +3,13 @@ import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import { BlockId } from "./extensions/BlockId";
 import { ObservationHighlighter } from "./extensions/ObservationHighlighter";
+import { resolveSection, resolveSections } from "./section";
 import { saveDocument, loadDocument, type Observation } from "../store/db";
 import { scheduleEval } from "../services/orchestrator";
 import type { EvalContext } from "../services/types";
 import { harness } from "../debug/harness";
 import { nanoid } from "nanoid";
+import { Markdown } from "tiptap-markdown";
 
 const DOC_ID = "default";
 const SAVE_DEBOUNCE_MS = 1000;
@@ -77,13 +79,13 @@ export function Editor({
   clearTrigger,
 }: Props) {
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  /** Per-block typing-pause debounce timers. */
+  /** Per-section typing-pause debounce timers (keyed by sectionId). */
   const evalTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
   /** Doc-idle timer: fires after DOC_IDLE_MS of no edits anywhere. */
   const docIdleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const lastActiveBlockId = useRef<string | null>(null);
-  const lastActiveBlockText = useRef<string>("");
+  /** Representative id of the section the cursor was last in (for departure). */
+  const lastActiveSectionId = useRef<string | null>(null);
   /** Previous doc block-id set, for removal detection. */
   const prevBlockIds = useRef<Set<string>>(new Set());
 
@@ -102,6 +104,7 @@ export function Editor({
   const editor = useEditor({
     extensions: [
       StarterKit,
+      Markdown,
       BlockId,
       ObservationHighlighter.configure({
         onObservationCollapsed(id) {
@@ -145,56 +148,57 @@ export function Editor({
       }
       prevBlockIds.current = currentBlockIds;
 
-      // --- 3. Track cursor position and schedule settle-pause eval ---
+      // --- 3. Track cursor's section and schedule a settle-pause eval ---
       const { selection } = editor.state;
       const $pos = selection.$from;
       let blockId: string | null = null;
-      let blockText = "";
 
       if ($pos.depth >= 1) {
         const node = $pos.node(1);
         if (node?.isBlock) {
           blockId = node.attrs.blockId as string | null;
-          blockText = node.textContent;
         }
       }
 
-      if (blockId) {
-        lastActiveBlockText.current = blockText;
+      const activeSection = blockId ? resolveSection(editor.state.doc, blockId) : null;
+      if (activeSection) {
+        const sectionId = activeSection.sectionId;
 
-        // Reset the settle-pause timer for this block
-        const existing = evalTimers.current.get(blockId);
+        // Reset the settle-pause timer for this section
+        const existing = evalTimers.current.get(sectionId);
         if (existing) {
           clearTimeout(existing);
-          evalTimers.current.delete(blockId);
+          evalTimers.current.delete(sectionId);
         }
 
-        const capturedBlockId = blockId;
-        const capturedText = blockText;
         const timer = setTimeout(() => {
-          evalTimers.current.delete(capturedBlockId);
+          evalTimers.current.delete(sectionId);
 
-          const hasTerminalPunc = /[.!?"]\s*$/.test(capturedText);
-          const hasMinLength = capturedText.trim().length >= 15;
+          // Re-resolve from the live doc so the eval sees the current section.
+          const fresh = resolveSection(editor.state.doc, sectionId);
+          if (!fresh) return;
+
+          const hasTerminalPunc = /[.!?"]\s*$/.test(fresh.combinedText);
+          const hasMinLength = fresh.combinedText.trim().length >= 15;
 
           if (hasTerminalPunc && hasMinLength) {
             const ctx: EvalContext = {
               docId: DOC_ID,
               apiKey: apiKeyRef.current ?? "",
-            paidKey: paidKeyRef.current,
+              paidKey: paidKeyRef.current,
               stage: stageRef.current,
               onStageSuggestion: onStageSuggestionRef.current,
             };
             scheduleEval(
-              { kind: "block-settle-pause", blockId: capturedBlockId },
-              capturedText,
+              { kind: "block-settle-pause", sectionId, members: fresh.members },
+              fresh.combinedText,
               ctx,
               () => onEvaluationCompleteRef.current(),
             );
           }
         }, EVAL_DEBOUNCE_MS);
 
-        evalTimers.current.set(blockId, timer);
+        evalTimers.current.set(sectionId, timer);
       }
 
       // Reset the doc-idle timer on every edit. Fires a doc-level check after
@@ -227,34 +231,41 @@ export function Editor({
     },
 
     onSelectionUpdate({ editor }) {
-      // --- Cursor-departure trigger ---
+      // --- Section-departure trigger ---
+      // Fire when the cursor crosses into a *different* section, evaluating the
+      // section just left. Typing + Enter within a section, and pasting one
+      // section then the next, produce the same departure event — so paste and
+      // typing flow through one path. See docs/projects/section_as_eval_unit.md.
       const { selection } = editor.state;
       const $pos = selection.$from;
       let currentBlockId: string | null = null;
-      let currentBlockText = "";
 
       if ($pos.depth >= 1) {
         const node = $pos.node(1);
         if (node?.isBlock) {
           currentBlockId = node.attrs.blockId as string | null;
-          currentBlockText = node.textContent;
         }
       }
 
-      const departedBlockId = lastActiveBlockId.current;
-      if (departedBlockId && departedBlockId !== currentBlockId) {
-        const departedText = lastActiveBlockText.current;
+      const currentSectionId = currentBlockId
+        ? resolveSection(editor.state.doc, currentBlockId)?.sectionId ?? null
+        : null;
 
-        // Cancel the settle-pause timer for the departed block — the blur
-        // trigger fires immediately (after coalescing), so no need for the
-        // 3 s wait on top.
-        const timer = evalTimers.current.get(departedBlockId);
+      const departedSectionId = lastActiveSectionId.current;
+      if (departedSectionId && departedSectionId !== currentSectionId) {
+        // Re-resolve the departed section from the live doc to capture its
+        // current content (it still exists; only the cursor moved).
+        const departed = resolveSection(editor.state.doc, departedSectionId);
+
+        // Cancel the settle-pause timer for the departed section — the blur
+        // trigger fires immediately (after coalescing).
+        const timer = evalTimers.current.get(departedSectionId);
         if (timer) {
           clearTimeout(timer);
-          evalTimers.current.delete(departedBlockId);
+          evalTimers.current.delete(departedSectionId);
         }
 
-        if (departedText.trim().length >= 10) {
+        if (departed && departed.combinedText.trim().length >= 10) {
           const ctx: EvalContext = {
             docId: DOC_ID,
             apiKey: apiKeyRef.current ?? "",
@@ -263,16 +274,20 @@ export function Editor({
             onStageSuggestion: onStageSuggestionRef.current,
           };
           scheduleEval(
-            { kind: "block-settle-blur", blockId: departedBlockId, reason: "cursor-departed" },
-            departedText,
+            {
+              kind: "block-settle-blur",
+              sectionId: departedSectionId,
+              members: departed.members,
+              reason: "cursor-departed",
+            },
+            departed.combinedText,
             ctx,
             () => onEvaluationCompleteRef.current(),
           );
         }
       }
 
-      lastActiveBlockId.current = currentBlockId;
-      lastActiveBlockText.current = currentBlockText;
+      lastActiveSectionId.current = currentSectionId;
     },
   });
 
@@ -281,26 +296,34 @@ export function Editor({
   // as a settle-blur so the block is evaluated on return.
   useEffect(() => {
     const handleWindowBlur = () => {
-      const blockId = lastActiveBlockId.current;
-      const text = lastActiveBlockText.current;
-      if (!blockId || text.trim().length < 10) return;
+      if (!editor) return;
+      const sectionId = lastActiveSectionId.current;
+      if (!sectionId) return;
+      const section = resolveSection(editor.state.doc, sectionId);
+      if (!section || section.combinedText.trim().length < 10) return;
 
       // Cancel the settle-pause timer — the blur trigger takes over
-      const timer = evalTimers.current.get(blockId);
+      const timer = evalTimers.current.get(sectionId);
       if (timer) {
         clearTimeout(timer);
-        evalTimers.current.delete(blockId);
+        evalTimers.current.delete(sectionId);
       }
 
       const ctx: EvalContext = {
         docId: DOC_ID,
         apiKey: apiKeyRef.current ?? "",
+        paidKey: paidKeyRef.current,
         stage: stageRef.current,
         onStageSuggestion: onStageSuggestionRef.current,
       };
       scheduleEval(
-        { kind: "block-settle-blur", blockId, reason: "window-blurred" },
-        text,
+        {
+          kind: "block-settle-blur",
+          sectionId,
+          members: section.members,
+          reason: "window-blurred",
+        },
+        section.combinedText,
         ctx,
         () => onEvaluationCompleteRef.current(),
       );
@@ -311,7 +334,7 @@ export function Editor({
       window.removeEventListener("blur", handleWindowBlur);
       if (docIdleTimer.current) clearTimeout(docIdleTimer.current);
     };
-  }, []); // refs are stable — no deps needed
+  }, [editor]); // re-bind once the editor instance is ready
 
   // Register live block read + fixture-doc write with the dev harness
   // (dev-only; stripped in prod).
@@ -322,29 +345,45 @@ export function Editor({
       // Mint ids up front so they're known immediately (the BlockId plugin would
       // otherwise assign them asynchronously, after we'd want to schedule evals).
       const blocks = fixture.blocks.map((b) => ({ id: b.id ?? nanoid(10), text: b.text }));
+      // A leading Markdown heading (`## Foo`) seeds a real heading node so the
+      // section resolver groups it with its body — mirroring how a paste lands.
+      const headingMatch = (text: string) => /^(#{1,6})\s+(.*)$/.exec(text.trim());
       editor.commands.setContent({
         type: "doc",
-        content: blocks.map((b) => ({
-          type: "paragraph",
-          attrs: { blockId: b.id },
-          ...(b.text ? { content: [{ type: "text", text: b.text }] } : {}),
-        })),
+        content: blocks.map((b) => {
+          const h = headingMatch(b.text);
+          if (h) {
+            return {
+              type: "heading",
+              attrs: { blockId: b.id, level: h[1].length },
+              content: [{ type: "text", text: h[2] }],
+            };
+          }
+          return {
+            type: "paragraph",
+            attrs: { blockId: b.id },
+            ...(b.text ? { content: [{ type: "text", text: b.text }] } : {}),
+          };
+        }),
       });
-      // setContent leaves the cursor in a single block, so only that block would
-      // settle. Drive evaluation for every seeded block so loadDoc exercises the
-      // whole pipeline (this is what lets an agent seed a multi-block scenario).
+      // Fire one settle per *section* (heading + body) so loadDoc exercises the
+      // same section pipeline as typing/paste — never an isolated heading.
       const ctx: EvalContext = {
         docId: DOC_ID,
         apiKey: apiKeyRef.current ?? "",
+        paidKey: paidKeyRef.current,
         stage: stageRef.current,
         onStageSuggestion: onStageSuggestionRef.current,
       };
       prevBlockIds.current = new Set(blocks.map((b) => b.id));
-      for (const b of blocks) {
-        if (b.text.trim().length >= 10) {
+      const sections = resolveSections(editor.state.doc);
+      // Seed cursor tracking at the last section so subsequent edits depart cleanly.
+      lastActiveSectionId.current = sections.length > 0 ? sections[sections.length - 1].sectionId : null;
+      for (const section of sections) {
+        if (section.combinedText.trim().length >= 10) {
           scheduleEval(
-            { kind: "block-settle-pause", blockId: b.id },
-            b.text,
+            { kind: "block-settle-pause", sectionId: section.sectionId, members: section.members },
+            section.combinedText,
             ctx,
             () => onEvaluationCompleteRef.current(),
           );

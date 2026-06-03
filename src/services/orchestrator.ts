@@ -12,12 +12,13 @@
  * See docs/projects/message_generation_workflow.md §6.
  */
 
-import { type EvalTrigger, type EvalContext } from "./types";
-import { evaluateBlock, evaluateDocument } from "./evaluator";
+import { type EvalTrigger, type EvalContext, type SectionMember } from "./types";
+import { evaluateSection, evaluateDocument } from "./evaluator";
 import {
   loadActiveObservationsForDocument,
   orphanClaimsForBlock,
   updateObservationStatus,
+  deleteBlockSummary,
 } from "../store/db";
 import { llmLogger } from "../model/logger";
 import { harness } from "../debug/harness";
@@ -41,19 +42,22 @@ const COALESCE_MS = 250;
 interface CoalesceEntry {
   timer: ReturnType<typeof setTimeout>;
   text: string;
+  members: SectionMember[];
   triggerKind: string;
   onComplete?: () => void;
 }
 
 interface PendingEntry {
   text: string;
+  members: SectionMember[];
   ctx: EvalContext;
   triggerKind: string;
   onComplete?: () => void;
 }
 
+// Keyed by sectionId — a section (heading + body) is the unit of evaluation.
 const coalesceTimers = new Map<string, CoalesceEntry>();
-const inFlightBlocks = new Set<string>();
+const inFlightSections = new Set<string>();
 const pendingAfterInflight = new Map<string, PendingEntry>();
 
 let docIdleInFlight = false;
@@ -69,7 +73,7 @@ function recomputePending(): void {
   if (import.meta.env.DEV) {
     harness.setPending(
       coalesceTimers.size +
-        inFlightBlocks.size +
+        inFlightSections.size +
         pendingAfterInflight.size +
         (docIdleInFlight ? 1 : 0) +
         (pendingDocIdle ? 1 : 0),
@@ -77,14 +81,14 @@ function recomputePending(): void {
   }
 }
 
-function logTrigger(triggerKind: string, blockId: string): void {
+function logTrigger(triggerKind: string, id: string): void {
   llmLogger.log({
     type: "trigger",
     model: "",
     endpoint: "",
     payload: { system: "", user: "" },
     triggerKind,
-    blockId,
+    blockId: id,
   });
 }
 
@@ -107,6 +111,7 @@ async function handleBlockRemoved(
 
   // Orphan claims — no LLM call needed
   await orphanClaimsForBlock(blockId);
+  await deleteBlockSummary(blockId);
 
   // Auto-close all observations anchored to or conflicting with this block
   const active = await loadActiveObservationsForDocument(ctx.docId);
@@ -119,38 +124,39 @@ async function handleBlockRemoved(
 }
 
 async function dispatch(
-  blockId: string,
+  sectionId: string,
   text: string,
+  members: SectionMember[],
   ctx: EvalContext,
   triggerKind: string,
   onComplete?: () => void,
 ): Promise<void> {
   // If in-flight, queue a re-run with the latest data
-  if (inFlightBlocks.has(blockId)) {
-    pendingAfterInflight.set(blockId, { text, ctx, triggerKind: "rerun", onComplete });
+  if (inFlightSections.has(sectionId)) {
+    pendingAfterInflight.set(sectionId, { text, members, ctx, triggerKind: "rerun", onComplete });
     recomputePending();
     return;
   }
 
-  inFlightBlocks.add(blockId);
+  inFlightSections.add(sectionId);
   recomputePending();
-  logTrigger(triggerKind, blockId);
-  if (import.meta.env.DEV) harness.emit("settle", { trigger: triggerKind, block: blockId });
+  logTrigger(triggerKind, sectionId);
+  if (import.meta.env.DEV) harness.emit("settle", { trigger: triggerKind, sectionId });
 
   try {
-    await evaluateBlock(ctx.docId, blockId, text, ctx.stage, ctx.apiKey, ctx.paidKey);
+    await evaluateSection(ctx.docId, sectionId, text, members, ctx.stage, ctx.apiKey, ctx.paidKey);
   } catch (err) {
-    console.error("[orchestrator] evaluateBlock threw:", err);
+    console.error("[orchestrator] evaluateSection threw:", err);
   } finally {
-    inFlightBlocks.delete(blockId);
+    inFlightSections.delete(sectionId);
     onComplete?.();
 
     // Dispatch the queued re-run if one arrived while we were in-flight
-    const pending = pendingAfterInflight.get(blockId);
+    const pending = pendingAfterInflight.get(sectionId);
     if (pending) {
-      pendingAfterInflight.delete(blockId);
+      pendingAfterInflight.delete(sectionId);
       recomputePending();
-      dispatch(blockId, pending.text, pending.ctx, pending.triggerKind, pending.onComplete);
+      dispatch(sectionId, pending.text, pending.members, pending.ctx, pending.triggerKind, pending.onComplete);
     } else {
       recomputePending();
     }
@@ -257,24 +263,24 @@ export function scheduleEval(
     return;
   }
 
-  // block-settle-pause | block-settle-blur
+  // block-settle-pause | block-settle-blur (section-keyed)
   if (!text) return;
-  const { blockId } = trigger;
+  const { sectionId, members } = trigger;
   const triggerKind =
     trigger.kind === "block-settle-pause"
       ? "settle-pause"
       : `settle-blur:${trigger.reason}`;
 
   // Collapse into the coalesce window
-  const existing = coalesceTimers.get(blockId);
+  const existing = coalesceTimers.get(sectionId);
   if (existing) clearTimeout(existing.timer);
 
   const timer = setTimeout(() => {
-    coalesceTimers.delete(blockId);
+    coalesceTimers.delete(sectionId);
     recomputePending();
-    dispatch(blockId, text, ctx, triggerKind, onComplete);
+    dispatch(sectionId, text, members, ctx, triggerKind, onComplete);
   }, COALESCE_MS);
 
-  coalesceTimers.set(blockId, { timer, text, triggerKind, onComplete });
+  coalesceTimers.set(sectionId, { timer, text, members, triggerKind, onComplete });
   recomputePending();
 }

@@ -1,5 +1,5 @@
 ---
-status: idea
+status: done
 phases: [4]
 summary: Redesign the evaluation unit from individual ProseMirror blocks to semantic sections (heading + body), unifying the typing and paste workflows and eliminating the heading-hallucination class of bugs.
 ---
@@ -10,26 +10,26 @@ summary: Redesign the evaluation unit from individual ProseMirror blocks to sema
 
 > Canonical status lives in the frontmatter above and is mirrored in the Projects Index in `docs/plan.md`. This block carries the human-readable scope only.
 
-**Status: `idea`.** Design decision is settled; implementation not yet scheduled. This work directly resolves `evaluation_signal_quality.md` Finding 1 (heading-only block hallucination) and is the prerequisite for clean Phase 4 import/paste behaviour.
+**Status: `done`** (2026-06-03). Implemented as the structural half of Chunk 1. This work directly resolves `evaluation_signal_quality.md` Finding 1 (heading-only block hallucination) and is the prerequisite for clean Phase 4 import/paste behaviour. Implementation: `src/editor/section.ts` (resolver), section-keyed triggers in `src/editor/Editor.tsx`, section-keyed orchestrator state in `src/services/orchestrator.ts`, `evaluateSection` + member re-anchoring in `src/services/evaluator.ts`.
 
-The core shift: the **section** (heading + all body nodes until the next heading) becomes the atomic unit of evaluation. The **block** (individual ProseMirror node) remains the unit of *anchoring* — observations still reference spans within blocks, highlights still track through edits — but the LLM never sees a heading without its body.
+The core shift: the **section** (heading + all body nodes until the next heading) becomes the atomic unit of evaluation. The **block** (individual ProseMirror node) remains the unit of _anchoring_ — observations still reference spans within blocks, highlights still track through edits — but the LLM never sees a heading without its body.
 
 ## Phased Plan
 
-| Phase | Contribution |
-| --- | --- |
+| Phase       | Contribution                                                                                                                                                 |
+| ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | **Phase 4** | Implement section resolver, replace per-block settle triggers with section-departure triggers, update orchestrator dispatch, verify paste + import workflow. |
 
 ## Todo
 
-- [ ] Implement `resolveSection(doc, blockId)` — pure function, returns section boundary given any member block. → §Design: Section resolver
-- [ ] Add `sectionId` to `EvalContext` / trigger payloads; change orchestrator to key in-flight tracking on section, not block. → §Design: Trigger redesign
-- [ ] Update `Editor.tsx` cursor tracking to detect section-departure rather than block-departure. → §Design: Trigger redesign
-- [ ] Update `evaluateBlock` call site to pass `heading + body combinedText` as the eval input. → §Design: Eval payload
-- [ ] Preserve per-block anchoring: observations still carry `blockId` + `substring`; section context is input-only. → §Design: Anchoring
-- [ ] Update `loadDoc` / `loadLedger` harness methods to work with the section model. → §Design: Harness
-- [ ] Add acceptance test: paste `## Heading\nbody`; assert no observation anchors to heading alone; assert "section is empty" never fires.
-- [ ] Add acceptance test: type a section vs. paste a section; assert both produce the same evaluation (same trigger path, same payload shape).
+- [x] Implement `resolveSection(doc, blockId)` — pure function, returns section boundary given any member block. → `src/editor/section.ts` (+ `resolveSections`); unit tests in `src/editor/section.test.ts`.
+- [x] Add `sectionId` + `members` to trigger payloads; change orchestrator to key in-flight tracking on section, not block. → `src/services/types.ts`, `src/services/orchestrator.ts` (`inFlightSections`).
+- [x] Update `Editor.tsx` cursor tracking to detect section-departure rather than block-departure. → `onSelectionUpdate` / `onUpdate` / window-blur in `src/editor/Editor.tsx`.
+- [x] Update the eval call site to pass `heading + body combinedText` as the eval input. → `evaluateSection(docId, sectionId, combinedText, members, …)`; `evaluateBlock` kept as a one-member wrapper.
+- [x] Preserve per-block anchoring: observations still carry `blockId` + `substring`; section context is input-only. → `anchorSubstring` re-anchors each span to its member block.
+- [x] Update `loadDoc` harness method to work with the section model. → docWriter parses a leading Markdown heading into a heading node and fires one settle per resolved section. `loadLedger` unchanged (keyed by id).
+- [ ] Acceptance test (browser harness): paste `## Heading\nbody`; assert no observation anchors to heading alone; assert "section is empty" never fires. _(Covered by resolver unit tests + manual harness verification; browser acceptance run pending.)_
+- [ ] Acceptance test (browser harness): type a section vs. paste a section; assert both produce the same `settle` event shape (`sectionId`). _(Same path by construction; browser run pending.)_
 
 ---
 
@@ -37,7 +37,7 @@ The core shift: the **section** (heading + all body nodes until the next heading
 
 TipTap / ProseMirror represents every top-level node as a separate block, each with its own stable `blockId`. A heading is a block. A paragraph is a block. A bullet list is one block (all bullets concatenated). There is no schema-level "section" node.
 
-The current evaluation pipeline fires on individual blocks: a `settle-blur` or `settle-pause` trigger captures the *active block's* text and dispatches it to the evaluator. When a section is pasted, the heading and its body arrive as separate blocks, both qualifying for evaluation (the blur path requires only `text.trim().length >= 10`, no terminal-punctuation check). The heading is therefore evaluated in isolation — with no body — which is the source of the hallucination class documented in `evaluation_signal_quality.md` §Finding 1.
+The current evaluation pipeline fires on individual blocks: a `settle-blur` or `settle-pause` trigger captures the _active block's_ text and dispatches it to the evaluator. When a section is pasted, the heading and its body arrive as separate blocks, both qualifying for evaluation (the blur path requires only `text.trim().length >= 10`, no terminal-punctuation check). The heading is therefore evaluated in isolation — with no body — which is the source of the hallucination class documented in `evaluation_signal_quality.md` §Finding 1.
 
 Fixing this by "skip headings" or "merge heading with next block" is a patch, not a fix: it handles the simple case but not sections that span multiple paragraphs, bullet lists, and sub-headings. The right level of abstraction is the **section**.
 
@@ -64,11 +64,12 @@ Algorithm: walk top-level nodes; start a new section at each `heading` node (any
 
 ### Trigger redesign
 
-Replace *block-departure* with *section-departure* as the primary eval trigger.
+Replace _block-departure_ with _section-departure_ as the primary eval trigger.
 
 Current: the cursor tracks the active block; blur/pause fires on that block.
 
 New: the cursor tracks the active **section** (call `resolveSection` to find which section the active block belongs to). A section evaluates when:
+
 1. The cursor leaves the section (moves to a block in a different section).
 2. The window blurs while the cursor is in the section.
 3. The section reaches the settle-pause threshold (3 s silence with terminal punctuation in any member block).
@@ -110,3 +111,13 @@ For acceptance tests that need to assert "this section evaluated as one unit," t
 - **No change to anchoring or highlight mechanics.** `ObservationHighlighter.ts` and the position-mapping logic are not touched. Sections are input context only.
 - **Very long sections.** A section that exceeds a token threshold (e.g. a 2,000-word background narrative) should fall back to evaluating the body in chunks and merging claims — but this is an edge case; defer until observed in practice. Add a `MAX_SECTION_CHARS` guard that logs a warning and truncates gracefully if needed.
 - **Sub-headings.** `## H2` followed by `### H3` creates a nested section hierarchy. For v1, treat every heading at any level as a section boundary (flat sections). Hierarchical sections are a later refinement.
+
+---
+
+## Open questions & decisions
+
+### Semantic paste (Markdown and Rich-text) is a correctness requirement
+
+**The problem:** Real-world testing revealed that TipTap's default clipboard paste does not reliably parse headers (e.g. `### Background` in markdown, or `<b>Background</b>` styled text from an external rich-text editor) into semantic `heading` nodes. As a result, when a user pastes a document, the section resolver sees zero headings and treats the entire document as a single, massive section. This silently disables cross-section checks (Contradiction) and doc-level checks (which require ≥2 sections), while massively inflating token cost as the single block is repeatedly re-evaluated.
+
+**Decision:** "Semantic paste" (parsing both raw markdown hashes and external HTML/rich-text styling into proper semantic `heading` nodes) is not just a nice-to-have for Phase 4; it is a **correctness requirement** for the section model to function on imported text. Until the editor is configured to parse pasted text into semantic nodes, the `section_as_eval_unit` architecture will degenerate to "whole-doc-as-one-blob" for pasted content. This must be prioritized as part of the Phase 4 Import milestone.

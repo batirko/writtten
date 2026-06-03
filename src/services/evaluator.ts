@@ -7,6 +7,8 @@ import {
   saveClaimsForBlock,
   loadActiveClaimsForDocument,
   loadBlockSummariesForDocument,
+  saveDocEvalState,
+  loadDocEvalState,
   saveObservation,
   loadActiveObservationsForDocument,
   updateObservationStatus,
@@ -17,6 +19,7 @@ import {
 } from "../store/db";
 import { nanoid } from "nanoid";
 import { harness } from "../debug/harness";
+import type { SectionMember } from "./types";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -73,6 +76,13 @@ function normalizeText(text: string): string {
   return text.trim().toLowerCase();
 }
 
+/** Content signature for de-duplicating observations that say the same thing
+ *  about the same block but differ only in offset (Tier B noise reduction).
+ *  See docs/projects/evaluation_signal_quality.md Finding 5. */
+function contentSig(obs: { type: string; blockId?: string; text: string }): string {
+  return `${obs.type}:${obs.blockId ?? "doc"}:${normalizeText(obs.text).slice(0, 60)}`;
+}
+
 function spansOverlap(
   a: { startOffset?: number; endOffset?: number },
   b: { startOffset?: number; endOffset?: number },
@@ -113,19 +123,42 @@ function isSpanSuppressed(
 
 async function reconcileObservations(
   docId: string,
-  blockId: string,
+  memberBlockIds: string[],
   newObs: NewObservation[],
 ): Promise<void> {
   const [allActive, suppressions] = await Promise.all([
     loadActiveObservationsForDocument(docId),
     loadSuppressionsForDocument(docId),
   ]);
-  const existing = allActive.filter((o) => o.blockId === blockId);
+  // A section eval reconciles every observation anchored to one of its member
+  // blocks — not just a single block. Keep the section keyed by representative
+  // id in memberBlockIds so contradictions (anchored there) reconcile too.
+  const memberSet = new Set(memberBlockIds);
+  const existing = allActive.filter((o) => o.blockId != null && memberSet.has(o.blockId));
   const matchedExistingIds = new Set<string>();
+  // Tracks content signatures already kept/inserted this pass, so two new
+  // observations that say the same thing (or one that duplicates a kept
+  // existing one at a different offset) collapse to a single card.
+  const seenContent = new Set<string>();
 
   for (const newO of newObs) {
     // Suppression check — never re-insert a dismissed span
     if (isSpanSuppressed(newO, suppressions)) continue;
+
+    const csig = contentSig(newO);
+    // Already kept/inserted an equivalent observation in this batch → drop dupe.
+    if (seenContent.has(csig)) continue;
+
+    // 0. Content match against an existing active obs → dedupe: keep it as-is
+    //    even if its offsets drifted slightly. Prevents duplicate cards.
+    const contentMatch = existing.find(
+      (e) => !matchedExistingIds.has(e.id) && contentSig(e) === csig,
+    );
+    if (contentMatch) {
+      matchedExistingIds.add(contentMatch.id);
+      seenContent.add(csig);
+      continue;
+    }
 
     const newSig = spanSig(newO);
 
@@ -138,6 +171,7 @@ async function reconcileObservations(
     );
     if (exactMatch) {
       matchedExistingIds.add(exactMatch.id);
+      seenContent.add(csig);
       continue;
     }
 
@@ -160,6 +194,7 @@ async function reconcileObservations(
       status: "active",
       ...newO,
     });
+    seenContent.add(csig);
     if (import.meta.env.DEV) {
       const blockIds = [newO.blockId, newO.conflictingBlockId].filter(Boolean);
       harness.emit("observation", { type: newO.type, blocks: blockIds });
@@ -236,11 +271,11 @@ async function reconcileDocumentObservations(
 // Prompts
 // ---------------------------------------------------------------------------
 
-const MERGED_SYSTEM_PROMPT = `You are an AI sidecar evaluating a text block for five things:
-1. Summary: a single short sentence summarizing the block's core claim or point.
-2. Claims: factual assertions, commitments, metrics, constraints, or definitions made in the text.
+export const MERGED_SYSTEM_PROMPT = `You are an AI sidecar evaluating a section of a document (a heading and its body) for five things:
+1. Summary: a single short sentence summarizing the section's core claim or point.
+2. Claims: factual assertions, commitments, metrics, constraints, or definitions made *in the content*. Do NOT extract meta-statements about the document itself (e.g. "This document is a PRD", "This section describes the rollout") — those are not claims the document makes, they describe the artifact.
 3. Clarity: places where the text is vague, ambiguous, or poorly specified.
-4. Unsupported claims: strong factual assertions made in the block that lack supporting evidence or grounding within the block itself. Only flag assertions of fact that would require evidence (data, studies, precedent) but provide none — not opinions, plans, or goals.
+4. Unsupported claims: strong assertions of *fact about the world* that would require evidence (data, studies, precedent) but provide none. Do NOT flag opinions, plans, goals, or **success targets and measurable objectives** (e.g. "false positives drop by ≥30%", "support volume decreases by 20%") — those are intended targets the team is setting, not factual claims needing citation.
 5. Undefined jargon: technical terms, acronyms, or domain-specific language used without being defined and that may be unfamiliar to the implied reader. Do not flag terms already in the provided glossary.
 
 Return a JSON object with exactly five keys:
@@ -272,7 +307,7 @@ Return a JSON object with exactly five keys:
 Keep observations short and specific. Do not hedge. Return empty arrays for categories with no issues.
 Do NOT include any text other than the raw JSON.`;
 
-const CONTRADICTION_SYSTEM_PROMPT = `You are a critical editor detecting logical contradictions or conflicts in a document.
+export const CONTRADICTION_SYSTEM_PROMPT = `You are a critical editor detecting logical contradictions or conflicts in a document.
 You will be given a set of 'New Claims' from a newly written block, and a list of 'Existing Claims' from the rest of the document.
 Compare each new claim against the existing claims. If a new claim contradicts, conflicts with, or directly opposes an existing claim, identify the contradiction.
 
@@ -283,6 +318,35 @@ Return a JSON object with a key 'contradictions', which is an array of objects. 
 
 If no contradictions are found, return an empty array for 'contradictions'.
 Do NOT include any text other than the raw JSON.`;
+
+/**
+ * Hedged variant used on the **free tier**, where `router.strong` resolves to a
+ * fast-pool model (flash-lite) rather than a genuine reasoning model. A weak
+ * model paired with a "never hedge" instruction manufactures confident false
+ * contradictions — the worst failure for a trust-based tool. So when no paid
+ * key is configured we (a) raise the bar for firing and (b) allow cautious
+ * language. See docs/projects/evaluation_signal_quality.md Finding 3.
+ */
+export const CONTRADICTION_SYSTEM_PROMPT_HEDGED = `You are a careful editor looking for *clear, direct* logical contradictions between claims in a document.
+You will be given a set of 'New Claims' from a newly written section, and a list of 'Existing Claims' from the rest of the document.
+Compare each new claim against the existing claims. Only flag a pair when one claim genuinely cannot be true if the other is — a direct conflict in a number, date, commitment, or fact. Differences in scope, phrasing, or emphasis are NOT contradictions. When in doubt, do not flag.
+
+Return a JSON object with a key 'contradictions', which is an array of objects. Each object must have:
+- 'newClaimText' (the text of the new claim that has the conflict)
+- 'existingClaimId' (the index number shown in [Existing Claim #N] for the conflicting existing claim)
+- 'message' (a short observation explaining the apparent conflict. Cautious language such as "may conflict with" or "appears to contradict" is appropriate here.)
+
+If no clear contradictions are found, return an empty array for 'contradictions'.
+Do NOT include any text other than the raw JSON.`;
+
+/** Loose check for statements *about the document/artifact* rather than claims
+ *  the document makes. Keeps hallucinated meta-claims out of the ledger. */
+export function isDocumentMetaClaim(text: string): boolean {
+  const t = text.trim().toLowerCase();
+  return /^(this|the)\s+(document|doc|prd|spec|specification|section|page|paper|memo|proposal)\b/.test(
+    t,
+  );
+}
 
 // ---------------------------------------------------------------------------
 // Public evaluator
@@ -299,10 +363,37 @@ interface ContradictionObservation {
   message: string;
 }
 
-export async function evaluateBlock(
+/**
+ * Anchor a returned substring to the exact member block that contains it. The
+ * LLM sees the whole section's combined text, but observations must still point
+ * at individual blocks so highlights track through edits. Returns null if no
+ * member contains the substring (a hallucinated span — dropped).
+ */
+function anchorSubstring(
+  members: SectionMember[],
+  substring: string,
+): { blockId: string; startOffset: number; endOffset: number } | null {
+  for (const m of members) {
+    const idx = m.text.indexOf(substring);
+    if (idx !== -1) {
+      return { blockId: m.blockId, startOffset: idx, endOffset: idx + substring.length };
+    }
+  }
+  return null;
+}
+
+/**
+ * Evaluate a whole section (heading + body) as one unit. `sectionId` is the
+ * representative block id (heading id, or first-block id for an intro section)
+ * and is the key for the block-summary and claim-ledger writes. Observations
+ * are re-anchored to individual member blocks. See
+ * docs/projects/section_as_eval_unit.md.
+ */
+export async function evaluateSection(
   docId: string,
-  blockId: string,
-  text: string,
+  sectionId: string,
+  combinedText: string,
+  members: SectionMember[],
   stage?: string,
   apiKey?: string,
   paidKey?: string,
@@ -315,20 +406,21 @@ export async function evaluateBlock(
   }
 
   const router = createRouter(apiKey ?? "", paidKey);
-  const cleanText = text.trim();
+  const cleanText = combinedText.trim();
   const textHash = hashCode(cleanText);
+  const memberBlockIds = members.map((m) => m.blockId);
 
   // 1. Skip if text hasn't changed since last eval
-  const existingSummary = await loadBlockSummary(blockId);
+  const existingSummary = await loadBlockSummary(sectionId);
   if (existingSummary && existingSummary.hash === textHash) {
     return;
   }
 
-  // 2. If block is now empty / too short, retire its data and close its observations
+  // 2. If section is now empty / too short, retire its data and close its observations
   if (cleanText.length < 10) {
-    await saveBlockSummary({ blockId, docId, summary: "", hash: textHash });
-    await saveClaimsForBlock(docId, blockId, []);
-    await reconcileObservations(docId, blockId, []);
+    await saveBlockSummary({ blockId: sectionId, docId, summary: "", hash: textHash });
+    await saveClaimsForBlock(docId, sectionId, []);
+    await reconcileObservations(docId, memberBlockIds, []);
     return;
   }
 
@@ -337,9 +429,13 @@ export async function evaluateBlock(
     //    Include stage and a glossary of already-defined terms so the model
     //    doesn't flag jargon the document has already introduced.
     const existingClaimsForGlossary = await loadActiveClaimsForDocument(docId);
-    const definedTerms = existingClaimsForGlossary
-      .filter((c) => c.kind === "definition" && c.sourceBlockId !== blockId)
-      .map((c) => `- ${c.text}`);
+    const definedTerms = [
+      ...new Set(
+        existingClaimsForGlossary
+          .filter((c) => c.kind === "definition" && c.sourceBlockId !== sectionId)
+          .map((c) => c.text),
+      ),
+    ].map((t) => `- ${t}`);
 
     const userParts: string[] = [cleanText];
     if (stage) userParts.push(`\nDocument context: ${stage}`);
@@ -348,7 +444,7 @@ export async function evaluateBlock(
     }
     const userContent = userParts.join("");
 
-    if (import.meta.env.DEV) harness.emit("request", { block: blockId, tier: "fast" });
+    if (import.meta.env.DEV) harness.emit("request", { block: sectionId, tier: "fast" });
     const mergedStartedAt = Date.now();
     const mergedRes = await router.fast({
       system: MERGED_SYSTEM_PROMPT,
@@ -365,7 +461,7 @@ export async function evaluateBlock(
     };
     if (import.meta.env.DEV) {
       harness.emit("response", {
-        block: blockId,
+        block: sectionId,
         tier: "fast",
         latencyMs: Date.now() - mergedStartedAt,
         claims: parsedMerged.claims?.length ?? 0,
@@ -376,14 +472,18 @@ export async function evaluateBlock(
     }
 
     const summaryText = parsedMerged.summary?.trim() || "";
-    const extractedClaims = parsedMerged.claims || [];
+    // Keep meta-statements about the artifact ("This document is a PRD") out of
+    // the ledger — they pollute the glossary and the contradiction comparison.
+    const extractedClaims = (parsedMerged.claims || []).filter(
+      (c) => !isDocumentMetaClaim(c.text),
+    );
     const clarityObservations = parsedMerged.clarity_observations || [];
     const unsupportedObservations = parsedMerged.unsupported_claim_observations || [];
     const jargonObservations = parsedMerged.undefined_jargon_observations || [];
 
     // 4. Persist summary and claims first — observations may reference ledger IDs
-    await saveBlockSummary({ blockId, docId, summary: summaryText, hash: textHash });
-    await saveClaimsForBlock(docId, blockId, extractedClaims);
+    await saveBlockSummary({ blockId: sectionId, docId, summary: summaryText, hash: textHash });
+    await saveClaimsForBlock(docId, sectionId, extractedClaims);
 
     // 5. Collect all new observations (do not write to DB yet)
     const newObs: NewObservation[] = [];
@@ -394,16 +494,16 @@ export async function evaluateBlock(
     ) => {
       for (const obs of items) {
         if (!obs.substring || !obs.text) continue;
-        const startOffset = cleanText.indexOf(obs.substring);
-        if (startOffset !== -1) {
+        const anchor = anchorSubstring(members, obs.substring);
+        if (anchor) {
           newObs.push({
             type: obsType,
             scope: "span",
             nature: "defect",
             text: obs.text,
-            blockId,
-            startOffset,
-            endOffset: startOffset + obs.substring.length,
+            blockId: anchor.blockId,
+            startOffset: anchor.startOffset,
+            endOffset: anchor.endOffset,
           });
         }
       }
@@ -415,7 +515,7 @@ export async function evaluateBlock(
 
     // 6. Contradiction check (cross-document, uses claim ledger)
     const existingClaims = await loadActiveClaimsForDocument(docId);
-    const otherClaims = existingClaims.filter((c) => c.sourceBlockId !== blockId);
+    const otherClaims = existingClaims.filter((c) => c.sourceBlockId !== sectionId);
 
     // Prefilter to top-10 most semantically relevant claims so the contradiction
     // prompt stays bounded as documents grow. With ≤10 claims this is a no-op.
@@ -437,11 +537,14 @@ export async function evaluateBlock(
         .join("\n")}${stage ? `\n\nDocument Context: ${stage}` : ""}`;
 
       if (import.meta.env.DEV) {
-        harness.emit("request", { block: blockId, tier: "strong", check: "contradiction" });
+        harness.emit("request", { block: sectionId, tier: "strong", check: "contradiction" });
       }
       const contradictionStartedAt = Date.now();
+      // Calibrate confidence to the tier actually running the check: the
+      // confident "never hedge" prompt only when a paid key routes to a real
+      // reasoning model; otherwise the hedged prompt (free tier → flash-lite).
       const contradictionRes = await router.strong({
-        system: CONTRADICTION_SYSTEM_PROMPT,
+        system: paidKey ? CONTRADICTION_SYSTEM_PROMPT : CONTRADICTION_SYSTEM_PROMPT_HEDGED,
         user: contradictionUser,
         json: true,
       });
@@ -451,7 +554,7 @@ export async function evaluateBlock(
       };
       if (import.meta.env.DEV) {
         harness.emit("response", {
-          block: blockId,
+          block: sectionId,
           tier: "strong",
           latencyMs: Date.now() - contradictionStartedAt,
           contradictions: parsedContradictions.contradictions?.length ?? 0,
@@ -462,14 +565,18 @@ export async function evaluateBlock(
         const matchingExisting = sortedOther[Number(con.existingClaimId)];
         if (!matchingExisting) continue;
 
+        // Anchor the new side to the member block holding the claim if we can
+        // find it; otherwise fall back to the section's representative block.
+        const exact = anchorSubstring(members, con.newClaimText);
+        const fallback = members[0] ?? { blockId: sectionId, text: cleanText };
         newObs.push({
           type: "contradiction",
           scope: "span",
           nature: "defect",
           text: con.message,
-          blockId,
-          startOffset: 0,
-          endOffset: cleanText.length,
+          blockId: exact?.blockId ?? fallback.blockId,
+          startOffset: exact?.startOffset ?? 0,
+          endOffset: exact?.endOffset ?? fallback.text.length,
           conflictingBlockId: matchingExisting.sourceBlockId,
           conflictingStartOffset: 0,
           conflictingEndOffset: 9999,
@@ -477,12 +584,36 @@ export async function evaluateBlock(
       }
     }
 
-    // 7. Reconcile new observations against existing active ones for this block
-    //    (dedupe / supersede / auto-close / insert — no blanket clear)
-    await reconcileObservations(docId, blockId, newObs);
+    // 7. Reconcile new observations against existing active ones for this
+    //    section's member blocks (dedupe / supersede / auto-close / insert)
+    await reconcileObservations(docId, memberBlockIds, newObs);
   } catch (error) {
-    console.error("Evaluation error for block", blockId, error);
+    console.error("Evaluation error for section", sectionId, error);
   }
+}
+
+/**
+ * Back-compat single-block entry point: a block evaluated as a one-member
+ * section. Preserves the original `evaluateBlock(docId, blockId, text, …)`
+ * contract used by existing tests and any single-block caller.
+ */
+export async function evaluateBlock(
+  docId: string,
+  blockId: string,
+  text: string,
+  stage?: string,
+  apiKey?: string,
+  paidKey?: string,
+): Promise<void> {
+  return evaluateSection(
+    docId,
+    blockId,
+    text,
+    [{ blockId, text: text.trim() }],
+    stage,
+    apiKey,
+    paidKey,
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -508,6 +639,20 @@ export async function evaluateDocument(
 
   const router = createRouter(apiKey ?? "", paidKey);
   const claims = await loadActiveClaimsForDocument(docId);
+
+  // Dirty-check: doc-level review is expensive (a strong-tier call) and its
+  // inputs are the block summaries + the claim ledger + the stage. If none of
+  // those changed since the last run, skip the call entirely. See
+  // docs/projects/evaluation_signal_quality.md §"Doc-level review efficiency".
+  const docStateHash = hashCode(
+    `${stage ?? ""}|` +
+      meaningful.map((s) => `${s.blockId}:${s.hash}`).join(",") +
+      "|" +
+      claims.map((c) => `${c.sourceBlockId}:${c.text}`).join(";"),
+  );
+  if ((await loadDocEvalState(docId)) === docStateHash) {
+    return;
+  }
 
   const parts: string[] = [];
   parts.push(stage ? `Stage/Context: ${stage}` : "Stage/Context: (none set)");
@@ -573,6 +718,8 @@ export async function evaluateDocument(
     addDocObs("structure_flow", "defect", parsed.structure_flow_observations);
 
     await reconcileDocumentObservations(docId, newObs);
+    // Remember the inputs we just reviewed so an unchanged doc skips next time.
+    await saveDocEvalState(docId, docStateHash);
 
     if (
       !stage &&

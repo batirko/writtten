@@ -2,7 +2,7 @@ import { openDB, type IDBPDatabase } from "idb";
 import { harness } from "../debug/harness";
 
 const DB_NAME = "writtten";
-const DB_VERSION = 3;
+const DB_VERSION = 4;
 
 export interface DocumentRecord {
   id: string;
@@ -93,6 +93,11 @@ async function getDb(): Promise<IDBPDatabase> {
 
         const supStore = db.createObjectStore("dismissal_suppressions", { keyPath: "id" });
         supStore.createIndex("by_doc", "docId");
+      }
+      if (oldVersion < 4) {
+        // Per-doc hash of the last doc-level eval inputs, for the dirty-check
+        // that skips redundant doc-level LLM calls.
+        db.createObjectStore("doc_eval_state", { keyPath: "docId" });
       }
     },
   });
@@ -293,6 +298,22 @@ export async function clearDocumentData(docId: string): Promise<void> {
     }
     await tx.done;
   }
+
+  await db.delete("doc_eval_state", docId);
+}
+
+// Doc-level eval dirty-check: remember the hash of the inputs (block summaries +
+// claim ledger) the last doc-level review ran against, so we can skip a
+// redundant strong-tier call when nothing relevant changed.
+export async function saveDocEvalState(docId: string, hash: string): Promise<void> {
+  const db = await getDb();
+  await db.put("doc_eval_state", { docId, hash });
+}
+
+export async function loadDocEvalState(docId: string): Promise<string | undefined> {
+  const db = await getDb();
+  const rec = (await db.get("doc_eval_state", docId)) as { docId: string; hash: string } | undefined;
+  return rec?.hash;
 }
 
 export async function updateObservationStatus(
