@@ -37,6 +37,7 @@ export default function App() {
   const [hoveredObservationId, setHoveredObservationId] = useState<string | null>(null);
   const [clearTrigger, setClearTrigger] = useState(0);
   const [stageSuggestion, setStageSuggestion] = useState<string | null>(null);
+  const [importContent, setImportContent] = useState<{ content: string; timestamp: number }>();
 
   const [logs, setLogs] = useState<LLMLogEntry[]>([]);
   const [activeProvider, setActiveProvider] = useState<string>("gemini-2.0-flash");
@@ -107,6 +108,16 @@ export default function App() {
   };
   clearWorkspaceRef.current = handleClearWorkspace;
 
+  const handleImportFile = async (file: File) => {
+    const text = await file.text();
+    await clearDocumentData(DOC_ID);
+    setObservations([]);
+    setArchivedObservations([]);
+    setStageSuggestion(null);
+    setStage("");
+    setImportContent({ content: text, timestamp: Date.now() });
+  };
+
   const handleDismissObservation = async (id: string) => {
     const obs = observations.find((o) => o.id === id);
     if (obs) {
@@ -172,6 +183,7 @@ export default function App() {
           onEvaluationComplete={refreshObservations}
           onStageSuggestion={setStageSuggestion}
           clearTrigger={clearTrigger}
+          importContent={importContent}
         />
       </main>
       <SidecarFeed
@@ -185,6 +197,7 @@ export default function App() {
         onHoverObservation={setHoveredObservationId}
         onDismissObservation={handleDismissObservation}
         onClearWorkspace={handleClearWorkspace}
+        onImportFile={handleImportFile}
         logs={logs}
         activeProvider={activeProvider}
         pending={pending}

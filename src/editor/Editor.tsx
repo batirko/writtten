@@ -10,7 +10,7 @@ import type { EvalContext } from "../services/types";
 import { harness } from "../debug/harness";
 import { nanoid } from "nanoid";
 import { Markdown } from "tiptap-markdown";
-
+import { SemanticPaste } from "./extensions/SemanticPaste";
 const DOC_ID = "default";
 const SAVE_DEBOUNCE_MS = 1000;
 /** Typing-pause settle: how long of silence (on this block) before we check. */
@@ -30,6 +30,7 @@ interface Props {
   onEvaluationComplete: () => void;
   onStageSuggestion?: (suggestion: string) => void;
   clearTrigger?: number;
+  importContent?: { content: string; timestamp: number };
 }
 
 /** Extract the set of blockIds currently present in the document. */
@@ -77,6 +78,7 @@ export function Editor({
   onEvaluationComplete,
   onStageSuggestion,
   clearTrigger,
+  importContent,
 }: Props) {
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   /** Per-section typing-pause debounce timers (keyed by sectionId). */
@@ -107,6 +109,7 @@ export function Editor({
       Markdown.configure({
         transformPastedText: true,
       }),
+      SemanticPaste,
       BlockId,
       ObservationHighlighter.configure({
         onObservationCollapsed(id) {
@@ -444,6 +447,26 @@ export function Editor({
     editor.commands.clearContent(true);
     prevBlockIds.current = new Set();
   }, [editor, clearTrigger]);
+
+  // Handle imported content
+  useEffect(() => {
+    if (!editor || !importContent) return;
+    editor.commands.setContent(importContent.content, true);
+    prevBlockIds.current = new Set();
+    
+    // Explicitly re-assign block IDs for the newly imported content
+    const tr = editor.state.tr;
+    let modified = false;
+    editor.state.doc.descendants((node, pos) => {
+      if (editor.state.doc.resolve(pos).depth === 0 && node.isBlock) {
+        tr.setNodeMarkup(pos, undefined, { ...node.attrs, blockId: nanoid(10) });
+        modified = true;
+      }
+    });
+    if (modified) {
+      editor.view.dispatch(tr);
+    }
+  }, [editor, importContent]);
 
   // Sync observations with the highlighter extension
   useEffect(() => {

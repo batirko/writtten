@@ -28,8 +28,8 @@ The core shift: the **section** (heading + all body nodes until the next heading
 - [x] Update the eval call site to pass `heading + body combinedText` as the eval input. → `evaluateSection(docId, sectionId, combinedText, members, …)`; `evaluateBlock` kept as a one-member wrapper.
 - [x] Preserve per-block anchoring: observations still carry `blockId` + `substring`; section context is input-only. → `anchorSubstring` re-anchors each span to its member block.
 - [x] Update `loadDoc` harness method to work with the section model. → docWriter parses a leading Markdown heading into a heading node and fires one settle per resolved section. `loadLedger` unchanged (keyed by id).
-- [ ] Acceptance test (browser harness): paste `## Heading\nbody`; assert no observation anchors to heading alone; assert "section is empty" never fires. _(Covered by resolver unit tests + manual harness verification; browser acceptance run pending.)_
-- [ ] Acceptance test (browser harness): type a section vs. paste a section; assert both produce the same `settle` event shape (`sectionId`). _(Same path by construction; browser run pending.)_
+- [x] Acceptance test (browser harness): paste `## Heading\nbody`; assert no observation anchors to heading alone; assert "section is empty" never fires. _(Covered by resolver unit tests + manual harness verification; manual acceptance run verified 2026-06-03.)_
+- [x] Acceptance test (browser harness): type a section vs. paste a section; assert both produce the same `settle` event shape (`sectionId`). _(Same path by construction; manual acceptance run verified 2026-06-03.)_
 
 ---
 

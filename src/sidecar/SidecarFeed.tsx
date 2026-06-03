@@ -14,6 +14,7 @@ interface Props {
   onHoverObservation: (id: string | null) => void;
   onDismissObservation: (id: string) => void;
   onClearWorkspace: () => void;
+  onImportFile?: (file: File) => void;
   logs?: LLMLogEntry[];
   activeProvider?: string;
   /** Dev harness readiness signal: 0 == idle, else evaluations outstanding. */
@@ -35,6 +36,7 @@ export function SidecarFeed({
   onHoverObservation,
   onDismissObservation,
   onClearWorkspace,
+  onImportFile,
   logs = [],
   activeProvider = "",
   pending = 0,
@@ -62,6 +64,18 @@ export function SidecarFeed({
   const prevObsIdsRef = useRef<Set<string>>(new Set());
   const [arrivingIds, setArrivingIds] = useState<Set<string>>(new Set());
   const [arrivalBatchCount, setArrivalBatchCount] = useState(0);
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const handleImportClick = () => {
+    fileInputRef.current?.click();
+  };
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file && onImportFile) {
+      onImportFile(file);
+    }
+    e.target.value = '';
+  };
 
   useEffect(() => {
     const currentIds = new Set(observations.map((o) => o.id));
@@ -197,6 +211,35 @@ export function SidecarFeed({
                 <path d="M10 11v6"></path>
                 <path d="M14 11v6"></path>
                 <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"></path>
+              </svg>
+            </button>
+            <input
+              type="file"
+              accept=".md,.txt"
+              style={{ display: "none" }}
+              ref={fileInputRef}
+              onChange={handleFileChange}
+              data-testid="import-input"
+            />
+            <button
+              className="settings-toggle-btn"
+              data-testid="import-button"
+              onClick={handleImportClick}
+              title="Import Document (.md, .txt)"
+            >
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                <polyline points="7 10 12 15 17 10"></polyline>
+                <line x1="12" y1="15" x2="12" y2="3"></line>
               </svg>
             </button>
             <button

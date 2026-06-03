@@ -116,13 +116,13 @@ Milestones:
 - [x] **Evaluation signal-quality remediation** (Tier A/B/C: meta-claim guard, defined-terms dedup, `unsupported_claim` carve-out, observation dedup, tier-calibrated contradiction confidence, per-request timeout + stall affordance, doc-level dirty-check). → see `docs/projects/evaluation_signal_quality.md`
 - [ ] Export: Markdown and PDF.
 - [ ] Copy to clipboard: rich text and Markdown.
-- [ ] Import and Markdown-aware paste. (TipTap's default paste treats markdown as plain text, breaking the section model by turning pasted docs into single massive blocks. Markdown parsing on paste is a correctness requirement for the section model). → see `docs/projects/ai_tooling_integration.md` (markitdown for binary-format import; decision point: path choice logged before writing code) · → see `docs/projects/section_as_eval_unit.md` (section-as-unit is a prerequisite for clean import evaluation)
+- [x] Import and Markdown-aware paste. (Semantic paste implemented via TipTap plugin. Decision point for markitdown: opted for Markdown/TXT-only import for now to maintain local-first invariant without Python requirements). → see `docs/projects/ai_tooling_integration.md` (markitdown for binary-format import; decision point: Markdown-only path chosen) · → see `docs/projects/section_as_eval_unit.md` (section-as-unit is a prerequisite for clean import evaluation)
 - [ ] PWA: installable, offline-capable, polished empty/early states that express the "quiet by design" intent.
 - [ ] Accessibility and keyboard-first polish in the feed and hover/highlight interactions.
 
 **Exit criteria:** a user can import a draft, work in it, and export/copy clean output in all formats; the app installs and runs offline.
 
-**Harness exit criterion:** [ ] `data-testid` on export/copy affordances and PWA install prompt; `loadDoc` accepts Markdown string as an alternative to the block-array fixture so import round-trips are testable without typing. → `docs/projects/agent_acceptance_harness.md`
+**Harness exit criterion:** [x] `loadDoc` accepts Markdown string as an alternative to the block-array fixture so import round-trips are testable without typing. [ ] `data-testid` on export/copy affordances and PWA install prompt. → `docs/projects/agent_acceptance_harness.md`
 
 ---
 

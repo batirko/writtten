@@ -41,8 +41,8 @@ summary: SkillOpt, LEANN, and markitdown — external tooling anchored to specif
 
 ### Phase 4 — markitdown
 
-- [ ] At the start of the import-feature milestone: evaluate the three paths (optional local helper / WASM port / Markdown-only deferral) against the local-first invariant. See [§markitdown](#markitdown--document-import).
-- [ ] **Decision point:** log the chosen architecture in `docs/plan.md` before writing any import code. Hard rule: no required backend.
+- [x] At the start of the import-feature milestone: evaluate the three paths (optional local helper / WASM port / Markdown-only deferral) against the local-first invariant. See [§markitdown](#markitdown--document-import).
+- [x] **Decision point (2026-06-03):** Chose "Markdown-only (deferred)" path. To maintain the strict local-first invariant without imposing a Python requirement on users, Phase 4 import supports `.md` and `.txt` files directly in the browser, alongside Semantic Paste for rich text. Binary format (DOCX/PDF) support via markitdown is deferred.
 
 ---
 
