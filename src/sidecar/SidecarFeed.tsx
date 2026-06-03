@@ -23,6 +23,9 @@ function ObsCard({ obs, isActive, isArriving, onHover, onDismiss }: ObsCardProps
       data-testid="obs-card"
       data-obs-type={obs.type}
       data-obs-id={obs.id}
+      data-kind={obs.kind}
+      data-severity={obs.severity}
+      data-confidence={obs.confidence}
       onMouseEnter={() => onHover(obs.id)}
       onMouseLeave={() => onHover(null)}
     >

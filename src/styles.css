@@ -277,13 +277,14 @@ body,
   border-color: #aaa !important;
 }
 
-.observation-clarity {
-  border-left: 4px solid #8e8e93;
-}
+/* Border accent: kind × severity → colour gradient */
+.observation-card[data-kind="problem"][data-severity="low"]    { border-left: 4px solid #8e8e93; }
+.observation-card[data-kind="problem"][data-severity="medium"] { border-left: 4px solid #f59e0b; }
+.observation-card[data-kind="problem"][data-severity="high"]   { border-left: 4px solid #ef4444; }
 
-.observation-contradiction {
-  border-left: 4px solid #ff9500;
-}
+.observation-card[data-kind="opportunity"][data-severity="low"]    { border-left: 4px solid #99c5d0; }
+.observation-card[data-kind="opportunity"][data-severity="medium"] { border-left: 4px solid #0ea5e9; }
+.observation-card[data-kind="opportunity"][data-severity="high"]   { border-left: 4px solid #0369a1; }
 
 .card-header {
   display: flex;
@@ -300,6 +301,7 @@ body,
   letter-spacing: 0.02em;
 }
 
+/* Tag colours by type */
 .tag-clarity {
   background-color: rgba(142, 142, 147, 0.12);
   color: #555;
@@ -308,6 +310,39 @@ body,
 .tag-contradiction {
   background-color: rgba(255, 149, 0, 0.12);
   color: #c97500;
+}
+
+/* Problem types — gray tier (low severity) */
+.tag-undefined_jargon,
+.tag-audience_mismatch,
+.tag-structure_flow {
+  background-color: rgba(142, 142, 147, 0.12);
+  color: #555;
+}
+
+/* Problem type — amber tier (medium severity) */
+.tag-unsupported_claim {
+  background-color: rgba(245, 158, 11, 0.12);
+  color: #b45309;
+}
+
+/* Opportunity types — teal tier */
+.tag-missing_topic {
+  background-color: rgba(14, 165, 233, 0.12);
+  color: #0369a1;
+}
+
+.tag-underexposed_topic {
+  background-color: rgba(14, 165, 233, 0.10);
+  color: #4a8fa8;
+}
+
+/* Confidence indicator: low-confidence observations show a hedging ~ after the tag text */
+.observation-card[data-confidence="low"] .tag::after {
+  content: " ~";
+  font-weight: 400;
+  opacity: 0.65;
+  letter-spacing: 0;
 }
 
 .dismiss-btn {
