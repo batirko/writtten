@@ -1,5 +1,5 @@
 ---
-status: idea
+status: in-progress
 phases: [4, 6]
 summary: Extend the observation model with three structured axes (kind, severity, confidence → priority), close the decision-rigor gap in the type taxonomy, add a reflection/mirror kind, and wire a budget-based noisiness model into the feed.
 ---

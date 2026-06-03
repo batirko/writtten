@@ -18,7 +18,7 @@
 | [agent_acceptance_harness](projects/agent_acceptance_harness.md) | done | 1 · 2 | Dev-only observability + control surface (debug state API, structured event stream, readiness signal, seedable state, mock LLM) so an agent can drive and verify acceptance tests deterministically. |
 | [evaluation_signal_quality](projects/evaluation_signal_quality.md) | done | 1 · 2 · 3 (remediation) | Signal-to-noise findings from a real PRD paste-test — heading-only blocks hallucinate, the ledger self-pollutes, free-tier "strong" checks run on a weak model and emit confident false contradictions, observations duplicate — remediated in Chunk 1. |
 | [section_as_eval_unit](projects/section_as_eval_unit.md) | done | 4 | Redesign the evaluation unit from individual ProseMirror blocks to semantic sections (heading + body), unifying typing and paste workflows and eliminating the heading-hallucination class of bugs. |
-| [observation_taxonomy_and_priority](projects/observation_taxonomy_and_priority.md) | idea | 4 (A·B·E) · 6 (C·D) | Extend observations with kind/severity/confidence/priority axes, close the decision-rigor taxonomy gap, add a client-side reflection mirror kind, and introduce a budget-based noisiness model in the feed. |
+| [observation_taxonomy_and_priority](projects/observation_taxonomy_and_priority.md) | in-progress | 4 (A·B·E ✅) · 6 (C·D) | Extend observations with kind/severity/confidence/priority axes, close the decision-rigor taxonomy gap, add a client-side reflection mirror kind, and introduce a budget-based noisiness model in the feed. |
 
 ---
 
@@ -121,9 +121,9 @@ Milestones:
 
 **Now active** (pulled forward from the old Phase 5 / field-test backlog because they _are_ the core experience):
 
-- [ ] **Observation priority axes** — add `kind` / `severity` / `confidence` / `priority` to the observation model + IndexedDB migration. → see `docs/projects/observation_taxonomy_and_priority.md` (Milestone A)
-- [ ] **Pure priority function** `src/services/priority.ts` (type-prior × claim-kind escalation × confidence) + unit tests. → see `docs/projects/observation_taxonomy_and_priority.md` (Milestone B)
-- [ ] **Budget-based calm feed** — sort by priority, show top-N, "also noticed" drawer, kind floors/ceilings. The single biggest "feels calm vs. feels like a wall" lever. → see `docs/projects/observation_taxonomy_and_priority.md` (Milestone E)
+- [x] **Observation priority axes** — add `kind` / `severity` / `confidence` / `priority` to the observation model + IndexedDB migration. → see `docs/projects/observation_taxonomy_and_priority.md` (Milestone A)
+- [x] **Pure priority function** `src/services/priority.ts` (type-prior × claim-kind escalation × confidence) + unit tests. → see `docs/projects/observation_taxonomy_and_priority.md` (Milestone B)
+- [x] **Budget-based calm feed** — sort by priority, show top-N, "also noticed" drawer, kind floors/ceilings. The single biggest "feels calm vs. feels like a wall" lever. → see `docs/projects/observation_taxonomy_and_priority.md` (Milestone E)
 - [ ] **Confidence / impact badging** — visual hierarchy so a contradiction outranks a clarity nit instead of competing with it. → `docs/snapshots/2026-06-03_evaluation_signal_quality_review.md`
 - [ ] **Observation aggregation** — collapse cross-type flags on the _same span_ into one high-impact card (the Q2/Q3 paradox fired three). Reconcile with the repetition question in `docs/projects/message_generation_workflow.md` §12 #7.
 - [ ] **Jargon allow-list / domain dictionary** — kill `undefined_jargon` false-positives on standard domain terms ("soft launch", "rollout cohort") that erode trust. → same snapshot.
@@ -132,7 +132,7 @@ Milestones:
 
 **Exit criteria:** in a real PRD revision session the feed _feels_ calm and trustworthy — high-impact items (contradictions) surface first and visibly outrank nits, near-duplicate flags collapse, and jargon/tension false-alarms don't appear. A regression suite guards the bar.
 
-**Harness exit criterion:** [ ] `data-testid` on the priority-sorted feed, "also noticed" drawer, impact badge, and reflections/aggregation surfaces; `getState()` exposes each active observation's `priority`/`severity`/`confidence`. → `docs/projects/agent_acceptance_harness.md`
+**Harness exit criterion:** [~] partial — `getState()` already exposes `priority`/`severity`/`confidence` per observation (Milestone A); `data-testid="also-noticed-drawer"` delivered (Milestone E). Remaining: `data-testid` on impact badge and aggregation surfaces (pending milestones). → `docs/projects/agent_acceptance_harness.md`
 
 ---
 
