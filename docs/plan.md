@@ -146,6 +146,9 @@ Milestones:
 - [ ] Copy to clipboard: rich text and Markdown.
 - [ ] PWA: installable, offline-capable, polished empty/early states that express the "quiet by design" intent.
 - [ ] Accessibility and keyboard-first polish in the feed and hover/highlight interactions.
+- [ ] **UI/UX mechanics pass** — audit and nail the interactions that define the product feel: hover → highlight contract, observation card anatomy (what's shown, in what order), dismiss gesture, span-focus scroll behaviour, "also noticed" drawer open/close. The mechanics are partly built in Phase 4; this pass makes them intentional and consistent.
+- [ ] **Visual style** — typography, colour, spacing, component language. The tool should feel calm, editorial, and opinionated — not another dev-tool grey box. Covers editor canvas, feed panel, cards, badges, archive, and empty states.
+- [ ] **Onboarding & first-run** — what a brand-new user sees on first open (the blank canvas moment), how the product introduces its own silence (quiet by design), and what the first observation feeling is like. Covers empty states, the first-settle micro-moment, and any minimal orientation copy.
 
 **Exit criteria:** a user can import a draft, work in it, and export/copy clean output in all formats; the app installs and runs offline.
 
