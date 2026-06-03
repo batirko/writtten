@@ -232,4 +232,4 @@ npm run format       # prettier --write src/
 
 ## Status
 
-See `docs/plan.md`. Phase 1 fully verified 2026-06-01. Phase 2 fully implemented 2026-06-02. Phase 3 fully implemented 2026-06-02. Current target: **Phase 4 — "Egress, install, hardening"** (Markdown/PDF export, copy to clipboard, Markdown import, PWA, a11y polish).
+See `docs/plan.md`. Phase 1 fully verified 2026-06-01. Phase 2 fully implemented 2026-06-02. Phase 3 fully implemented 2026-06-02. Current target: **Phase 4 — "Core experience: signal quality & calm feed"** (priority/severity/confidence axes, priority-ranked budget feed, impact badging, observation aggregation, jargon allow-list, `strategic_tension` type, evaluator quality-ratchet fixtures). Egress/install/hardening (Markdown/PDF export, copy, PWA, a11y) demoted to **Phase 5**; reprioritized 2026-06-03 so the core write→observe→recommend loop leads.

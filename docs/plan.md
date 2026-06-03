@@ -1,8 +1,8 @@
 # Plan
 
-> Phased build plan. **Check the "Current phase" marker before adding functionality.** If a thing belongs to a later phase, don't build it yet — flag it instead. Scope creep is this project's primary risk. Refine phases as you learn; keep this file the source of truth for sequencing.
+> Phased build plan. **Check the "Current phase" marker before adding functionality.** If a thing belongs to a later phase, don't build it yet — flag it instead. Scope creep is this project's primary risk. Refine phases as you learn; keep this file the source of truth for sequencing. Field-test reviews in `docs/snapshots/` feed the **Discovered / unscheduled** backlog near the bottom — check there for insights not yet folded into a phase.
 
-**Current phase: Phase 4 — "Egress, install, hardening."** (Phase 1 fully verified 2026-06-01. Phase 2 fully implemented 2026-06-02. Phase 3 fully implemented 2026-06-02.)
+**Current phase: Phase 4 — "Core experience: signal quality & calm feed."** (Phase 1 fully verified 2026-06-01. Phase 2 fully implemented 2026-06-02. Phase 3 fully implemented 2026-06-02. Reprioritized 2026-06-03: the core write→observe→recommend loop now leads; egress/install moved to Phase 5.)
 
 ---
 
@@ -14,10 +14,11 @@
 | ---------------------------- | ----------- | ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
 | [message_generation_workflow](projects/message_generation_workflow.md) | done | 1 ✅ · 2 ✅ · 3 ✅   | The contract between editor, evaluator, model router, and feed — when observations fire, what context the LLM sees, how the feed behaves. |
 | [model_rotation_and_debugging](projects/model_rotation_and_debugging.md) | done | 1 ✅ · 3 ✅ (Ollama skipped) | Gemini free-tier rate-limit resiliency: call batching, model rotation, cool-down registry, LLM debug panel.                               |
-| [ai_tooling_integration](projects/ai_tooling_integration.md) | idea | 2 · 3 (LEANN deferred) · 4 | SkillOpt, LEANN, and markitdown — when to adopt, what each needs, and how each maps to a specific phase milestone. |
+| [ai_tooling_integration](projects/ai_tooling_integration.md) | idea | 3 (LEANN deferred) · 4 (SkillOpt ratchet) · 5 (markitdown deferred) | SkillOpt, LEANN, and markitdown — when to adopt, what each needs, and how each maps to a specific phase milestone. |
 | [agent_acceptance_harness](projects/agent_acceptance_harness.md) | done | 1 · 2 | Dev-only observability + control surface (debug state API, structured event stream, readiness signal, seedable state, mock LLM) so an agent can drive and verify acceptance tests deterministically. |
 | [evaluation_signal_quality](projects/evaluation_signal_quality.md) | done | 1 · 2 · 3 (remediation) | Signal-to-noise findings from a real PRD paste-test — heading-only blocks hallucinate, the ledger self-pollutes, free-tier "strong" checks run on a weak model and emit confident false contradictions, observations duplicate — remediated in Chunk 1. |
 | [section_as_eval_unit](projects/section_as_eval_unit.md) | done | 4 | Redesign the evaluation unit from individual ProseMirror blocks to semantic sections (heading + body), unifying typing and paste workflows and eliminating the heading-hallucination class of bugs. |
+| [observation_taxonomy_and_priority](projects/observation_taxonomy_and_priority.md) | idea | 4 (A·B·E) · 6 (C·D) | Extend observations with kind/severity/confidence/priority axes, close the decision-rigor taxonomy gap, add a client-side reflection mirror kind, and introduce a budget-based noisiness model in the feed. |
 
 ---
 
@@ -85,6 +86,8 @@ Milestones:
 
 **Out of scope:** export polish, model tiering, BYO key (basic single-provider is fine to carry from Phase 0/1).
 
+**Carry-over (incomplete):** the **SkillOpt labeled eval fixture set** (`src/services/eval-fixtures/`, 20–40 ground-truth docs wired into Vitest as a regression suite) was scoped here but never built. → see `docs/projects/ai_tooling_integration.md` (Phase 2 todo). It is independently valuable as a quality ratchet regardless of SkillOpt; **now scheduled into Phase 4** as the evaluator quality ratchet, since recommendation quality is the core experience.
+
 ---
 
 ## Phase 3 — Models, cost, and BYO key
@@ -106,34 +109,68 @@ Milestones:
 
 ---
 
-## Phase 4 — Egress, install, hardening
+## Phase 4 — Core experience: signal quality & calm feed
 
-**Goal:** make getting text out frictionless and the app pleasant to live in.
+**Goal:** make the write → observe → rethink loop genuinely good. The product's whole reason to exist is that the recommendations are high-signal and the feed stays calm and trustworthy. This is the differentiator; it earns its place _ahead_ of egress and packaging. (Reprioritized 2026-06-03: getting text out and installability matter, but they're table-stakes — they follow the core loop being worth living in, not the other way round.)
+
+**Already shipped here** (this work was always core-experience, not egress — recorded as the foundation the rest builds on):
+
+- [x] **Section as evaluation unit** (heading + body is the atomic eval input; blocks remain the anchoring unit). → see `docs/projects/section_as_eval_unit.md`
+- [x] **Evaluation signal-quality remediation** (Tier A/B/C: meta-claim guard, defined-terms dedup, `unsupported_claim` carve-out, observation dedup, tier-calibrated contradiction confidence, per-request timeout + stall affordance, doc-level dirty-check). → see `docs/projects/evaluation_signal_quality.md`
+- [x] **Import and Markdown-aware paste** — lets the user bring an existing draft into the loop (semantic paste via TipTap plugin; markitdown binary import deferred, Markdown/TXT-only to hold the local-first invariant). → see `docs/projects/ai_tooling_integration.md` · `docs/projects/section_as_eval_unit.md`
+
+**Now active** (pulled forward from the old Phase 5 / field-test backlog because they _are_ the core experience):
+
+- [ ] **Observation priority axes** — add `kind` / `severity` / `confidence` / `priority` to the observation model + IndexedDB migration. → see `docs/projects/observation_taxonomy_and_priority.md` (Milestone A)
+- [ ] **Pure priority function** `src/services/priority.ts` (type-prior × claim-kind escalation × confidence) + unit tests. → see `docs/projects/observation_taxonomy_and_priority.md` (Milestone B)
+- [ ] **Budget-based calm feed** — sort by priority, show top-N, "also noticed" drawer, kind floors/ceilings. The single biggest "feels calm vs. feels like a wall" lever. → see `docs/projects/observation_taxonomy_and_priority.md` (Milestone E)
+- [ ] **Confidence / impact badging** — visual hierarchy so a contradiction outranks a clarity nit instead of competing with it. → `docs/snapshots/2026-06-03_evaluation_signal_quality_review.md`
+- [ ] **Observation aggregation** — collapse cross-type flags on the _same span_ into one high-impact card (the Q2/Q3 paradox fired three). Reconcile with the repetition question in `docs/projects/message_generation_workflow.md` §12 #7.
+- [ ] **Jargon allow-list / domain dictionary** — kill `undefined_jargon` false-positives on standard domain terms ("soft launch", "rollout cohort") that erode trust. → same snapshot.
+- [ ] **`strategic_tension` observation type** — a bucket for strategic tradeoffs that aren't strict factual contradictions, so they stop being mis-flagged. → same snapshot. (Taxonomy addition — keep within the fixed-taxonomy invariant.)
+- [ ] **Evaluator quality ratchet** — the SkillOpt labeled eval fixture set (`src/services/eval-fixtures/`, ground-truth docs) wired into Vitest, so recommendation accuracy can't silently regress as prompts change. → see `docs/projects/ai_tooling_integration.md` (Phase 2 carry-over)
+
+**Exit criteria:** in a real PRD revision session the feed _feels_ calm and trustworthy — high-impact items (contradictions) surface first and visibly outrank nits, near-duplicate flags collapse, and jargon/tension false-alarms don't appear. A regression suite guards the bar.
+
+**Harness exit criterion:** [ ] `data-testid` on the priority-sorted feed, "also noticed" drawer, impact badge, and reflections/aggregation surfaces; `getState()` exposes each active observation's `priority`/`severity`/`confidence`. → `docs/projects/agent_acceptance_harness.md`
+
+---
+
+## Phase 5 — Egress, install, hardening
+
+**Goal:** once the core loop is worth living in, make getting text out frictionless and the app pleasant to keep open. (Was Phase 4; demoted below the core experience on 2026-06-03 — egress is table-stakes, not the draw.)
 
 Milestones:
 
-- [x] **Section as evaluation unit** (heading + body is the atomic eval input; blocks remain the anchoring unit) — prerequisite for clean import. → see `docs/projects/section_as_eval_unit.md`
-- [x] **Evaluation signal-quality remediation** (Tier A/B/C: meta-claim guard, defined-terms dedup, `unsupported_claim` carve-out, observation dedup, tier-calibrated contradiction confidence, per-request timeout + stall affordance, doc-level dirty-check). → see `docs/projects/evaluation_signal_quality.md`
 - [ ] Export: Markdown and PDF.
 - [ ] Copy to clipboard: rich text and Markdown.
-- [x] Import and Markdown-aware paste. (Semantic paste implemented via TipTap plugin. Decision point for markitdown: opted for Markdown/TXT-only import for now to maintain local-first invariant without Python requirements). → see `docs/projects/ai_tooling_integration.md` (markitdown for binary-format import; decision point: Markdown-only path chosen) · → see `docs/projects/section_as_eval_unit.md` (section-as-unit is a prerequisite for clean import evaluation)
 - [ ] PWA: installable, offline-capable, polished empty/early states that express the "quiet by design" intent.
 - [ ] Accessibility and keyboard-first polish in the feed and hover/highlight interactions.
 
 **Exit criteria:** a user can import a draft, work in it, and export/copy clean output in all formats; the app installs and runs offline.
 
-**Harness exit criterion:** [x] `loadDoc` accepts Markdown string as an alternative to the block-array fixture so import round-trips are testable without typing. [ ] `data-testid` on export/copy affordances and PWA install prompt. → `docs/projects/agent_acceptance_harness.md`
+**Harness exit criterion:** [x] `loadDoc` accepts a Markdown string as an alternative to the block-array fixture so import round-trips are testable without typing. [ ] `data-testid` on export/copy affordances and PWA install prompt. → `docs/projects/agent_acceptance_harness.md`
 
 ---
 
-## Phase 5 — Later / optional (post-traction)
+## Phase 6 — Later / optional (post-traction)
 
 Only if the drafting habit has taken hold. Don't pre-build any of this.
 
+- **Decision-rigor taxonomy expansion** — `unstated_assumption`, `alternatives_not_considered`, `unmeasurable_criteria`, `scope_ambiguity`, `ownerless_commitment`. **Research-gated:** validate against a corpus of 15–20 real PRDs before writing prompts. → see `docs/projects/observation_taxonomy_and_priority.md` (Milestone C)
+- **Reflection / document-mirror kind** — client-side, zero LLM calls, quiet separate panel. → see `docs/projects/observation_taxonomy_and_priority.md` (Milestone D)
 - Living _where users already write_ (Notion / Linear / Confluence / email) instead of being a drafting annex — the real long-term play, per `docs/concept.md`.
 - Documented **extension API** for the three seams (observation types, model providers, export formats) to invite OSS contribution.
 - Optional Tauri desktop wrapper.
 - Lightweight monetization exploration (hosted convenience / managed model access on an OSS core) — only if traction warrants it.
+
+---
+
+## Discovered / unscheduled
+
+> Insights from real test sessions not yet scoped into a phase. Triage each into a phase or discard — don't let them rot here. Source reviews live in `docs/snapshots/`. _(The 2026-06-03 signal-quality review's items — jargon allow-list, `strategic_tension`, aggregation, impact badging — have been triaged into Phase 4 above.)_
+
+- _(empty — triage new findings here as they surface.)_
 
 ---
 

@@ -1,6 +1,6 @@
 ---
 status: idea
-phases: [2, 3, 4]
+phases: [3, 4, 5]
 summary: SkillOpt, LEANN, and markitdown — external tooling anchored to specific product phases; when to adopt, what prerequisite each needs, and how to use each.
 ---
 
@@ -10,7 +10,7 @@ summary: SkillOpt, LEANN, and markitdown — external tooling anchored to specif
 
 > Canonical status lives in the frontmatter above and is mirrored in the Projects Index in `docs/plan.md`. This block carries the human-readable scope only.
 
-**Phase scope:** Phase 2 (SkillOpt — dev-time eval prompt improvement) · Phase 3 (LEANN — claim-ledger embedding prefilter) · Phase 4 (markitdown — binary-format document import). None of these are "install and forget" — each has a prerequisite gate before it earns its place.
+**Phase scope (reprioritized 2026-06-03):** Phase 4 (SkillOpt — the evaluator quality ratchet; recommendation quality is now the core-experience target) · Phase 3 (LEANN — claim-ledger embedding prefilter; shipped as a lexical prefilter) · Phase 5 (markitdown — binary-format document import; rides with egress). None of these are "install and forget" — each has a prerequisite gate before it earns its place.
 
 ---
 
@@ -18,15 +18,15 @@ summary: SkillOpt, LEANN, and markitdown — external tooling anchored to specif
 
 | Phase        | Tool       | Contribution                                                                                                                                                            |
 | ------------ | ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Phase 2+** | SkillOpt   | Offline optimization of evaluator prompts — improve accuracy of contradiction/clarity checks without runtime overhead. Gated on building a labeled eval test set first. |
-| **Phase 3**  | LEANN      | Graph-based vector index as the engine for the claim-ledger embedding prefilter. Keeps contradiction checks bounded as documents grow. Local-first, MCP-native.         |
-| **Phase 4**  | markitdown | Binary-format → Markdown converter (DOCX, PDF) for the "import existing PRD" feature. Constraint: must run without a required server (local-first invariant).           |
+| **Phase 4**  | SkillOpt   | Offline optimization of evaluator prompts — improve accuracy of contradiction/clarity checks without runtime overhead. Gated on building a labeled eval test set first (the Phase 4 "evaluator quality ratchet"). |
+| **Phase 3**  | LEANN      | Graph-based vector index as the engine for the claim-ledger embedding prefilter. Keeps contradiction checks bounded as documents grow. Local-first, MCP-native. (Shipped as a lexical prefilter.)         |
+| **Phase 5**  | markitdown | Binary-format → Markdown converter (DOCX, PDF) for the "import existing PRD" feature; rides with egress. Constraint: must run without a required server (local-first invariant).           |
 
 ---
 
 ## Todo
 
-### Phase 2 — SkillOpt
+### Phase 4 — SkillOpt (evaluator quality ratchet)
 
 - [ ] Build a **labeled eval test set**: 20–40 documents where the ground truth is known (which contradictions/clarity issues the evaluator should catch, on which spans). Store as `src/services/eval-fixtures/`.
 - [ ] Wire fixtures into Vitest as a regression suite — independently valuable as a quality ratchet regardless of SkillOpt.
@@ -39,7 +39,7 @@ summary: SkillOpt, LEANN, and markitdown — external tooling anchored to specif
 - [x] Evaluate LEANN as the backend.
 - [x] **Decision point logged in `docs/plan.md` (2026-06-02):** LEANN requires Python on the user's machine; ONNX in-browser adds significant bundle weight. Shipped a lexical prefilter (Jaccard token-overlap, top-10) instead — sufficient for <50 claims, zero external deps. → `src/services/prefilter.ts`. Revisit LEANN if claim density makes misses observable in practice.
 
-### Phase 4 — markitdown
+### Phase 5 — markitdown
 
 - [x] At the start of the import-feature milestone: evaluate the three paths (optional local helper / WASM port / Markdown-only deferral) against the local-first invariant. See [§markitdown](#markitdown--document-import).
 - [x] **Decision point (2026-06-03):** Chose "Markdown-only (deferred)" path. To maintain the strict local-first invariant without imposing a Python requirement on users, Phase 4 import supports `.md` and `.txt` files directly in the browser, alongside Semantic Paste for rich text. Binary format (DOCX/PDF) support via markitdown is deferred.
