@@ -144,16 +144,18 @@ describe("evaluator - evaluateBlock", () => {
       { text: "We plan to launch in Q3.", kind: "commitment" },
     ]);
 
-    // Clarity observation saved
+    // Clarity observation saved.
+    // severity:"low" confidence:"medium" priority:0.75 — clarity base prior.
+    // overlapsCommitment has no effect on clarity (only unsupported_claim escalates).
     expect(db.saveObservation).toHaveBeenCalledWith({
       id: "mock-id",
       docId,
       type: "clarity",
       scope: "span",
       kind: "problem",
-      severity: "medium",
+      severity: "low",
       confidence: "medium",
-      priority: 0,
+      priority: 0.75,
       text: "Vague launch date",
       status: "active",
       blockId,
@@ -208,16 +210,20 @@ describe("evaluator - evaluateBlock", () => {
     const text = "We plan to launch in Q3.";
     await evaluateBlock(docId, blockId, text, "Test Stage", apiKey);
 
-    // Contradiction observation saved
+    // Contradiction observation saved.
+    // Both new claim ("Launch in Q3." kind:commitment) and existing claim
+    // (kind:commitment) are commitments → escalated to severity:"high".
+    // paidKey is undefined in this test → contradictionTier:"hedged" → confidence:"low".
+    // priority = 3 (high) × 0.5 (low confidence factor) = 1.5
     expect(db.saveObservation).toHaveBeenCalledWith({
       id: "mock-id",
       docId,
       type: "contradiction",
       scope: "span",
       kind: "problem",
-      severity: "medium",
-      confidence: "medium",
-      priority: 0,
+      severity: "high",
+      confidence: "low",
+      priority: 1.5,
       text: "Contradicts delayed launch to Q4.",
       status: "active",
       blockId,

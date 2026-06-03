@@ -50,12 +50,12 @@ Five milestones with a strict dependency spine, now split across Phase 4 (A·B·
 
 ### Milestone B — Priority function
 
-- [ ] Create `src/services/priority.ts` exporting a pure `computePriority(obs: ObservationInput, claimKind?: ClaimKind): number` function.
-- [ ] Implement the type-prior table (see §Priority function). No LLM calls; no async.
-- [ ] Apply structural escalation rules: contradiction between two `commitment` claims escalates severity before computing priority. Claim kind is available in the ledger at observation write time.
-- [ ] Formalize confidence at generation time: contradiction produced by the free-tier hedged prompt → `confidence: "low"`; paid-key confident prompt → `confidence: "high"`. Optionally add an optional `confidence` field to the JSON schema the model returns for future types.
-- [ ] Unit tests covering the full type-prior table plus escalation cases. Tests live in `src/services/priority.test.ts`.
-- [ ] Wire `computePriority` into the observation write path in `src/services/evaluator.ts` so every new or updated observation carries a correct `priority` at the moment it enters IndexedDB.
+- [x] Create `src/services/priority.ts` exporting a pure `computePriority(obs: ObservationInput, claimKind?: ClaimKind): number` function.
+- [x] Implement the type-prior table (see §Priority function). No LLM calls; no async.
+- [x] Apply structural escalation rules: contradiction between two `commitment` claims escalates severity before computing priority. Claim kind is available in the ledger at observation write time.
+- [x] Formalize confidence at generation time: contradiction produced by the free-tier hedged prompt → `confidence: "low"`; paid-key confident prompt → `confidence: "high"`. Optionally add an optional `confidence` field to the JSON schema the model returns for future types.
+- [x] Unit tests covering the full type-prior table plus escalation cases. Tests live in `src/services/priority.test.ts`.
+- [x] Wire `computePriority` into the observation write path in `src/services/evaluator.ts` so every new or updated observation carries a correct `priority` at the moment it enters IndexedDB.
 
 ### Milestone C — Decision-rigor taxonomy gap
 
@@ -148,8 +148,8 @@ All inputs are structural — no LLM vibe scores.
 
 | Type | Base severity |
 |---|---|
-| `contradiction` | `high` |
-| `unsupported_claim` | `high` |
+| `contradiction` | `medium` |
+| `unsupported_claim` | `medium` |
 | `missing_topic` | `medium` |
 | `unmeasurable_criteria` *(candidate)* | `medium` |
 | `unstated_assumption` *(candidate)* | `medium` |
@@ -161,6 +161,8 @@ All inputs are structural — no LLM vibe scores.
 | `structure_flow` | `low` |
 | `scope_ambiguity` *(candidate)* | `low` |
 | `alternatives_not_considered` *(candidate)* | `low` |
+
+> **Implementation note (Option A, resolved 2026-06-03):** `contradiction` and `unsupported_claim` are base `medium` (not `high`). The escalation rules below target exactly these two types — they need headroom below `high` to do real work. A commitment×commitment conflict or unsupported-claim-underpinning-a-commitment escalates to `high`. This is the only internally-coherent reading of "conflicting commitments are the most damaging" given the escalation rules' target types.
 
 **Structural escalation rules** (applied before computing priority):
 

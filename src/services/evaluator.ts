@@ -1,6 +1,7 @@
 import { createRouter } from "../model/factory";
 import { getLlmMode } from "../model/mock";
 import { prefilterClaims } from "./prefilter";
+import { computePriority } from "./priority";
 import {
   saveBlockSummary,
   loadBlockSummary,
@@ -488,6 +489,14 @@ export async function evaluateSection(
     // 5. Collect all new observations (do not write to DB yet)
     const newObs: NewObservation[] = [];
 
+    // Commitment claims available at span-obs time: existing ledger (loaded above)
+    // + freshly-extracted claims from this section. Used for unsupported_claim
+    // escalation: an unsupported span that overlaps a commitment gets priority bump.
+    const commitmentClaims = [
+      ...existingClaimsForGlossary.filter((c) => c.kind === "commitment"),
+      ...extractedClaims.filter((c) => c.kind === "commitment"),
+    ];
+
     const addSpanObs = (
       obsType: Observation["type"],
       items: SpanObservation[],
@@ -496,13 +505,28 @@ export async function evaluateSection(
         if (!obs.substring || !obs.text) continue;
         const anchor = anchorSubstring(members, obs.substring);
         if (anchor) {
+          // For unsupported_claim: check if the flagged span overlaps any
+          // commitment claim text (normalized substring containment).
+          const overlapsCommitment =
+            obsType === "unsupported_claim"
+              ? commitmentClaims.some((c) => {
+                  const sub = normalizeText(obs.substring);
+                  const claim = normalizeText(c.text);
+                  return sub.includes(claim) || claim.includes(sub);
+                })
+              : undefined;
+
+          const { severity, confidence, priority } = computePriority({
+            type: obsType,
+            overlapsCommitment,
+          });
           newObs.push({
             type: obsType,
             scope: "span",
             kind: "problem",
-            severity: "medium",
-            confidence: "medium",
-            priority: 0,
+            severity,
+            confidence,
+            priority,
             text: obs.text,
             blockId: anchor.blockId,
             startOffset: anchor.startOffset,
@@ -572,13 +596,24 @@ export async function evaluateSection(
         // find it; otherwise fall back to the section's representative block.
         const exact = anchorSubstring(members, con.newClaimText);
         const fallback = members[0] ?? { blockId: sectionId, text: cleanText };
+
+        // Resolve the new claim's kind for commitment×commitment escalation.
+        const newClaimKind = extractedClaims.find(
+          (c) => c.text === con.newClaimText,
+        )?.kind;
+
+        const { severity, confidence, priority } = computePriority({
+          type: "contradiction",
+          claimKinds: { newKind: newClaimKind, existingKind: matchingExisting.kind },
+          contradictionTier: paidKey ? "confident" : "hedged",
+        });
         newObs.push({
           type: "contradiction",
           scope: "span",
           kind: "problem",
-          severity: "medium",
-          confidence: "medium",
-          priority: 0,
+          severity,
+          confidence,
+          priority,
           text: con.message,
           blockId: exact?.blockId ?? fallback.blockId,
           startOffset: exact?.startOffset ?? 0,
@@ -711,15 +746,16 @@ export async function evaluateDocument(
       kind: Observation["kind"],
       items: { text: string }[] | undefined,
     ) => {
+      const { severity, confidence, priority } = computePriority({ type });
       for (const item of items ?? []) {
         if (item.text?.trim()) {
           newObs.push({
             type,
             scope: "document",
             kind,
-            severity: "medium",
-            confidence: "medium",
-            priority: 0,
+            severity,
+            confidence,
+            priority,
             text: item.text.trim(),
           });
         }
