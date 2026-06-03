@@ -42,7 +42,7 @@ summary: Handles Gemini free-tier rate limits via call batching, model rotation,
 
 ### Security (unphased — schedule before next public sharing of debug output)
 
-- [ ] Alias API keys in all logged endpoints: replace `?key=<raw>` with `?key=<free>` or `?key=<byo>` at the point of recording in `llmLogger.ts` and the harness event stream. Raw key must never enter `LLMLogEntry.endpoint`. → §5
+- [x] Alias API keys in all logged endpoints: replace `?key=<raw>` with `?key=<free>` or `?key=<byo>` at the point of recording in `llmLogger.ts` and the harness event stream. Raw key must never enter `LLMLogEntry.endpoint`. → §5
 
 ---
 

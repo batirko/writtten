@@ -112,6 +112,7 @@ async function callGemini(
   keyTier: "free" | "paid",
 ): Promise<LLMResponse> {
   const url = `${GEMINI_API_BASE}/${model}:generateContent?key=${apiKey}`;
+  const loggedUrl = `${GEMINI_API_BASE}/${model}:generateContent?key=<${keyTier}>`;
 
   const generationConfig: {
     temperature: number;
@@ -135,7 +136,7 @@ async function callGemini(
     type: "request",
     tier,
     model,
-    endpoint: url,
+    endpoint: loggedUrl,
     payload: { system: req.system, user: req.user },
     keyTier,
   });
@@ -162,7 +163,7 @@ async function callGemini(
       llmLogger.log({
         type: "error",
         model,
-        endpoint: url,
+        endpoint: loggedUrl,
         latencyMs,
         statusCode: 503,
         payload: { system: req.system, user: req.user },
@@ -192,7 +193,7 @@ async function callGemini(
     llmLogger.log({
       type: "error",
       model,
-      endpoint: url,
+      endpoint: loggedUrl,
       latencyMs,
       statusCode: res.status,
       payload: { system: req.system, user: req.user },
@@ -209,7 +210,7 @@ async function callGemini(
     type: "response",
     tier,
     model,
-    endpoint: url,
+    endpoint: loggedUrl,
     latencyMs,
     statusCode: res.status,
     payload: { system: req.system, user: req.user },
@@ -282,12 +283,14 @@ export function createGeminiRouter(freeKey: string, paidKey?: string): ModelRout
       }
     },
     async strong(req) {
-      try {
-        return await callWithRotation(FREE_STRONG_POOL, req, freeKey, "strong", "free");
-      } catch {
-        if (!paidKey) throw new Error("All models exhausted and no paid key configured.");
-        return callWithRotation(PAID_STRONG_POOL, req, paidKey, "strong", "paid");
+      if (paidKey) {
+        try {
+          return await callWithRotation(PAID_STRONG_POOL, req, paidKey, "strong", "paid");
+        } catch {
+          return callWithRotation(FREE_STRONG_POOL, req, freeKey, "strong", "free");
+        }
       }
+      return callWithRotation(FREE_STRONG_POOL, req, freeKey, "strong", "free");
     },
   };
 }

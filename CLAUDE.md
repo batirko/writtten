@@ -26,6 +26,7 @@ This is not a style preference. It is the product's reason to exist and its defe
 | `docs/architecture.md` | You're building the eval pipeline, claim ledger, persistence, model router, editor internals.                                              |
 | `docs/plan.md`         | You need to know what phase we're in and what's in/out of scope right now.                                                                 |
 | `docs/projects/`       | Deeper design docs for specific features/subsystems. Each file is a self-contained spec with status, phased plan, and per-phase todo list. |
+| `docs/snapshots/`      | Point-in-time reviews of product quality, test session results, and roadmap observations. Use to capture the state of the product over time.|
 
 **Always check `docs/plan.md` for the current phase before adding functionality.** Scope creep is the main risk on this project. If something belongs to a later phase, say so and don't build it.
 

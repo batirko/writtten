@@ -104,7 +104,9 @@ export function Editor({
   const editor = useEditor({
     extensions: [
       StarterKit,
-      Markdown,
+      Markdown.configure({
+        transformPastedText: true,
+      }),
       BlockId,
       ObservationHighlighter.configure({
         onObservationCollapsed(id) {
