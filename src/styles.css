@@ -372,6 +372,37 @@ body,
   margin: 0;
 }
 
+/* Grouped card — "N more on this passage" section */
+.card-also {
+  border-top: 1px solid rgba(0, 0, 0, 0.06);
+  padding-top: 6px;
+  margin-top: 4px;
+}
+
+.card-also-toggle {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  padding: 0;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+  text-align: left;
+}
+
+.card-also-toggle:hover {
+  color: var(--text);
+}
+
+.card-also-item {
+  margin-top: 6px;
+  padding-top: 5px;
+  border-top: 1px dashed rgba(0, 0, 0, 0.07);
+}
+
 /* Observation Highlights */
 .obs-highlight {
   transition:

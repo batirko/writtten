@@ -3,59 +3,101 @@ import type { Observation } from "../store/db";
 import type { LLMLogEntry, SessionStats } from "../model/logger";
 import { subscribeStall } from "../model/stallSignal";
 import { partitionFeed, DEFAULT_FEED_BUDGET } from "./feedBudget";
+import type { GroupedObservation } from "./feedBudget";
 
 // ---------------------------------------------------------------------------
-// ObsCard — shared card markup for main feed and "also noticed" drawer
+// DismissIcon — shared svg
 // ---------------------------------------------------------------------------
 
-interface ObsCardProps {
-  obs: Observation;
+function DismissIcon() {
+  return (
+    <svg
+      width="12"
+      height="12"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <line x1="18" y1="6" x2="6" y2="18"></line>
+      <line x1="6" y1="6" x2="18" y2="18"></line>
+    </svg>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// GroupedObsCard — renders a single group (one or more observations on the
+// same span). When `others` is empty it looks identical to the old ObsCard.
+// When grouped, a collapsed "N more on this passage" section appears below.
+// ---------------------------------------------------------------------------
+
+interface GroupedObsCardProps {
+  group: GroupedObservation;
   isActive: boolean;
   isArriving: boolean;
   onHover: (id: string | null) => void;
   onDismiss: (id: string) => void;
 }
 
-function ObsCard({ obs, isActive, isArriving, onHover, onDismiss }: ObsCardProps) {
+function GroupedObsCard({ group, isActive, isArriving, onHover, onDismiss }: GroupedObsCardProps) {
+  const [expanded, setExpanded] = useState(false);
+  const { primary, others } = group;
+
+  const handleDismiss = () => {
+    onDismiss(primary.id);
+    for (const o of others) onDismiss(o.id);
+  };
+
   return (
     <div
-      className={`observation-card observation-${obs.type} ${isActive ? "observation-card-active" : ""} ${isArriving ? "observation-card-arriving" : ""}`}
+      className={`observation-card observation-${primary.type} ${isActive ? "observation-card-active" : ""} ${isArriving ? "observation-card-arriving" : ""}`}
       data-testid="obs-card"
-      data-obs-type={obs.type}
-      data-obs-id={obs.id}
-      data-kind={obs.kind}
-      data-severity={obs.severity}
-      data-confidence={obs.confidence}
-      onMouseEnter={() => onHover(obs.id)}
+      data-obs-type={primary.type}
+      data-obs-id={primary.id}
+      data-kind={primary.kind}
+      data-severity={primary.severity}
+      data-confidence={primary.confidence}
+      data-grouped={others.length > 0 ? "true" : undefined}
+      onMouseEnter={() => onHover(primary.id)}
       onMouseLeave={() => onHover(null)}
     >
       <div className="card-header">
-        <span className={`tag tag-${obs.type}`}>{obs.type.replace(/_/g, ' ')}</span>
+        <span className={`tag tag-${primary.type}`}>{primary.type.replace(/_/g, ' ')}</span>
         <button
           className="dismiss-btn"
           data-testid="obs-dismiss"
-          data-obs-id={obs.id}
-          onClick={() => onDismiss(obs.id)}
+          data-obs-id={primary.id}
+          onClick={handleDismiss}
           title="Dismiss Observation"
         >
-          <svg
-            width="12"
-            height="12"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2.5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <line x1="18" y1="6" x2="6" y2="18"></line>
-            <line x1="6" y1="6" x2="18" y2="18"></line>
-          </svg>
+          <DismissIcon />
         </button>
       </div>
       <div className="card-body">
-        <p>{obs.text}</p>
+        <p>{primary.text}</p>
       </div>
+      {others.length > 0 && (
+        <div className="card-also" data-testid="obs-group-also">
+          <button
+            className="card-also-toggle"
+            onClick={() => setExpanded(!expanded)}
+            data-testid="obs-group-toggle"
+          >
+            <span>{expanded ? '▾' : '▸'}</span>
+            {' '}{others.length} more on this passage
+          </button>
+          {expanded && others.map((o) => (
+            <div key={o.id} className="card-also-item" data-testid="obs-group-item">
+              <span className={`tag tag-${o.type}`} style={{ fontSize: '0.625rem' }}>
+                {o.type.replace(/_/g, ' ')}
+              </span>
+              <p style={{ margin: '4px 0 0', fontSize: '0.75rem', color: '#555', lineHeight: 1.4 }}>{o.text}</p>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -456,12 +498,12 @@ export function SidecarFeed({
                   +{arrivalBatchCount} new
                 </div>
               )}
-              {visibleObs.map((obs) => (
-                <ObsCard
-                  key={obs.id}
-                  obs={obs}
-                  isActive={hoveredObservationId === obs.id}
-                  isArriving={arrivingIds.has(obs.id)}
+              {visibleObs.map((group) => (
+                <GroupedObsCard
+                  key={group.id}
+                  group={group}
+                  isActive={hoveredObservationId === group.primary.id}
+                  isArriving={arrivingIds.has(group.primary.id) || group.others.some((o) => arrivingIds.has(o.id))}
                   onHover={onHoverObservation}
                   onDismiss={onDismissObservation}
                 />
@@ -491,16 +533,16 @@ export function SidecarFeed({
                     }}
                   >
                     <span>{showAlsoNoticed ? '▾' : '▸'}</span>
-                    <span>Also noticed ({alsoNoticedObs.length})</span>
+                    <span>Also noticed ({alsoNoticedObs.length} {alsoNoticedObs.length === 1 ? 'issue' : 'issues'})</span>
                   </button>
                   {showAlsoNoticed && (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                      {alsoNoticedObs.map((obs) => (
-                        <ObsCard
-                          key={obs.id}
-                          obs={obs}
-                          isActive={hoveredObservationId === obs.id}
-                          isArriving={arrivingIds.has(obs.id)}
+                      {alsoNoticedObs.map((group) => (
+                        <GroupedObsCard
+                          key={group.id}
+                          group={group}
+                          isActive={hoveredObservationId === group.primary.id}
+                          isArriving={arrivingIds.has(group.primary.id) || group.others.some((o) => arrivingIds.has(o.id))}
                           onHover={onHoverObservation}
                           onDismiss={onDismissObservation}
                         />

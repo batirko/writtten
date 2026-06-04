@@ -1,8 +1,9 @@
 /**
- * Feed budget model — Phase 4 Milestone E.
+ * Feed budget model — Phase 4 Milestone E + Aggregation.
  *
- * Pure, synchronous, zero side-effects. Separates two concerns:
- *   - Selection by priority: which observations are in the visible top-N budget?
+ * Pure, synchronous, zero side-effects. Two concerns:
+ *   - Aggregation: observations on the same span collapse into GroupedObservations.
+ *   - Selection by priority: which groups are in the visible top-N budget?
  *   - Display by document order: in what order do they render?
  *
  * This resolves the tension between the taxonomy doc ("sort by priority") and the
@@ -15,11 +16,15 @@
  */
 
 import type { Observation } from "../store/db";
+import { groupObservations } from "./obsAggregation";
+import type { GroupedObservation } from "./obsAggregation";
+
+export type { GroupedObservation };
 
 export const DEFAULT_FEED_BUDGET = 7;
 
 export interface FeedPartitionOptions {
-  /** Maximum number of observations in the visible set (before the contradiction floor). */
+  /** Maximum number of groups in the visible set (before the contradiction floor). */
   budget: number;
   /**
    * Ordered blockIds as they appear in the document (top → bottom).
@@ -31,23 +36,22 @@ export interface FeedPartitionOptions {
 
 export interface FeedPartition {
   /** Shown in the main feed, in document order. */
-  visible: Observation[];
+  visible: GroupedObservation[];
   /** Overflow below budget, shown in the "also noticed" collapsed drawer. */
-  alsoNoticed: Observation[];
+  alsoNoticed: GroupedObservation[];
 }
 
 /**
  * Partition active observations into a visible set and an "also noticed" overflow.
  *
  * Rules:
- * 1. `kind === "reflection"` — excluded from both sets (Milestone D; not yet produced).
- * 2. Budget selection — copy-sort by priority desc; top `budget` entries are visible.
- * 3. Contradiction floor — every `type === "contradiction"` is visible regardless of
- *    whether it fell inside the budget. Dismissed contradictions never reach here
- *    (they are filtered to status "active" upstream).
- * 4. Display order — each group is sorted by document position: blockId index in
- *    `blockOrder`, then startOffset. Document-scoped observations (no blockId) sort
- *    to the bottom of their group.
+ * 1. `kind === "reflection"` — excluded (Milestone D; not yet produced).
+ * 2. Aggregation — observations sharing the same exact span collapse into one group.
+ * 3. Budget selection — sort groups by priority desc; top `budget` groups are visible.
+ * 4. Contradiction floor — groups containing a contradiction are always visible
+ *    regardless of whether they fell inside the budget.
+ * 5. Display order — each set sorted by document position (blockId index → startOffset).
+ *    Document-scoped groups sort to the bottom.
  */
 export function partitionFeed(
   observations: Observation[],
@@ -56,43 +60,40 @@ export function partitionFeed(
   // 1. Exclude reflection kind (Milestone D — none produced yet; defensive).
   const eligible = observations.filter((o) => o.kind !== "reflection");
 
-  // 2. Sort by priority descending to determine budget membership.
-  const byPriority = [...eligible].sort((a, b) => b.priority - a.priority);
+  // 2. Group by span.
+  const groups = groupObservations(eligible);
 
-  // 3. Select by budget + contradiction floor.
-  const visibleSet = new Set<string>();
+  // 3. Sort by priority descending to determine budget membership.
+  const byPriority = [...groups].sort((a, b) => b.priority - a.priority);
+
+  // 4. Select by budget + contradiction floor.
+  const visibleIds = new Set<string>();
   let budgetUsed = 0;
-  for (const obs of byPriority) {
+  for (const g of byPriority) {
     if (budgetUsed < budget) {
-      visibleSet.add(obs.id);
+      visibleIds.add(g.id);
       budgetUsed++;
     }
   }
-  // Contradiction floor: always visible even if outside top-N.
-  for (const obs of eligible) {
-    if (obs.type === "contradiction") {
-      visibleSet.add(obs.id);
-    }
+  // Contradiction floor: groups containing a contradiction always visible.
+  for (const g of groups) {
+    if (g.hasContradiction) visibleIds.add(g.id);
   }
 
-  const visibleObs = eligible.filter((o) => visibleSet.has(o.id));
-  const alsoNoticedObs = eligible.filter((o) => !visibleSet.has(o.id));
+  const visibleSet = groups.filter((g) => visibleIds.has(g.id));
+  const alsoNoticedSet = groups.filter((g) => !visibleIds.has(g.id));
 
-  // 4. Sort each group into document order.
+  // 5. Sort each set into document order.
   const blockIndexMap = new Map(blockOrder.map((id, i) => [id, i]));
 
-  const docOrder = (a: Observation, b: Observation): number => {
-    const aIdx = a.blockId != null ? (blockIndexMap.get(a.blockId) ?? Infinity) : Infinity;
-    const bIdx = b.blockId != null ? (blockIndexMap.get(b.blockId) ?? Infinity) : Infinity;
-    if (aIdx !== bIdx) return aIdx - bIdx;
-    // Same block (or both doc-scoped): secondary sort by startOffset.
-    const aOff = a.startOffset ?? Infinity;
-    const bOff = b.startOffset ?? Infinity;
-    return aOff - bOff;
+  const docOrder = (g: GroupedObservation): number => {
+    const idx =
+      g.blockId != null ? (blockIndexMap.get(g.blockId) ?? Infinity) : Infinity;
+    return idx * 1e6 + (g.startOffset ?? 0);
   };
 
-  return {
-    visible: [...visibleObs].sort(docOrder),
-    alsoNoticed: [...alsoNoticedObs].sort(docOrder),
-  };
+  visibleSet.sort((a, b) => docOrder(a) - docOrder(b));
+  alsoNoticedSet.sort((a, b) => docOrder(a) - docOrder(b));
+
+  return { visible: visibleSet, alsoNoticed: alsoNoticedSet };
 }

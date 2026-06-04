@@ -1,9 +1,10 @@
 /**
- * Unit tests for partitionFeed (Milestone E).
+ * Unit tests for partitionFeed (Milestone E + Aggregation).
  *
  * Key assertions:
  *   - Priority governs membership; document-order governs display.
- *   - Contradiction floor overrides budget.
+ *   - Contradiction floor overrides budget (now keyed on group.hasContradiction).
+ *   - Same-span observations aggregate into one group (one budget slot).
  *   - Reflection kind excluded.
  *   - Doc-scoped observations (no blockId) sort to bottom within their group.
  */
@@ -52,10 +53,10 @@ describe("partitionFeed — budget selection", () => {
       blockOrder: ["b1", "b2", "b3"],
     });
     // Top 2 by priority: missing_topic (1.5) + contradiction (1.0).
-    // The contradiction also gets the floor.
+    // The contradiction also gets the floor → still only 2 visible total.
     expect(visible.length).toBe(2);
     expect(alsoNoticed.length).toBe(1);
-    expect(alsoNoticed[0].type).toBe("clarity");
+    expect(alsoNoticed[0].primary.type).toBe("clarity");
   });
 
   it("when budget >= count, alsoNoticed is empty", () => {
@@ -90,9 +91,64 @@ describe("partitionFeed — budget selection", () => {
       blockOrder: ["b1", "b2"],
     });
     expect(visible.length).toBe(1);
-    expect(visible[0].type).toBe("contradiction");
+    expect(visible[0].primary.type).toBe("contradiction");
     expect(alsoNoticed.length).toBe(1);
-    expect(alsoNoticed[0].type).toBe("clarity");
+    expect(alsoNoticed[0].primary.type).toBe("clarity");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Aggregation — same-span observations collapse into one budget slot
+// ---------------------------------------------------------------------------
+
+describe("partitionFeed — same-span aggregation", () => {
+  it("two observations on the same span consume one budget slot", () => {
+    const a = obs({ type: "clarity", priority: 0.75, blockId: "b1", startOffset: 5, endOffset: 20 });
+    const b = obs({ type: "unsupported_claim", priority: 1.5, blockId: "b1", startOffset: 5, endOffset: 20 });
+    const c = obs({ type: "missing_topic", priority: 1.0, blockId: "b2", startOffset: 0, endOffset: 10 });
+
+    const { visible, alsoNoticed } = partitionFeed([a, b, c], {
+      budget: 2,
+      blockOrder: ["b1", "b2"],
+    });
+
+    // a+b are on the same span → 1 group; c is its own group → 2 groups total
+    expect(visible.length + alsoNoticed.length).toBe(2);
+  });
+
+  it("grouped card primary is the highest-priority member", () => {
+    const lo = obs({ type: "clarity", priority: 0.75, blockId: "b1", startOffset: 0, endOffset: 10 });
+    const hi = obs({ type: "contradiction", priority: 3.0, blockId: "b1", startOffset: 0, endOffset: 10 });
+
+    const { visible } = partitionFeed([lo, hi], {
+      budget: 5,
+      blockOrder: ["b1"],
+    });
+
+    expect(visible).toHaveLength(1);
+    expect(visible[0].primary.id).toBe(hi.id);
+    expect(visible[0].others).toHaveLength(1);
+    expect(visible[0].others[0].id).toBe(lo.id);
+  });
+
+  it("group with hasContradiction always appears in visible regardless of budget", () => {
+    // contradiction is low priority but grouped with clarity on same span
+    const con = obs({ type: "contradiction", priority: 0.5, blockId: "b3", startOffset: 0, endOffset: 5 });
+    const cla = obs({ type: "clarity", priority: 0.5, blockId: "b3", startOffset: 0, endOffset: 5 });
+    const high1 = obs({ type: "missing_topic", priority: 1.5, blockId: "b1" });
+    const high2 = obs({ type: "unsupported_claim", priority: 1.5, blockId: "b2" });
+
+    const { visible, alsoNoticed } = partitionFeed([con, cla, high1, high2], {
+      budget: 2,
+      blockOrder: ["b1", "b2", "b3"],
+    });
+
+    // Groups: [con+cla] on b3, high1 on b1, high2 on b2 → 3 groups
+    // Budget=2 picks high1, high2; [con+cla] group is outside budget
+    // But hasContradiction=true → floored → still visible
+    const visibleIds = visible.map((g) => g.id);
+    expect(visibleIds).toContain(con.id); // group.id = primary.id = con (higher priority)
+    expect(alsoNoticed.map((g) => g.id)).not.toContain(con.id);
   });
 });
 
@@ -112,9 +168,9 @@ describe("partitionFeed — contradiction floor", () => {
       budget: 2,
       blockOrder: ["b1", "b2", "b3"],
     });
-    const visibleIds = visible.map((o) => o.id);
+    const visibleIds = visible.map((g) => g.id);
     expect(visibleIds).toContain(contradiction.id);
-    expect(alsoNoticed.map((o) => o.id)).not.toContain(contradiction.id);
+    expect(alsoNoticed.map((g) => g.id)).not.toContain(contradiction.id);
   });
 
   it("multiple contradictions all get floored", () => {
@@ -130,7 +186,7 @@ describe("partitionFeed — contradiction floor", () => {
       budget: 2,
       blockOrder: ["b1", "b2", "b3", "b4"],
     });
-    const visibleIds = visible.map((o) => o.id);
+    const visibleIds = visible.map((g) => g.id);
     expect(visibleIds).toContain(c1.id);
     expect(visibleIds).toContain(c2.id);
   });
@@ -152,7 +208,7 @@ describe("partitionFeed — display is document-order, NOT priority-order", () =
       blockOrder: ["b1", "b2", "b3"],
     });
 
-    expect(visible.map((o) => o.blockId)).toEqual(["b1", "b2", "b3"]);
+    expect(visible.map((g) => g.blockId)).toEqual(["b1", "b2", "b3"]);
   });
 
   it("within the same block, sorts by startOffset", () => {
@@ -171,11 +227,10 @@ describe("partitionFeed — display is document-order, NOT priority-order", () =
   it("alsoNoticed is also in document order", () => {
     const hi1 = obs({ type: "missing_topic", priority: 1.5, blockId: "b1" });
     const hi2 = obs({ type: "unsupported_claim", priority: 1.5, blockId: "b2" });
-    // These two go to alsoNoticed; doc order should be b4 then b3 (reversed of priority)
+    // These two go to alsoNoticed; doc order should be b4 then doc-scoped
     const lo1 = obs({ type: "clarity", priority: 0.75, blockId: "b4", startOffset: 0 });
     const lo2 = obs({ type: "structure_flow", priority: 0.75, scope: "document", blockId: undefined, startOffset: undefined });
     // lo2 is doc-scoped (no blockId) → bottom of alsoNoticed group
-    // lo1 is b4 (idx=3)
 
     const { alsoNoticed } = partitionFeed([hi1, hi2, lo1, lo2], {
       budget: 2,
@@ -203,7 +258,7 @@ describe("partitionFeed — reflection kind excluded", () => {
       blockOrder: ["b1", "b2"],
     });
 
-    const allIds = [...visible, ...alsoNoticed].map((o) => o.id);
+    const allIds = [...visible, ...alsoNoticed].map((g) => g.id);
     expect(allIds).not.toContain(reflection.id);
     expect(allIds).toContain(problem.id);
   });
@@ -228,7 +283,7 @@ describe("partitionFeed — doc-scoped observations", () => {
     expect(visible[1].id).toBe(docObs.id);
   });
 
-  it("multiple doc-scoped obs maintain stable relative order (by startOffset fallback)", () => {
+  it("multiple doc-scoped obs maintain stable relative order", () => {
     const docA = obs({ type: "missing_topic", priority: 1.5, blockId: undefined, scope: "document", startOffset: undefined });
     const docB = obs({ type: "audience_mismatch", priority: 0.75, blockId: undefined, scope: "document", startOffset: undefined });
 
