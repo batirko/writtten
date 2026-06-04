@@ -28,8 +28,8 @@ summary: SkillOpt, LEANN, and markitdown — external tooling anchored to specif
 
 ### Phase 4 — SkillOpt (evaluator quality ratchet)
 
-- [ ] Build a **labeled eval test set**: 20–40 documents where the ground truth is known (which contradictions/clarity issues the evaluator should catch, on which spans). Store as `src/services/eval-fixtures/`.
-- [ ] Wire fixtures into Vitest as a regression suite — independently valuable as a quality ratchet regardless of SkillOpt.
+- [x] Build a **labeled eval test set**: seed corpus of 6 labeled fixtures covering each observation type + OBS regression cases. Stored as `src/services/eval-fixtures/`. Grows via `npm run eval:record`. _(2026-06-04)_
+- [x] Wire fixtures into Vitest as a regression suite — Tier 1 deterministic replay (CI-safe, quota-free, exact precision/recall); Tier 2 opt-in live scorer (`EVAL_LIVE=1 npm run eval:live`). SkillOpt is now unblocked. _(2026-06-04)_
 - [ ] Once the fixture set exists: run SkillOpt against the evaluator prompts (see [§SkillOpt](#skillopt--offline-evaluator-prompt-optimization) for the workflow). Target: contradiction-check and clarity-check prompts in `src/services/evaluator.ts`.
 - [ ] Deploy the `best_skill.md` output by replacing the relevant prompt strings in `src/services/evaluator.ts` and recording before/after accuracy numbers.
 

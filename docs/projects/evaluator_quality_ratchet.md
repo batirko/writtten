@@ -1,5 +1,5 @@
 ---
-status: idea
+status: done
 phases: [4]
 summary: Labeled fixture corpus + two-tier scorer (deterministic replay + opt-in live precision/recall) wired into Vitest so evaluator recommendation accuracy can't silently regress as prompts change.
 ---
