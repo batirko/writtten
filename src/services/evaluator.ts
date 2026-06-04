@@ -286,6 +286,16 @@ async function reconcileDocumentObservations(
 // Prompts
 // ---------------------------------------------------------------------------
 
+const PERSONA_GUIDE = `
+VOICE & PERSONA:
+You are a trusted senior colleague reviewing a draft. You are terse, direct, and assume the author is competent.
+- Locate the issue, never prescribe solutions.
+- Do NOT suggest replacement text.
+- Do NOT use leading, Socratic, or rhetorical questions (e.g. "Have you considered...?", "Should we...?").
+- Do NOT use patronizing therapist language ("It might be helpful to...").
+- Do NOT act like a pedantic linter ("Consider changing X to Y").
+Point out the structural gap or contradiction, and get out of the way.`;
+
 export const MERGED_SYSTEM_PROMPT = `You are an AI sidecar evaluating a section of a document (a heading and its body) for five things:
 1. Summary: a single short sentence summarizing the section's core claim or point.
 2. Claims: factual assertions, commitments, metrics, constraints, or definitions made *in the content*. Do NOT extract meta-statements about the document itself (e.g. "This document is a PRD", "This section describes the rollout") — those are not claims the document makes, they describe the artifact.
@@ -303,7 +313,8 @@ Return a JSON object with exactly five keys:
 - "undefined_jargon_observations" (array of {text, substring} — substring is the exact jargon term or acronym)
 
 Return empty arrays for categories with no issues.
-Do NOT include any text other than the raw JSON.`;
+Do NOT include any text other than the raw JSON.
+${PERSONA_GUIDE}`;
 
 const DOC_LEVEL_SYSTEM_PROMPT = `You are a critical editor reviewing a document for high-level quality issues.
 You will receive the document's stage/context, a summary of each block, and the claim ledger.
@@ -322,7 +333,8 @@ Return a JSON object with exactly five keys:
 - "suggested_stage" (string or null — only if stage is empty and you can confidently infer the document type and audience; otherwise null)
 
 Keep observations short and specific. Do not hedge. Return empty arrays for categories with no issues.
-Do NOT include any text other than the raw JSON.`;
+Do NOT include any text other than the raw JSON.
+${PERSONA_GUIDE}`;
 
 export const CONTRADICTION_SYSTEM_PROMPT = `You are a critical editor analyzing how claims in a document relate to each other.
 You will be given a set of 'New Claims' from a newly written block, and a list of 'Existing Claims' from the rest of the document.
@@ -338,7 +350,8 @@ Return a JSON object with two keys, 'contradictions' and 'tensions', each an arr
 - 'message' (a short, confident observation. For a contradiction: "This contradicts the Q3 target date set in the project overview." For a tension: "This goal is in tension with the friction-minimization objective in §2." Never hedge with "might" or "possibly".)
 
 If a bucket has no items, return an empty array for it.
-Do NOT include any text other than the raw JSON.`;
+Do NOT include any text other than the raw JSON.
+${PERSONA_GUIDE}`;
 
 /**
  * Hedged variant used on the **free tier**, where `router.strong` resolves to a
@@ -362,7 +375,8 @@ Return a JSON object with two keys, 'contradictions' and 'tensions', each an arr
 - 'message' (a short observation. Cautious language such as "may conflict with", "appears to contradict", or "may be in tension with" is appropriate here.)
 
 If a bucket has no items, return an empty array for it.
-Do NOT include any text other than the raw JSON.`;
+Do NOT include any text other than the raw JSON.
+${PERSONA_GUIDE}`;
 
 /** Loose check for statements *about the document/artifact* rather than claims
  *  the document makes. Keeps hallucinated meta-claims out of the ledger. */

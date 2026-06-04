@@ -3,7 +3,7 @@
  *
  * Key assertions:
  *   - Priority governs membership; document-order governs display.
- *   - Contradiction floor overrides budget (now keyed on group.hasContradiction).
+ *   - Discomfort-budget ceiling caps even high-priority contradictions.
  *   - Same-span observations aggregate into one group (one budget slot).
  *   - Reflection kind excluded.
  *   - Doc-scoped observations (no blockId) sort to bottom within their group.
@@ -53,7 +53,6 @@ describe("partitionFeed — budget selection", () => {
       blockOrder: ["b1", "b2", "b3"],
     });
     // Top 2 by priority: missing_topic (1.5) + contradiction (1.0).
-    // The contradiction also gets the floor → still only 2 visible total.
     expect(visible.length).toBe(2);
     expect(alsoNoticed.length).toBe(1);
     expect(alsoNoticed[0].primary.type).toBe("clarity");
@@ -81,7 +80,7 @@ describe("partitionFeed — budget selection", () => {
     expect(alsoNoticed).toEqual([]);
   });
 
-  it("budget of 0 means only floored contradictions are visible", () => {
+  it("budget of 0 means nothing is visible, even contradictions", () => {
     const observations = [
       obs({ type: "clarity", priority: 0.75, blockId: "b1" }),
       obs({ type: "contradiction", priority: 1.0, blockId: "b2" }),
@@ -90,10 +89,8 @@ describe("partitionFeed — budget selection", () => {
       budget: 0,
       blockOrder: ["b1", "b2"],
     });
-    expect(visible.length).toBe(1);
-    expect(visible[0].primary.type).toBe("contradiction");
-    expect(alsoNoticed.length).toBe(1);
-    expect(alsoNoticed[0].primary.type).toBe("clarity");
+    expect(visible.length).toBe(0);
+    expect(alsoNoticed.length).toBe(2);
   });
 });
 
@@ -131,7 +128,7 @@ describe("partitionFeed — same-span aggregation", () => {
     expect(visible[0].others[0].id).toBe(lo.id);
   });
 
-  it("group with hasContradiction always appears in visible regardless of budget", () => {
+  it("group with hasContradiction is capped by budget like anything else", () => {
     // contradiction is low priority but grouped with clarity on same span
     const con = obs({ type: "contradiction", priority: 0.5, blockId: "b3", startOffset: 0, endOffset: 5 });
     const cla = obs({ type: "clarity", priority: 0.5, blockId: "b3", startOffset: 0, endOffset: 5 });
@@ -145,19 +142,18 @@ describe("partitionFeed — same-span aggregation", () => {
 
     // Groups: [con+cla] on b3, high1 on b1, high2 on b2 → 3 groups
     // Budget=2 picks high1, high2; [con+cla] group is outside budget
-    // But hasContradiction=true → floored → still visible
     const visibleIds = visible.map((g) => g.id);
-    expect(visibleIds).toContain(con.id); // group.id = primary.id = con (higher priority)
-    expect(alsoNoticed.map((g) => g.id)).not.toContain(con.id);
+    expect(visibleIds).not.toContain(con.id);
+    expect(alsoNoticed.map((g) => g.id)).toContain(con.id);
   });
 });
 
 // ---------------------------------------------------------------------------
-// Contradiction floor
+// Discomfort-budget ceiling
 // ---------------------------------------------------------------------------
 
-describe("partitionFeed — contradiction floor", () => {
-  it("low-priority contradiction stays visible even when beyond budget", () => {
+describe("partitionFeed — discomfort budget ceiling", () => {
+  it("low-priority contradiction is pushed to alsoNoticed if it misses the budget cut", () => {
     const contradiction = obs({ type: "contradiction", priority: 0.5, blockId: "b3" });
     const observations = [
       obs({ type: "missing_topic", priority: 1.5, blockId: "b1" }),
@@ -169,26 +165,21 @@ describe("partitionFeed — contradiction floor", () => {
       blockOrder: ["b1", "b2", "b3"],
     });
     const visibleIds = visible.map((g) => g.id);
-    expect(visibleIds).toContain(contradiction.id);
-    expect(alsoNoticed.map((g) => g.id)).not.toContain(contradiction.id);
+    expect(visibleIds).not.toContain(contradiction.id);
+    expect(alsoNoticed.map((g) => g.id)).toContain(contradiction.id);
   });
 
-  it("multiple contradictions all get floored", () => {
-    const c1 = obs({ type: "contradiction", priority: 0.5, blockId: "b3" });
-    const c2 = obs({ type: "contradiction", priority: 0.5, blockId: "b4" });
-    const observations = [
-      obs({ type: "missing_topic", priority: 1.5, blockId: "b1" }),
-      obs({ type: "unsupported_claim", priority: 1.5, blockId: "b2" }),
-      c1,
-      c2,
-    ];
-    const { visible } = partitionFeed(observations, {
+  it("multiple high-priority contradictions are capped by budget", () => {
+    const c1 = obs({ type: "contradiction", priority: 3.0, blockId: "b1" });
+    const c2 = obs({ type: "contradiction", priority: 3.0, blockId: "b2" });
+    const c3 = obs({ type: "contradiction", priority: 3.0, blockId: "b3" });
+    const observations = [c1, c2, c3];
+    const { visible, alsoNoticed } = partitionFeed(observations, {
       budget: 2,
-      blockOrder: ["b1", "b2", "b3", "b4"],
+      blockOrder: ["b1", "b2", "b3"],
     });
-    const visibleIds = visible.map((g) => g.id);
-    expect(visibleIds).toContain(c1.id);
-    expect(visibleIds).toContain(c2.id);
+    expect(visible.length).toBe(2);
+    expect(alsoNoticed.length).toBe(1);
   });
 });
 

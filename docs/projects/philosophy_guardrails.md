@@ -1,5 +1,5 @@
 ---
-status: idea
+status: in-progress
 phases: [4, 5]
 summary: Build the three unguarded philosophy guardrails — flattery-resistant dismissal, an explicit anti-taxonomy, and no-disguised-fix register discipline — plus a discomfort-budget ceiling, so the qualitative half of the fidelity bar is enforced in code and CI rather than left to model goodwill.
 ---

@@ -24,7 +24,7 @@ export type { GroupedObservation };
 export const DEFAULT_FEED_BUDGET = 7;
 
 export interface FeedPartitionOptions {
-  /** Maximum number of groups in the visible set (before the contradiction floor). */
+  /** Maximum number of groups in the visible set. */
   budget: number;
   /**
    * Ordered blockIds as they appear in the document (top → bottom).
@@ -48,8 +48,8 @@ export interface FeedPartition {
  * 1. `kind === "reflection"` — excluded (Milestone D; not yet produced).
  * 2. Aggregation — observations sharing the same exact span collapse into one group.
  * 3. Budget selection — sort groups by priority desc; top `budget` groups are visible.
- * 4. Contradiction floor — groups containing a contradiction are always visible
- *    regardless of whether they fell inside the budget.
+ * 4. Discomfort-budget ceiling — contradictions natively sort to the top
+ *    but are strictly capped by the budget to prevent overwhelming feeds.
  * 5. Display order — each set sorted by document position (blockId index → startOffset).
  *    Document-scoped groups sort to the bottom.
  */
@@ -66,18 +66,18 @@ export function partitionFeed(
   // 3. Sort by priority descending to determine budget membership.
   const byPriority = [...groups].sort((a, b) => b.priority - a.priority);
 
-  // 4. Select by budget + contradiction floor.
+  // 4. Select by budget (includes G4 discomfort ceiling).
+  // Contradictions natively sort to the top via priority, but are capped
+  // by the budget to prevent overwhelming the user with a wall of red.
   const visibleIds = new Set<string>();
   let budgetUsed = 0;
   for (const g of byPriority) {
     if (budgetUsed < budget) {
       visibleIds.add(g.id);
       budgetUsed++;
+    } else {
+      break;
     }
-  }
-  // Contradiction floor: groups containing a contradiction always visible.
-  for (const g of groups) {
-    if (g.hasContradiction) visibleIds.add(g.id);
   }
 
   const visibleSet = groups.filter((g) => visibleIds.has(g.id));

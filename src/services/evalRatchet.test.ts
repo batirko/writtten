@@ -81,6 +81,36 @@ describe("Evaluator quality ratchet — Tier 1 (deterministic replay)", () => {
         fixture.sections.map((s) => [s.id, s.text]),
       );
 
+      // G3 Message Lint: assert no generated message violates the no-disguised-fix rule
+      for (const o of produced) {
+        const textLow = o.text.toLowerCase();
+        
+        // 1. No questions (catches Socratic/rhetorical questions like "Have you considered...?")
+        expect(
+          o.text.includes("?") || o.text.includes("? "),
+          `G3 violation: message contains a question mark. Must be a direct statement.\n  Message: "${o.text}"`
+        ).toBe(false);
+
+        // 2. No prescriptive/imperative patterns
+        const prescriptivePatterns = [
+          "you need to",
+          "you should",
+          "we should",
+          "consider changing",
+          "consider adding",
+          "it might be helpful",
+          "it would be helpful",
+          "i suggest",
+          "i recommend"
+        ];
+        for (const pattern of prescriptivePatterns) {
+          expect(
+            textLow.includes(pattern),
+            `G3 violation: message contains prescriptive pattern "${pattern}". Must locate, not prescribe.\n  Message: "${o.text}"`
+          ).toBe(false);
+        }
+      }
+
       const result = scoreObservations(
         fixture.id,
         produced,
