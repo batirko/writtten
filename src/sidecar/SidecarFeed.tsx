@@ -39,9 +39,29 @@ interface GroupedObsCardProps {
   isArriving: boolean;
   onHover: (id: string | null) => void;
   onDismiss: (id: string) => void;
+  /** Whether this card is in the "also noticed" overflow drawer vs. the main feed. */
+  slot?: "primary" | "also-noticed";
 }
 
-function GroupedObsCard({ group, isActive, isArriving, onHover, onDismiss }: GroupedObsCardProps) {
+function impactTooltip(
+  severity: string,
+  confidence: string,
+  slot: "primary" | "also-noticed",
+): string {
+  const sevLabel = severity === "high" ? "High" : severity === "medium" ? "Medium" : "Low";
+  const confLabel =
+    confidence === "high"
+      ? "high confidence"
+      : confidence === "medium"
+        ? "medium confidence"
+        : "low confidence";
+  if (slot === "also-noticed") {
+    return `${sevLabel} severity · ${confLabel} — lower priority, shown below budget`;
+  }
+  return `${sevLabel} severity · ${confLabel} — surfaced in main feed`;
+}
+
+function GroupedObsCard({ group, isActive, isArriving, onHover, onDismiss, slot = "primary" }: GroupedObsCardProps) {
   const [expanded, setExpanded] = useState(false);
   const { primary, others } = group;
 
@@ -64,7 +84,14 @@ function GroupedObsCard({ group, isActive, isArriving, onHover, onDismiss }: Gro
       onMouseLeave={() => onHover(null)}
     >
       <div className="card-header">
-        <span className={`tag tag-${primary.type}`}>{primary.type.replace(/_/g, ' ')}</span>
+        <div className="card-header-left">
+          <span className={`tag tag-${primary.type}`}>{primary.type.replace(/_/g, ' ')}</span>
+          <span
+            className={`impact-cue impact-kind-${primary.kind} impact-sev-${primary.severity}`}
+            data-testid="impact-badge"
+            title={impactTooltip(primary.severity, primary.confidence, slot)}
+          />
+        </div>
         <button
           className="dismiss-btn"
           data-testid="obs-dismiss"
@@ -545,6 +572,7 @@ export function SidecarFeed({
                           isArriving={arrivingIds.has(group.primary.id) || group.others.some((o) => arrivingIds.has(o.id))}
                           onHover={onHoverObservation}
                           onDismiss={onDismissObservation}
+                          slot="also-noticed"
                         />
                       ))}
                     </div>
