@@ -1,7 +1,48 @@
 import { Extension } from "@tiptap/core";
 import { Plugin, PluginKey } from "@tiptap/pm/state";
 import { Decoration, DecorationSet } from "@tiptap/pm/view";
+import type { Node as PMNode } from "@tiptap/pm/model";
 import type { Observation } from "../../store/db";
+
+/**
+ * Map a character offset in a block's flat textContent to the correct absolute
+ * ProseMirror position, accounting for node boundaries (e.g. list items) that
+ * textContent silently skips. Without this, highlights on the 2nd+ item of a
+ * bullet list drift backwards by the accumulated boundary tokens.
+ *
+ * @param isEnd - true when mapping an exclusive-end offset (use <= so the end
+ *   of a text node maps to the position after its last char, not the start of
+ *   the next node). False for start offsets (use < so the exact start of a
+ *   text node maps to that node, not the end of the previous one).
+ */
+export function charOffsetToPmPos(
+  blockNode: PMNode,
+  blockPos: number,
+  charOffset: number,
+  isEnd: boolean,
+): number {
+  let charCount = 0;
+  let found = -1;
+
+  blockNode.descendants((node, pos) => {
+    if (found >= 0) return false;
+    if (node.isText && node.text != null) {
+      const len = node.text.length;
+      const matches = isEnd
+        ? charOffset >= charCount && charOffset <= charCount + len
+        : charOffset >= charCount && charOffset < charCount + len;
+      if (matches) {
+        found = blockPos + 1 + pos + (charOffset - charCount);
+        return false;
+      }
+      charCount += len;
+    }
+  });
+
+  // Fallback: treat as flat offset (works for simple paragraphs; also handles
+  // the degenerate case where charOffset == total textContent length with isEnd=false)
+  return found >= 0 ? found : blockPos + 1 + charOffset;
+}
 
 const pluginKey = new PluginKey("observationHighlighter");
 
@@ -66,14 +107,11 @@ export const ObservationHighlighter = Extension.create<ObservationHighlighterOpt
                   if (blockPos !== undefined) {
                     const blockNode = doc.nodeAt(blockPos);
                     if (blockNode) {
-                      const textStart = blockPos + 1;
                       const textLength = blockNode.textContent.length;
-
-                      // Resolve start/end offsets, clamping to block text length
-                      const start =
-                        textStart + Math.max(0, Math.min(obs.startOffset || 0, textLength));
-                      const end =
-                        textStart + Math.max(0, Math.min(obs.endOffset || textLength, textLength));
+                      const rawStart = Math.max(0, Math.min(obs.startOffset ?? 0, textLength));
+                      const rawEnd = Math.max(0, Math.min(obs.endOffset ?? textLength, textLength));
+                      const start = charOffsetToPmPos(blockNode, blockPos, rawStart, false);
+                      const end = charOffsetToPmPos(blockNode, blockPos, rawEnd, true);
 
                       // Both contradiction and strategic_tension span two blocks
                       // via conflictingBlockId — hovering either side, or the
@@ -101,20 +139,11 @@ export const ObservationHighlighter = Extension.create<ObservationHighlighterOpt
                         if (conflictPos !== undefined) {
                           const conflictNode = doc.nodeAt(conflictPos);
                           if (conflictNode) {
-                            const cTextStart = conflictPos + 1;
                             const cTextLength = conflictNode.textContent.length;
-                            const cStart =
-                              cTextStart +
-                              Math.max(
-                                0,
-                                Math.min(obs.conflictingStartOffset || 0, cTextLength),
-                              );
-                            const cEnd =
-                              cTextStart +
-                              Math.max(
-                                0,
-                                Math.min(obs.conflictingEndOffset || cTextLength, cTextLength),
-                              );
+                            const cRawStart = Math.max(0, Math.min(obs.conflictingStartOffset ?? 0, cTextLength));
+                            const cRawEnd = Math.max(0, Math.min(obs.conflictingEndOffset ?? cTextLength, cTextLength));
+                            const cStart = charOffsetToPmPos(conflictNode, conflictPos, cRawStart, false);
+                            const cEnd = charOffsetToPmPos(conflictNode, conflictPos, cRawEnd, true);
                             if (cStart < cEnd) {
                               decos.push(
                                 Decoration.inline(cStart, cEnd, {
