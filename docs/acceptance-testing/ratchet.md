@@ -4,12 +4,12 @@ The evaluator quality ratchet is a labeled fixture corpus + two-tier scorer that
 
 **Quick reference:**
 
-| Command | What it does |
-|---|---|
-| `npm test` | Runs Tier 1 (offline, quota-free). The ratchet is included. |
-| `npm run eval:record` | Re-record ALL fixture LLM responses from the live model. |
-| `EVAL_RECORD_ID=<id> npm run eval:record` | Re-record one fixture only. |
-| `EVAL_LIVE=1 npm run eval:live` | Run Tier 2 live scorer (real API, precision/recall scorecard). |
+| Command                                   | What it does                                                   |
+| ----------------------------------------- | -------------------------------------------------------------- |
+| `npm test`                                | Runs Tier 1 (offline, quota-free). The ratchet is included.    |
+| `npm run eval:record`                     | Re-record ALL fixture LLM responses from the live model.       |
+| `EVAL_RECORD_ID=<id> npm run eval:record` | Re-record one fixture only.                                    |
+| `EVAL_LIVE=1 npm run eval:live`           | Run Tier 2 live scorer (real API, precision/recall scorecard). |
 
 ---
 
@@ -83,7 +83,7 @@ npx vitest run src/services/evalRatchet.test.ts
 
 The test will fail (recall=NaN or 0) and print the produced observations. Copy them into `expected`. Then rerun — it should pass.
 
-**Ground-truth labelling rule:** `expected` should reflect what the pipeline *should* produce from these inputs. If the pipeline produces a correct observation that you didn't expect, add it. If it produces a false positive, add it to `knownGaps` instead and leave it out of `expected`.
+**Ground-truth labelling rule:** `expected` should reflect what the pipeline _should_ produce from these inputs. If the pipeline produces a correct observation that you didn't expect, add it. If it produces a false positive, add it to `knownGaps` instead and leave it out of `expected`.
 
 ### 5. Verify Tier 1 passes
 
@@ -123,13 +123,13 @@ Then re-check the `expected` labels (some may now mismatch the new responses). U
 
 Current seed cases in `src/services/eval-fixtures/`:
 
-| id | Covers |
-|---|---|
-| `contradiction-timeline` | Hard contradiction (Q2 vs Q3 commit) — port of the Phase 1 acceptance test |
-| `strategic-tension-fraud` | Tradeoff routes to `strategic_tension`, NOT `contradiction` (OBS-004 regression lock) |
-| `clarity-vague` | Vague passage fires `clarity`; content-sig dedup collapses duplicate messages |
-| `unsupported-vs-attributed` | Genuine `unsupported_claim` fires; attributed claim must NOT fire (OBS-001 tracking) |
-| `jargon-allowlist` | Preset terms suppressed; genuinely undefined term fires (OBS-003/005 tracking) |
-| `clean-doc` | Clean, specific section → zero observations (false-positive guard) |
+| id                          | Covers                                                                                |
+| --------------------------- | ------------------------------------------------------------------------------------- |
+| `contradiction-timeline`    | Hard contradiction (Q2 vs Q3 commit) — port of the Phase 1 acceptance test            |
+| `strategic-tension-fraud`   | Tradeoff routes to `strategic_tension`, NOT `contradiction` (OBS-004 regression lock) |
+| `clarity-vague`             | Vague passage fires `clarity`; content-sig dedup collapses duplicate messages         |
+| `unsupported-vs-attributed` | Genuine `unsupported_claim` fires; attributed claim must NOT fire (OBS-001 tracking)  |
+| `jargon-allowlist`          | Preset terms suppressed; genuinely undefined term fires (OBS-003/005 tracking)        |
+| `clean-doc`                 | Clean, specific section → zero observations (false-positive guard)                    |
 
 Corpus grows over time. The `prompt_quality_observations.md` remediation sprint will add regression cases for each OBS-001…005 fix.
