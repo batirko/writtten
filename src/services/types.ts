@@ -39,4 +39,8 @@ export interface EvalContext {
   stage?: string;
   /** Called when evaluateDocument infers a stage from the document content. */
   onStageSuggestion?: (suggestion: string) => void;
+  /** Terms that should never be flagged as undefined jargon. Merged with
+   *  JARGON_PRESET and any definition-kind claims in the ledger before the
+   *  fast call. One term per entry; case-insensitive. */
+  jargonAllowlist?: string[];
 }

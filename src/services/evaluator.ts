@@ -2,6 +2,7 @@ import { createRouter } from "../model/factory";
 import { getLlmMode } from "../model/mock";
 import { prefilterClaims } from "./prefilter";
 import { computePriority } from "./priority";
+import { JARGON_PRESET } from "./jargonPreset";
 import {
   saveBlockSummary,
   loadBlockSummary,
@@ -398,6 +399,7 @@ export async function evaluateSection(
   stage?: string,
   apiKey?: string,
   paidKey?: string,
+  jargonAllowlist?: string[],
 ): Promise<void> {
   // Mock mode replays canned responses, so it needs no key. Every other mode
   // hits the network and does.
@@ -430,12 +432,17 @@ export async function evaluateSection(
     //    Include stage and a glossary of already-defined terms so the model
     //    doesn't flag jargon the document has already introduced.
     const existingClaimsForGlossary = await loadActiveClaimsForDocument(docId);
+    const allowlistTerms = [
+      ...JARGON_PRESET,
+      ...(jargonAllowlist ?? []),
+    ];
     const definedTerms = [
-      ...new Set(
-        existingClaimsForGlossary
+      ...new Set([
+        ...allowlistTerms,
+        ...existingClaimsForGlossary
           .filter((c) => c.kind === "definition" && c.sourceBlockId !== sectionId)
           .map((c) => c.text),
-      ),
+      ]),
     ].map((t) => `- ${t}`);
 
     const userParts: string[] = [cleanText];
@@ -645,6 +652,7 @@ export async function evaluateBlock(
   stage?: string,
   apiKey?: string,
   paidKey?: string,
+  jargonAllowlist?: string[],
 ): Promise<void> {
   return evaluateSection(
     docId,
@@ -654,6 +662,7 @@ export async function evaluateBlock(
     stage,
     apiKey,
     paidKey,
+    jargonAllowlist,
   );
 }
 

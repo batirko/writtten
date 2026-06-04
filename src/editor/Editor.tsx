@@ -24,6 +24,9 @@ interface Props {
   apiKey?: string;
   paidKey?: string;
   stage?: string;
+  /** Terms that should never be flagged as undefined jargon (in addition to
+   *  the hardcoded preset). One entry per term; case-insensitive. */
+  jargonAllowlist?: string[];
   observations: Observation[];
   hoveredObservationId: string | null;
   onObservationCollapsed: (id: string) => void;
@@ -74,6 +77,7 @@ export function Editor({
   apiKey,
   paidKey,
   stage,
+  jargonAllowlist,
   observations,
   hoveredObservationId,
   onObservationCollapsed,
@@ -101,6 +105,8 @@ export function Editor({
   useEffect(() => { paidKeyRef.current = paidKey; }, [paidKey]);
   const stageRef = useRef(stage);
   useEffect(() => { stageRef.current = stage; }, [stage]);
+  const jargonAllowlistRef = useRef(jargonAllowlist);
+  useEffect(() => { jargonAllowlistRef.current = jargonAllowlist; }, [jargonAllowlist]);
   const onEvaluationCompleteRef = useRef(onEvaluationComplete);
   useEffect(() => { onEvaluationCompleteRef.current = onEvaluationComplete; }, [onEvaluationComplete]);
   const onStageSuggestionRef = useRef(onStageSuggestion);
@@ -163,6 +169,7 @@ export function Editor({
             apiKey: apiKeyRef.current ?? "",
             paidKey: paidKeyRef.current,
             stage: stageRef.current,
+            jargonAllowlist: jargonAllowlistRef.current,
           };
           scheduleEval(
             { kind: "block-removed", blockId: id },
@@ -216,6 +223,7 @@ export function Editor({
               apiKey: apiKeyRef.current ?? "",
               paidKey: paidKeyRef.current,
               stage: stageRef.current,
+            jargonAllowlist: jargonAllowlistRef.current,
               onStageSuggestion: onStageSuggestionRef.current,
             };
             scheduleEval(
@@ -246,6 +254,7 @@ export function Editor({
             apiKey: apiKeyRef.current ?? "",
             paidKey: paidKeyRef.current,
             stage: stageRef.current,
+            jargonAllowlist: jargonAllowlistRef.current,
             onStageSuggestion: onStageSuggestionRef.current,
           };
           scheduleEval(
@@ -300,6 +309,7 @@ export function Editor({
             apiKey: apiKeyRef.current ?? "",
             paidKey: paidKeyRef.current,
             stage: stageRef.current,
+            jargonAllowlist: jargonAllowlistRef.current,
             onStageSuggestion: onStageSuggestionRef.current,
           };
           scheduleEval(

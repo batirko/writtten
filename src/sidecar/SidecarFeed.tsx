@@ -86,6 +86,9 @@ interface Props {
   stageSuggestion?: string | null;
   onAcceptStageSuggestion?: (s: string) => void;
   onDismissStageSuggestion?: () => void;
+  /** Raw textarea value — one term per line. Persisted in App, passed down. */
+  jargonAllowlist?: string;
+  onJargonAllowlistChange?: (val: string) => void;
 }
 
 export function SidecarFeed({
@@ -108,6 +111,8 @@ export function SidecarFeed({
   stageSuggestion,
   onAcceptStageSuggestion,
   onDismissStageSuggestion,
+  jargonAllowlist = "",
+  onJargonAllowlistChange,
 }: Props) {
   const [showSettings, setShowSettings] = useState(false);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
@@ -363,6 +368,20 @@ export function SidecarFeed({
                 value={stage}
                 onChange={(e) => onStageChange(e.target.value)}
               />
+            </div>
+            <div className="setting-group">
+              <label htmlFor="jargon-allowlist-input">Suppress jargon alerts for</label>
+              <textarea
+                id="jargon-allowlist-input"
+                data-testid="jargon-allowlist-input"
+                rows={3}
+                placeholder={"One term per line — e.g.\nfalse positive\ndispute rate"}
+                value={jargonAllowlist}
+                onChange={(e) => onJargonAllowlistChange?.(e.target.value)}
+              />
+              <span className="setting-help">
+                Terms listed here (plus common PM vocabulary) are never flagged as undefined jargon.
+              </span>
             </div>
             <div className="setting-group">
               <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>

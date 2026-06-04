@@ -32,6 +32,10 @@ export default function App() {
     return localStorage.getItem("writtten_stage") || "";
   });
 
+  const [jargonAllowlist, setJargonAllowlist] = useState<string>(() => {
+    return localStorage.getItem("writtten_jargon_allowlist") || "";
+  });
+
   const [observations, setObservations] = useState<Observation[]>([]);
   const [archivedObservations, setArchivedObservations] = useState<Observation[]>([]);
   const [blockOrder, setBlockOrder] = useState<string[]>([]);
@@ -85,6 +89,10 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem("writtten_stage", stage);
   }, [stage]);
+
+  useEffect(() => {
+    localStorage.setItem("writtten_jargon_allowlist", jargonAllowlist);
+  }, [jargonAllowlist]);
 
   // Load and refresh observations from DB — splits active (feed) from archived
   const refreshObservations = () => {
@@ -178,6 +186,7 @@ export default function App() {
           apiKey={apiKey}
           paidKey={paidKey}
           stage={stage}
+          jargonAllowlist={jargonAllowlist.split("\n").map((s) => s.trim()).filter(Boolean)}
           observations={observations}
           hoveredObservationId={hoveredObservationId}
           onObservationCollapsed={handleObservationCollapsed}
@@ -196,6 +205,8 @@ export default function App() {
         onApiKeyChange={setApiKey}
         stage={stage}
         onStageChange={setStage}
+        jargonAllowlist={jargonAllowlist}
+        onJargonAllowlistChange={setJargonAllowlist}
         hoveredObservationId={hoveredObservationId}
         onHoverObservation={setHoveredObservationId}
         onDismissObservation={handleDismissObservation}

@@ -144,7 +144,7 @@ async function dispatch(
   if (import.meta.env.DEV) harness.emit("settle", { trigger: triggerKind, sectionId });
 
   try {
-    await evaluateSection(ctx.docId, sectionId, text, members, ctx.stage, ctx.apiKey, ctx.paidKey);
+    await evaluateSection(ctx.docId, sectionId, text, members, ctx.stage, ctx.apiKey, ctx.paidKey, ctx.jargonAllowlist);
   } catch (err) {
     console.error("[orchestrator] evaluateSection threw:", err);
   } finally {
