@@ -21,7 +21,7 @@ export type EvalTrigger =
       kind: "block-settle-blur";
       sectionId: string;
       members: SectionMember[];
-      reason: "cursor-departed" | "window-blurred";
+      reason: "cursor-departed";
     }
   | { kind: "block-removed"; blockId: string }
   | { kind: "block-paste"; blockIds: string[] } // Phase 3: batched fast call; not yet dispatched

@@ -334,50 +334,16 @@ export function Editor({
     },
   });
 
-  // --- Window-blur trigger ---
-  // When the user alt-tabs away while the cursor is inside a block, treat it
-  // as a settle-blur so the block is evaluated on return.
+  // Cleanup: cancel any pending doc-idle timer when the editor instance changes
+  // or the component unmounts. Alt-tab (window blur) no longer triggers a settle —
+  // that was causing premature evaluations and 4-6 paid invocations per paste
+  // (OBS-014, OBS-020). Settles now fire only on cursor-departure, typing-pause,
+  // and doc-idle.
   useEffect(() => {
-    const handleWindowBlur = () => {
-      if (!editor) return;
-      const sectionId = lastActiveSectionId.current;
-      if (!sectionId) return;
-      const section = resolveSection(editor.state.doc, sectionId);
-      if (!section || section.combinedText.trim().length < 10) return;
-
-      // Cancel the settle-pause timer — the blur trigger takes over
-      const timer = evalTimers.current.get(sectionId);
-      if (timer) {
-        clearTimeout(timer);
-        evalTimers.current.delete(sectionId);
-      }
-
-      const ctx: EvalContext = {
-        docId: DOC_ID,
-        apiKey: apiKeyRef.current ?? "",
-        paidKey: paidKeyRef.current,
-        stage: stageRef.current,
-        onStageSuggestion: onStageSuggestionRef.current,
-      };
-      scheduleEval(
-        {
-          kind: "block-settle-blur",
-          sectionId,
-          members: section.members,
-          reason: "window-blurred",
-        },
-        section.combinedText,
-        ctx,
-        () => onEvaluationCompleteRef.current(),
-      );
-    };
-
-    window.addEventListener("blur", handleWindowBlur);
     return () => {
-      window.removeEventListener("blur", handleWindowBlur);
       if (docIdleTimer.current) clearTimeout(docIdleTimer.current);
     };
-  }, [editor]); // re-bind once the editor instance is ready
+  }, [editor]);
 
   // Register live block read + fixture-doc write with the dev harness
   // (dev-only; stripped in prod).

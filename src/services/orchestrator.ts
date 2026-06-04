@@ -159,6 +159,15 @@ async function dispatch(
       dispatch(sectionId, pending.text, pending.members, pending.ctx, pending.triggerKind, pending.onComplete);
     } else {
       recomputePending();
+      // Once the last in-flight section finishes, pick up any queued doc-idle.
+      // This is the partner to the "defer if sections in flight" check in
+      // handleDocIdle — together they ensure the doc-level strong call never
+      // overlaps a section's contradiction strong call (OBS-020).
+      if (inFlightSections.size === 0 && pendingDocIdle) {
+        const pd = pendingDocIdle;
+        pendingDocIdle = null;
+        handleDocIdle(pd.ctx, pd.onComplete);
+      }
     }
   }
 }
@@ -170,6 +179,17 @@ async function dispatch(
 async function handleDocIdle(ctx: EvalContext, onComplete?: () => void): Promise<void> {
   if (docIdleInFlight) {
     // Replace any pending re-run with the latest context
+    pendingDocIdle = { ctx, onComplete };
+    recomputePending();
+    return;
+  }
+
+  // Serialise with in-flight section evals: each section eval fires a strong
+  // contradiction call. If we start a doc-level strong call simultaneously, the
+  // user burns two paid invocations per settle. Queue the doc-idle and let
+  // dispatch's finally block trigger it once the last in-flight section
+  // finishes (OBS-020).
+  if (inFlightSections.size > 0) {
     pendingDocIdle = { ctx, onComplete };
     recomputePending();
     return;
