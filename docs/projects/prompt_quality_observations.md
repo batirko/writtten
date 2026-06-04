@@ -14,6 +14,8 @@ summary: Living log of observed prompt quality issues (false positives, misclass
 
 When enough entries cluster around the same failure mode, pull them into a **Failure Pattern** and eventually into the remediation Todo.
 
+> **Synthesis:** the cross-cutting root-cause analysis of these observations (which collapse into ~6 shared root causes, several of them architecture rather than prompt issues) lives in `docs/projects/quality_remediation_synthesis.md`. New raw observations still land here; the synthesis is where they get grouped and sequenced.
+
 **Register/anti-taxonomy violations belong here too.** Beyond false positives/negatives, log any message that prescribes a fix, asks a leading/Socratic question, or surfaces a surface/style nit (the anti-taxonomy) — these are register failures (R2.2–R2.4, R4.3). They are structurally guarded by `docs/projects/philosophy_guardrails.md` (G2/G3), but field-observed leaks get recorded here and feed the remediation sprint.
 
 ---
