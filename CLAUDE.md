@@ -27,6 +27,7 @@ This is not a style preference. It is the product's reason to exist and its defe
 | `docs/plan.md`         | You need to know what phase we're in and what's in/out of scope right now.                                                                 |
 | `docs/projects/`       | Deeper design docs for specific features/subsystems. Each file is a self-contained spec with status, phased plan, and per-phase todo list. |
 | `docs/snapshots/`      | Point-in-time reviews of product quality, test session results, and roadmap observations. Use to capture the state of the product over time.|
+| `docs/projects/prompt_quality_observations.md` | You observe a prompt producing a false positive, false negative, or systematic misclassification during any test, harness run, or manual eval. **Append an entry to the Observation Log** — don't fix it inline unless it's trivially obvious and safe. The file accumulates until a remediation sprint is scheduled. |
 
 **Always check `docs/plan.md` for the current phase before adding functionality.** Scope creep is the main risk on this project. If something belongs to a later phase, say so and don't build it.
 

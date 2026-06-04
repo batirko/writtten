@@ -19,6 +19,7 @@
 | [evaluation_signal_quality](projects/evaluation_signal_quality.md) | done | 1 · 2 · 3 (remediation) | Signal-to-noise findings from a real PRD paste-test — heading-only blocks hallucinate, the ledger self-pollutes, free-tier "strong" checks run on a weak model and emit confident false contradictions, observations duplicate — remediated in Chunk 1. |
 | [section_as_eval_unit](projects/section_as_eval_unit.md) | done | 4 | Redesign the evaluation unit from individual ProseMirror blocks to semantic sections (heading + body), unifying typing and paste workflows and eliminating the heading-hallucination class of bugs. |
 | [observation_taxonomy_and_priority](projects/observation_taxonomy_and_priority.md) | in-progress | 4 (A·B·E ✅) · 6 (C·D) | Extend observations with kind/severity/confidence/priority axes, close the decision-rigor taxonomy gap, add a client-side reflection mirror kind, and introduce a budget-based noisiness model in the feed. |
+| [prompt_quality_observations](projects/prompt_quality_observations.md) | idea | 5 · 6 | Living log of observed prompt quality issues (false positives, misclassifications, missed signals) — accumulates across test sessions; remediated in a dedicated sprint. |
 
 ---
 
