@@ -117,9 +117,22 @@ function isSpanSuppressed(
     : undefined;
   return suppressions.some((s) => {
     if (s.type !== newO.type) return false;
-    if (s.spanSignature) return s.spanSignature === spanKey;
-    // doc-level suppression (no spanSignature) should not affect span obs
-    return false;
+    
+    // G1: Flattery-resistant dismissal
+    // High-severity observations and critical defects are span-only suppressions.
+    // Low/medium severity observations are category-wide.
+    const isSpanOnly =
+      s.severity === "high" ||
+      s.type === "contradiction" ||
+      s.type === "unsupported_claim";
+
+    if (isSpanOnly) {
+      if (s.spanSignature) return s.spanSignature === spanKey;
+      return false;
+    } else {
+      // Category-wide suppression for this document
+      return true;
+    }
   });
 }
 
@@ -279,6 +292,8 @@ export const MERGED_SYSTEM_PROMPT = `You are an AI sidecar evaluating a section 
 3. Clarity: places where the text is vague, ambiguous, or poorly specified.
 4. Unsupported claims: strong assertions of *fact about the world* that would require evidence (data, studies, precedent) but provide none. Do NOT flag opinions, plans, goals, or **success targets and measurable objectives** (e.g. "false positives drop by ≥30%", "support volume decreases by 20%") — those are intended targets the team is setting, not factual claims needing citation.
 5. Undefined jargon: technical terms, acronyms, or domain-specific language used without being defined and that may be unfamiliar to the implied reader. Do not flag terms already in the provided glossary.
+
+Never flag grammar, spelling, punctuation, passive voice, sentence length, word choice, readability, or "consider rephrasing". Do not surface stylistic nits.
 
 Return a JSON object with exactly five keys:
 - "summary" (string)

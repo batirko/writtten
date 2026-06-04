@@ -1,0 +1,334 @@
+
+> writtten@0.0.1 test
+> vitest run
+
+
+ RUN  v3.2.4 /Users/vitalii/Projects/writtten
+
+ ✓ src/services/evalScorer.test.ts (13 tests) 3ms
+ ✓ src/sidecar/feedBudget.test.ts (15 tests) 3ms
+ ✓ src/model/logger.test.ts (8 tests) 14ms
+ ✓ src/debug/harness.test.ts (6 tests) 3ms
+stderr | src/editor/section.test.ts > resolveSections > truncates combined text beyond MAX_SECTION_CHARS
+[section] combinedText 8505 chars exceeds MAX_SECTION_CHARS (8000); truncating.
+
+ ✓ src/editor/section.test.ts (8 tests) 3ms
+stdout | src/services/signal-quality.test.ts > Tier A — meta-claim guard > keeps document meta-claims out of the ledger
+[sidecar] request seq=1 block=sec1 tier=fast
+
+stdout | src/services/signal-quality.test.ts > Tier A — meta-claim guard > keeps document meta-claims out of the ledger
+[sidecar] response seq=2 block=sec1 tier=fast latencyMs=0 claims=2 clarity=0 unsupported=0 jargon=0
+
+stdout | src/services/signal-quality.test.ts > Tier A — defined-terms dedup > does not repeat the same definition in the glossary
+[sidecar] request seq=3 block=sec1 tier=fast
+
+stdout | src/services/signal-quality.test.ts > Tier A — defined-terms dedup > does not repeat the same definition in the glossary
+[sidecar] response seq=4 block=sec1 tier=fast latencyMs=0 claims=0 clarity=0 unsupported=0 jargon=0
+
+stderr | src/services/evaluator.test.ts > evaluator - evaluateBlock > should do nothing if API key is missing
+Evaluator: No API key provided, skipping check.
+
+stdout | src/services/evaluator.test.ts > evaluator - evaluateBlock > should run full pipeline when block is changed
+[sidecar] request seq=1 block=block1 tier=fast
+
+stdout | src/services/evaluator.test.ts > evaluator - evaluateBlock > should run full pipeline when block is changed
+[sidecar] response seq=2 block=block1 tier=fast latencyMs=0 claims=1 clarity=1 unsupported=0 jargon=0
+
+stdout | src/services/evaluator.test.ts > evaluator - evaluateBlock > should run full pipeline when block is changed
+[sidecar] observation seq=3 type=clarity blocks=[block1]
+
+stdout | src/services/evaluator.test.ts > evaluator - evaluateBlock > should run contradiction checks against other claims
+[sidecar] request seq=4 block=block1 tier=fast
+
+stdout | src/services/evaluator.test.ts > evaluator - evaluateBlock > should run contradiction checks against other claims
+[sidecar] response seq=5 block=block1 tier=fast latencyMs=0 claims=1 clarity=0 unsupported=0 jargon=0
+
+stdout | src/services/evaluator.test.ts > evaluator - evaluateBlock > should run contradiction checks against other claims
+[sidecar] request seq=6 block=block1 tier=strong check=contradiction
+
+stdout | src/services/evaluator.test.ts > evaluator - evaluateBlock > should run contradiction checks against other claims
+[sidecar] response seq=7 block=block1 tier=strong latencyMs=0 contradictions=1 tensions=0
+
+stdout | src/services/evaluator.test.ts > evaluator - evaluateBlock > should run contradiction checks against other claims
+[sidecar] observation seq=8 type=contradiction blocks=[block1,block2]
+
+stdout | src/services/evaluator.test.ts > evaluator - evaluateBlock > should enforce G1 flattery-resistant dismissal logic (span-only for high severity)
+[sidecar] request seq=9 block=block3 tier=fast
+
+stdout | src/services/evaluator.test.ts > evaluator - evaluateBlock > should enforce G1 flattery-resistant dismissal logic (span-only for high severity)
+[sidecar] response seq=10 block=block3 tier=fast latencyMs=0 claims=1 clarity=1 unsupported=0 jargon=0
+
+stdout | src/services/evaluator.test.ts > evaluator - evaluateBlock > should enforce G1 flattery-resistant dismissal logic (span-only for high severity)
+[sidecar] request seq=11 block=block3 tier=strong check=contradiction
+
+stdout | src/services/evaluator.test.ts > evaluator - evaluateBlock > should enforce G1 flattery-resistant dismissal logic (span-only for high severity)
+[sidecar] response seq=12 block=block3 tier=strong latencyMs=0 contradictions=1 tensions=0
+
+stdout | src/services/evaluator.test.ts > evaluator - evaluateBlock > should enforce G1 flattery-resistant dismissal logic (span-only for high severity)
+[sidecar] observation seq=13 type=contradiction blocks=[block3,block2]
+
+stdout | src/services/signal-quality.test.ts > Tier B — contradiction prompt calibrated by tier > uses the hedged prompt on the free tier (no paid key)
+[sidecar] request seq=5 block=sec1 tier=fast
+
+stdout | src/services/signal-quality.test.ts > Tier B — contradiction prompt calibrated by tier > uses the hedged prompt on the free tier (no paid key)
+[sidecar] response seq=6 block=sec1 tier=fast latencyMs=0 claims=1 clarity=0 unsupported=0 jargon=0
+
+stdout | src/services/signal-quality.test.ts > Tier B — contradiction prompt calibrated by tier > uses the hedged prompt on the free tier (no paid key)
+[sidecar] request seq=7 block=sec1 tier=strong check=contradiction
+
+stdout | src/services/signal-quality.test.ts > Tier B — contradiction prompt calibrated by tier > uses the hedged prompt on the free tier (no paid key)
+[sidecar] response seq=8 block=sec1 tier=strong latencyMs=0 contradictions=0 tensions=0
+
+stdout | src/services/signal-quality.test.ts > Tier B — contradiction prompt calibrated by tier > uses the confident prompt when a paid key is present
+[sidecar] request seq=9 block=sec1 tier=fast
+
+stdout | src/services/signal-quality.test.ts > Tier B — contradiction prompt calibrated by tier > uses the confident prompt when a paid key is present
+[sidecar] response seq=10 block=sec1 tier=fast latencyMs=0 claims=1 clarity=0 unsupported=0 jargon=0
+
+stdout | src/services/signal-quality.test.ts > Tier B — contradiction prompt calibrated by tier > uses the confident prompt when a paid key is present
+[sidecar] request seq=11 block=sec1 tier=strong check=contradiction
+
+stdout | src/services/signal-quality.test.ts > Tier B — contradiction prompt calibrated by tier > uses the confident prompt when a paid key is present
+[sidecar] response seq=12 block=sec1 tier=strong latencyMs=0 contradictions=0 tensions=0
+
+stdout | src/services/signal-quality.test.ts > strategic_tension — tradeoffs route to the softer type > a tensions entry produces a strategic_tension observation (kind opportunity, priority 1.5)
+[sidecar] request seq=13 block=sec1 tier=fast
+
+stdout | src/services/signal-quality.test.ts > strategic_tension — tradeoffs route to the softer type > a tensions entry produces a strategic_tension observation (kind opportunity, priority 1.5)
+[sidecar] response seq=14 block=sec1 tier=fast latencyMs=0 claims=1 clarity=0 unsupported=0 jargon=0
+
+stdout | src/services/signal-quality.test.ts > strategic_tension — tradeoffs route to the softer type > a tensions entry produces a strategic_tension observation (kind opportunity, priority 1.5)
+[sidecar] request seq=15 block=sec1 tier=strong check=contradiction
+
+stdout | src/services/signal-quality.test.ts > strategic_tension — tradeoffs route to the softer type > a tensions entry produces a strategic_tension observation (kind opportunity, priority 1.5)
+[sidecar] response seq=16 block=sec1 tier=strong latencyMs=0 contradictions=0 tensions=1
+
+stdout | src/services/signal-quality.test.ts > strategic_tension — tradeoffs route to the softer type > a tensions entry produces a strategic_tension observation (kind opportunity, priority 1.5)
+[sidecar] observation seq=17 type=strategic_tension blocks=[sec1,other]
+
+stdout | src/services/signal-quality.test.ts > Tier B — observation content dedup > collapses duplicate observations to a single card
+[sidecar] request seq=18 block=sec1 tier=fast
+
+stdout | src/services/signal-quality.test.ts > Tier B — observation content dedup > collapses duplicate observations to a single card
+[sidecar] response seq=19 block=sec1 tier=fast latencyMs=0 claims=0 clarity=2 unsupported=0 jargon=0
+
+stdout | src/services/signal-quality.test.ts > Tier B — observation content dedup > collapses duplicate observations to a single card
+[sidecar] observation seq=20 type=clarity blocks=[sec1]
+
+stdout | src/services/signal-quality.test.ts > Tier C — doc-level dirty-check > skips the strong-tier doc-level call when inputs are unchanged
+[sidecar] request seq=21 tier=strong check=doc-level
+
+stdout | src/services/signal-quality.test.ts > Tier C — doc-level dirty-check > skips the strong-tier doc-level call when inputs are unchanged
+[sidecar] response seq=22 tier=strong check=doc-level latencyMs=0
+
+stdout | src/services/signal-quality.test.ts > Tier B — span re-anchoring across members > anchors a clarity span to the body block, not the heading
+[sidecar] request seq=23 block=h1 tier=fast
+
+stdout | src/services/signal-quality.test.ts > Tier B — span re-anchoring across members > anchors a clarity span to the body block, not the heading
+[sidecar] response seq=24 block=h1 tier=fast latencyMs=0 claims=0 clarity=1 unsupported=0 jargon=0
+
+stdout | src/services/signal-quality.test.ts > Tier B — span re-anchoring across members > anchors a clarity span to the body block, not the heading
+[sidecar] observation seq=25 type=clarity blocks=[b1]
+
+ ✓ src/services/signal-quality.test.ts (9 tests) 12ms
+ ✓ src/services/evaluator.test.ts (10 tests) 12ms
+stdout | src/services/evalRatchet.test.ts > Evaluator quality ratchet — Tier 1 (deterministic replay) > contradiction-timeline: Hard contradiction — Q2 vs Q3 launch commitment
+[sidecar] request seq=1 block=block-q2 tier=fast
+
+stdout | src/services/evalRatchet.test.ts > Evaluator quality ratchet — Tier 1 (deterministic replay) > contradiction-timeline: Hard contradiction — Q2 vs Q3 launch commitment
+[sidecar] response seq=2 block=block-q2 tier=fast latencyMs=0 claims=1 clarity=1 unsupported=0 jargon=0
+
+stdout | src/services/evalRatchet.test.ts > Evaluator quality ratchet — Tier 1 (deterministic replay) > contradiction-timeline: Hard contradiction — Q2 vs Q3 launch commitment
+[sidecar] observation seq=3 type=clarity blocks=[block-q2]
+
+stdout | src/services/evalRatchet.test.ts > Evaluator quality ratchet — Tier 1 (deterministic replay) > contradiction-timeline: Hard contradiction — Q2 vs Q3 launch commitment
+[sidecar] request seq=4 block=block-q3 tier=fast
+
+stdout | src/services/evalRatchet.test.ts > Evaluator quality ratchet — Tier 1 (deterministic replay) > contradiction-timeline: Hard contradiction — Q2 vs Q3 launch commitment
+[sidecar] response seq=5 block=block-q3 tier=fast latencyMs=1 claims=1 clarity=0 unsupported=0 jargon=0
+
+stdout | src/services/evalRatchet.test.ts > Evaluator quality ratchet — Tier 1 (deterministic replay) > contradiction-timeline: Hard contradiction — Q2 vs Q3 launch commitment
+[sidecar] request seq=6 block=block-q3 tier=strong check=contradiction
+
+stdout | src/services/evalRatchet.test.ts > Evaluator quality ratchet — Tier 1 (deterministic replay) > contradiction-timeline: Hard contradiction — Q2 vs Q3 launch commitment
+[sidecar] response seq=7 block=block-q3 tier=strong latencyMs=0 contradictions=1 tensions=0
+
+stdout | src/services/evalRatchet.test.ts > Evaluator quality ratchet — Tier 1 (deterministic replay) > contradiction-timeline: Hard contradiction — Q2 vs Q3 launch commitment
+[sidecar] observation seq=8 type=contradiction blocks=[block-q3,block-q2]
+
+stdout | src/services/evalRatchet.test.ts > Evaluator quality ratchet — Tier 1 (deterministic replay) > strategic-tension-fraud: Strategic tradeoff routes to strategic_tension, not contradiction (OBS-004)
+[sidecar] request seq=9 block=goal-notification tier=fast
+
+stdout | src/services/evalRatchet.test.ts > Evaluator quality ratchet — Tier 1 (deterministic replay) > strategic-tension-fraud: Strategic tradeoff routes to strategic_tension, not contradiction (OBS-004)
+[sidecar] response seq=10 block=goal-notification tier=fast latencyMs=1 claims=3 clarity=1 unsupported=0 jargon=0
+
+stdout | src/services/evalRatchet.test.ts > Evaluator quality ratchet — Tier 1 (deterministic replay) > strategic-tension-fraud: Strategic tradeoff routes to strategic_tension, not contradiction (OBS-004)
+[sidecar] observation seq=11 type=clarity blocks=[goal-notification]
+
+stdout | src/services/evalRatchet.test.ts > Evaluator quality ratchet — Tier 1 (deterministic replay) > strategic-tension-fraud: Strategic tradeoff routes to strategic_tension, not contradiction (OBS-004)
+[sidecar] request seq=12 block=goal-friction tier=fast
+
+stdout | src/services/evalRatchet.test.ts > Evaluator quality ratchet — Tier 1 (deterministic replay) > strategic-tension-fraud: Strategic tradeoff routes to strategic_tension, not contradiction (OBS-004)
+[sidecar] response seq=13 block=goal-friction tier=fast latencyMs=0 claims=1 clarity=1 unsupported=1 jargon=0
+
+stdout | src/services/evalRatchet.test.ts > Evaluator quality ratchet — Tier 1 (deterministic replay) > strategic-tension-fraud: Strategic tradeoff routes to strategic_tension, not contradiction (OBS-004)
+[sidecar] request seq=14 block=goal-friction tier=strong check=contradiction
+
+stdout | src/services/evalRatchet.test.ts > Evaluator quality ratchet — Tier 1 (deterministic replay) > strategic-tension-fraud: Strategic tradeoff routes to strategic_tension, not contradiction (OBS-004)
+[sidecar] response seq=15 block=goal-friction tier=strong latencyMs=0 contradictions=0 tensions=1
+
+stdout | src/services/evalRatchet.test.ts > Evaluator quality ratchet — Tier 1 (deterministic replay) > strategic-tension-fraud: Strategic tradeoff routes to strategic_tension, not contradiction (OBS-004)
+[sidecar] observation seq=16 type=clarity blocks=[goal-friction]
+
+stdout | src/services/evalRatchet.test.ts > Evaluator quality ratchet — Tier 1 (deterministic replay) > strategic-tension-fraud: Strategic tradeoff routes to strategic_tension, not contradiction (OBS-004)
+[sidecar] observation seq=17 type=unsupported_claim blocks=[goal-friction]
+
+stdout | src/services/evalRatchet.test.ts > Evaluator quality ratchet — Tier 1 (deterministic replay) > strategic-tension-fraud: Strategic tradeoff routes to strategic_tension, not contradiction (OBS-004)
+[sidecar] observation seq=18 type=strategic_tension blocks=[goal-friction,goal-notification]
+
+stdout | src/services/evalRatchet.test.ts > Evaluator quality ratchet — Tier 1 (deterministic replay) > clarity-vague: Vague passage fires clarity observation
+[sidecar] request seq=19 block=sec1 tier=fast
+
+stdout | src/services/evalRatchet.test.ts > Evaluator quality ratchet — Tier 1 (deterministic replay) > clarity-vague: Vague passage fires clarity observation
+[sidecar] response seq=20 block=sec1 tier=fast latencyMs=0 claims=1 clarity=2 unsupported=1 jargon=0
+
+stdout | src/services/evalRatchet.test.ts > Evaluator quality ratchet — Tier 1 (deterministic replay) > clarity-vague: Vague passage fires clarity observation
+[sidecar] observation seq=21 type=clarity blocks=[sec1]
+
+stdout | src/services/evalRatchet.test.ts > Evaluator quality ratchet — Tier 1 (deterministic replay) > clarity-vague: Vague passage fires clarity observation
+[sidecar] observation seq=22 type=clarity blocks=[sec1]
+
+stdout | src/services/evalRatchet.test.ts > Evaluator quality ratchet — Tier 1 (deterministic replay) > clarity-vague: Vague passage fires clarity observation
+[sidecar] observation seq=23 type=unsupported_claim blocks=[sec1]
+
+stderr | src/services/evalRatchet.test.ts > Evaluator quality ratchet — Tier 1 (deterministic replay) > clarity-vague: Vague passage fires clarity observation
+
+[clarity-vague] Score breakdown:
+  Produced (3): [
+  [32m`clarity@sec1:"The terms 'significant improvement' and 'soon' are subjectiv"`[39m,
+  [32m`clarity@sec1:"The term 'better' is not defined in terms of specific perfor"`[39m,
+  [32m'unsupported_claim@sec1:"The assertion that users will be happier is a claim about fu"'[39m
+]
+  Expected (4): [
+  [32m'clarity@sec1:"significant"'[39m,
+  [32m'clarity@sec1:"soon"'[39m,
+  [32m'clarity@sec1:"better"'[39m,
+  [32m'unsupported_claim@sec1'[39m
+]
+  False negatives: [ [32m'clarity@sec1:"better"'[39m ]
+
+stdout | src/services/evalRatchet.test.ts > Evaluator quality ratchet — Tier 1 (deterministic replay) > unsupported-vs-attributed: Genuine unsupported claim fires; attributed claim must NOT fire (OBS-001)
+[sidecar] request seq=24 block=sec1 tier=fast
+
+stdout | src/services/evalRatchet.test.ts > Evaluator quality ratchet — Tier 1 (deterministic replay) > unsupported-vs-attributed: Genuine unsupported claim fires; attributed claim must NOT fire (OBS-001)
+[sidecar] response seq=25 block=sec1 tier=fast latencyMs=0 claims=2 clarity=0 unsupported=1 jargon=0
+
+stdout | src/services/evalRatchet.test.ts > Evaluator quality ratchet — Tier 1 (deterministic replay) > unsupported-vs-attributed: Genuine unsupported claim fires; attributed claim must NOT fire (OBS-001)
+[sidecar] observation seq=26 type=unsupported_claim blocks=[sec1]
+
+stdout | src/services/evalRatchet.test.ts > Evaluator quality ratchet — Tier 1 (deterministic replay) > jargon-allowlist: Preset terms suppressed; genuinely undefined jargon fires (OBS-003/005)
+[sidecar] request seq=27 block=sec1 tier=fast
+
+stdout | src/services/evalRatchet.test.ts > Evaluator quality ratchet — Tier 1 (deterministic replay) > jargon-allowlist: Preset terms suppressed; genuinely undefined jargon fires (OBS-003/005)
+[sidecar] response seq=28 block=sec1 tier=fast latencyMs=0 claims=2 clarity=1 unsupported=0 jargon=1
+
+stdout | src/services/evalRatchet.test.ts > Evaluator quality ratchet — Tier 1 (deterministic replay) > jargon-allowlist: Preset terms suppressed; genuinely undefined jargon fires (OBS-003/005)
+[sidecar] observation seq=29 type=clarity blocks=[sec1]
+
+stdout | src/services/evalRatchet.test.ts > Evaluator quality ratchet — Tier 1 (deterministic replay) > jargon-allowlist: Preset terms suppressed; genuinely undefined jargon fires (OBS-003/005)
+[sidecar] observation seq=30 type=undefined_jargon blocks=[sec1]
+
+stdout | src/services/evalRatchet.test.ts > Evaluator quality ratchet — Tier 1 (deterministic replay) > clean-doc: Clean, specific section → zero observations (false-positive guard)
+[sidecar] request seq=31 block=sec1 tier=fast
+
+stdout | src/services/evalRatchet.test.ts > Evaluator quality ratchet — Tier 1 (deterministic replay) > clean-doc: Clean, specific section → zero observations (false-positive guard)
+[sidecar] response seq=32 block=sec1 tier=fast latencyMs=0 claims=3 clarity=0 unsupported=0 jargon=0
+
+stderr | src/services/evalRatchet.test.ts > Evaluator quality ratchet — Tier 1 (deterministic replay) > clean-doc: Clean, specific section → zero observations (false-positive guard)
+
+[clean-doc] Score breakdown:
+  Produced (0): []
+  Expected (0): []
+
+stdout | src/services/evalRatchet.test.ts > Evaluator quality ratchet — Tier 1 (deterministic replay) > anti-taxonomy: Poor grammar but solid substance → zero observations (anti-taxonomy guard)
+[sidecar] request seq=33 block=sec1 tier=fast
+
+stdout | src/services/evalRatchet.test.ts > Evaluator quality ratchet — Tier 1 (deterministic replay) > anti-taxonomy: Poor grammar but solid substance → zero observations (anti-taxonomy guard)
+[sidecar] response seq=34 block=sec1 tier=fast latencyMs=0 claims=2 clarity=0 unsupported=0 jargon=0
+
+stderr | src/services/evalRatchet.test.ts > Evaluator quality ratchet — Tier 1 (deterministic replay) > anti-taxonomy: Poor grammar but solid substance → zero observations (anti-taxonomy guard)
+
+[anti-taxonomy] Score breakdown:
+  Produced (0): []
+  Expected (0): []
+
+ ❯ src/services/evalRatchet.test.ts (7 tests | 1 failed) 17ms
+   ✓ Evaluator quality ratchet — Tier 1 (deterministic replay) > contradiction-timeline: Hard contradiction — Q2 vs Q3 launch commitment 5ms
+   ✓ Evaluator quality ratchet — Tier 1 (deterministic replay) > strategic-tension-fraud: Strategic tradeoff routes to strategic_tension, not contradiction (OBS-004) 6ms
+   × Evaluator quality ratchet — Tier 1 (deterministic replay) > clarity-vague: Vague passage fires clarity observation 4ms
+     → recall for clarity-vague (got 0.75): expected false to be true // Object.is equality
+   ✓ Evaluator quality ratchet — Tier 1 (deterministic replay) > unsupported-vs-attributed: Genuine unsupported claim fires; attributed claim must NOT fire (OBS-001) 0ms
+   ✓ Evaluator quality ratchet — Tier 1 (deterministic replay) > jargon-allowlist: Preset terms suppressed; genuinely undefined jargon fires (OBS-003/005) 0ms
+   ✓ Evaluator quality ratchet — Tier 1 (deterministic replay) > clean-doc: Clean, specific section → zero observations (false-positive guard) 0ms
+   ✓ Evaluator quality ratchet — Tier 1 (deterministic replay) > anti-taxonomy: Poor grammar but solid substance → zero observations (anti-taxonomy guard) 0ms
+ ✓ docs/projects.index.test.ts (36 tests) 4ms
+ ✓ src/services/prefilter.test.ts (10 tests) 7ms
+ ✓ src/services/priority.test.ts (36 tests) 4ms
+stdout | src/services/acceptance.phase1.test.ts > Phase 1 acceptance — contradiction, hermetic mock replay > produces a contradiction observation when two blocks have conflicting timeline claims
+[sidecar] request seq=1 block=block-q2 tier=fast
+
+stdout | src/services/acceptance.phase1.test.ts > Phase 1 acceptance — contradiction, hermetic mock replay > produces a contradiction observation when two blocks have conflicting timeline claims
+[sidecar] response seq=2 block=block-q2 tier=fast latencyMs=0 claims=1 clarity=1 unsupported=0 jargon=0
+
+stdout | src/services/acceptance.phase1.test.ts > Phase 1 acceptance — contradiction, hermetic mock replay > produces a contradiction observation when two blocks have conflicting timeline claims
+[sidecar] observation seq=3 type=clarity blocks=[block-q2]
+
+stdout | src/services/acceptance.phase1.test.ts > Phase 1 acceptance — contradiction, hermetic mock replay > produces a contradiction observation when two blocks have conflicting timeline claims
+[sidecar] request seq=4 block=block-q3 tier=fast
+
+stdout | src/services/acceptance.phase1.test.ts > Phase 1 acceptance — contradiction, hermetic mock replay > produces a contradiction observation when two blocks have conflicting timeline claims
+[sidecar] response seq=5 block=block-q3 tier=fast latencyMs=0 claims=1 clarity=0 unsupported=0 jargon=0
+
+stdout | src/services/acceptance.phase1.test.ts > Phase 1 acceptance — contradiction, hermetic mock replay > produces a contradiction observation when two blocks have conflicting timeline claims
+[sidecar] request seq=6 block=block-q3 tier=strong check=contradiction
+
+stdout | src/services/acceptance.phase1.test.ts > Phase 1 acceptance — contradiction, hermetic mock replay > produces a contradiction observation when two blocks have conflicting timeline claims
+[sidecar] response seq=7 block=block-q3 tier=strong latencyMs=0 contradictions=1 tensions=0
+
+stdout | src/services/acceptance.phase1.test.ts > Phase 1 acceptance — contradiction, hermetic mock replay > produces a contradiction observation when two blocks have conflicting timeline claims
+[sidecar] observation seq=8 type=contradiction blocks=[block-q3,block-q2]
+
+ ✓ src/services/acceptance.phase1.test.ts (1 test) 6ms
+ ✓ src/sidecar/obsAggregation.test.ts (9 tests) 3ms
+ ✓ src/model/mock.test.ts (7 tests) 2ms
+ ✓ src/editor/extensions/BlockId.test.ts (3 tests) 3ms
+ ↓ src/services/evalRatchet.live.test.ts (8 tests | 8 skipped)
+ ✓ src/editor/extensions/SemanticPaste.test.ts (7 tests) 117ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/services/evalRatchet.test.ts > Evaluator quality ratchet — Tier 1 (deterministic replay) > clarity-vague: Vague passage fires clarity observation
+AssertionError: recall for clarity-vague (got 0.75): expected false to be true // Object.is equality
+
+[32m- Expected[39m
+[31m+ Received[39m
+
+[32m- true[39m
+[31m+ false[39m
+
+ ❯ src/services/evalRatchet.test.ts:121:75
+    119| 
+    120|       expect(precisionOk, `precision for ${fixture.id} (got ${result.p…
+    121|       expect(recallOk, `recall for ${fixture.id} (got ${result.recall}…
+       |                                                                           ^
+    122|     });
+    123|   }
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed | 15 passed | 1 skipped (17)
+      Tests  1 failed | 184 passed | 8 skipped (193)
+   Start at  16:56:08
+   Duration  638ms (transform 434ms, setup 0ms, collect 1.24s, tests 211ms, environment 1ms, prepare 723ms)
+

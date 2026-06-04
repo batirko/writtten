@@ -2,7 +2,7 @@ import { openDB, type IDBPDatabase } from "idb";
 import { harness } from "../debug/harness";
 
 const DB_NAME = "writtten";
-const DB_VERSION = 5;
+const DB_VERSION = 6;
 
 export interface DocumentRecord {
   id: string;
@@ -69,6 +69,8 @@ export interface DismissalSuppression {
   id: string;
   docId: string;
   type: Observation["type"];
+  kind?: Observation["kind"];
+  severity?: Observation["severity"];
   /** "blockId:startOffset:endOffset" for span obs; absent for doc-level obs. */
   spanSignature?: string;
   note?: string;
@@ -127,6 +129,20 @@ async function getDb(): Promise<IDBPDatabase> {
           if (!("confidence" in record)) record.confidence = "medium";
           if (!("priority" in record)) record.priority = 0;
           await cursor.update(record);
+          cursor = await cursor.continue();
+        }
+      }
+      if (oldVersion < 6) {
+        // G1: Data-backfill migration: assign default `kind` and `severity`
+        // to existing dismissal suppressions so they retain legacy category-wide behavior
+        // if they were dismissed before this field existed.
+        const supStore = transaction.objectStore("dismissal_suppressions");
+        let cursor = await supStore.openCursor();
+        while (cursor) {
+          const sup = cursor.value;
+          if (!("severity" in sup)) sup.severity = "medium";
+          if (!("kind" in sup)) sup.kind = "problem";
+          await cursor.update(sup);
           cursor = await cursor.continue();
         }
       }

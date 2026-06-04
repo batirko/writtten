@@ -234,4 +234,80 @@ describe("evaluator - evaluateBlock", () => {
       conflictingEndOffset: 9999,
     });
   });
+
+  it("should enforce G1 flattery-resistant dismissal logic (span-only for high severity)", async () => {
+    vi.mocked(db.loadBlockSummary).mockResolvedValueOnce(undefined);
+    vi.mocked(db.loadActiveObservationsForDocument).mockResolvedValueOnce([]);
+
+    // Seed a DismissalSuppression that represents a dismissed contradiction on block1
+    // and a dismissed clarity nit on block1.
+    vi.mocked(db.loadSuppressionsForDocument).mockResolvedValueOnce([
+      {
+        id: "sup-1",
+        docId,
+        type: "contradiction",
+        kind: "problem",
+        severity: "high",
+        spanSignature: "block1:0:10",
+      },
+      {
+        id: "sup-2",
+        docId,
+        type: "clarity",
+        kind: "problem",
+        severity: "low",
+        spanSignature: "block1:10:20",
+      }
+    ]);
+
+    const existingClaim = {
+      id: 42,
+      docId,
+      sourceBlockId: "block2",
+      text: "Launch is delayed to Q4.",
+      kind: "commitment" as const,
+      status: "active" as const,
+    };
+    vi.mocked(db.loadActiveClaimsForDocument)
+      .mockResolvedValueOnce([existingClaim])
+      .mockResolvedValueOnce([existingClaim]);
+
+    mockFast.mockResolvedValueOnce({
+      text: JSON.stringify({
+        summary: "Launch in Q3.",
+        claims: [{ text: "Launch in Q3.", kind: "commitment" }],
+        clarity_observations: [
+          // A new clarity nit on block3
+          { text: "Vague launch date", substring: "in Q3" }
+        ],
+      }),
+    });
+
+    mockStrong.mockResolvedValueOnce({
+      text: JSON.stringify({
+        contradictions: [
+          {
+            newClaimText: "Launch in Q3.",
+            existingClaimId: 0,
+            message: "Contradicts delayed launch to Q4.",
+          },
+        ],
+      }),
+    });
+
+    // Evaluate block3! 
+    const text = "We plan to launch in Q3.";
+    await evaluateBlock(docId, "block3", text, "Test Stage", apiKey);
+
+    // The high-severity contradiction suppression was on block1, so the new contradiction on block3 SHOULD fire (span-only suppression).
+    expect(db.saveObservation).toHaveBeenCalledWith(expect.objectContaining({
+      type: "contradiction",
+      blockId: "block3",
+    }));
+
+    // The low-severity clarity suppression was on block1, so the new clarity nit on block3 should NOT fire (category-wide suppression).
+    expect(db.saveObservation).not.toHaveBeenCalledWith(expect.objectContaining({
+      type: "clarity",
+    }));
+  });
 });

@@ -138,6 +138,8 @@ export default function App() {
         id: nanoid(10),
         docId: DOC_ID,
         type: obs.type,
+        kind: obs.kind,
+        severity: obs.severity,
         spanSignature,
       });
     }

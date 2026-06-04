@@ -26,9 +26,9 @@ const fixture: EvalFixture = {
     },
   ],
   recordings: {
-    "r1p35kar_2352": "{\n  \"summary\": \"The goal is to implement real-time notifications for fraud blocks to improve user transparency and decrease support ticket volume.\",\n  \"claims\": [\n    {\n      \"text\": \"Notify users in real time on every fraud block to reduce inbound support tickets and give users visibility into why their transaction failed.\",\n      \"kind\": \"commitment\"\n    }\n  ],\n  \"clarity_observations\": [\n    {\n      \"text\": \"The method of notification is not specified.\",\n      \"substring\": \"Notify users\"\n    },\n    {\n      \"text\": \"The definition of 'real time' is not quantified.\",\n      \"substring\": \"real time\"\n    }\n  ],\n  \"unsupported_claim_observations\": [],\n  \"undefined_jargon_observations\": []\n}",
-    "rcd187t_2330": "{\n  \"summary\": \"The goal is to reduce payment flow interruptions to improve user conversion and trust.\",\n  \"claims\": [\n    {\n      \"text\": \"Every unnecessary interruption in the payment flow erodes conversion and trust.\",\n      \"kind\": \"fact_claim\"\n    }\n  ],\n  \"clarity_observations\": [\n    {\n      \"text\": \"The term 'unnecessary' is subjective and lacks a specific definition or criteria for what constitutes an unnecessary interruption versus a necessary security measure.\",\n      \"substring\": \"unnecessary\"\n    }\n  ],\n  \"unsupported_claim_observations\": [\n    {\n      \"text\": \"The assertion that every unnecessary interruption erodes conversion and trust is a broad psychological and business claim presented as fact without supporting data or citations.\",\n      \"substring\": \"Every unnecessary interruption in the payment flow erodes conversion and trust.\"\n    }\n  ],\n  \"undefined_jargon_observations\": []\n}",
-    "rrnvjg9_1767": "{\n  \"contradictions\": [],\n  \"tensions\": [\n    {\n      \"newClaimText\": \"Every unnecessary interruption in the payment flow erodes conversion and trust.\",\n      \"existingClaimId\": 0,\n      \"message\": \"The requirement to notify users of every fraud block may be in tension with the goal of minimizing interruptions in the payment flow to protect conversion rates.\"\n    }\n  ]\n}"
+    "rn2aar7_2511": "{\n  \"summary\": \"The goal is to implement real-time notifications for fraud-blocked transactions to improve user transparency and decrease support volume.\",\n  \"claims\": [\n    {\n      \"text\": \"Notify users in real time on every fraud block\",\n      \"kind\": \"commitment\"\n    },\n    {\n      \"text\": \"reduce inbound support tickets\",\n      \"kind\": \"metric\"\n    },\n    {\n      \"text\": \"give users visibility into why their transaction failed\",\n      \"kind\": \"commitment\"\n    }\n  ],\n  \"clarity_observations\": [\n    {\n      \"text\": \"The mechanism for delivery of the notification is not specified.\",\n      \"substring\": \"Notify users\"\n    }\n  ],\n  \"unsupported_claim_observations\": [],\n  \"undefined_jargon_observations\": []\n}",
+    "r1bquk09_2489": "{\n  \"summary\": \"The goal of the fraud protection system is to reduce user friction during payment to protect conversion rates and trust.\",\n  \"claims\": [\n    {\n      \"text\": \"Every unnecessary interruption in the payment flow erodes conversion and trust.\",\n      \"kind\": \"fact_claim\"\n    }\n  ],\n  \"clarity_observations\": [\n    {\n      \"text\": \"The definition of what constitutes an 'unnecessary' interruption is not specified.\",\n      \"substring\": \"unnecessary interruption\"\n    }\n  ],\n  \"unsupported_claim_observations\": [\n    {\n      \"text\": \"The assertion that every unnecessary interruption erodes conversion and trust is stated as a universal fact without supporting data or evidence.\",\n      \"substring\": \"Every unnecessary interruption in the payment flow erodes conversion and trust.\"\n    }\n  ],\n  \"undefined_jargon_observations\": []\n}",
+    "r123xmvy_1805": "{\n  \"contradictions\": [],\n  \"tensions\": [\n    {\n      \"newClaimText\": \"Every unnecessary interruption in the payment flow erodes conversion and trust.\",\n      \"existingClaimId\": 1,\n      \"message\": \"The requirement to notify users on every fraud block may be in tension with the goal of minimizing interruptions to the payment flow.\"\n    }\n  ]\n}"
   },
   expected: [
     {
@@ -39,11 +39,6 @@ const fixture: EvalFixture = {
       type: "clarity",
       sectionId: "goal-notification",
       note: "Notification mechanism is unspecified (two clarity obs, same section)",
-    },
-    {
-      type: "clarity",
-      sectionId: "goal-notification",
-      note: "Second clarity on goal-notification (real time not quantified)",
     },
     {
       type: "clarity",

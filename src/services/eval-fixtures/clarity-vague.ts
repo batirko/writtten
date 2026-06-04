@@ -23,13 +23,21 @@ const fixture: EvalFixture = {
     },
   ],
   recordings: {
-    "r7ijlgq_2266": "{\n  \"summary\": \"The checkout experience will be improved in the near future to enhance performance and user satisfaction.\",\n  \"claims\": [\n    {\n      \"text\": \"We will deliver a significant improvement to the checkout experience soon.\",\n      \"kind\": \"commitment\"\n    }\n  ],\n  \"clarity_observations\": [\n    {\n      \"text\": \"The terms 'significant improvement', 'soon', 'better', and 'happier' are subjective and lack specific metrics or timelines.\",\n      \"substring\": \"significant improvement\"\n    },\n    {\n      \"text\": \"The terms 'significant improvement', 'soon', 'better', and 'happier' are subjective and lack specific metrics or timelines.\",\n      \"substring\": \"soon\"\n    },\n    {\n      \"text\": \"The terms 'significant improvement', 'soon', 'better', and 'happier' are subjective and lack specific metrics or timelines.\",\n      \"substring\": \"better\"\n    },\n    {\n      \"text\": \"The terms 'significant improvement', 'soon', 'better', and 'happier' are subjective and lack specific metrics or timelines.\",\n      \"substring\": \"happier\"\n    }\n  ],\n  \"unsupported_claim_observations\": [\n    {\n      \"text\": \"Performance will be better and users will be happier.\",\n      \"substring\": \"Performance will be better and users will be happier.\"\n    }\n  ],\n  \"undefined_jargon_observations\": []\n}"
+    "rrkrw4a_2425": "{\n  \"summary\": \"The checkout experience will be improved in the near future to enhance performance and user satisfaction.\",\n  \"claims\": [\n    {\n      \"text\": \"We will deliver a significant improvement to the checkout experience soon.\",\n      \"kind\": \"commitment\"\n    }\n  ],\n  \"clarity_observations\": [\n    {\n      \"text\": \"The terms 'significant improvement' and 'soon' are subjective and lack specific metrics or timelines.\",\n      \"substring\": \"significant improvement\"\n    },\n    {\n      \"text\": \"The term 'better' is not defined in terms of specific performance metrics.\",\n      \"substring\": \"better\"\n    }\n  ],\n  \"unsupported_claim_observations\": [\n    {\n      \"text\": \"The assertion that users will be happier is a claim about future user sentiment that lacks supporting evidence or a defined measurement method.\",\n      \"substring\": \"users will be happier\"\n    }\n  ],\n  \"undefined_jargon_observations\": []\n}"
   },
   expected: [
     {
       type: "clarity",
       sectionId: "sec1",
-      note: "Vague terms ('significant improvement', 'soon', 'better', 'happier') — pipeline deduplicates to one observation per unique message",
+      substring: "significant",
+      note: "significant is vague",
+    },
+
+    {
+      type: "clarity",
+      sectionId: "sec1",
+      substring: "better",
+      note: "better is vague",
     },
     {
       type: "unsupported_claim",

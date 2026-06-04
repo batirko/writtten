@@ -23,7 +23,7 @@
 | [observation_taxonomy_and_priority](projects/observation_taxonomy_and_priority.md) | in-progress | 4 (A·B·E ✅) · 6 (C·D) | Extend observations with kind/severity/confidence/priority axes, close the decision-rigor taxonomy gap, add a client-side reflection mirror kind, and introduce a budget-based noisiness model in the feed. |
 | [evaluator_quality_ratchet](projects/evaluator_quality_ratchet.md) | done | 4 | Labeled fixture corpus + two-tier scorer (deterministic replay CI + opt-in live precision/recall) so evaluator accuracy can't silently regress. Prerequisite for SkillOpt prompt optimization. |
 | [prompt_quality_observations](projects/prompt_quality_observations.md) | idea | 5 · 6 | Living log of observed prompt quality issues (false positives, misclassifications, missed signals) — accumulates across test sessions; remediated in a dedicated sprint. |
-| [philosophy_guardrails](projects/philosophy_guardrails.md) | idea | 4 (G1·G2) · 5 (G3·G4) | The three unguarded qualitative guardrails — flattery-resistant dismissal, explicit anti-taxonomy, no-disguised-fix register — plus a discomfort-budget ceiling. Enforces the qualitative half of the fidelity bar in code + CI. |
+| [philosophy_guardrails](projects/philosophy_guardrails.md) | in-progress | 4 (G1·G2 ✅) · 5 (G3·G4) | The three unguarded qualitative guardrails — flattery-resistant dismissal, explicit anti-taxonomy, no-disguised-fix register — plus a discomfort-budget ceiling. Enforces the qualitative half of the fidelity bar in code + CI. |
 | [emotional_register](projects/emotional_register.md) | idea | 5 | Persona spec (trusted senior colleague), wrong-persona anti-patterns, message voice guide, and tone as a labeled eval dimension. The felt-tone half of register discipline. |
 
 ---
@@ -138,8 +138,8 @@ Milestones:
 
 **Newly scheduled** (2026-06-04 requirements analysis — the qualitative trust guardrails that were asserted in the fidelity bar but unenforced; they are signal-quality work, so they belong in this phase, not packaging):
 
-- [ ] **Flattery-resistant dismissal (G1)** — make dismissal-suppression kind/severity-aware so muting a nit never silences a true high-severity critique on other spans. The product's defining counter-positioning ("won't learn to flatter you"), currently unguarded. → see `docs/projects/philosophy_guardrails.md` (G1) · R5.4
-- [ ] **Explicit anti-taxonomy (G2)** — negative-list prompt instruction (never surface grammar/style/surface nits) + a ratchet fixture asserting they never appear. Holds the line against the surface-drift gravity well. → see `docs/projects/philosophy_guardrails.md` (G2) · R4.3
+- [x] **Flattery-resistant dismissal (G1)** — make dismissal-suppression kind/severity-aware so muting a nit never silences a true high-severity critique on other spans. The product's defining counter-positioning ("won't learn to flatter you"), currently unguarded. → see `docs/projects/philosophy_guardrails.md` (G1) · R5.4
+- [x] **Explicit anti-taxonomy (G2)** — negative-list prompt instruction (never surface grammar/style/surface nits) + a ratchet fixture asserting they never appear. Holds the line against the surface-drift gravity well. → see `docs/projects/philosophy_guardrails.md` (G2) · R4.3
 
 **Exit criteria:** in a real PRD revision session the feed _feels_ calm and trustworthy — high-impact items (contradictions) surface first and visibly outrank nits, near-duplicate flags collapse, and jargon/tension false-alarms don't appear. **The feed never flatters** (dismissing a true critique doesn't silence the category elsewhere) **and never surfaces anti-taxonomy nits** (grammar/style/surface). A regression suite guards the bar.
 

@@ -21,7 +21,7 @@ const fixture: EvalFixture = {
     },
   ],
   recordings: {
-    "r1uq58wh_2270": "{\n  \"summary\": \"The team will conduct a 10% soft launch using the GQRS protocol for transaction validation prior to general availability.\",\n  \"claims\": [\n    {\n      \"text\": \"We plan a soft launch to a 10% rollout cohort before GA.\",\n      \"kind\": \"commitment\"\n    },\n    {\n      \"text\": \"The payment flow will use the GQRS protocol for all transaction validation.\",\n      \"kind\": \"constraint\"\n    }\n  ],\n  \"clarity_observations\": [\n    {\n      \"text\": \"The term 'GA' is used without definition, though it is a common industry acronym, it is not in the provided glossary.\",\n      \"substring\": \"GA\"\n    }\n  ],\n  \"unsupported_claim_observations\": [],\n  \"undefined_jargon_observations\": [\n    {\n      \"text\": \"GQRS is a technical protocol not defined in the text or the provided glossary.\",\n      \"substring\": \"GQRS\"\n    },\n    {\n      \"text\": \"GA is an acronym for General Availability, which is not defined in the provided glossary.\",\n      \"substring\": \"GA\"\n    }\n  ]\n}"
+    "r3fg6kh_2429": "{\n  \"summary\": \"The project will undergo a 10% soft launch using the GQRS protocol for transaction validation prior to general availability.\",\n  \"claims\": [\n    {\n      \"text\": \"We plan a soft launch to a 10% rollout cohort before GA.\",\n      \"kind\": \"commitment\"\n    },\n    {\n      \"text\": \"The payment flow will use the GQRS protocol for all transaction validation.\",\n      \"kind\": \"constraint\"\n    }\n  ],\n  \"clarity_observations\": [\n    {\n      \"text\": \"The term 'GA' is used without definition, though it is a common industry acronym.\",\n      \"substring\": \"GA\"\n    }\n  ],\n  \"unsupported_claim_observations\": [],\n  \"undefined_jargon_observations\": [\n    {\n      \"text\": \"GQRS is a technical protocol not defined in the provided glossary.\",\n      \"substring\": \"GQRS\"\n    }\n  ]\n}"
   },
   expected: [
     {
@@ -35,12 +35,6 @@ const fixture: EvalFixture = {
       sectionId: "sec1",
       substring: "GA",
       note: "'GA' is used without definition — reasonable clarity flag",
-    },
-    {
-      type: "undefined_jargon",
-      sectionId: "sec1",
-      substring: "GA",
-      note: "GA also flagged as jargon by the model in this recording (tracked as known gap below)",
     },
   ],
   knownGaps: [

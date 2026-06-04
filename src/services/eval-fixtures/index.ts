@@ -18,6 +18,7 @@ import clarityVague from "./clarity-vague";
 import unsupportedVsAttributed from "./unsupported-vs-attributed";
 import jargonAllowlist from "./jargon-allowlist";
 import cleanDoc from "./clean-doc";
+import antiTaxonomy from "./anti-taxonomy";
 import type { EvalFixture } from "./types";
 
 export const corpus: EvalFixture[] = [
@@ -27,6 +28,7 @@ export const corpus: EvalFixture[] = [
   unsupportedVsAttributed,
   jargonAllowlist,
   cleanDoc,
+  antiTaxonomy,
 ];
 
 export { type EvalFixture } from "./types";
