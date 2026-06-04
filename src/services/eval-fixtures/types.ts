@@ -1,0 +1,65 @@
+/**
+ * Fixture format for the evaluator quality ratchet.
+ *
+ * Each fixture is a self-contained labeled test case: input sections,
+ * pre-recorded LLM responses for Tier 1 (deterministic/offline), and
+ * ground-truth expected observations.
+ *
+ * See docs/projects/evaluator_quality_ratchet.md for the full design.
+ */
+
+import type { Observation } from "../../store/db";
+
+export interface ExpectedObservation {
+  /** Which observation type should fire. */
+  type: Observation["type"];
+  /**
+   * The section id (`sections[i].id`) this observation should anchor to.
+   * Omit for document-scoped observations (missing_topic, structure_flow, etc.).
+   */
+  sectionId?: string;
+  /**
+   * A literal substring from the section text that the produced observation's
+   * anchored span should cover, OR that should appear in the observation's
+   * message text. Match is case-insensitive containment — not brittle offsets.
+   * Omit to match on type + section only.
+   */
+  substring?: string;
+  /** Human note explaining why this is ground truth. Not used in matching. */
+  note?: string;
+}
+
+export interface EvalFixture {
+  /** Stable identifier — matches the filename stem. */
+  id: string;
+  /** One-line description shown in test output. */
+  description: string;
+  /** Optional stage/context passed to evaluateSection (affects doc-level checks). */
+  stage?: string;
+  /** Optional jargon allow-list items (user dictionary). */
+  jargonAllowlist?: string[];
+  /**
+   * Sections to evaluate, in order. Order matters: the claim ledger
+   * accumulates across sections, so section 2 sees section 1's claims
+   * (enabling contradiction/tension detection).
+   */
+  sections: { id: string; text: string }[];
+  /**
+   * Pre-recorded LLM responses for Tier 1 offline replay.
+   * Keys are reqHash(system, user, json) values; values are raw response text.
+   * Generated/updated by `npm run eval:record -- <id>`.
+   */
+  recordings: Record<string, string>;
+  /**
+   * Ground-truth observations this fixture should produce. Tier 1 asserts
+   * precision === 1 && recall === 1 against this list.
+   */
+  expected: ExpectedObservation[];
+  /**
+   * Known gaps: observations the prompt currently MISSES (false negatives)
+   * or MIS-fires (false positives) that are tracked but not yet fixed.
+   * Tier 2 reports these as expected-misses rather than asserting green.
+   * Remove an entry here when the prompt fix lands.
+   */
+  knownGaps?: ExpectedObservation[];
+}
