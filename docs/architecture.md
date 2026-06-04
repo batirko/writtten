@@ -111,7 +111,7 @@ Stored locally per document:
 - **Block summaries** — `{ blockId, summary, hash }`; hash drives the trivial-change short-circuit.
 - **Master summary** — the doc-level rollup.
 - **Claim ledger** — entries as above.
-- **Observations** — including state (`active`/`auto_closed`/`dismissed`/`superseded`) and dismissal-suppression records (for "dismissal teaches").
+- **Observations** — including state (`active`/`auto_closed`/`dismissed`/`superseded`) and dismissal-suppression records (for "dismissal teaches"). **Suppression records must be kind/severity-aware** so the learning can't be trained into flattery (`docs/features.md` → _Dismissal should teach_, R5.4): muting a low-severity nit category is fine and persists, but dismissing a high-severity defect/`contradiction` must not create a category-wide suppression that silences the same critique on other spans. The guard is a data-model property, not a UI nicety — owned by `docs/projects/philosophy_guardrails.md` (G1).
 - **Settings** — model selection, BYO key (stored locally; see privacy), stage definition.
 
 IndexedDB is the default. Move to SQLite-in-browser only if query patterns (e.g. ledger lookups) demand it — don't start there.
@@ -145,7 +145,7 @@ Local-first is a feature, not an accident. Document content stays on the client 
 
 This is an OSS project; design for contributors using AI tooling to extend it without touching the core:
 
-- **Observation types** are data + a prompt + a threshold. Adding one shouldn't require touching the orchestrator's control flow.
+- **Observation types** are data + a prompt + a threshold. Adding one shouldn't require touching the orchestrator's control flow. Two philosophy constraints are enforced at this seam, not left to model goodwill: the **anti-taxonomy** (the negative list of categories that must never be surfaced — `docs/features.md` → _Anti-taxonomy_, R4.3) lives as an explicit negative instruction in the span-check prompts, and **register discipline** (locate, don't prescribe; no leading questions — R2.2–R2.3) is a prompt rule plus a ratchet fixture. Both are guarded by `docs/projects/evaluator_quality_ratchet.md` fixtures so a prompt regression fails CI rather than silently drifting.
 - **Model providers** plug into the router behind one interface.
 - **Export formats** plug into an export registry.
 

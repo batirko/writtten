@@ -1,6 +1,6 @@
 # Concept
 
-> The _why_. Read `docs/features.md` for the _what_ and `docs/architecture.md` for the _how_.
+> The _why_. Read `docs/features.md` for the _what_, `docs/architecture.md` for the _how_, and `docs/product-requirements.md` for the **fidelity bar** — the tiered requirements (Minimum/Good-enough/Superb per axis) that define how faithfully this product must hold the inversion.
 
 ## The problem
 

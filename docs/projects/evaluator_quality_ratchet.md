@@ -46,6 +46,8 @@ summary: Labeled fixture corpus + two-tier scorer (deterministic replay + opt-in
 - [ ] `clean-doc.ts` — clean section → **zero** observations (false-positive guard)
 - [ ] `index.ts` — barrel that exports the corpus array
 
+**Negative-assertion fixtures (owned by `docs/projects/philosophy_guardrails.md`).** The corpus is also the regression gate for two philosophy guardrails — added there, asserted here: an **anti-taxonomy** fixture (a surface-flawed-but-substantively-clean doc that must produce **no** grammar/style/surface nit — G2/R4.3) and a **register** fixture/lint (no generated message prescribes a fix or asks a leading question — G3/R2.2–R2.3). These extend the corpus; the design lives in `philosophy_guardrails.md`.
+
 **Tier 1 — deterministic regression suite**
 - [ ] `src/services/evalRatchet.test.ts` — `it.each(corpus)`: run each fixture via `runFixture`, `scoreObservations`, assert `precision === 1 && recall === 1` (exact — deterministic → no stochastic tolerance needed)
 

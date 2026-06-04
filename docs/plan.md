@@ -2,6 +2,8 @@
 
 > Phased build plan. **Check the "Current phase" marker before adding functionality.** If a thing belongs to a later phase, don't build it yet — flag it instead. Scope creep is this project's primary risk. Refine phases as you learn; keep this file the source of truth for sequencing. Field-test reviews in `docs/snapshots/` feed the **Discovered / unscheduled** backlog near the bottom — check there for insights not yet folded into a phase.
 
+> **What "good" means:** `docs/product-requirements.md` is the fidelity bar (tiered requirements R1.1–R6.4 + the five load-bearing tensions); `docs/acceptance-testing/fidelity-criteria.md` turns it into pass/fail gates. The phases below sequence the work; those two files define when it's faithful.
+
 **Current phase: Phase 4 — "Core experience: signal quality & calm feed."** (Phase 1 fully verified 2026-06-01. Phase 2 fully implemented 2026-06-02. Phase 3 fully implemented 2026-06-02. Reprioritized 2026-06-03: the core write→observe→recommend loop now leads; egress/install moved to Phase 5.)
 
 ---
@@ -21,6 +23,8 @@
 | [observation_taxonomy_and_priority](projects/observation_taxonomy_and_priority.md) | in-progress | 4 (A·B·E ✅) · 6 (C·D) | Extend observations with kind/severity/confidence/priority axes, close the decision-rigor taxonomy gap, add a client-side reflection mirror kind, and introduce a budget-based noisiness model in the feed. |
 | [evaluator_quality_ratchet](projects/evaluator_quality_ratchet.md) | done | 4 | Labeled fixture corpus + two-tier scorer (deterministic replay CI + opt-in live precision/recall) so evaluator accuracy can't silently regress. Prerequisite for SkillOpt prompt optimization. |
 | [prompt_quality_observations](projects/prompt_quality_observations.md) | idea | 5 · 6 | Living log of observed prompt quality issues (false positives, misclassifications, missed signals) — accumulates across test sessions; remediated in a dedicated sprint. |
+| [philosophy_guardrails](projects/philosophy_guardrails.md) | idea | 4 (G1·G2) · 5 (G3·G4) | The three unguarded qualitative guardrails — flattery-resistant dismissal, explicit anti-taxonomy, no-disguised-fix register — plus a discomfort-budget ceiling. Enforces the qualitative half of the fidelity bar in code + CI. |
+| [emotional_register](projects/emotional_register.md) | idea | 5 | Persona spec (trusted senior colleague), wrong-persona anti-patterns, message voice guide, and tone as a labeled eval dimension. The felt-tone half of register discipline. |
 
 ---
 
@@ -132,7 +136,12 @@ Milestones:
 - [x] **`strategic_tension` observation type** — a bucket for strategic tradeoffs that aren't strict factual contradictions, so they stop being mis-flagged. The cross-claim check now returns both `contradictions` (hard logical incompatibility, `problem`) and `tensions` (deliberate tradeoffs, `opportunity` — softer teal register, never floored, priority 1.5). Both contradiction prompts tightened to route tradeoffs away from `contradiction`. → same snapshot; resolves OBS-004. (Taxonomy addition — within the fixed-taxonomy invariant.)
 - [x] **Evaluator quality ratchet** — labeled fixture corpus (`src/services/eval-fixtures/`, 6 seed cases) + two-tier scorer: Tier 1 deterministic replay in CI (exact precision/recall=1, zero quota); Tier 2 opt-in live scorer (`EVAL_LIVE=1 npm run eval:live`, precision/recall floor, `knownGaps` tracking). Record helper (`npm run eval:record`) makes adding fixtures frictionless. → see `docs/projects/evaluator_quality_ratchet.md` · `docs/projects/ai_tooling_integration.md` (Phase 2 carry-over)
 
-**Exit criteria:** in a real PRD revision session the feed _feels_ calm and trustworthy — high-impact items (contradictions) surface first and visibly outrank nits, near-duplicate flags collapse, and jargon/tension false-alarms don't appear. A regression suite guards the bar.
+**Newly scheduled** (2026-06-04 requirements analysis — the qualitative trust guardrails that were asserted in the fidelity bar but unenforced; they are signal-quality work, so they belong in this phase, not packaging):
+
+- [ ] **Flattery-resistant dismissal (G1)** — make dismissal-suppression kind/severity-aware so muting a nit never silences a true high-severity critique on other spans. The product's defining counter-positioning ("won't learn to flatter you"), currently unguarded. → see `docs/projects/philosophy_guardrails.md` (G1) · R5.4
+- [ ] **Explicit anti-taxonomy (G2)** — negative-list prompt instruction (never surface grammar/style/surface nits) + a ratchet fixture asserting they never appear. Holds the line against the surface-drift gravity well. → see `docs/projects/philosophy_guardrails.md` (G2) · R4.3
+
+**Exit criteria:** in a real PRD revision session the feed _feels_ calm and trustworthy — high-impact items (contradictions) surface first and visibly outrank nits, near-duplicate flags collapse, and jargon/tension false-alarms don't appear. **The feed never flatters** (dismissing a true critique doesn't silence the category elsewhere) **and never surfaces anti-taxonomy nits** (grammar/style/surface). A regression suite guards the bar.
 
 **Harness exit criterion:** [~] partial — `getState()` already exposes `priority`/`severity`/`confidence` per observation (Milestone A); `data-testid="also-noticed-drawer"` delivered (Milestone E). Remaining: `data-testid` on impact badge and aggregation surfaces (pending milestones). → `docs/projects/agent_acceptance_harness.md`
 
@@ -151,6 +160,9 @@ Milestones:
 - [ ] **UI/UX mechanics pass** — audit and nail the interactions that define the product feel: hover → highlight contract, observation card anatomy (what's shown, in what order), dismiss gesture, span-focus scroll behaviour, "also noticed" drawer open/close. The mechanics are partly built in Phase 4; this pass makes them intentional and consistent.
 - [ ] **Visual style** — typography, colour, spacing, component language. The tool should feel calm, editorial, and opinionated — not another dev-tool grey box. Covers editor canvas, feed panel, cards, badges, archive, and empty states.
 - [ ] **Onboarding & first-run** — what a brand-new user sees on first open (the blank canvas moment), how the product introduces its own silence (quiet by design), and what the first observation feeling is like. Covers empty states, the first-settle micro-moment, and any minimal orientation copy.
+- [ ] **Emotional register** — persona spec (trusted senior colleague), wrong-persona anti-patterns, message voice/copy guide applied across the per-type prompts, and tone as a labeled eval dimension. The felt-tone half of register discipline; rides with visual style + onboarding as the "product feel" pass. → see `docs/projects/emotional_register.md` · R6
+- [ ] **No-disguised-fix register polish (G3)** — uniform prompt rule (locate, don't prescribe; no leading questions) hardened with a message lint/fixture. → see `docs/projects/philosophy_guardrails.md` (G3) · R2.2–R2.4
+- [ ] **Discomfort-budget ceiling (G4)** — decide whether the contradiction floor needs a ceiling so a doc with many hard critiques doesn't surface them all at once; overflow into "also noticed." → see `docs/projects/philosophy_guardrails.md` (G4) · R6.3
 
 **Exit criteria:** a user can import a draft, work in it, and export/copy clean output in all formats; the app installs and runs offline.
 

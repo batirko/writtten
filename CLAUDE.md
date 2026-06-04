@@ -17,11 +17,14 @@ First persona: **Product Managers** writing PRDs, specs, comms, and decision doc
 
 This is not a style preference. It is the product's reason to exist and its defense against becoming Grammarly-with-extra-steps. **Never add apply/auto-fix/rewrite affordances.** If a feature request implies the AI editing the user's text, stop and flag it against this principle.
 
+The principle has a finer edge than "no apply button," and three failure modes that look like helpfulness from the inside: the **anti-taxonomy** (never surface grammar/style/surface nits), **register discipline** (locate, don't prescribe; no leading questions), and **flattery-resistant dismissal** (muting a nit ≠ silencing a true critique). The fidelity bar that governs all of this is `docs/product-requirements.md`; the substantive rules live in `docs/features.md` (_Anti-taxonomy_, _Register discipline_, _Dismissal should teach_); the scheduled work is `docs/projects/philosophy_guardrails.md` and `docs/projects/emotional_register.md`.
+
 ## Document map — read what's relevant to your task
 
 | File                   | Read it when…                                                                                                                              |
 | ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
 | `docs/concept.md`      | You need the _why_ — philosophy, persona, positioning, non-goals.                                                                          |
+| `docs/product-requirements.md` | You need the _fidelity bar_ — the tiered requirements (Minimum/Good-enough/Superb) and the five load-bearing tensions that define faithfully holding the inversion. Acceptance gates derive from it in `docs/acceptance-testing/fidelity-criteria.md`. |
 | `docs/features.md`     | You're building UX, the observation taxonomy, message lifecycle, archive, export.                                                          |
 | `docs/architecture.md` | You're building the eval pipeline, claim ledger, persistence, model router, editor internals.                                              |
 | `docs/plan.md`         | You need to know what phase we're in and what's in/out of scope right now.                                                                 |

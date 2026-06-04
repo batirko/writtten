@@ -12,7 +12,7 @@
 1. User opens or starts a document and writes in the editor.
 2. While the user is actively generating (typing, incomplete content), the feed stays quiet.
 3. As blocks _settle_ and the document crosses a content threshold, the AI begins surfacing observations into the feed.
-4. Each observation is typed (from a fixed taxonomy), may be anchored to a span of text, and carries a short human-readable note. **It never includes a rewrite or an apply button.**
+4. Each observation is typed (from a fixed taxonomy), may be anchored to a span of text, and carries a short human-readable note. **It never includes a rewrite or an apply button** — and it goes further than that: it _locates_ the problem without _prescribing the move_. See _Register discipline_ below.
 5. Hovering an observation highlights the span it refers to (if it has one). Document-level observations highlight nothing / indicate "whole document."
 6. As the user edits, affected observations are re-evaluated and **auto-close** if resolved.
 7. The user can dismiss any observation manually.
@@ -51,6 +51,29 @@ This list is expected to evolve. Add types by extending the taxonomy and giving 
 - **`missing_topic`** and **`audience_mismatch`** are only as good as the stage definition. They should stay quiet until the stage is known/inferred.
 - **`clarity`** is the cheapest, highest-frequency, span-local check — good for the first build.
 
+### Anti-taxonomy (never surface)
+
+The fixed list above is the _positive_ taxonomy. It is paired with a **negative list** the system must never surface, because the gravity well of any critique model is toward easy, catchable trivialities — and the moment it flags grammar, it has become the thing this product defines itself against. (R4.3 in `docs/product-requirements.md`.)
+
+**Never surface:** grammar, spelling, punctuation, passive voice, sentence length, word choice, readability scores, "consider rephrasing," or any other surface/style nit.
+
+This is enforced two ways, because "be deep" is not a constraint a model self-enforces:
+
+1. **Structurally** — the closed taxonomy has no type these would map to, so there is no slot for them.
+2. **At the prompt seam** — span-check prompts carry an explicit negative instruction, and the evaluator quality ratchet (`docs/projects/evaluator_quality_ratchet.md`) holds a fixture asserting these categories never appear in generated output.
+
+If a future request asks for a "tone" or "concision" or "grammar" check, it belongs in the anti-taxonomy, not the taxonomy. Owned by `docs/projects/philosophy_guardrails.md` (G2).
+
+### Register discipline (locate, don't prescribe)
+
+A message may name what is wrong, missing, or conflicting — and must stop exactly there. The line is finer than "no apply button":
+
+- ✅ "The claim in ¶3 isn't supported by anything else in the document." (locates)
+- ❌ "You need a data point here." / "Add a metric to back this." (prescribes the move — the AI did the thinking)
+- ❌ "Have you considered whether users actually want this?" (a **leading question** — smuggles a fix in disguised as rhetoric; often _more_ patronizing than a plain fix)
+
+Two failure modes to design against (R2.2–R2.4): the **disguised fix** (Socratic-theater questions) and the **cold fix** (correct but tonally hostile — "here's what's wrong, figure it out"). Naming a real tension is more respectful than rhetorical questioning. Enforced at the prompt seam + ratchet fixtures; owned by `docs/projects/philosophy_guardrails.md` (G3). Tone itself is the subject of `docs/projects/emotional_register.md`.
+
 ## The stage definition
 
 An optional short free-text paragraph where the user states what the document is and any key details ("internal PRD for the payments team about Q3 fraud tooling; audience is eng + design"). This grounds the document-level checks.
@@ -72,9 +95,16 @@ States:
 
 All non-`active` states are visible in the **archive**. The archive is browsable and filterable (by type, by state). Auto-closing on edit is essential — it's what makes the feed feel alive and responsive rather than a static lint report.
 
-### Dismissal should teach
+### Dismissal should teach — but must never flatter
 
 When a user dismisses an observation, suppress that specific observation (and ideally that _kind_ of observation for that _term/span_) for the rest of the document — at minimum per-doc, optionally per-user as a preference. Re-nagging about something the user explicitly waved off is the fastest way to make the tool feel dumb. Cheap to implement, large effect on perceived intelligence.
+
+**The hard line: dismissal-learning must not collapse into flattery-learning** (R5.4). If "stop nagging me" trains the system to stop surfacing uncomfortable truths, you've built a tool that learns to flatter — the exact failure mode of the generation tools, reached from the opposite direction. The suppression must distinguish two intents:
+
+- **"This _category of nit_ isn't useful to me"** — tunable. Muting a low-severity clarity/jargon flag for a term is fine and should stick.
+- **"I don't want to hear that my argument is weak"** — the whole point of the product, and it must be **resistant to being trained away.** Dismissing a high-severity defect or `contradiction` means "I disagree this is a real issue _here_," not "stop checking for this." It must not suppress the same category on _other_ spans.
+
+Concretely: suppression records are **kind/severity-aware**, and high-severity critique either doesn't create a category-wide suppression or requires a distinct "not a real issue" gesture that doesn't silence the class. The data-model implication lives in `docs/architecture.md` → _Persistence_; the work is owned by `docs/projects/philosophy_guardrails.md` (G1).
 
 ## Anchoring & highlighting
 
@@ -90,6 +120,24 @@ Hover behavior:
 - **Span checks** fire only on _settled_ blocks: debounced after typing stops, block ends in terminal punctuation, and meets a minimum length. Never critique mid-sentence.
 - **Document checks** start only after the document crosses a content threshold (enough blocks / words for the master summary and claim ledger to be meaningful).
 - The empty/early state should communicate the intent: the tool is _deliberately_ quiet while you draft and will speak up as you revise — not "loading," but "letting you think."
+
+## Emotional register
+
+Critique-without-a-fix is harder to take than critique-with-one — you're asking the user to sit in productive discomfort. The relationship the feed establishes is therefore a first-class feature, not polish (R6 in `docs/product-requirements.md`).
+
+**The persona:** the trusted senior colleague who reads your draft, doesn't touch your keyboard, and says the one thing that makes you go "...yeah." Terse, non-condescending, assumes competence.
+
+**The wrong personas** (anti-patterns to design messages against):
+
+- the **linter** — mechanical, nagging;
+- the **boss** — judging;
+- the **pedant** — surface-obsessed (this is the anti-taxonomy wearing a personality);
+- the **therapist** — soft, validating, useless;
+- the **smartass** — gotchas and leading questions (this is the disguised fix wearing a personality).
+
+**The discomfort budget.** Too much true-but-hard critique at once is demoralizing _regardless of accuracy_. The budget-based calm feed caps the _count_ of visible items; the discomfort budget is about _emotional weight_ — a document with many real contradictions should not surface them all at once via the contradiction floor (R6.3). Rhythm and precision aren't only noise control; they keep the user in the productive zone of discomfort, not the demoralized one.
+
+The persona spec, the message voice guide, and tone-as-an-eval-dimension are owned by `docs/projects/emotional_register.md`; the discomfort-budget ceiling is `docs/projects/philosophy_guardrails.md` (G4).
 
 ## Export & import
 
