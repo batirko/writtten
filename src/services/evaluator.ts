@@ -82,7 +82,22 @@ function normalizeText(text: string): string {
  *  about the same block but differ only in offset (Tier B noise reduction).
  *  See docs/projects/evaluation_signal_quality.md Finding 5. */
 function contentSig(obs: { type: string; blockId?: string; text: string }): string {
-  return `${obs.type}:${obs.blockId ?? "doc"}:${normalizeText(obs.text).slice(0, 60)}`;
+  return `${obs.type}:${obs.blockId ?? "doc"}:${normalizeText(obs.text)}`;
+}
+
+/**
+ * Jaccard word-overlap similarity in [0, 1]. Used by doc-level dedup to treat
+ * LLM rephrases of the same observation as equivalent — preventing the
+ * "same issue, slightly different wording" false-supersede (OBS-012).
+ */
+function textSimilarity(a: string, b: string): number {
+  const tokenize = (s: string) => new Set(normalizeText(s).split(/\s+/).filter(Boolean));
+  const ta = tokenize(a);
+  const tb = tokenize(b);
+  if (ta.size === 0 && tb.size === 0) return 1.0;
+  const intersection = [...ta].filter((t) => tb.has(t)).length;
+  const union = new Set([...ta, ...tb]).size;
+  return union > 0 ? intersection / union : 0;
 }
 
 function spansOverlap(
@@ -140,6 +155,9 @@ async function reconcileObservations(
   docId: string,
   memberBlockIds: string[],
   newObs: NewObservation[],
+  /** Observation ids the model explicitly confirmed are resolved. Force-closed
+   *  before the normal step-4 orphan pass so they aren't re-inserted. */
+  resolvedPriorIds: ReadonlySet<string> = new Set(),
 ): Promise<void> {
   const [allActive, suppressions] = await Promise.all([
     loadActiveObservationsForDocument(docId),
@@ -155,6 +173,16 @@ async function reconcileObservations(
   // observations that say the same thing (or one that duplicates a kept
   // existing one at a different offset) collapse to a single card.
   const seenContent = new Set<string>();
+
+  // 0-pre. Force-close any observation the model explicitly confirmed resolved.
+  // This happens before the normal loop so the force-closed obs are already
+  // matched and won't be re-inserted via content-sig dedup (OBS-021).
+  for (const obs of existing) {
+    if (resolvedPriorIds.has(obs.id)) {
+      await updateObservationStatus(obs.id, "auto_closed");
+      matchedExistingIds.add(obs.id);
+    }
+  }
 
   for (const newO of newObs) {
     // Suppression check — never re-insert a dismissed span
@@ -242,11 +270,13 @@ async function reconcileDocumentObservations(
     );
     if (suppressed) continue;
 
-    // Exact match → dedupe
+    // Exact match OR high similarity (>0.6 Jaccard) → dedupe: the LLM rephrased
+    // the same observation; don't supersede on wording drift (OBS-012).
     const exactMatch = existing.find(
       (e) =>
         e.type === newO.type &&
-        normalizeText(e.text) === normalizeText(newO.text) &&
+        (normalizeText(e.text) === normalizeText(newO.text) ||
+          textSimilarity(e.text, newO.text) > 0.6) &&
         !matchedExistingIds.has(e.id),
     );
     if (exactMatch) {
@@ -254,7 +284,7 @@ async function reconcileDocumentObservations(
       continue;
     }
 
-    // Same type, different text → supersede
+    // Same type, meaningfully different text → supersede
     const supersedable = existing.find(
       (e) => e.type === newO.type && !matchedExistingIds.has(e.id),
     );
@@ -482,10 +512,28 @@ export async function evaluateSection(
       ]),
     ].map((t) => `- ${t}`);
 
+    // Load prior active observations for this section so the model can confirm
+    // resolution explicitly (OBS-021). Only span observations anchored to member
+    // blocks are relevant — doc-level observations are not section-scoped.
+    const allActiveObs = (await loadActiveObservationsForDocument(docId)) ?? [];
+    const priorObs = allActiveObs.filter(
+      (o) => o.scope === "span" && o.blockId != null && memberBlockIds.includes(o.blockId),
+    );
+
     const userParts: string[] = [cleanText];
     if (stage) userParts.push(`\nDocument context: ${stage}`);
     if (definedTerms.length > 0) {
       userParts.push(`\nDefined terms (do not flag as undefined jargon):\n${definedTerms.join("\n")}`);
+    }
+    if (priorObs.length > 0) {
+      const priorLines = priorObs
+        .map((o, i) => `[${i}]: (${o.type}) "${o.text}"`)
+        .join("\n");
+      // Injected in user content only (not system prompt) so the base fixture
+      // hashes stay stable when there are no prior observations.
+      userParts.push(
+        `\nPrior observations on this passage:\n${priorLines}\nIf your analysis finds any of these no longer applicable, add a "resolved_prior" key (array of integers) to your JSON response listing their indices.`,
+      );
     }
     const userContent = userParts.join("");
 
@@ -503,6 +551,7 @@ export async function evaluateSection(
       clarity_observations?: SpanObservation[];
       unsupported_claim_observations?: SpanObservation[];
       undefined_jargon_observations?: SpanObservation[];
+      resolved_prior?: number[];
     };
     if (import.meta.env.DEV) {
       harness.emit("response", {
@@ -690,8 +739,15 @@ export async function evaluateSection(
     }
 
     // 7. Reconcile new observations against existing active ones for this
-    //    section's member blocks (dedupe / supersede / auto-close / insert)
-    await reconcileObservations(docId, memberBlockIds, newObs);
+    //    section's member blocks (dedupe / supersede / auto-close / insert).
+    //    Pass any model-confirmed resolutions so they are force-closed first.
+    const resolvedIndices = parsedMerged.resolved_prior ?? [];
+    const resolvedPriorIds = new Set(
+      resolvedIndices
+        .map((i) => priorObs[i]?.id)
+        .filter((id): id is string => id != null),
+    );
+    await reconcileObservations(docId, memberBlockIds, newObs, resolvedPriorIds);
   } catch (error) {
     console.error("Evaluation error for section", sectionId, error);
   }
