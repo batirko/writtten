@@ -75,9 +75,13 @@ export const ObservationHighlighter = Extension.create<ObservationHighlighterOpt
                       const end =
                         textStart + Math.max(0, Math.min(obs.endOffset || textLength, textLength));
 
+                      // Both contradiction and strategic_tension span two blocks
+                      // via conflictingBlockId — hovering either side, or the
+                      // card, lights up both.
+                      const isCrossClaim = !!obs.conflictingBlockId;
                       const isHovered =
                         hoveredId === obs.id ||
-                        (obs.type === "contradiction" &&
+                        (isCrossClaim &&
                           (obs.blockId === hoveredId || obs.conflictingBlockId === hoveredId));
 
                       if (start < end) {
@@ -89,9 +93,10 @@ export const ObservationHighlighter = Extension.create<ObservationHighlighterOpt
                         );
                       }
 
-                      // For contradictions, also highlight the conflicting block's span
-                      // so hovering the card lights up both sides simultaneously.
-                      if (obs.type === "contradiction" && obs.conflictingBlockId) {
+                      // For cross-claim observations (contradiction,
+                      // strategic_tension), also highlight the conflicting
+                      // block's span so hovering the card lights up both sides.
+                      if (obs.conflictingBlockId) {
                         const conflictPos = blockPositions.get(obs.conflictingBlockId);
                         if (conflictPos !== undefined) {
                           const conflictNode = doc.nodeAt(conflictPos);

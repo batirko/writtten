@@ -33,6 +33,7 @@ export interface Observation {
   type:
     | "clarity"
     | "contradiction"
+    | "strategic_tension"
     | "unsupported_claim"
     | "undefined_jargon"
     | "underexposed_topic"

@@ -31,7 +31,8 @@ When enough entries cluster around the same failure mode, pull them into a **Fai
 
 - [ ] **Attributed-claim carve-out** — add one sentence to the fast-call `unsupported_claim` instructions: claims explicitly attributed to a named source, team, or study are not unsupported. Pattern: "per X's analysis", "according to the data team", "X research shows". (See OBS-001.)
 - [ ] **Claim kind disambiguation** — the fast model consistently conflates `commitment`/`constraint` with `metric`. Add per-kind one-line examples to the claims instruction. (See OBS-002.)
-- [ ] **Jargon allow-list** — foundational domain vocabulary in the relevant PM/product sub-domain should not be flagged as undefined. Tie into the jargon allow-list Phase 4 milestone. (See OBS-003.)
+- [ ] **Jargon allow-list** — foundational domain vocabulary should not be flagged as undefined. Two preset layers: a general PM/product-process preset on by default, plus per-sub-domain presets and a user dictionary. Tie into the jargon allow-list Phase 4 milestone. (See OBS-003, OBS-005.)
+- [x] **Tension vs. contradiction** — reserve the `contradiction` type for genuine logical incompatibility; route strategic tradeoffs to the `strategic_tension` type and tighten the contradiction prompt accordingly. (See OBS-004.) **Done 2026-06-04** — both contradiction prompts (confident + hedged) now sort conflicts into `contradictions` vs `tensions`; `strategic_tension` ships as an `opportunity`-kind span observation (priority 1.5, never floored). Commit in the Phase 4 `strategic_tension` work.
 
 ---
 
@@ -93,3 +94,29 @@ Each entry follows the format:
 **Actual:** Flagged: *"The term 'false-positive' is used without defining the specific criteria for what constitutes a false positive in this transaction system."*  
 **Failure mode:** false-positive  
 **Notes:** This is the driving motivating example for the jargon allow-list (Phase 4 milestone). Other terms from the same doc that should be in a payments/fraud domain preset: "dispute rate", "fraud block rate", "declined transactions", "false-positive friction". The allow-list needs both a user-configurable layer and sensible domain presets seeded from real PM sub-domains. Until the allow-list ships, this will keep producing noise on any payment-domain document.
+
+---
+
+### OBS-004 — Strategic tradeoff flagged as a hard contradiction
+
+**Date:** 2026-06-03  
+**Prompt tier:** strong (contradiction check)  
+**Type flag:** contradiction  
+**Input excerpt:** A strategic tradeoff in a fraud PRD — notifying users on a fraud block creates friction, *vs.* not notifying trains bad behaviour. (Two desirable goals in tension, not a factual paradox.)  
+**Expected:** Either no contradiction flag, or a softer "tension" observation. The two statements are not logically incompatible — they describe a deliberate tradeoff the author is reasoning about.  
+**Actual:** Flagged as a hard logical contradiction by the contradiction check.  
+**Failure mode:** misclassification (false-positive contradiction)  
+**Notes:** Captured from the 2026-06-03 evaluation signal-quality review (`docs/snapshots/2026-06-03_evaluation_signal_quality_review.md`). The remedy is the planned `strategic_tension` observation type (Phase 4 milestone) — give the model a bucket for philosophical/strategic conflicts that aren't factual paradoxes, and tighten the contradiction prompt to reserve `contradiction` for genuine logical incompatibility. Until then the un-hedged contradiction prompt presents these tradeoffs with unwarranted confidence, which is trust-damaging on exactly the kind of nuanced reasoning PMs value.
+
+---
+
+### OBS-005 — Tech / product-process vocabulary flagged as undefined jargon
+
+**Date:** 2026-06-03  
+**Prompt tier:** fast  
+**Type flag:** undefined_jargon  
+**Input excerpt:** *"soft launch"*, *"rollout cohort"* (standard product-rollout vocabulary in a PRD).  
+**Expected:** No jargon flag — these are foundational product/release-process terms, not undefined domain jargon.  
+**Actual:** Both flagged as undefined jargon.  
+**Failure mode:** false-positive  
+**Notes:** Captured from the 2026-06-03 evaluation signal-quality review. **Clusters with OBS-003** into a single Failure Pattern: the fast `undefined_jargon` check has no notion of "foundational vocabulary the target persona already shares." OBS-003 is payments/fraud domain terms; OBS-005 is general product/release-process terms. Both resolve via the jargon allow-list (Phase 4 milestone) — but they argue for *two* preset layers: (1) a general PM/product-process preset ("soft launch", "rollout cohort", "cohort", "GA", "MVP") that ships on by default, and (2) per-sub-domain presets (payments/fraud, etc.) plus the user dictionary. The general preset is the higher-leverage fix since process terms appear in nearly every PRD.

@@ -164,6 +164,59 @@ describe("Tier B — contradiction prompt calibrated by tier", () => {
   });
 });
 
+describe("strategic_tension — tradeoffs route to the softer type", () => {
+  it("a tensions entry produces a strategic_tension observation (kind opportunity, priority 1.5)", async () => {
+    vi.mocked(db.loadActiveClaimsForDocument).mockResolvedValue([
+      {
+        id: 9,
+        docId,
+        sourceBlockId: "other",
+        text: "Minimize friction for legitimate users.",
+        kind: "commitment",
+        status: "active",
+      },
+    ]);
+    mockFast.mockResolvedValueOnce({
+      text: JSON.stringify({
+        summary: "",
+        claims: [{ text: "Notify users on every fraud block.", kind: "commitment" }],
+        clarity_observations: [],
+      }),
+    });
+    mockStrong.mockResolvedValueOnce({
+      text: JSON.stringify({
+        contradictions: [],
+        tensions: [
+          {
+            newClaimText: "Notify users on every fraud block.",
+            existingClaimId: 0,
+            message: "This goal is in tension with the friction-minimization objective.",
+          },
+        ],
+      }),
+    });
+
+    await evaluateSection(
+      docId,
+      "sec1",
+      "Notify users on every fraud block.",
+      [{ blockId: "sec1", text: "Notify users on every fraud block." }],
+      undefined,
+      apiKey,
+    );
+
+    const saved = vi.mocked(db.saveObservation).mock.calls.map((c) => c[0]);
+    const tension = saved.find((o) => o.type === "strategic_tension");
+    expect(tension).toBeDefined();
+    expect(tension!.kind).toBe("opportunity");
+    expect(tension!.scope).toBe("span");
+    expect(tension!.priority).toBe(1.5);
+    expect(tension!.conflictingBlockId).toBe("other");
+    // No hard contradiction was reported → none saved.
+    expect(saved.some((o) => o.type === "contradiction")).toBe(false);
+  });
+});
+
 describe("Tier B — observation content dedup", () => {
   it("collapses duplicate observations to a single card", async () => {
     mockFast.mockResolvedValueOnce({

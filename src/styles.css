@@ -312,6 +312,12 @@ body,
   color: #c97500;
 }
 
+/* Strategic tension — softer teal register (opportunity, not alarm) */
+.tag-strategic_tension {
+  background-color: rgba(14, 165, 233, 0.12);
+  color: #0369a1;
+}
+
 /* Problem types — gray tier (low severity) */
 .tag-undefined_jargon,
 .tag-audience_mismatch,
@@ -422,6 +428,11 @@ body,
   border-bottom: 2px dashed #ff9500;
 }
 
+.obs-highlight-strategic_tension {
+  background-color: rgba(14, 165, 233, 0.15);
+  border-bottom: 2px dashed #0ea5e9;
+}
+
 .obs-highlight-hovered {
   background-color: rgba(255, 149, 0, 0.28) !important;
   border-bottom-style: solid !important;
@@ -430,4 +441,9 @@ body,
 .obs-highlight-clarity.obs-highlight-hovered {
   background-color: rgba(142, 142, 147, 0.25) !important;
   border-bottom-color: #555558 !important;
+}
+
+.obs-highlight-strategic_tension.obs-highlight-hovered {
+  background-color: rgba(14, 165, 233, 0.3) !important;
+  border-bottom-color: #0369a1 !important;
 }

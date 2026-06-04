@@ -31,6 +31,7 @@ type ClaimKind = ClaimLedgerEntry["kind"];
  */
 const TYPE_PRIOR: Record<Observation["type"], Severity> = {
   contradiction: "medium",
+  strategic_tension: "medium",
   unsupported_claim: "medium",
   missing_topic: "medium",
   clarity: "low",

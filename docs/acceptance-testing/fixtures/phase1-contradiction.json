@@ -12,6 +12,6 @@
   "recordings": {
     "r19xz6fq_2162": "{\n  \"summary\": \"The product will be launched in the second quarter.\",\n  \"claims\": [\n    {\n      \"text\": \"We'll launch this in Q2.\",\n      \"kind\": \"commitment\"\n    }\n  ],\n  \"clarity_observations\": [\n    {\n      \"text\": \"The specific year for the Q2 launch is not mentioned.\",\n      \"substring\": \"Q2\"\n    }\n  ],\n  \"unsupported_claim_observations\": [],\n  \"undefined_jargon_observations\": []\n}",
     "r778awp_2159": "{\n  \"summary\": \"The product is scheduled to be released in the third quarter.\",\n  \"claims\": [\n    {\n      \"text\": \"This will ship in Q3.\",\n      \"kind\": \"commitment\"\n    }\n  ],\n  \"clarity_observations\": [\n    {\n      \"text\": \"It is unclear what 'This' refers to.\",\n      \"substring\": \"This\"\n    },\n    {\n      \"text\": \"It is unclear what 'Q3' refers to (e.g., which year).\",\n      \"substring\": \"Q3\"\n    }\n  ],\n  \"unsupported_claim_observations\": [],\n  \"undefined_jargon_observations\": []\n}",
-    "r1c2s60a_1209": "{\n  \"contradictions\": [\n    {\n      \"newClaimText\": \"This will ship in Q3.\",\n      \"existingClaimId\": 0,\n      \"message\": \"This contradicts the Q2 launch date set in the existing claim.\"\n    }\n  ]\n}"
+    "rdgflq7_1524": "{\n  \"contradictions\": [\n    {\n      \"newClaimText\": \"This will ship in Q3.\",\n      \"existingClaimId\": 0,\n      \"message\": \"This contradicts the Q2 launch date set in the existing claim.\"\n    }\n  ],\n  \"tensions\": []\n}"
   }
 }

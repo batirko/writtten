@@ -33,6 +33,13 @@ describe("computePriority — type-prior table (no structural context)", () => {
     expect(r.priority).toBe(1.5);
   });
 
+  it("strategic_tension: medium severity, medium confidence, priority 1.5", () => {
+    const r = computePriority({ type: "strategic_tension" });
+    expect(r.severity).toBe("medium");
+    expect(r.confidence).toBe("medium");
+    expect(r.priority).toBe(2 * 0.75); // 1.5 — same tier as missing_topic, never floored
+  });
+
   it("clarity: low severity, medium confidence, priority 0.75", () => {
     const r = computePriority({ type: "clarity" });
     expect(r.severity).toBe("low");
@@ -181,6 +188,7 @@ describe("computePriority — bounds", () => {
     { type: "contradiction", claimKinds: { newKind: "metric", existingKind: "metric" }, contradictionTier: "hedged" },
     { type: "unsupported_claim" },
     { type: "unsupported_claim", overlapsCommitment: true },
+    { type: "strategic_tension" },
     { type: "missing_topic" },
     { type: "clarity" },
     { type: "undefined_jargon" },

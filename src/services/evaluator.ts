@@ -309,16 +309,20 @@ Return a JSON object with exactly five keys:
 Keep observations short and specific. Do not hedge. Return empty arrays for categories with no issues.
 Do NOT include any text other than the raw JSON.`;
 
-export const CONTRADICTION_SYSTEM_PROMPT = `You are a critical editor detecting logical contradictions or conflicts in a document.
+export const CONTRADICTION_SYSTEM_PROMPT = `You are a critical editor analyzing how claims in a document relate to each other.
 You will be given a set of 'New Claims' from a newly written block, and a list of 'Existing Claims' from the rest of the document.
-Compare each new claim against the existing claims. If a new claim contradicts, conflicts with, or directly opposes an existing claim, identify the contradiction.
+Compare each new claim against the existing claims and sort any conflicts into exactly one of two buckets:
 
-Return a JSON object with a key 'contradictions', which is an array of objects. Each object must have:
-- 'newClaimText' (the text of the new claim that has the conflict)
-- 'existingClaimId' (the index number shown in [Existing Claim #N] for the conflicting existing claim)
-- 'message' (a short, confident observation explaining the contradiction — e.g. "This contradicts the Q3 target date set in the project overview." Never hedge with "might" or "possibly".)
+A) CONTRADICTION — a genuine logical incompatibility: one claim simply cannot be true if the other is. A direct conflict in a number, date, commitment, fact, or definition. ("Ships in Q2" vs "Ships in Q3"; "We will not store PII" vs "We log the user's email".)
 
-If no contradictions are found, return an empty array for 'contradictions'.
+B) STRATEGIC TENSION — two claims that are each intended or desirable but pull in opposite directions: a deliberate tradeoff the author is reasoning about, not a logical impossibility. ("Notify users on every fraud block" — reduces support load — vs "Minimize friction for legitimate users" — notifications add friction.) Both can be true at once; they are simply in tension. Do NOT report these as contradictions.
+
+Return a JSON object with two keys, 'contradictions' and 'tensions', each an array of objects. Each object must have:
+- 'newClaimText' (the text of the new claim involved)
+- 'existingClaimId' (the index number shown in [Existing Claim #N] for the other claim)
+- 'message' (a short, confident observation. For a contradiction: "This contradicts the Q3 target date set in the project overview." For a tension: "This goal is in tension with the friction-minimization objective in §2." Never hedge with "might" or "possibly".)
+
+If a bucket has no items, return an empty array for it.
 Do NOT include any text other than the raw JSON.`;
 
 /**
@@ -329,16 +333,20 @@ Do NOT include any text other than the raw JSON.`;
  * key is configured we (a) raise the bar for firing and (b) allow cautious
  * language. See docs/projects/evaluation_signal_quality.md Finding 3.
  */
-export const CONTRADICTION_SYSTEM_PROMPT_HEDGED = `You are a careful editor looking for *clear, direct* logical contradictions between claims in a document.
+export const CONTRADICTION_SYSTEM_PROMPT_HEDGED = `You are a careful editor looking at how claims in a document relate to each other.
 You will be given a set of 'New Claims' from a newly written section, and a list of 'Existing Claims' from the rest of the document.
-Compare each new claim against the existing claims. Only flag a pair when one claim genuinely cannot be true if the other is — a direct conflict in a number, date, commitment, or fact. Differences in scope, phrasing, or emphasis are NOT contradictions. When in doubt, do not flag.
+Compare each new claim against the existing claims and sort any conflict into exactly one of two buckets:
 
-Return a JSON object with a key 'contradictions', which is an array of objects. Each object must have:
-- 'newClaimText' (the text of the new claim that has the conflict)
-- 'existingClaimId' (the index number shown in [Existing Claim #N] for the conflicting existing claim)
-- 'message' (a short observation explaining the apparent conflict. Cautious language such as "may conflict with" or "appears to contradict" is appropriate here.)
+A) CONTRADICTION — only when one claim genuinely cannot be true if the other is: a direct conflict in a number, date, commitment, or fact. Differences in scope, phrasing, or emphasis are NOT contradictions. When in doubt, do not put it here.
 
-If no clear contradictions are found, return an empty array for 'contradictions'.
+B) STRATEGIC TENSION — two claims that are each intended or desirable but pull in opposite directions: a deliberate tradeoff, not a logical impossibility. Both can be true at once. Prefer this bucket over 'contradiction' whenever the conflict is about competing goals or priorities rather than incompatible facts.
+
+Return a JSON object with two keys, 'contradictions' and 'tensions', each an array of objects. Each object must have:
+- 'newClaimText' (the text of the new claim involved)
+- 'existingClaimId' (the index number shown in [Existing Claim #N] for the other claim)
+- 'message' (a short observation. Cautious language such as "may conflict with", "appears to contradict", or "may be in tension with" is appropriate here.)
+
+If a bucket has no items, return an empty array for it.
 Do NOT include any text other than the raw JSON.`;
 
 /** Loose check for statements *about the document/artifact* rather than claims
@@ -585,6 +593,7 @@ export async function evaluateSection(
 
       const parsedContradictions = parseJSONResponse(contradictionRes.text) as {
         contradictions?: ContradictionObservation[];
+        tensions?: ContradictionObservation[];
       };
       if (import.meta.env.DEV) {
         harness.emit("response", {
@@ -592,12 +601,20 @@ export async function evaluateSection(
           tier: "strong",
           latencyMs: Date.now() - contradictionStartedAt,
           contradictions: parsedContradictions.contradictions?.length ?? 0,
+          tensions: parsedContradictions.tensions?.length ?? 0,
         });
       }
 
-      for (const con of parsedContradictions.contradictions || []) {
+      // Emit one observation per conflict for both buckets. Contradictions are
+      // hard logical incompatibilities (kind: problem, tier-calibrated
+      // confidence); strategic tensions are deliberate tradeoffs (kind:
+      // opportunity, softer register — see OBS-004).
+      const emitConflict = (
+        con: ContradictionObservation,
+        obsType: "contradiction" | "strategic_tension",
+      ) => {
         const matchingExisting = sortedOther[Number(con.existingClaimId)];
-        if (!matchingExisting) continue;
+        if (!matchingExisting) return;
 
         // Anchor the new side to the member block holding the claim if we can
         // find it; otherwise fall back to the section's representative block.
@@ -609,15 +626,19 @@ export async function evaluateSection(
           (c) => c.text === con.newClaimText,
         )?.kind;
 
-        const { severity, confidence, priority } = computePriority({
-          type: "contradiction",
-          claimKinds: { newKind: newClaimKind, existingKind: matchingExisting.kind },
-          contradictionTier: paidKey ? "confident" : "hedged",
-        });
+        const { severity, confidence, priority } =
+          obsType === "contradiction"
+            ? computePriority({
+                type: "contradiction",
+                claimKinds: { newKind: newClaimKind, existingKind: matchingExisting.kind },
+                contradictionTier: paidKey ? "confident" : "hedged",
+              })
+            : computePriority({ type: "strategic_tension" });
+
         newObs.push({
-          type: "contradiction",
+          type: obsType,
           scope: "span",
-          kind: "problem",
+          kind: obsType === "contradiction" ? "problem" : "opportunity",
           severity,
           confidence,
           priority,
@@ -629,6 +650,13 @@ export async function evaluateSection(
           conflictingStartOffset: 0,
           conflictingEndOffset: 9999,
         });
+      };
+
+      for (const con of parsedContradictions.contradictions || []) {
+        emitConflict(con, "contradiction");
+      }
+      for (const ten of parsedContradictions.tensions || []) {
+        emitConflict(ten, "strategic_tension");
       }
     }
 

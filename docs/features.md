@@ -33,7 +33,8 @@ Starting set:
 | Type                 | Scope                  | Nature      | What it flags                                                                       |
 | -------------------- | ---------------------- | ----------- | ----------------------------------------------------------------------------------- |
 | `clarity`            | span                   | defect      | Ambiguous, vague, or hard-to-parse passage.                                         |
-| `contradiction`      | span↔span / span↔stage | defect      | A claim that conflicts with another claim or the stated stage. **Hero feature.**    |
+| `contradiction`      | span↔span / span↔stage | defect      | A claim that **logically cannot coexist** with another claim or the stated stage. **Hero feature.** |
+| `strategic_tension`  | span↔span              | opportunity | Two claims each desirable but pulling in opposite directions — a deliberate tradeoff, not a logical paradox. Softer register than `contradiction`. |
 | `unsupported_claim`  | span                   | defect      | An assertion presented as fact without basis.                                       |
 | `undefined_jargon`   | span                   | defect      | A term likely undefined for the stated audience.                                    |
 | `underexposed_topic` | span / document        | opportunity | A topic mentioned but not developed.                                                |
@@ -45,7 +46,8 @@ This list is expected to evolve. Add types by extending the taxonomy and giving 
 
 ### Per-type behavior notes
 
-- **`contradiction`** is the priority. It can reference two spans (highlight both on hover) or a span against the stage definition. Lean on the claim ledger (see architecture).
+- **`contradiction`** is the priority. It can reference two spans (highlight both on hover) or a span against the stage definition. Lean on the claim ledger (see architecture). Reserved for genuine logical incompatibility — a conflict in a number, date, commitment, or fact.
+- **`strategic_tension`** is the soft sibling of `contradiction`, produced by the same cross-claim check. When two claims compete on goals/priorities rather than facts (e.g. "notify on every fraud block" vs. "minimize friction"), the check routes them here instead of firing a false contradiction. Same dual-span highlight, but `opportunity` kind (teal, non-alarm) and **never floored** — it provokes without crying wolf. Added 2026-06-04 to resolve OBS-004.
 - **`missing_topic`** and **`audience_mismatch`** are only as good as the stage definition. They should stay quiet until the stage is known/inferred.
 - **`clarity`** is the cheapest, highest-frequency, span-local check — good for the first build.
 
