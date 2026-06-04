@@ -113,6 +113,8 @@ export default function App() {
     setArchivedObservations([]);
     setStageSuggestion(null);
     setStage("");
+    setJargonAllowlist("");
+    llmLogger.clearLogs();
     setClearTrigger((n) => n + 1);
   };
   clearWorkspaceRef.current = handleClearWorkspace;
@@ -124,6 +126,8 @@ export default function App() {
     setArchivedObservations([]);
     setStageSuggestion(null);
     setStage("");
+    setJargonAllowlist("");
+    llmLogger.clearLogs();
     setImportContent({ content: text, timestamp: Date.now() });
   };
 

@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
+import Placeholder from "@tiptap/extension-placeholder";
 import { BlockId } from "./extensions/BlockId";
 import { ObservationHighlighter } from "./extensions/ObservationHighlighter";
 import { resolveSection, resolveSections } from "./section";
@@ -133,6 +134,9 @@ export function Editor({
   const editor = useEditor({
     extensions: [
       StarterKit,
+      Placeholder.configure({
+        placeholder: "Start writing…",
+      }),
       Markdown.configure({
         transformPastedText: true,
       }),
@@ -144,7 +148,7 @@ export function Editor({
         },
       }),
     ],
-    content: "<p>Start writing…</p>",
+    content: "",
     editorProps: {
       attributes: { class: "tiptap" },
     },

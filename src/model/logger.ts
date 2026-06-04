@@ -306,6 +306,16 @@ class LLMLogger {
     return { day, models, totals };
   }
 
+  clearLogs(): void {
+    this.logs = [];
+    this._fastCalls = 0;
+    this._strongCalls = 0;
+    this._totalLatencyMs = 0;
+    this._latencyCount = 0;
+    this._apiStats.clear();
+    this.notify();
+  }
+
   log(entry: Omit<LLMLogEntry, "id" | "timestamp">) {
     const fullEntry: LLMLogEntry = {
       ...entry,
