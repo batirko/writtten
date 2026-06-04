@@ -10,6 +10,8 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
+    "eval:record": "vitest run --reporter=verbose --config vitest.record.config.ts",
+    "eval:live": "EVAL_LIVE=1 vitest run src/services/evalRatchet.live.test.ts",
     "lint": "eslint src",
     "format": "prettier --write src"
   },
