@@ -144,13 +144,14 @@ Each entry follows the format:
 ### OBS-007 — Highlighting spans across block boundaries due to text extraction formatting
 
 **Date:** 2026-06-04  
+**Resolved:** 2026-06-04 (R5 — `charOffsetToPmPos` in `ObservationHighlighter.ts`)  
 **Prompt tier:** strong (gemini-2.5-pro) / anchoring system  
 **Type flag:** strategic_tension (claim anchoring)  
 **Input excerpt:** Multiple bullets in the editor.  
 **Expected:** The highlight for the tension observation should cleanly wrap only the specific claim (`"Zero increase in confirmed fraud loss rate."`).  
 **Actual:** The highlight bleeds across block boundaries, starting at the end of the previous bullet (`"20%."`) and ending halfway through the target bullet.  
 **Failure mode:** visual-bug / text-extraction-misalignment  
-**Notes:** Looking at the payload sent to the LLM, the text from the bullets is being concatenated without spaces or newlines: `...decreases by 20%.Zero increase...`. Because the raw text stream fed to the model drops the block boundaries, the character offsets or substring-matching used for the ProseMirror decorations get misaligned. This is an architecture/editor-integration bug rather than a prompt failure, but it degrades the trust in the text analysis. The document text extraction logic needs to safely join blocks (e.g., with spaces or line breaks) so that anchoring decorations map back precisely.
+**Notes:** Fixed by replacing the flat `blockPos + 1 + offset` mapping in `ObservationHighlighter.ts` with `charOffsetToPmPos`, which walks the block's actual text node structure and correctly accounts for list-item/paragraph node boundaries.
 
 ---
 
@@ -195,6 +196,7 @@ Each entry follows the format:
 ### OBS-012 — Observation lifecycle (supersede logic) is noisy, inaccurate, and creates duplicates
 
 **Date:** 2026-06-04  
+**Resolved (partial):** 2026-06-04 (R3 — reconciliation improvements in `evaluator.ts`)  
 **Prompt tier:** N/A (Lifecycle logic)  
 **Type flag:** all (specifically structure_flow, missing_topic, underexposed_topic)  
 **Input excerpt:** Multiple evaluation cycles during drafting.  
@@ -204,7 +206,7 @@ Each entry follows the format:
 2. **False resolution:** Messages are marked as `superseded` even when the text was never actually updated to address the issue (e.g., an `underexposed_topic` archiving itself).
 3. **Duplication:** Very similar messages (e.g., two variants of "missing risks") exist simultaneously—one in the active feed and one in the archive.
 **Failure mode:** lifecycle-logic / deduplication-failure  
-**Notes:** This indicates that the cross-run observation deduplication and reconciliation logic (which compares old vs. new observations between eval runs) is failing. It's churning the feed, erroneously retiring valid feedback, and clogging the archive with noise. This requires a structural fix to the observation reconciliation engine (`docs/architecture.md` / `docs/features.md`), not a prompt tweak.
+**Notes (updated 2026-06-04):** R1a (remove window-blur cascade) addresses most ghost-archiving by reducing rapid re-eval frequency. R3 adds: full-text `contentSig` (removes 60-char truncation), Jaccard similarity dedup for doc-level observations (stops false-supersede on rephrased text), and prior-observation injection into re-eval prompts (OBS-021 complement). The archive-context UX layer (R3b/R3c) is deferred to Phase 5.
 
 ---
 
@@ -217,13 +219,14 @@ Each entry follows the format:
 ### OBS-014 — `window-blurred` triggers spam the event stream and cause premature settling
 
 **Date:** 2026-06-04  
+**Resolved:** 2026-06-04 (R1a — removed `handleWindowBlur` settle path from `Editor.tsx`)  
 **Prompt tier:** N/A (Client/Editor Architecture)  
 **Type flag:** N/A  
 **Input excerpt:** Event stream flooded with `settle-blur:window-blurred` triggers.  
 **Expected:** Alt-tabbing away from the editor to reference another document should not immediately trigger a hard "settle" or force a document evaluation, as the user is likely still in the middle of drafting.  
 **Actual:** The event log shows dozens of `window-blurred` events firing in rapid succession.  
 **Failure mode:** architecture-logic / premature-settle  
-**Notes:** You were likely alt-tabbing to copy text from `phase1-test-text.md`. Each time the window blurred, the system registered a `settle-blur` trigger. If the architecture uses a window-blur event to force the debounce timer to "settle" and trigger an evaluation, this perfectly explains **OBS-009** (premature warnings) and **OBS-012** (noisy lifecycles). The system erroneously assumes you are "done" writing every time you switch windows to look at reference material. The client-side logic needs to decouple window focus from document completeness. We likely need a longer idle timer or structural completeness check before triggering expensive doc-level evaluations.
+**Notes:** Fixed by removing the window-blur settle handler entirely. Alt-tab is now a no-op. Settles fire only on cursor-departure, 3s typing pause, and 12s doc-idle. The `"window-blurred"` reason was also removed from the `EvalTrigger` union to prevent re-introduction.
 
 ---
 
@@ -256,13 +259,14 @@ Each entry follows the format:
 ### OBS-017 — Visual corroboration of text extraction misalignment (offset bug)
 
 **Date:** 2026-06-04  
+**Resolved:** 2026-06-04 (R5 — same fix as OBS-007)  
 **Prompt tier:** N/A (Client/Editor Architecture)  
 **Type flag:** CONTRADICTION  
 **Input excerpt:** Highlight bleeds from the end of one bullet point `.` to the middle of the next word `infrastru`.  
 **Expected:** The highlight should strictly cover the new claim: *"One-tap biometric challenge using existing auth infrastructure."*  
 **Actual:** The highlight captures the period at the end of the previous bullet, skips the list formatting entirely, and truncates the final word ("infrastru").  
 **Failure mode:** visual-bug / text-extraction-misalignment  
-**Notes:** This screenshot provides direct visual proof of the underlying architectural bug identified in **OBS-007**. Because the text extracted from the ProseMirror editor strips block boundaries (like newlines and list elements), the string offsets the UI uses to anchor the highlight get misaligned. It shifts the highlight backwards, catching the period of the preceding line and chopping off the end of the intended target. This confirms that fixing the text extraction/anchoring logic is an absolute necessity for visual trust.
+**Notes:** Visual corroboration of OBS-007. Resolved by the same `charOffsetToPmPos` fix in `ObservationHighlighter.ts`.
 
 ---
 
@@ -295,23 +299,25 @@ Each entry follows the format:
 ### OBS-020 — Double-invocation of paid models + trigger spam causes massive cost amplification
 
 **Date:** 2026-06-04  
+**Resolved:** 2026-06-04 (R1a + R1b in `Editor.tsx` / `orchestrator.ts`)  
 **Prompt tier:** N/A (Architecture / Cost)  
 **Type flag:** N/A  
 **Input excerpt:** Multiple simultaneous calls to `gemini-2.5-pro` in the debug log for a single editing phase.  
 **Expected:** The system should efficiently manage expensive LLM calls, batching requests or heavily debouncing them to control costs.  
 **Actual:** The system makes *two separate calls* to the expensive `strong` tier (`gemini-2.5-pro`) on every single "settle" event.  
 **Failure mode:** architecture-efficiency / cost-amplification  
-**Notes:** One paid call evaluates the claim ledger (`contradictions`, `tensions`), and a second simultaneous paid call evaluates the doc-level structure (`missing_topic`, etc.). Because of the `window-blurred` bug (**OBS-014**), a single copy-paste action by an alt-tabbing user can generate multiple "settle" events. This means the user is burning 4-6 paid-tier invocations just to paste a paragraph! Furthermore, the logs show the fast-tier (`flash-lite`) *is* actually running and finding valid issues (`clarity`, `undefined_jargon`), but you noted you aren't seeing them in the main UI. This means the fast-tier feedback is likely being buried by the opaque sorting algorithm (**OBS-013**) or aggressively archived by the thrashing deduplication engine (**OBS-012**). The current architecture burns expensive tokens while hiding the output of the free tokens.
+**Notes:** Fixed in two parts. R1a removes the window-blur cascade that multiplied settles. R1b serialises the doc-idle strong call behind in-flight section evals via `handleDocIdle` deferral + `dispatch` finally-block trigger, ensuring the doc-level and contradiction strong calls never fire simultaneously.
 
 ---
 
 ### OBS-021 — Missing context of prior observations during block re-evaluation
 
 **Date:** 2026-06-04  
+**Resolved:** 2026-06-04 (R3b in `evaluator.ts`)  
 **Prompt tier:** fast / strong (eval orchestrator)  
 **Type flag:** all  
 **Input excerpt:** A text block that was previously flagged is edited by the user.  
 **Expected:** The re-evaluation prompt should include the existing active observations for that block, instructing the model to verify if the new edit successfully addressed the specific issues previously raised.  
 **Actual:** The block is evaluated completely fresh (zero-shot). The system relies entirely on client-side reconciliation logic to determine if the new observations supersede the old ones.  
 **Failure mode:** architecture-efficiency / context-loss  
-**Notes:** By not passing the existing observations as context during a re-evaluation, the model loses the ability to perform targeted verification ("Did the user fix X?"). Providing this context could dramatically improve the accuracy of the supersede/resolve lifecycle, as the LLM could explicitly confirm if the edit resolved the prior critique.
+**Notes:** Fixed in `evaluateSection`: prior active span observations for the section's member blocks are now loaded and injected into the user prompt. The model may return a `resolved_prior` array of indices confirming resolution; these are force-closed in `reconcileObservations` before the normal orphan-close pass.
