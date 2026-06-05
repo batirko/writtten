@@ -30,6 +30,7 @@ The principle has a finer edge than "no apply button," and three failure modes t
 | `docs/plan.md`         | You need to know what phase we're in and what's in/out of scope right now.                                                                 |
 | `docs/projects/`       | Deeper design docs for specific features/subsystems. Each file is a self-contained spec with status, phased plan, and per-phase todo list. |
 | `docs/snapshots/`      | Point-in-time reviews of product quality, test session results, and roadmap observations. Use to capture the state of the product over time.|
+| `docs/mechanics/`      | Detailed behavioural docs for implemented mechanics — how things actually work in the running system (timing, triggers, state machines). No design speculation; these describe what is built. Read before touching the relevant subsystem. **When you change code that alters a documented mechanic, update the corresponding file here as part of the same task.** |
 | `docs/projects/prompt_quality_observations.md` | You observe a prompt producing a false positive, false negative, or systematic misclassification during any test, harness run, or manual eval. **Append an entry to the Observation Log** — don't fix it inline unless it's trivially obvious and safe. The file accumulates until a remediation sprint is scheduled. |
 
 **Always check `docs/plan.md` for the current phase before adding functionality.** Scope creep is the main risk on this project. If something belongs to a later phase, say so and don't build it.
@@ -205,6 +206,10 @@ window.__sidecar__.setLlmMode('live'); // reset when done
 - **App shape:** Web first, **local-first PWA**. No mandatory backend. Tauri wrapper is a possible _later_ desktop path, not now.
 - **Persistence:** Client-side (IndexedDB / SQLite-in-browser). Document, block summaries, claim ledger, and messages all live locally.
 - **LLM access:** Behind a single **model-router** interface. Free tier uses cheap/fast models; BYO-key uses stronger models. Router is a deliberate extension seam.
+
+## Design quality
+
+For any new UI component, new screen/panel, or substantive layout change, invoke the Hallmark skill before building. For pure logic changes or single-property CSS fixes, it's not needed.
 
 ## Hard invariants (do not violate)
 

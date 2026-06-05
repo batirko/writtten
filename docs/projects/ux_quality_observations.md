@@ -89,12 +89,13 @@ Each entry follows the format:
 ### UX-003 — Opaque prioritization between primary feed and "also noticed"
 
 **Date:** 2026-06-04\
+**Resolved:** 2026-06-04 (R7a — `impact-badge` dot in `SidecarFeed.tsx`)\
 **Area/Component:** sidecar\
 **Interaction:** Viewing the active observation feed.\
 **Expected:** The user should intuitively understand why certain messages are promoted to the primary feed and others are demoted to an overflow ("also noticed") section.\
 **Actual:** The sorting logic is entirely opaque. There is no UX transparency or visual indicator to explain the prioritization.\
 **Failure mode:** ux-confusion / missing-affordance\
-**Notes:** Migrated from OBS-013. This aligns directly with the pending Phase 4 milestone: "priority/severity/confidence axes, priority-ranked budget feed, impact badging." Currently, the UI splits the feed to manage cognitive load, but it doesn't explain _why_. The user needs visual cues (like severity badges, impact labels, or confidence scores) to trust the sorting algorithm. Without these affordances, the split feels arbitrary.
+**Notes:** Fixed by adding a 6px severity/confidence dot (`data-testid="impact-badge"`) between the type tag and dismiss button on each card. Colour matches the existing kind×severity border-left palette. Tooltip explains "High severity · high confidence — surfaced in main feed" vs "lower priority — shown below budget" for cards in the "also noticed" drawer.
 
 ---
 
