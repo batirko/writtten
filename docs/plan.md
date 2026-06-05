@@ -4,7 +4,7 @@
 
 > **What "good" means:** `docs/product-requirements.md` is the fidelity bar (tiered requirements R1.1–R6.4 + the five load-bearing tensions); `docs/acceptance-testing/fidelity-criteria.md` turns it into pass/fail gates. The phases below sequence the work; those two files define when it's faithful.
 
-**Current phase: Phase 4 — "Core experience: signal quality & calm feed."** (Phase 1 fully verified 2026-06-01. Phase 2 fully implemented 2026-06-02. Phase 3 fully implemented 2026-06-02. Reprioritized 2026-06-03: the core write→observe→recommend loop now leads; egress/install moved to Phase 5.)
+**Current phase: Phase 5 — "Egress, install, hardening."** (Phase 1 fully verified 2026-06-01. Phase 2 fully implemented 2026-06-02. Phase 3 fully implemented 2026-06-02. Phase 4 fully implemented 2026-06-05. Reprioritized 2026-06-03: the core write→observe→recommend loop led; egress/install follows.)
 
 ---
 
