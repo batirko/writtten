@@ -322,3 +322,29 @@ Each entry follows the format:
 **Actual:** The block is evaluated completely fresh (zero-shot). The system relies entirely on client-side reconciliation logic to determine if the new observations supersede the old ones.\
 **Failure mode:** architecture-efficiency / context-loss\
 **Notes:** Fixed in `evaluateSection`: prior active span observations for the section's member blocks are now loaded and injected into the user prompt. The model may return a `resolved_prior` array of indices confirming resolution; these are force-closed in `reconcileObservations` before the normal orphan-close pass.
+
+---
+
+### OBS-022 — Re-evaluation trades abbreviation jargon flag for expanded form jargon flag
+
+**Date:** 2026-06-06\
+**Prompt tier:** fast (gemini-3.1-flash-lite)\
+**Type flag:** undefined_jargon\
+**Input excerpt:** _"Being a Product Manager, I am not sure..."_ (Edited from "Being a PM...")\
+**Expected:** The model correctly resolves the prior observation for `PM` and accepts the expanded form "Product Manager" without flagging it.\
+**Actual:** The model correctly added the prior observation to `resolved_prior`, but redundantly flagged the newly expanded term "Product Manager" as `undefined_jargon`.\
+**Failure mode:** false-positive\
+**Notes:** While the re-evaluation context injection correctly allowed the model to close the previous issue about "PM" (added via the OBS-021 fix), it immediately flagged the expanded term, effectively replacing one jargon observation with a redundant one. This strongly reinforces the need for the general PM/product-process jargon allow-list (see **OBS-003** and **OBS-005**), as the model lacks baseline domain knowledge of standard product roles.
+
+---
+
+### OBS-023 — Narrative/rhetorical devices flagged as unsupported claims
+
+**Date:** 2026-06-06\
+**Prompt tier:** fast (gemini-3.1-flash-lite)\
+**Type flag:** unsupported_claim\
+**Input excerpt:** _"everyone seems to know something about it, used it or at least heard that 'this is happening'"_\
+**Expected:** The model should recognize this as a colloquial narrative device establishing context, rather than a rigorous factual assertion requiring citation or data.\
+**Actual:** The model flagged the statement as a generalization lacking supporting data.\
+**Failure mode:** false-positive / pedantry\
+**Notes:** The user explicitly attempted to soften a previously flagged absolute claim ("everyone knows") into a more rhetorical/narrative statement. The LLM still applied strict PRD-level factual standards to the phrase. Crucially, the prompt explicitly included `Document context: a public communication about a product`. The model failed to use this provided artifact context to adjust its strictness, treating a public narrative piece with the exact same rigidity as a technical PRD. This highlights that the model struggles to differentiate between rigorous claims (which need evidence) and narrative preamble (where demanding citations is pedantic). We need to steer the LLM to better differentiate these contexts, perhaps by explicitly telling it to ignore colloquialisms and use the `Document context` to calibrate its expectations.

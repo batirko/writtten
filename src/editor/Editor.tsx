@@ -41,6 +41,7 @@ interface Props {
   onBlockOrderChange?: (ids: string[]) => void;
   clearTrigger?: number;
   importContent?: { content: string; timestamp: number };
+  onReady?: (editor: import("@tiptap/react").Editor) => void;
 }
 
 /** Extract the set of blockIds currently present in the document. */
@@ -90,6 +91,7 @@ export function Editor({
   onBlockOrderChange,
   clearTrigger,
   importContent,
+  onReady,
 }: Props) {
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   /** Per-section typing-pause debounce timers (keyed by sectionId). */
@@ -174,7 +176,7 @@ export function Editor({
     ],
     content: "",
     editorProps: {
-      attributes: { class: "tiptap" },
+      attributes: { class: "tiptap", "aria-label": "Document" },
       // Flag a paste so the next onUpdate treats it as a bulk insert and fires
       // one fast-tier eval per pasted section (not just the cursor's section).
       // Return false: let ProseMirror insert the content normally.
@@ -411,6 +413,26 @@ export function Editor({
     },
   });
 
+  useEffect(() => {
+    const handleCardActivate = (e: Event) => {
+      const customEvent = e as CustomEvent<{ id: string }>;
+      const { id } = customEvent.detail;
+      if (!editor || !id) return;
+      
+      const el = editor.view.dom.querySelector(`.obs-highlight[data-obs-id="${id}"]`);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        const pos = editor.view.posAtDOM(el, 0);
+        if (pos >= 0) {
+          editor.commands.setTextSelection(pos);
+          editor.view.focus();
+        }
+      }
+    };
+    window.addEventListener('obs-card-activate', handleCardActivate);
+    return () => window.removeEventListener('obs-card-activate', handleCardActivate);
+  }, [editor]);
+
   // Cleanup: cancel any pending doc-idle timer when the editor instance changes
   // or the component unmounts. Alt-tab (window blur) no longer triggers a settle —
   // that was causing premature evaluations and 4-6 paid invocations per paste
@@ -597,6 +619,13 @@ export function Editor({
     if (!editor || editor.isDestroyed) return;
     editor.view.dispatch(editor.state.tr.setMeta("setHoveredObservationId", hoveredObservationId));
   }, [editor, hoveredObservationId]);
+
+  // Notify parent that editor is ready
+  useEffect(() => {
+    if (editor && onReady) {
+      onReady(editor);
+    }
+  }, [editor, onReady]);
 
   return (
     <div className="editor-wrap">

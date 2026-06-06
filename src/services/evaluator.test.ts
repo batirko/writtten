@@ -164,6 +164,8 @@ describe("evaluator - evaluateBlock", () => {
     expect(db.saveObservation).toHaveBeenCalledWith({
       id: "mock-id",
       docId,
+      blockId: "block1",
+      anchorText: "in Q3",
       type: "clarity",
       scope: "span",
       kind: "problem",
@@ -232,6 +234,8 @@ describe("evaluator - evaluateBlock", () => {
     expect(db.saveObservation).toHaveBeenCalledWith({
       id: "mock-id",
       docId,
+      anchorText: "Launch in Q3.",
+      conflictingAnchorText: "Launch is delayed to Q4.",
       type: "contradiction",
       scope: "span",
       kind: "problem",
@@ -523,7 +527,7 @@ describe("evaluator - reconcileDocumentObservations (doc-scope grace period)", (
 
     await reconcileDocumentObservations(docId, []); // absent a 2nd consecutive run
 
-    expect(db.updateObservationStatus).toHaveBeenCalledWith("e1", "auto_closed");
+    expect(db.updateObservationStatus).toHaveBeenCalledWith("e1", "auto_closed", "resolved_by_edit");
   });
 
   it("resets missCount when an absent note reappears (re-matched)", async () => {
@@ -594,7 +598,7 @@ describe("evaluator - reconcileDocumentObservations (Tier 2 opts — A3)", () =>
       resolvedPriorIds: new Set(["p0"]),
     });
 
-    expect(db.updateObservationStatus).toHaveBeenCalledWith("p0", "auto_closed");
+    expect(db.updateObservationStatus).toHaveBeenCalledWith("p0", "auto_closed", "resolved_prior");
     // Grace pass must NOT re-close or bump an already-resolved note.
     expect(db.saveObservation).not.toHaveBeenCalledWith(
       expect.objectContaining({ id: "p0" })
@@ -653,7 +657,7 @@ describe("evaluator - reconcileDocumentObservations (Tier 2 opts — A3)", () =>
 
     // Only p0 gets status update; p1 gets a save (reset); no inserts, no grace bumps.
     expect(db.updateObservationStatus).toHaveBeenCalledTimes(1);
-    expect(db.updateObservationStatus).toHaveBeenCalledWith("p0", "auto_closed");
+    expect(db.updateObservationStatus).toHaveBeenCalledWith("p0", "auto_closed", "resolved_prior");
     const saveIds = vi.mocked(db.saveObservation).mock.calls.map(([o]) => o.id);
     expect(saveIds).toContain("p1");
     expect(saveIds).not.toContain("p0");
@@ -710,7 +714,7 @@ describe("evaluator - evaluateDocument (Tier 2 A1/A2 routing)", () => {
     await evaluateDocument(docId, undefined, "key", undefined, "paid-key", undefined, STRONG);
 
     // p1 should be force-closed as resolved.
-    expect(db.updateObservationStatus).toHaveBeenCalledWith("p1", "auto_closed");
+    expect(db.updateObservationStatus).toHaveBeenCalledWith("p1", "auto_closed", "resolved_prior");
 
     // p0 should be persisted (missCount reset), NOT inserted as a new record.
     const saveCalls = vi.mocked(db.saveObservation).mock.calls.map(([o]) => o);
@@ -801,7 +805,7 @@ describe("evaluator - evaluateLedgerContradictions (Workstream B — authoritati
 
     await evaluateLedgerContradictions(docId, undefined, apiKey, paidKey, undefined, STRONG);
 
-    expect(db.updateObservationStatus).toHaveBeenCalledWith("cx1", "auto_closed");
+    expect(db.updateObservationStatus).toHaveBeenCalledWith("cx1", "auto_closed", "resolved_by_edit");
     expect(db.saveObservation).not.toHaveBeenCalledWith(
       expect.objectContaining({ id: "cx1" })
     );

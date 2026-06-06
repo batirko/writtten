@@ -2,7 +2,7 @@ import { openDB, type IDBPDatabase } from "idb";
 import { harness } from "../debug/harness";
 
 const DB_NAME = "writtten";
-const DB_VERSION = 7;
+const DB_VERSION = 8;
 
 export interface DocumentRecord {
   id: string;
@@ -69,11 +69,17 @@ export interface Observation {
   blockId?: string;
   startOffset?: number;
   endOffset?: number;
+  /** Captured anchor text to allow matching across edits, resolving OBS-003 */
+  anchorText?: string;
 
   // Contradiction specifics
   conflictingBlockId?: string;
   conflictingStartOffset?: number;
   conflictingEndOffset?: number;
+  conflictingAnchorText?: string;
+
+  /** Reason why the observation was closed, for archive trust */
+  closureReason?: string;
 }
 
 export interface DismissalSuppression {
@@ -165,6 +171,19 @@ async function getDb(): Promise<IDBPDatabase> {
         while (cursor) {
           const record = cursor.value;
           if (!("missCount" in record)) record.missCount = 0;
+          await cursor.update(record);
+          cursor = await cursor.continue();
+        }
+      }
+      if (oldVersion < 8) {
+        // R3b: Add anchorText, conflictingAnchorText, and closureReason fields
+        const obsStore = transaction.objectStore("observations");
+        let cursor = await obsStore.openCursor();
+        while (cursor) {
+          const record = cursor.value;
+          if (!("anchorText" in record)) record.anchorText = "";
+          if (!("conflictingAnchorText" in record)) record.conflictingAnchorText = "";
+          if (!("closureReason" in record)) record.closureReason = "";
           await cursor.update(record);
           cursor = await cursor.continue();
         }
@@ -392,7 +411,8 @@ export async function loadDocEvalState(docId: string): Promise<string | undefine
 
 export async function updateObservationStatus(
   id: string,
-  status: Observation["status"]
+  status: Observation["status"],
+  closureReason?: string
 ): Promise<void> {
   const db = await getDb();
   const tx = db.transaction("observations", "readwrite");
@@ -400,6 +420,7 @@ export async function updateObservationStatus(
   const obs = await store.get(id);
   if (obs) {
     obs.status = status;
+    if (closureReason !== undefined) obs.closureReason = closureReason;
     await store.put(obs);
   }
   await tx.done;

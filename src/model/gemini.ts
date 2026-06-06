@@ -218,6 +218,12 @@ async function callGemini(
 
   const data = await res.json();
   const text: string = data.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
+  const usageMetadata = data.usageMetadata;
+  const usage = usageMetadata ? {
+    promptTokens: usageMetadata.promptTokenCount ?? 0,
+    candidateTokens: usageMetadata.candidatesTokenCount ?? 0,
+    totalTokens: usageMetadata.totalTokenCount ?? 0,
+  } : undefined;
 
   llmLogger.log({
     type: "response",
@@ -232,6 +238,7 @@ async function callGemini(
     callId,
     evalId,
     promptRef,
+    usage,
   });
 
   // Record call completion for RPM budget tracking.

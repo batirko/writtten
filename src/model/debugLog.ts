@@ -17,6 +17,12 @@ import type { LLMLogEntry, CallProduced } from "./logger";
 
 const SCHEMA_VERSION = 2;
 
+/** Ensure API keys (e.g. from raw error messages) never leak in the export. */
+export function redactKeys(str: string | undefined): string | undefined {
+  if (!str) return str;
+  return str.replace(/key=([A-Za-z0-9_-]{20,})/g, "key=<REDACTED>");
+}
+
 /** Header so a pasted log is self-describing — no out-of-band context needed. */
 export interface DebugEnvelopeMeta {
   schemaVersion: number;
@@ -59,6 +65,11 @@ export interface CallRecord {
   latencyMs?: number;
   response?: string;
   produced?: CallProduced;
+  usage?: {
+    promptTokens: number;
+    candidateTokens: number;
+    totalTokens: number;
+  };
 }
 
 export interface ArchiveRecord {
@@ -77,7 +88,14 @@ export interface ArchiveRecord {
   supersededBy?: string;
 }
 
-export type DebugRecord = TriggerRecord | CallRecord | ArchiveRecord;
+export interface GenericHarnessRecord {
+  kind: "harness";
+  t: string;
+  eventType: string;
+  fields: Record<string, unknown>;
+}
+
+export type DebugRecord = TriggerRecord | CallRecord | ArchiveRecord | GenericHarnessRecord;
 
 export interface DebugEnvelope {
   meta: DebugEnvelopeMeta;
@@ -132,7 +150,7 @@ export function buildEnvelope(
     const sys = e.payload?.system;
     if (!sys) return e.promptRef;
     const ref = e.promptRef ?? `sys-${hash(sys)}`;
-    if (!(ref in systemPrompts)) systemPrompts[ref] = sys;
+    if (!(ref in systemPrompts)) systemPrompts[ref] = redactKeys(sys)!;
     return ref;
   };
 
@@ -194,7 +212,16 @@ export function buildEnvelope(
       continue;
     }
 
-    if (!isCallLeg(e.type)) continue;
+    if (!isCallLeg(e.type)) {
+      const { type, id, timestamp, tier, keyTier, model, endpoint, latencyMs, statusCode, payload, response, errorMessage, triggerKind, blockId, evalId, callId, promptRef, archive, usage, ...fields } = e as any;
+      records.push({
+        kind: "harness",
+        t: ts,
+        eventType: e.type,
+        fields
+      });
+      continue;
+    }
 
     // Group by callId; fall back to a per-entry synthetic key for legacy entries
     // that predate correlation ids, so they still surface (each as its own call).
@@ -224,7 +251,7 @@ export function buildEnvelope(
     if (!call.keyTier && e.keyTier) call.keyTier = e.keyTier;
 
     if (e.type === "request") {
-      const attempt: CallAttempt = { model: e.model, status: "pending" };
+      const attempt: CallAttempt = { model: e.model || "", status: "pending" };
       const delay = pendingRetry.get(key);
       if (delay != null) {
         attempt.retryDelayMs = delay;
@@ -239,20 +266,21 @@ export function buildEnvelope(
         last.status = e.statusCode ?? 200;
         last.latencyMs = e.latencyMs;
       } else {
-        call.attempts.push({ model: e.model, status: e.statusCode ?? 200, latencyMs: e.latencyMs });
+        call.attempts.push({ model: e.model || "", status: e.statusCode ?? 200, latencyMs: e.latencyMs });
       }
       call.status = e.statusCode ?? 200;
       call.latencyMs = e.latencyMs;
       call.response = e.response;
+      if (e.usage) call.usage = e.usage;
     } else if (e.type === "error") {
       const last = call.attempts[call.attempts.length - 1];
       const status = e.statusCode ?? "timeout";
       if (last) {
         last.status = status;
         last.latencyMs = e.latencyMs;
-        last.error = e.errorMessage;
+        last.error = redactKeys(e.errorMessage);
       } else {
-        call.attempts.push({ model: e.model, status, latencyMs: e.latencyMs, error: e.errorMessage });
+        call.attempts.push({ model: e.model || "", status, latencyMs: e.latencyMs, error: redactKeys(e.errorMessage) });
       }
       call.status = status;
       call.latencyMs = e.latencyMs;

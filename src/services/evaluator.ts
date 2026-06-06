@@ -212,7 +212,7 @@ async function reconcileObservations(
   // matched and won't be re-inserted via content-sig dedup (OBS-021).
   for (const obs of existing) {
     if (resolvedPriorIds.has(obs.id)) {
-      await updateObservationStatus(obs.id, "auto_closed");
+      await updateObservationStatus(obs.id, "auto_closed", "resolved_prior");
       archiveObs(obs, "resolved_prior", evalId);
       matchedExistingIds.add(obs.id);
     }
@@ -258,7 +258,7 @@ async function reconcileObservations(
       (e) => e.type === newO.type && spansOverlap(e, newO) && !matchedExistingIds.has(e.id)
     );
     if (supersedable) {
-      await updateObservationStatus(supersedable.id, "superseded");
+      await updateObservationStatus(supersedable.id, "superseded", "superseded");
       archiveObs(supersedable, "superseded", evalId, newId);
       matchedExistingIds.add(supersedable.id);
     }
@@ -280,7 +280,8 @@ async function reconcileObservations(
   // 4. Auto-close existing observations that have no counterpart in the new set
   for (const e of existing) {
     if (!matchedExistingIds.has(e.id)) {
-      await updateObservationStatus(e.id, "auto_closed");
+      const closureReason = memberBlockIds.includes(e.blockId!) ? "resolved_by_edit" : "text_removed";
+      await updateObservationStatus(e.id, "auto_closed", closureReason);
       archiveObs(e, "auto_closed", evalId);
     }
   }
@@ -331,7 +332,7 @@ export async function reconcileDocumentObservations(
   const modelResolved = new Set<string>();
   for (const e of existing) {
     if (resolvedPriorIds.has(e.id)) {
-      await updateObservationStatus(e.id, "auto_closed");
+      await updateObservationStatus(e.id, "auto_closed", "resolved_prior");
       archiveObs(e, "resolved_prior", evalId);
       modelResolved.add(e.id);
     }
@@ -386,7 +387,7 @@ export async function reconcileDocumentObservations(
   for (const e of plan.orphans) {
     const miss = (e.missCount ?? 0) + 1;
     if (miss >= DOC_GRACE_THRESHOLD) {
-      await updateObservationStatus(e.id, "auto_closed");
+      await updateObservationStatus(e.id, "auto_closed", "resolved_by_edit");
       archiveObs(e, "auto_closed", evalId);
     } else {
       await saveObservation({ ...e, missCount: miss });
@@ -402,8 +403,9 @@ const PERSONA_GUIDE = `
 VOICE & PERSONA:
 You are a trusted senior colleague reviewing a draft. You are terse, direct, and assume the author is competent.
 - Locate the issue, never prescribe solutions.
-- Do NOT suggest replacement text.
-- Do NOT use leading, Socratic, or rhetorical questions (e.g. "Have you considered...?", "Should we...?").
+- Do NOT suggest replacement text or dictate how to fix the problem.
+- Do NOT use imperative-prescription patterns (e.g. "You need to...", "Add...", "Change...", "Define...").
+- Do NOT use leading, Socratic, or rhetorical questions (e.g. "Have you considered...?", "Should we...?"). No question marks.
 - Do NOT use patronizing therapist language ("It might be helpful to...").
 - Do NOT act like a pedantic linter ("Consider changing X to Y").
 Point out the structural gap or contradiction, and get out of the way.`;
@@ -755,6 +757,7 @@ export async function evaluateSection(
             blockId: anchor.blockId,
             startOffset: anchor.startOffset,
             endOffset: anchor.endOffset,
+            anchorText: obs.substring,
           });
         }
       }
@@ -870,9 +873,11 @@ export async function evaluateSection(
             blockId: exact?.blockId ?? fallback.blockId,
             startOffset: exact?.startOffset ?? 0,
             endOffset: exact?.endOffset ?? fallback.text.length,
+            anchorText: con.newClaimText,
             conflictingBlockId: matchingExisting.sourceBlockId,
             conflictingStartOffset: 0,
             conflictingEndOffset: 9999,
+            conflictingAnchorText: matchingExisting.text,
           });
         };
 
@@ -1169,7 +1174,7 @@ async function reconcileSweepContradictions(
         // Absent → bump grace counter; close if threshold reached.
         const miss = (ex.missCount ?? 0) + 1;
         if (miss >= DOC_GRACE_THRESHOLD) {
-          await updateObservationStatus(ex.id, "auto_closed");
+          await updateObservationStatus(ex.id, "auto_closed", "resolved_by_edit");
           archiveObs(ex, "auto_closed", evalId);
         } else {
           await saveObservation({ ...ex, missCount: miss });
@@ -1303,9 +1308,11 @@ export async function evaluateLedgerContradictions(
         blockId: a.sourceBlockId,
         startOffset: 0,
         endOffset: 9999,
+        anchorText: a.text,
         conflictingBlockId: b.sourceBlockId,
         conflictingStartOffset: 0,
         conflictingEndOffset: 9999,
+        conflictingAnchorText: b.text,
       });
     };
 

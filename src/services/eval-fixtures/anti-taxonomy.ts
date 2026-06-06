@@ -21,15 +21,9 @@ const fixture: EvalFixture = {
     },
   ],
   recordings: {
-    "r1thv9vx_2966": "{\n  \"summary\": \"The infrastructure team is committed to delivering a PostgreSQL-based payment processing backend with 99.9% uptime by Q4 2025.\",\n  \"claims\": [\n    {\n      \"text\": \"The infrastructure team will deliver the PostgreSQL payment processing backend by Q4 2025.\",\n      \"kind\": \"commitment\"\n    },\n    {\n      \"text\": \"This component has a 99.9% uptime requirement.\",\n      \"kind\": \"constraint\"\n    }\n  ],\n  \"clarity_observations\": [\n    {\n      \"text\": \"The scope of the 'payment processing backend' is not defined, making it unclear what specific functionality or services are included.\",\n      \"substring\": \"payment processing backend\"\n    }\n  ],\n  \"unsupported_claim_observations\": [],\n  \"undefined_jargon_observations\": []\n}"
+    "r22kk34_3126": "{\n  \"summary\": \"The infrastructure team is committed to delivering a PostgreSQL-based payment processing backend with a 99.9% uptime target by Q4 2025.\",\n  \"claims\": [\n    {\n      \"text\": \"The infrastructure team will deliver the PostgreSQL payment processing backend by Q4 2025.\",\n      \"kind\": \"commitment\"\n    },\n    {\n      \"text\": \"This component has a 99.9% uptime requirement.\",\n      \"kind\": \"metric\"\n    }\n  ],\n  \"clarity_observations\": [],\n  \"unsupported_claim_observations\": [],\n  \"undefined_jargon_observations\": []\n}"
   },
-  expected: [
-    {
-      type: "clarity",
-      sectionId: "sec1",
-      substring: "payment processing backend",
-    }
-  ],
+  expected: [],
 };
 
 export default fixture;

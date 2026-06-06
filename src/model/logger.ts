@@ -3,21 +3,26 @@ import { nanoid } from "nanoid";
 export interface LLMLogEntry {
   id: string;
   timestamp: Date;
-  type: "trigger" | "request" | "response" | "retry" | "error" | "archive";
+  type: "trigger" | "request" | "response" | "retry" | "error" | "archive" | "settle" | "ledger-write" | "observation" | "block-removed";
   /** "fast" or "strong" — only set on request/response entries. */
   tier?: "fast" | "strong";
   /** "free" or "paid" — which API key tier made this call. */
   keyTier?: "free" | "paid";
-  model: string;
-  endpoint: string;
+  model?: string;
+  endpoint?: string;
   latencyMs?: number;
   statusCode?: number;
-  payload: {
+  payload?: {
     system: string;
     user: string;
   };
   response?: string;
   errorMessage?: string;
+  usage?: {
+    promptTokens: number;
+    candidateTokens: number;
+    totalTokens: number;
+  };
   // Populated for "trigger" entries
   triggerKind?: string;
   blockId?: string;
@@ -81,6 +86,9 @@ export interface SessionStats {
   totalLatencyMs: number;
   /** Mean latency across all response calls that reported one (ms). */
   avgLatencyMs: number;
+  totalPromptTokens: number;
+  totalCandidateTokens: number;
+  totalCost: number;
 }
 
 /**
@@ -120,6 +128,9 @@ export interface ModelApiStats {
   /** Last `retry-delay` (ms) Google asked for on a 429. */
   lastRetryDelayMs: number | null;
   avgLatencyMs: number;
+  promptTokens: number;
+  candidateTokens: number;
+  cost: number;
 }
 
 export interface ApiStats {
@@ -131,6 +142,9 @@ export interface ApiStats {
     successes: number;
     errors: number;
     rate429: number;
+    promptTokens: number;
+    candidateTokens: number;
+    cost: number;
   };
 }
 
@@ -229,6 +243,17 @@ interface ModelAccum {
   latencyCount: number;
   /** successes keyed by Pacific day, so remaining-budget resets at Pacific midnight. */
   successesByDay: Map<string, number>;
+  promptTokens: number;
+  candidateTokens: number;
+  cost: number;
+}
+
+function computeCost(model: string, keyTier: string, promptTokens: number, candidateTokens: number): number {
+  if (keyTier !== "paid") return 0;
+  const isPro = model.includes("-pro");
+  const pRate = isPro ? 1.25 : 0.075;
+  const cRate = isPro ? 5.00 : 0.30;
+  return (promptTokens / 1_000_000) * pRate + (candidateTokens / 1_000_000) * cRate;
 }
 
 function emptyAccum(): ModelAccum {
@@ -244,15 +269,24 @@ function emptyAccum(): ModelAccum {
     latencySum: 0,
     latencyCount: 0,
     successesByDay: new Map(),
+    promptTokens: 0,
+    candidateTokens: 0,
+    cost: 0,
   };
 }
 
 type LogCallback = (logs: LLMLogEntry[], activeProvider: string) => void;
+type EventSyncHook = (type: string, fields: Record<string, unknown>) => void;
 
 class LLMLogger {
   private logs: LLMLogEntry[] = [];
   private activeProvider = "gemini-2.0-flash";
   private listeners: Set<LogCallback> = new Set();
+  private syncHook?: EventSyncHook;
+
+  setEventSyncHook(hook: EventSyncHook) {
+    this.syncHook = hook;
+  }
   // Raw entries are append-only and pre-projection (request/response/retry are
   // separate rows), so the buffer holds ~3 rows per call. 120 keeps a realistic
   // bulk-paste session intact once the export projection merges them.
@@ -267,6 +301,9 @@ class LLMLogger {
   private _strongCalls = 0;
   private _totalLatencyMs = 0;
   private _latencyCount = 0;
+  private _totalPromptTokens = 0;
+  private _totalCandidateTokens = 0;
+  private _totalCost = 0;
 
   // Per-model quota/usage accumulators (keyed by model name)
   private _apiStats = new Map<string, ModelAccum>();
@@ -314,6 +351,9 @@ class LLMLogger {
       avgLatencyMs: this._latencyCount > 0
         ? Math.round(this._totalLatencyMs / this._latencyCount)
         : 0,
+      totalPromptTokens: this._totalPromptTokens,
+      totalCandidateTokens: this._totalCandidateTokens,
+      totalCost: this._totalCost,
     };
   }
 
@@ -324,7 +364,7 @@ class LLMLogger {
   getApiStats(): ApiStats {
     const day = pacificDayKey();
     const models: ModelApiStats[] = [];
-    const totals = { requests: 0, successes: 0, errors: 0, rate429: 0 };
+    const totals = { requests: 0, successes: 0, errors: 0, rate429: 0, promptTokens: 0, candidateTokens: 0, cost: 0 };
 
     for (const [model, a] of this._apiStats) {
       const successesToday = a.successesByDay.get(day) ?? 0;
@@ -342,11 +382,17 @@ class LLMLogger {
         lastStatus: a.lastStatus,
         lastRetryDelayMs: a.lastRetryDelayMs,
         avgLatencyMs: a.latencyCount > 0 ? Math.round(a.latencySum / a.latencyCount) : 0,
+        promptTokens: a.promptTokens,
+        candidateTokens: a.candidateTokens,
+        cost: a.cost,
       });
       totals.requests += a.requests;
       totals.successes += a.successes;
       totals.errors += a.errors;
       totals.rate429 += a.rate429;
+      totals.promptTokens += a.promptTokens;
+      totals.candidateTokens += a.candidateTokens;
+      totals.cost += a.cost;
     }
 
     // Most-pressured models first: fewest remaining today, then most 429s.
@@ -366,6 +412,9 @@ class LLMLogger {
     this._strongCalls = 0;
     this._totalLatencyMs = 0;
     this._latencyCount = 0;
+    this._totalPromptTokens = 0;
+    this._totalCandidateTokens = 0;
+    this._totalCost = 0;
     this._apiStats.clear();
     this.producedByCall.clear();
     this.notify();
@@ -422,6 +471,12 @@ class LLMLogger {
         this._totalLatencyMs += fullEntry.latencyMs;
         this._latencyCount++;
       }
+      if (fullEntry.usage) {
+        this._totalPromptTokens += fullEntry.usage.promptTokens;
+        this._totalCandidateTokens += fullEntry.usage.candidateTokens;
+        const cost = computeCost(fullEntry.model || "", fullEntry.keyTier || "free", fullEntry.usage.promptTokens, fullEntry.usage.candidateTokens);
+        this._totalCost += cost;
+      }
     }
 
     // Accumulate per-model quota/usage stats. Skip synthetic entries with no
@@ -439,6 +494,11 @@ class LLMLogger {
         if (fullEntry.latencyMs != null) {
           a.latencySum += fullEntry.latencyMs;
           a.latencyCount++;
+        }
+        if (fullEntry.usage) {
+          a.promptTokens += fullEntry.usage.promptTokens;
+          a.candidateTokens += fullEntry.usage.candidateTokens;
+          a.cost += computeCost(m, fullEntry.keyTier || "free", fullEntry.usage.promptTokens, fullEntry.usage.candidateTokens);
         }
       } else if (fullEntry.type === "error") {
         a.errors++;
@@ -461,6 +521,10 @@ class LLMLogger {
     }
 
     this.notify();
+    if (this.syncHook) {
+      const { id, timestamp, type, ...fields } = fullEntry;
+      this.syncHook(type, fields);
+    }
   }
 
   /** Test-only: clear accumulated per-model quota/usage stats. */

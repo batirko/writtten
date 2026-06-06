@@ -77,6 +77,8 @@ function GroupedObsCard({ group, isActive, isArriving, onHover, onDismiss, slot 
     <div
       className={`observation-card observation-${primary.type} ${isActive ? "observation-card-active" : ""} ${isArriving ? "observation-card-arriving" : ""}`}
       data-testid="obs-card"
+      role="listitem"
+      tabIndex={0}
       data-obs-type={primary.type}
       data-obs-id={primary.id}
       data-kind={primary.kind}
@@ -85,6 +87,14 @@ function GroupedObsCard({ group, isActive, isArriving, onHover, onDismiss, slot 
       data-grouped={others.length > 0 ? "true" : undefined}
       onMouseEnter={() => onHover(primary.id)}
       onMouseLeave={() => onHover(null)}
+      onFocus={() => onHover(primary.id)}
+      onBlur={() => onHover(null)}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          window.dispatchEvent(new CustomEvent('obs-card-activate', { detail: { id: primary.id } }));
+        }
+      }}
     >
       <div className="card-header">
         <div className="card-header-left">
@@ -101,6 +111,7 @@ function GroupedObsCard({ group, isActive, isArriving, onHover, onDismiss, slot 
           data-obs-id={primary.id}
           onClick={handleDismiss}
           title="Dismiss Observation"
+          aria-label="Dismiss Observation"
         >
           <DismissIcon />
         </button>
@@ -165,6 +176,11 @@ interface Props {
   /** Raw textarea value — one term per line. Persisted in App, passed down. */
   jargonAllowlist?: string;
   onJargonAllowlistChange?: (val: string) => void;
+  onExportMarkdown?: () => void;
+  onExportPdf?: () => void;
+  onCopyMarkdown?: () => void;
+  onCopyRichText?: () => void;
+  documentIsEmpty?: boolean;
 }
 
 export function SidecarFeed({
@@ -191,7 +207,13 @@ export function SidecarFeed({
   onDismissStageSuggestion,
   jargonAllowlist = "",
   onJargonAllowlistChange,
+  onExportMarkdown,
+  onExportPdf,
+  onCopyMarkdown,
+  onCopyRichText,
+  documentIsEmpty = false,
 }: Props) {
+  const [showExportMenu, setShowExportMenu] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [showArchive, setShowArchive] = useState(false);
@@ -267,7 +289,7 @@ export function SidecarFeed({
   });
 
   return (
-    <aside className="sidecar-panel">
+    <aside className="sidecar-panel" aria-label="Observations">
       {showClearConfirm && (
         <div
           className="modal-overlay"
@@ -314,6 +336,8 @@ export function SidecarFeed({
               <span
                 className="sidecar-status-chip"
                 data-testid="sidecar-status"
+                role="status"
+                aria-live="polite"
                 data-pending={pending}
                 data-stalled={stalled}
                 style={{
@@ -355,6 +379,7 @@ export function SidecarFeed({
               data-testid="clear-workspace"
               onClick={() => setShowClearConfirm(true)}
               title="Clear workspace"
+              aria-label="Clear workspace"
             >
               <svg
                 width="16"
@@ -381,11 +406,67 @@ export function SidecarFeed({
               onChange={handleFileChange}
               data-testid="import-input"
             />
+            <div style={{ position: 'relative' }}>
+              <button
+                className="settings-toggle-btn"
+                data-testid="export-menu-btn"
+                onClick={() => setShowExportMenu(!showExportMenu)}
+                disabled={documentIsEmpty}
+                style={{ opacity: documentIsEmpty ? 0.5 : 1 }}
+                title="Export or Copy Document"
+                aria-label="Export or Copy Document"
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                  <polyline points="17 8 12 3 7 8"></polyline>
+                  <line x1="12" y1="3" x2="12" y2="15"></line>
+                </svg>
+              </button>
+              {showExportMenu && (
+                <div className="settings-panel" style={{ position: 'absolute', top: '100%', right: 0, marginTop: '4px', zIndex: 100, minWidth: '160px' }}>
+                  <div className="setting-group">
+                    <button 
+                      className="dismiss-btn" 
+                      style={{ width: '100%', textAlign: 'left', padding: '8px', borderBottom: '1px solid #eee' }} 
+                      onClick={() => { onExportMarkdown?.(); setShowExportMenu(false); }}
+                      data-testid="export-md"
+                    >
+                      Download Markdown
+                    </button>
+                    <button 
+                      className="dismiss-btn" 
+                      style={{ width: '100%', textAlign: 'left', padding: '8px', borderBottom: '1px solid #eee' }} 
+                      onClick={() => { onExportPdf?.(); setShowExportMenu(false); }}
+                      data-testid="export-pdf"
+                    >
+                      Print / Save as PDF
+                    </button>
+                    <button 
+                      className="dismiss-btn" 
+                      style={{ width: '100%', textAlign: 'left', padding: '8px', borderBottom: '1px solid #eee' }} 
+                      onClick={() => { onCopyMarkdown?.(); setShowExportMenu(false); }}
+                      data-testid="copy-md"
+                    >
+                      Copy Markdown
+                    </button>
+                    <button 
+                      className="dismiss-btn" 
+                      style={{ width: '100%', textAlign: 'left', padding: '8px' }} 
+                      onClick={() => { onCopyRichText?.(); setShowExportMenu(false); }}
+                      data-testid="copy-rtf"
+                    >
+                      Copy Rich Text
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
             <button
               className="settings-toggle-btn"
               data-testid="import-button"
               onClick={handleImportClick}
               title="Import Document (.md, .txt)"
+              aria-label="Import Document"
             >
               <svg
                 width="16"
@@ -406,6 +487,9 @@ export function SidecarFeed({
               className="settings-toggle-btn"
               onClick={() => setShowSettings(!showSettings)}
               title="Configure API Key and Document Stage"
+              aria-label="Configure API Key and Document Stage"
+              aria-expanded={showSettings}
+              aria-controls="settings-panel"
             >
               <svg
                 width="16"
@@ -544,7 +628,7 @@ export function SidecarFeed({
               <span className="empty-subtext">Quiet for now — keep going.</span>
             </div>
           ) : (
-            <div className="observations-list">
+            <div className="observations-list" role="list">
               {/* Batch arrival indicator: shown briefly when 3+ land at once */}
               {arrivalBatchCount >= 3 && (
                 <div
@@ -579,6 +663,8 @@ export function SidecarFeed({
                 >
                   <button
                     data-testid="also-noticed-toggle"
+                    aria-expanded={showAlsoNoticed}
+                    aria-controls="also-noticed-list"
                     onClick={() => setShowAlsoNoticed(!showAlsoNoticed)}
                     style={{
                       width: '100%',
@@ -598,7 +684,7 @@ export function SidecarFeed({
                     <span>Also noticed ({alsoNoticedObs.length} {alsoNoticedObs.length === 1 ? 'issue' : 'issues'})</span>
                   </button>
                   {showAlsoNoticed && (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    <div id="also-noticed-list" style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                       {alsoNoticedObs.map((group) => (
                         <GroupedObsCard
                           key={group.id}
@@ -625,6 +711,8 @@ export function SidecarFeed({
           >
             <button
               data-testid="archive-toggle"
+              aria-expanded={showArchive}
+              aria-controls="archive-list"
               onClick={() => setShowArchive(!showArchive)}
               style={{
                 width: '100%',
@@ -644,8 +732,16 @@ export function SidecarFeed({
               <span>Archive ({archivedObservations.length})</span>
             </button>
             {showArchive && (
-              <div data-testid="archive-list" style={{ marginTop: '4px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                {archivedObservations.map((obs) => (
+              <div id="archive-list" data-testid="archive-list" style={{ marginTop: '4px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                {archivedObservations.map((obs) => {
+                  const reasonText =
+                    obs.closureReason === "resolved_by_edit" ? "resolved by edit" :
+                    obs.closureReason === "text_removed" ? "text removed" :
+                    obs.closureReason === "superseded" ? "superseded" :
+                    obs.closureReason === "dismissed" ? "dismissed" :
+                    obs.closureReason === "resolved_prior" ? "resolved" :
+                    obs.status.replace(/_/g, ' ');
+                  return (
                   <div
                     key={obs.id}
                     data-testid="archive-card"
@@ -663,13 +759,26 @@ export function SidecarFeed({
                       <span className={`tag tag-${obs.type}`} style={{ fontSize: '0.7rem' }}>
                         {obs.type.replace(/_/g, ' ')}
                       </span>
-                      <span style={{ fontSize: '0.7rem', color: '#9ca3af' }}>
-                        {obs.status.replace(/_/g, ' ')}
+                      <span data-testid="archive-reason" style={{ fontSize: '0.7rem', color: '#6b7280' }}>
+                        {reasonText}
                       </span>
                     </div>
-                    <p style={{ margin: 0, fontSize: '0.8rem', color: '#6b7280' }}>{obs.text}</p>
+                    <p style={{ margin: 0, fontSize: '0.8rem', color: '#4b5563' }}>{obs.text}</p>
+                    {obs.anchorText && (
+                      <div data-testid="archive-anchor" style={{ marginTop: '6px', fontSize: '0.75rem', color: '#6b7280', fontStyle: 'italic', borderLeft: '2px solid #d1d5db', paddingLeft: '6px' }}>
+                        “{obs.anchorText}”
+                        {obs.conflictingAnchorText && (
+                          <>
+                            <br />
+                            <span style={{ display: 'inline-block', marginTop: '4px' }}>
+                              vs. “{obs.conflictingAnchorText}”
+                            </span>
+                          </>
+                        )}
+                      </div>
+                    )}
                   </div>
-                ))}
+                );})}
               </div>
             )}
           </div>

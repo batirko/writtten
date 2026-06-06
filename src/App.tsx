@@ -14,6 +14,8 @@ import { capabilityForTier, type ModelTier } from "./model/capability";
 import { llmLogger, type LLMLogEntry, type SessionStats } from "./model/logger";
 import { harness } from "./debug/harness";
 import { nanoid } from "nanoid";
+import type { Editor as TiptapEditor } from "@tiptap/react";
+import { downloadMarkdown, exportPdf, copyMarkdown, copyRichText } from "./services/export";
 
 const DOC_ID = "default";
 
@@ -69,11 +71,24 @@ export default function App() {
   const [logs, setLogs] = useState<LLMLogEntry[]>([]);
   const [activeProvider, setActiveProvider] = useState<string>("gemini-2.0-flash");
   const [sessionStats, setSessionStats] = useState<SessionStats>({
-    fastCalls: 0, strongCalls: 0, totalCalls: 0, totalLatencyMs: 0, avgLatencyMs: 0,
+    fastCalls: 0,
+    strongCalls: 0,
+    totalCalls: 0,
+    totalLatencyMs: 0,
+    avgLatencyMs: 0,
+    totalPromptTokens: 0,
+    totalCandidateTokens: 0,
+    totalCost: 0,
   });
   const [pending, setPending] = useState(0);
+  const editorRef = useRef<TiptapEditor | null>(null);
   // Stable handle to the latest clear handler for __sidecar__.clear().
   const clearWorkspaceRef = useRef<() => void>(() => {});
+
+  const handleExportMarkdown = () => editorRef.current && downloadMarkdown(editorRef.current);
+  const handleExportPdf = () => editorRef.current && exportPdf();
+  const handleCopyMarkdown = async () => editorRef.current && await copyMarkdown(editorRef.current);
+  const handleCopyRichText = async () => editorRef.current && await copyRichText(editorRef.current);
 
   // Stable refs for stage-change trigger
   const apiKeyRef = useRef(apiKey);
@@ -153,7 +168,7 @@ export default function App() {
     setImportContent({ content: text, timestamp: Date.now() });
   };
 
-  const handleDismissObservation = async (id: string) => {
+  const handleDismissObservation = async (id: string, closureReason?: string) => {
     const obs = observations.find((o) => o.id === id);
     if (obs) {
       const spanSignature =
@@ -167,9 +182,10 @@ export default function App() {
         kind: obs.kind,
         severity: obs.severity,
         spanSignature,
+        note: closureReason,
       });
     }
-    await updateObservationStatus(id, "dismissed");
+    await updateObservationStatus(id, "dismissed", closureReason);
     if (import.meta.env.DEV && obs) {
       harness.archive({
         observationId: obs.id,
@@ -187,7 +203,7 @@ export default function App() {
   };
 
   const handleObservationCollapsed = async (id: string) => {
-    await updateObservationStatus(id, "auto_closed");
+    await updateObservationStatus(id, "auto_closed", "dismissed");
     if (import.meta.env.DEV) {
       const obs = observations.find((o) => o.id === id);
       if (obs) {
@@ -254,6 +270,7 @@ export default function App() {
           onBlockOrderChange={setBlockOrder}
           clearTrigger={clearTrigger}
           importContent={importContent}
+          onReady={(e) => (editorRef.current = e)}
         />
       </main>
       <SidecarFeed
@@ -280,6 +297,11 @@ export default function App() {
         stageSuggestion={stageSuggestion}
         onAcceptStageSuggestion={handleAcceptStageSuggestion}
         onDismissStageSuggestion={handleDismissStageSuggestion}
+        onExportMarkdown={handleExportMarkdown}
+        onExportPdf={handleExportPdf}
+        onCopyMarkdown={handleCopyMarkdown}
+        onCopyRichText={handleCopyRichText}
+        documentIsEmpty={blockOrder.length === 0}
       />
     </div>
   );

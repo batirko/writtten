@@ -129,7 +129,7 @@ async function handleBlockRemoved(
   const toClose = active.filter((o) => o.blockId === blockId || o.conflictingBlockId === blockId);
   await Promise.all(
     toClose.map(async (o) => {
-      await updateObservationStatus(o.id, "auto_closed");
+      await updateObservationStatus(o.id, "auto_closed", "text_removed");
       if (import.meta.env.DEV) {
         harness.archive(
           {
@@ -362,7 +362,7 @@ async function handleStageChanged(ctx: EvalContext, onComplete?: () => void): Pr
   const docLevel = active.filter((o) => o.scope === "document");
   await Promise.all(
     docLevel.map(async (o) => {
-      await updateObservationStatus(o.id, "superseded");
+      await updateObservationStatus(o.id, "superseded", "superseded");
       if (import.meta.env.DEV) {
         harness.archive(
           {

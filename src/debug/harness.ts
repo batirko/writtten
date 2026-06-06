@@ -45,6 +45,8 @@ export type HarnessEventType =
   | "settle"
   | "request"
   | "response"
+  | "retry"
+  | "trigger"
   | "ledger-write"
   | "observation"
   | "archive"
@@ -119,11 +121,18 @@ class Harness {
 
   /** Append one structured event; mirror it to the console as a greppable line. */
   emit(type: HarnessEventType, fields: Record<string, unknown> = {}): void {
-    const event: HarnessEvent = { seq: ++this.seq, t: Date.now(), type, ...fields };
+    llmLogger.log({ type: type as any, ...fields });
+  }
+
+  /** Called internally by llmLogger.setEventSyncHook to keep the agent stream in sync. */
+  _syncFromLogger(type: string, fields: Record<string, unknown>): void {
+    const event: HarnessEvent = { seq: ++this.seq, t: Date.now(), type: type as HarnessEventType, ...fields };
     this.events.push(event);
     if (this.events.length > MAX_EVENTS) this.events.shift();
 
-    const tail = Object.entries(fields)
+    const msgFields = { ...fields };
+    delete msgFields.payload;
+    const tail = Object.entries(msgFields)
       .map(([k, v]) => `${k}=${formatField(v)}`)
       .join(" ");
     console.log(`[sidecar] ${type} seq=${event.seq}${tail ? ` ${tail}` : ""}`);
@@ -142,12 +151,6 @@ class Harness {
    */
   archive(info: ArchiveInfo, evalId?: string): void {
     llmLogger.logArchive(info, evalId);
-    this.emit("archive", {
-      obs: info.observationId,
-      type: info.obsType,
-      reason: info.reason,
-      actor: info.actor,
-    });
   }
 
   /** Current monotonic sequence number (last emitted event's seq). */
@@ -295,3 +298,7 @@ class Harness {
 }
 
 export const harness = new Harness();
+
+llmLogger.setEventSyncHook((type, fields) => {
+  harness._syncFromLogger(type, fields);
+});

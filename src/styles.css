@@ -480,3 +480,52 @@ body,
   background-color: rgba(14, 165, 233, 0.3) !important;
   border-bottom-color: #0369a1 !important;
 }
+
+/* Print & PDF Export Styles */
+@media print {
+  body {
+    background: white;
+    color: black;
+  }
+  .sidecar-panel {
+    display: none !important;
+  }
+  .editor-panel {
+    padding: 0 !important;
+    margin: 0 !important;
+    overflow: visible !important;
+  }
+  .editor-wrap {
+    max-width: 100% !important;
+  }
+  .tiptap p.is-editor-empty:first-child::before {
+    display: none !important;
+  }
+}
+
+/* Accessibility & Keyboard-First */
+:focus-visible {
+  outline: 2px solid #0ea5e9;
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+.observation-card:focus-visible {
+  outline-offset: -2px;
+  border-radius: 8px;
+}
+
+.tiptap:focus-visible {
+  outline: 2px solid #0ea5e9;
+  outline-offset: 8px;
+  border-radius: 4px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, ::before, ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

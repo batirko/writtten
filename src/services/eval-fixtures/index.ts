@@ -19,6 +19,7 @@ import unsupportedVsAttributed from "./unsupported-vs-attributed";
 import jargonAllowlist from "./jargon-allowlist";
 import cleanDoc from "./clean-doc";
 import antiTaxonomy from "./anti-taxonomy";
+import noDisguisedFix from "./no-disguised-fix";
 import type { EvalFixture } from "./types";
 
 export const corpus: EvalFixture[] = [
@@ -29,6 +30,7 @@ export const corpus: EvalFixture[] = [
   jargonAllowlist,
   cleanDoc,
   antiTaxonomy,
+  noDisguisedFix,
 ];
 
 export { type EvalFixture } from "./types";
