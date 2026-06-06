@@ -25,7 +25,7 @@ The timer is per-section and reset on every keystroke.
 
 Source: `onSelectionUpdate` in `src/editor/Editor.tsx`
 
-Fires when the cursor crosses from one section into a different one. Evaluates the section just *left*, if its text is ≥ **10 chars**. Cancels that section's pending pause-timer (departure wins). Typing-then-Enter produces this event, as does *manually pasting one section, moving the cursor, then pasting the next*. A single bulk paste does **not** (see §"Paste — current gap").
+Fires when the cursor crosses from one section into a different one. Evaluates the section just *left*, if its text is ≥ **10 chars**. Cancels that section's pending pause-timer (departure wins). Typing-then-Enter produces this event, as does *manually pasting one section, moving the cursor, then pasting the next*. A single bulk paste is handled by its own trigger (see §"Bulk paste & import").
 
 > Window-blur (alt-tab) was deliberately removed as a settle trigger — it caused premature evals and 4–6 paid calls per paste (OBS-014, OBS-020).
 
@@ -39,33 +39,31 @@ Source: `src/editor/Editor.tsx` harness doc-writer
 
 Source: `importContent` effect in `src/editor/Editor.tsx`
 
-When `importContent` is set, after block IDs stabilize (1 tick defer), fires one `block-settle-pause` per section (≥ **15 chars**). The doc-idle pass is intentionally *not* armed — it waits for the user's first edit.
+When `importContent` is set, after block IDs stabilize (1 tick defer), fires one `block-settle-pause` per section (≥ **15 chars**) with `skipContradiction: true`, plus a `block-paste` sweep when ≥ 150 words (see §"Bulk paste & import"). The doc-idle pass is intentionally *not* armed — it waits for the user's first edit.
 
 ---
 
-## Paste — current gap
+## Bulk paste & import
 
-⚠️ **A single bulk paste of multi-section text does not fire section-level evaluation.** This is a known gap, not intended behaviour.
+A single bulk paste of a whole draft is one selection jump — the cursor lands only in the last section, so the §1/§2 single-section triggers would leave every section above it unevaluated. Two dedicated mechanisms handle it. See `docs/projects/bulk_paste_evaluation.md`.
 
-When a user pastes a whole draft (e.g. a full PRD copied from elsewhere), here is what actually happens:
+### Fast-tier section dispatch (`block-settle-pause` per section, `skipContradiction`)
 
-- **The middle sections get nothing.** `onUpdate` arms a pause-timer only for the cursor's *current* section, and a paste lands the cursor at the end of the blob — so only the **last** section is even a candidate. Every section above it is never scheduled.
-- **The last section usually won't settle either.** It must end in terminal punctuation (`/[.!?"]\s*$/`) and be ≥ 15 chars. Drafts frequently end on a bare token (`Release: Week 6`), so the gate fails.
-- **Cursor-departure never fires.** A bulk paste is one selection jump, not a sweep across sections, so the §2 departure trigger doesn't see each pasted section.
+Source: `handlePaste` + the bulk-paste branch of `onUpdate` in `src/editor/Editor.tsx`
 
-**Net effect:** pasting a multi-section document produces zero section-level observations (clarity / unsupported_claim / jargon) until the user starts editing.
+`editorProps.handlePaste` sets `pastePendingRef` and returns `false` (ProseMirror inserts normally). The next `onUpdate` sees the flag, defers one tick (block ids assigned), resolves **all** sections, and fires one `block-settle-pause` per section (≥ **15 chars**) with `ctx.skipContradiction = true` — then **returns early** so the normal single-section path doesn't also fire. Re-dispatching every section is safe: `evaluateSection`'s hash short-circuit no-ops unchanged ones.
 
-### What is *not* part of this gap (intentional, do not "fix")
+`skipContradiction` makes each section eval run the fast call only (summary + claims + `clarity` / `unsupported_claim` / `undefined_jargon`) and skip its per-section strong-tier contradiction call — so a 10-section paste fires zero paid calls during this phase. Import uses the same path.
 
-- **Document-level checks staying silent below 150 words is by design.** The content threshold gating cross-document contradiction and missing-topic is a load-bearing product principle — Invariant #4 ("never critique an under-threshold document; silence during idea formation is a feature"), R3.2, `docs/features.md` §"Document checks start only after the document crosses a content threshold". A short pasted draft *should* light up section-level observations but *should not* surface cross-document contradiction until it grows past the threshold.
+### Bootstrap contradiction sweep (`block-paste` trigger)
 
-### Design context
+Source: queued from `Editor.tsx` (when word count ≥ **150**) → `handleBootstrapSweep` in `src/services/orchestrator.ts` → `evaluateLedgerContradictions` in `src/services/evaluator.ts`
 
-The `section_as_eval_unit.md` design doc (status `done`) explicitly concluded "no special paste mode is needed" — but on the assumption that users paste *section by section, moving the cursor between pastes*. That assumption fails for a single bulk paste, which is the more common gesture. The conclusion is a blind spot, not a deliberate decision against bulk-paste eval. The intended model is architecture.md's **bootstrap pass** — first threshold crossing builds the outline/summary/ledger.
+Once the per-section fast evals have populated the ledger, **one** strong-tier call finds contradicting claim *pairs* across the whole document (all-pairs prompt), instead of N per-section contradiction calls. `handleBootstrapSweep` mirrors `handleDocIdle`: it defers until `inFlightSections` drains (so it sees the full ledger) and under RPM backpressure. The sweep is dirty-checked (separate `${docId}::sweep` state key) and its reconcile is **additive** — it inserts only conflict-pairs not already present and never auto-closes, so it can't duplicate a per-section contradiction or churn on re-run. Anchoring is **whole-block** (`0..9999`) since ledger claims carry no span offsets.
 
-### Aligned fix (when implemented)
+### Threshold discipline (intentional silence — not a gap)
 
-A `block-paste` trigger kind exists for exactly this case but is an unimplemented **Phase 3 stub** — `scheduleEval` currently no-ops it (`orchestrator.ts`). The aligned fix dispatches **fast-tier** section evals per pasted section (as `loadDoc`/import already do), independent of cursor position and the terminal-punctuation gate — and **defers the strong-tier contradiction call to the single doc-idle pass** rather than firing one per section, to avoid the paid-tier burst the R1 remediation (OBS-014/OBS-020) fought.
+The sweep is gated ≥ 150 words by the editor, so a short pasted draft lights up section-level observations but correctly stays silent on cross-document contradiction — Invariant #4 ("never critique an under-threshold document; silence during idea formation is a feature"), R3.2, `docs/features.md` §"Document checks start only after the document crosses a content threshold". This is by design, not missing coverage.
 
 ---
 
@@ -101,8 +99,6 @@ Source: `onUpdate` in `src/editor/Editor.tsx`
 
 Fires for every blockId present in the previous snapshot but absent from the current doc. No model call — synchronously orphans the block's claims, deletes its summary, and auto-closes observations anchored to or conflicting with that block.
 
-> `block-paste` exists as a trigger kind but is a Phase 3 stub; `scheduleEval` currently no-ops it. Pasted blocks settle via the normal pause/departure paths.
-
 ---
 
 ## Orchestrator shaping (between trigger and eval)
@@ -114,7 +110,8 @@ Even after a trigger fires, the orchestrator reshapes *when* the actual eval run
 | **Coalescing** | 250 ms window (`COALESCE_MS`) collapses a near-simultaneous pause+blur double-fire for the same section into one dispatch |
 | **Serialization** | If a section is already in-flight, the new trigger is queued (`pendingAfterInflight`) and dispatched as a `rerun` when the in-flight call resolves |
 | **Doc-idle serialization** | Doc-idle waits if any section eval is in-flight, so a doc-level strong call never overlaps a section's contradiction strong call (OBS-020) |
-| **RPM deferral** | Doc-idle is deferred **30 s** (`DOC_IDLE_RPM_DEFER_MS`) if `isNearLimit()` reports free-tier RPM backpressure |
+| **Bootstrap-sweep serialization** | The `block-paste` sweep waits (`pendingBootstrapSweep`) until `inFlightSections` drains, so it runs against the fully-populated ledger |
+| **RPM deferral** | Doc-idle *and* the bootstrap sweep are deferred **30 s** (`DOC_IDLE_RPM_DEFER_MS`) if `isNearLimit()` reports free-tier RPM backpressure |
 
 ---
 
@@ -125,11 +122,47 @@ Even after a trigger fires, the orchestrator reshapes *when* the actual eval run
 1. **Hash check** — if section text hash matches the stored summary, skip entirely (idempotent).
 2. **Short-circuit** — if text < 10 chars, retire claims/observations and return (no model call).
 3. **Merged fast call** — one round-trip: summary + claim extraction + span checks (`clarity`, `unsupported_claim`, `undefined_jargon`). Injects the existing glossary of defined terms and prior active observations so the model can confirm resolutions.
-4. **Strong contradiction call** — only when there are both new claims *and* existing other-block claims. Prefiltered to the top-10 most semantically relevant ledger claims. Uses a hedged prompt on free tier, confident prompt on paid-key tier.
+4. **Strong contradiction call** — only when there are both new claims *and* existing other-block claims, **and `skipContradiction` is not set** (it is, for bulk paste / import). Prefiltered to the top-10 most semantically relevant ledger claims. Uses a hedged prompt for a weak-capability model, confident prompt for a strong-capability one (`capability.adjudicateConfidently` — see _Model capability_ below).
 
 ### `evaluateDocument` (`src/services/evaluator.ts`)
 
-Doc-level judgment calls against the accumulated claim ledger: missing-topic, stage fit, and related cross-document observations.
+Doc-level judgment calls against the accumulated claim ledger: missing-topic, stage fit, and related cross-document observations. Does **not** do contradiction.
+
+The regenerated document-scope set is reconciled by `reconcileDocumentObservations` (three-pass, Tier 1 + Tier 2). Tier 1 is active for every model; Tier 2 resolution-aware passes require a **strong-capability** model (`capability.driveResolution` — see _Model capability_ below).
+
+**Pass 0-pre — model-confirmed resolutions (paid, Tier 2).**
+For a strong-capability model, the prior active doc-scope observations are listed (with 0-based indices) in the `evaluateDocument` user prompt alongside the regenerated observations. The model declares `resolved_prior: [i…]` for priors it judges no longer applicable, and `priorId: i` on any returned item that continues a listed prior. `resolved_prior` indices are mapped to existing ids and force-closed as `auto_closed` (archive reason `resolved_prior`) before the other passes run. This mirrors section-eval's `resolved_prior` handling.
+
+**Pass 1 — model-confirmed persists (paid, Tier 2).**
+Items with a valid `priorId` (not also resolved) are mapped to the existing obs id and added to `persistIds`. The existing card is kept (`saveObservation` with `missCount: 0, lastSeenAt: now`) — id and wording frozen. The item is **not** added to `newObs`, so the lexical pass never sees it and cannot insert a duplicate. This is the fix for the D1 accumulation problem: rephrasings of the same note map to the same card instead of spawning a second one.
+
+**Pass 2 — lexical best-match fallback (all tiers).**
+Runs over the remaining unmatched existing notes vs the `newObs` that had no `priorId` mapping (for a weak-capability model: all of them). Within each observation `type`, each incoming note is paired to the *most similar* existing note (lexical Jaccard ≥ `DOC_DEDUPE_FLOOR = 0.6`, greedy by descending score, each side used once). Incoming-vs-incoming near-duplicates collapse first. Matched notes keep their existing record and id (wording frozen, no flicker). Unmatched incoming → insert active. Unmatched existing → orphan, grace period applied (`DOC_GRACE_THRESHOLD = 2` consecutive misses before `auto_closed`). A re-match at any pass resets `missCount` to 0.
+
+**Honest labels.** Doc-scope never emits a positional `superseded`; closures are `auto_closed` (grace-expired staleness) or `resolved_prior` (model-confirmed addressed). `supersededBy` never carries false cross-note links. State: `missCount` / `lastSeenAt` on `Observation` (DB v7).
+
+This is doc-scope only. Block-scope `reconcileObservations` (span + text + `resolved_prior`) and the `stage-changed` wholesale supersede are unchanged. See `docs/projects/doc_scope_reconciliation.md`.
+
+### `evaluateLedgerContradictions` (`src/services/evaluator.ts`)
+
+The bootstrap sweep (`block-paste` trigger). One strong-tier all-pairs call over the full ledger; emits `contradiction` / `strategic_tension` observations anchored whole-block to each claim's source. Dirty-checked (`${docId}::sweep`).
+
+Reconciliation is gated by model capability (`capability.driveResolution`):
+
+- **Weak-capability model:** additive only — inserts new conflict-pairs not already present, never closes existing ones. Safe to re-run; existing per-section contradictions are not disturbed. (A weak model could drop a real conflict on a stochastic miss, so it is not trusted to drive closures.)
+- **Strong-capability model:** authoritative-with-grace (`reconcileSweepContradictions`). The sweep output is treated as the full conflict authority. Each existing active `contradiction` / `strategic_tension` observation is checked against the new set by `conflictPairKey` (`${type}::${lo}|${hi}`, order-independent block-pair). Re-emitted pairs have their `missCount` reset to 0. Absent pairs age out: `missCount` is bumped; once it reaches `DOC_GRACE_THRESHOLD = 2` consecutive missed sweeps the obs is `auto_closed`. This makes stale conflict notes close when the underlying claims change, without being brittle to a single stochastic omission (the grace guardrail). State is `missCount` / `lastSeenAt` on `Observation` (DB v7, same fields as doc-scope grace). New conflict-pairs not already covered are inserted active.
+
+---
+
+## Model capability (decoupled from the credential)
+
+Several evaluator behaviours are calibrated to how strong the model is — confident vs hedged adjudication prompts, and whether the model is trusted to drive resolution-aware reconciliation (doc-scope `priorId`/`resolved_prior` mapping; authoritative-with-grace ledger sweep). These branch on a `ModelCapability` (`src/model/capability.ts`), **not** on `paidKey` presence.
+
+- **`ModelTier`** = `"weak" | "strong"`; **`ModelCapability`** = `{ tier, adjudicateConfidently, driveResolution }`. Both flags track `strong` today but are separate fields so policy can diverge per-flag later.
+- **Decided once at the App boundary** (`App.tsx`), from the key configuration: an env `VITE_GEMINI_PAID_KEY`, or a UI-entered BYO key the user marked "capable" via the `[data-testid="key-tier-toggle"]` checkbox (persisted as `writtten_key_tier`). A strong declaration also promotes the key into the `paidKey` routing slot so `strong()` reaches the paid pool.
+- **Threaded** via `EvalContext.capability` → `evaluateSection` / `evaluateDocument` / `evaluateLedgerContradictions` → `reconcileSweepContradictions`. The evaluator never inspects a raw key string to guess capability (a key string is opaque). Default when unspecified: `WEAK_CAPABILITY` (the conservative floor).
+
+The credential (`paidKey`) remains a pure routing/quota concern in the model router. See `docs/projects/byok_capability_model.md`.
 
 ---
 

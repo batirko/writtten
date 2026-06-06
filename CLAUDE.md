@@ -35,6 +35,8 @@ The principle has a finer edge than "no apply button," and three failure modes t
 
 **Always check `docs/plan.md` for the current phase before adding functionality.** Scope creep is the main risk on this project. If something belongs to a later phase, say so and don't build it.
 
+**Plan items carry required routing metadata.** Every open milestone in `docs/plan.md` ends with a `— <readiness> <complexity> · <agent>` annotation (see the Routing legend at the top of that file). When you **add** a milestone, annotate it; when you **work on** one, re-assess and update the annotation in the same change (readiness shifts most often). Drop the annotation when the item is completed (`[x]`).
+
 ### `docs/projects/` conventions
 
 **Filenames are stable and status-free.** A project file is named for what it _is_ (`message_generation_workflow.md`), never for its status. Status is mutable metadata — encoding it in the filename breaks every reference the moment work progresses. So status lives in two places only:

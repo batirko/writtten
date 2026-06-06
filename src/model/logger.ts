@@ -3,7 +3,7 @@ import { nanoid } from "nanoid";
 export interface LLMLogEntry {
   id: string;
   timestamp: Date;
-  type: "trigger" | "request" | "response" | "retry" | "fallback" | "error";
+  type: "trigger" | "request" | "response" | "retry" | "error" | "archive";
   /** "fast" or "strong" — only set on request/response entries. */
   tier?: "fast" | "strong";
   /** "free" or "paid" — which API key tier made this call. */
@@ -21,6 +21,53 @@ export interface LLMLogEntry {
   // Populated for "trigger" entries
   triggerKind?: string;
   blockId?: string;
+  // --- debug-log redesign correlation fields (docs/projects/debug_log.md) ---
+  /** Groups every record spawned by one trigger/eval pass into a causal unit. */
+  evalId?: string;
+  /** Joins request ↔ retries ↔ response/error of one logical LLM call. */
+  callId?: string;
+  /** Stable reference to the (static) system prompt — dereferenced on export. */
+  promptRef?: string;
+  /** Populated for "archive" entries: an observation left the active feed. */
+  archive?: ArchiveInfo;
+}
+
+/**
+ * Metadata for an observation leaving the active feed — the one record type the
+ * old log could not produce. `actor` answers "who" (user vs. system) and
+ * `reason` answers "why"; both were previously unknowable from the log.
+ */
+export interface ArchiveInfo {
+  observationId: string;
+  obsType: string;
+  kind?: string;
+  severity?: string;
+  scope: "span" | "document";
+  blockId?: string;
+  /** The observation text, so an archive record reads standalone. */
+  text: string;
+  reason:
+    | "dismissed"
+    | "collapsed"
+    | "auto_closed"
+    | "superseded"
+    | "resolved_prior"
+    | "block_removed";
+  actor: "user" | "system";
+  /** observationId of the replacement, when reason = "superseded". */
+  supersededBy?: string;
+}
+
+/**
+ * What a single LLM call yielded — attached by the evaluator via `recordProduced`
+ * and surfaced on the projected call record. Pre-reconcile yield (observation
+ * types the model returned, ledger writes, resolved-prior indices), so a reader
+ * sees a call's effect, not just its raw response string.
+ */
+export interface CallProduced {
+  observations?: string[];
+  ledgerWrites?: number;
+  resolvedPrior?: number[];
 }
 
 /**
@@ -206,7 +253,14 @@ class LLMLogger {
   private logs: LLMLogEntry[] = [];
   private activeProvider = "gemini-2.0-flash";
   private listeners: Set<LogCallback> = new Set();
-  private maxLogs = 50;
+  // Raw entries are append-only and pre-projection (request/response/retry are
+  // separate rows), so the buffer holds ~3 rows per call. 120 keeps a realistic
+  // bulk-paste session intact once the export projection merges them.
+  private maxLogs = 120;
+  // What each call produced, keyed by callId — attached out-of-band by the
+  // evaluator so the projection can show a call's effect without mutating the
+  // append-only log.
+  private producedByCall = new Map<string, CallProduced>();
 
   // Session-level accumulators
   private _fastCalls = 0;
@@ -313,7 +367,44 @@ class LLMLogger {
     this._totalLatencyMs = 0;
     this._latencyCount = 0;
     this._apiStats.clear();
+    this.producedByCall.clear();
     this.notify();
+  }
+
+  /** Newest-first raw entries (for the panel) — copy, so callers can't mutate. */
+  getLogs(): LLMLogEntry[] {
+    return [...this.logs];
+  }
+
+  /** The produced-by-call map, for the export projection. */
+  getProducedByCall(): Map<string, CallProduced> {
+    return new Map(this.producedByCall);
+  }
+
+  /**
+   * Record an observation leaving the active feed. Emitted from every status
+   * transition (user dismiss/collapse + system auto-close/supersede/resolve).
+   */
+  logArchive(info: ArchiveInfo, evalId?: string): void {
+    this.log({
+      type: "archive",
+      model: "",
+      endpoint: "",
+      payload: { system: "", user: "" },
+      archive: info,
+      evalId,
+    });
+  }
+
+  /** Attribute what a call yielded back to its callId (merges if called twice). */
+  recordProduced(callId: string | undefined, produced: CallProduced): void {
+    if (!callId) return;
+    const prev = this.producedByCall.get(callId) ?? {};
+    this.producedByCall.set(callId, {
+      observations: [...(prev.observations ?? []), ...(produced.observations ?? [])],
+      ledgerWrites: (prev.ledgerWrites ?? 0) + (produced.ledgerWrites ?? 0),
+      resolvedPrior: [...(prev.resolvedPrior ?? []), ...(produced.resolvedPrior ?? [])],
+    });
   }
 
   log(entry: Omit<LLMLogEntry, "id" | "timestamp">) {

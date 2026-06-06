@@ -2,7 +2,7 @@ import { openDB, type IDBPDatabase } from "idb";
 import { harness } from "../debug/harness";
 
 const DB_NAME = "writtten";
-const DB_VERSION = 6;
+const DB_VERSION = 7;
 
 export interface DocumentRecord {
   id: string;
@@ -53,6 +53,17 @@ export interface Observation {
   priority: number;
   text: string;
   status: "active" | "auto_closed" | "dismissed" | "superseded";
+
+  /** Absence-grace state (doc-scope reconciliation, T1b). `missCount` counts
+   *  consecutive doc-idle runs this observation was absent from the regenerated
+   *  set; it is reset to 0 whenever the observation is re-matched. A doc-scope
+   *  orphan is only auto-closed once `missCount` reaches the grace threshold,
+   *  so LLM sampling variance no longer silently drops still-true notes.
+   *  `lastSeenAt` (ms epoch of last confirmation) is reserved so the grace
+   *  policy can later switch to TTL/decay without another migration.
+   *  See docs/projects/doc_scope_reconciliation.md. */
+  missCount?: number;
+  lastSeenAt?: number;
 
   // Span mapping data
   blockId?: string;
@@ -143,6 +154,18 @@ async function getDb(): Promise<IDBPDatabase> {
           if (!("severity" in sup)) sup.severity = "medium";
           if (!("kind" in sup)) sup.kind = "problem";
           await cursor.update(sup);
+          cursor = await cursor.continue();
+        }
+      }
+      if (oldVersion < 7) {
+        // T1b: Data-backfill migration for the doc-scope absence-grace counter.
+        // Existing observations have never been "missed", so seed missCount = 0.
+        const obsStore = transaction.objectStore("observations");
+        let cursor = await obsStore.openCursor();
+        while (cursor) {
+          const record = cursor.value;
+          if (!("missCount" in record)) record.missCount = 0;
+          await cursor.update(record);
           cursor = await cursor.continue();
         }
       }
@@ -347,6 +370,10 @@ export async function clearDocumentData(docId: string): Promise<void> {
   }
 
   await db.delete("doc_eval_state", docId);
+  // The bootstrap sweep keys its dirty-check under `${docId}::sweep` (see
+  // evaluator.ts), so clear it too — otherwise a re-paste of an identically
+  // hashing draft would skip the sweep.
+  await db.delete("doc_eval_state", `${docId}::sweep`);
 }
 
 // Doc-level eval dirty-check: remember the hash of the inputs (block summaries +

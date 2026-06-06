@@ -21,7 +21,39 @@ import {
 } from "../store/db";
 import { nanoid } from "nanoid";
 import { harness } from "../debug/harness";
+import { llmLogger, type ArchiveInfo } from "../model/logger";
 import type { SectionMember } from "./types";
+import { planDocReconciliation } from "./docReconcile";
+import { type ModelCapability, WEAK_CAPABILITY } from "../model/capability";
+
+/**
+ * Record a system-driven observation closure in the debug log (dev-only).
+ * Mirrors the user-driven archives emitted from App.tsx, so the log shows every
+ * status transition with its actor + reason. See docs/projects/debug_log.md.
+ */
+function archiveObs(
+  o: Observation,
+  reason: ArchiveInfo["reason"],
+  evalId?: string,
+  supersededBy?: string
+): void {
+  if (!import.meta.env.DEV) return;
+  harness.archive(
+    {
+      observationId: o.id,
+      obsType: o.type,
+      kind: o.kind,
+      severity: o.severity,
+      scope: o.scope,
+      blockId: o.blockId,
+      text: o.text,
+      reason,
+      actor: "system",
+      supersededBy,
+    },
+    evalId
+  );
+}
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -46,14 +78,18 @@ export function parseJSONResponse(text: string): unknown {
     if (match) {
       try {
         return JSON.parse(match[1].trim());
-      } catch { /* fallback */ }
+      } catch {
+        /* fallback */
+      }
     }
     const firstBrace = cleaned.indexOf("{");
     const lastBrace = cleaned.lastIndexOf("}");
     if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
       try {
         return JSON.parse(cleaned.substring(firstBrace, lastBrace + 1));
-      } catch { /* fallback */ }
+      } catch {
+        /* fallback */
+      }
     }
     throw new Error(`Failed to parse JSON response: ${text.substring(0, 100)}...`);
   }
@@ -102,7 +138,7 @@ function textSimilarity(a: string, b: string): number {
 
 function spansOverlap(
   a: { startOffset?: number; endOffset?: number },
-  b: { startOffset?: number; endOffset?: number },
+  b: { startOffset?: number; endOffset?: number }
 ): boolean {
   if (a.startOffset == null || a.endOffset == null) return false;
   if (b.startOffset == null || b.endOffset == null) return false;
@@ -123,23 +159,19 @@ type NewObservation = Omit<Observation, "id" | "docId" | "status">;
  * This replaces the old blanket "close everything, re-insert" approach that
  * caused observation flicker and broke dismissal suppression.
  */
-function isSpanSuppressed(
-  newO: NewObservation,
-  suppressions: DismissalSuppression[],
-): boolean {
-  const spanKey = newO.blockId != null
-    ? `${newO.blockId}:${newO.startOffset ?? ""}:${newO.endOffset ?? ""}`
-    : undefined;
+function isSpanSuppressed(newO: NewObservation, suppressions: DismissalSuppression[]): boolean {
+  const spanKey =
+    newO.blockId != null
+      ? `${newO.blockId}:${newO.startOffset ?? ""}:${newO.endOffset ?? ""}`
+      : undefined;
   return suppressions.some((s) => {
     if (s.type !== newO.type) return false;
-    
+
     // G1: Flattery-resistant dismissal
     // High-severity observations and critical defects are span-only suppressions.
     // Low/medium severity observations are category-wide.
     const isSpanOnly =
-      s.severity === "high" ||
-      s.type === "contradiction" ||
-      s.type === "unsupported_claim";
+      s.severity === "high" || s.type === "contradiction" || s.type === "unsupported_claim";
 
     if (isSpanOnly) {
       if (s.spanSignature) return s.spanSignature === spanKey;
@@ -158,6 +190,7 @@ async function reconcileObservations(
   /** Observation ids the model explicitly confirmed are resolved. Force-closed
    *  before the normal step-4 orphan pass so they aren't re-inserted. */
   resolvedPriorIds: ReadonlySet<string> = new Set(),
+  evalId?: string
 ): Promise<void> {
   const [allActive, suppressions] = await Promise.all([
     loadActiveObservationsForDocument(docId),
@@ -180,6 +213,7 @@ async function reconcileObservations(
   for (const obs of existing) {
     if (resolvedPriorIds.has(obs.id)) {
       await updateObservationStatus(obs.id, "auto_closed");
+      archiveObs(obs, "resolved_prior", evalId);
       matchedExistingIds.add(obs.id);
     }
   }
@@ -195,7 +229,7 @@ async function reconcileObservations(
     // 0. Content match against an existing active obs → dedupe: keep it as-is
     //    even if its offsets drifted slightly. Prevents duplicate cards.
     const contentMatch = existing.find(
-      (e) => !matchedExistingIds.has(e.id) && contentSig(e) === csig,
+      (e) => !matchedExistingIds.has(e.id) && contentSig(e) === csig
     );
     if (contentMatch) {
       matchedExistingIds.add(contentMatch.id);
@@ -210,7 +244,7 @@ async function reconcileObservations(
       (e) =>
         spanSig(e) === newSig &&
         normalizeText(e.text) === normalizeText(newO.text) &&
-        !matchedExistingIds.has(e.id),
+        !matchedExistingIds.has(e.id)
     );
     if (exactMatch) {
       matchedExistingIds.add(exactMatch.id);
@@ -219,20 +253,19 @@ async function reconcileObservations(
     }
 
     // 2. Same type + overlapping span, different text → supersede old, insert new
+    const newId = nanoid(10);
     const supersedable = existing.find(
-      (e) =>
-        e.type === newO.type &&
-        spansOverlap(e, newO) &&
-        !matchedExistingIds.has(e.id),
+      (e) => e.type === newO.type && spansOverlap(e, newO) && !matchedExistingIds.has(e.id)
     );
     if (supersedable) {
       await updateObservationStatus(supersedable.id, "superseded");
+      archiveObs(supersedable, "superseded", evalId, newId);
       matchedExistingIds.add(supersedable.id);
     }
 
     // 3. Insert new observation
     await saveObservation({
-      id: nanoid(10),
+      id: newId,
       docId,
       status: "active",
       ...newO,
@@ -248,66 +281,115 @@ async function reconcileObservations(
   for (const e of existing) {
     if (!matchedExistingIds.has(e.id)) {
       await updateObservationStatus(e.id, "auto_closed");
+      archiveObs(e, "auto_closed", evalId);
     }
   }
 }
 
-async function reconcileDocumentObservations(
+/** Consecutive doc-idle runs a doc-scope observation may be absent from the
+ *  regenerated set before it is auto-closed. Absorbs LLM sampling variance so a
+ *  still-true note isn't dropped the first time the model forgets to re-emit it.
+ *  See docs/projects/doc_scope_reconciliation.md (D4 — starting policy). */
+const DOC_GRACE_THRESHOLD = 2;
+
+/** Floor similarity for treating two doc-scope notes as "the same note" (D6).
+ *  Inherited from the OBS-012 dedupe threshold. */
+const DOC_DEDUPE_FLOOR = 0.6;
+
+/**
+ * Reconcile freshly-regenerated document-scope observations against the active
+ * set. Unlike the old type-bucketed positional supersession, this pairs each
+ * incoming note to the existing note it is most *similar* to (best-match, via
+ * `planDocReconciliation`), and applies an absence grace period before closing
+ * orphans — so stable notes keep their ids (no flicker), the archive trail is
+ * honest (no false `superseded` links), and a single stochastic omission no
+ * longer drops a still-true note. See docs/projects/doc_scope_reconciliation.md.
+ */
+export async function reconcileDocumentObservations(
   docId: string,
   newObs: NewObservation[],
+  evalId?: string,
+  opts?: { resolvedPriorIds?: Set<string>; persistIds?: Set<string> }
 ): Promise<void> {
   const [allActive, suppressions] = await Promise.all([
     loadActiveObservationsForDocument(docId),
     loadSuppressionsForDocument(docId),
   ]);
   const existing = allActive.filter((o) => o.scope === "document");
-  const matchedExistingIds = new Set<string>();
 
-  for (const newO of newObs) {
-    // Doc-level suppression: keyed on type alone (no spanSignature)
-    const suppressed = suppressions.some(
-      (s) => s.type === newO.type && !s.spanSignature,
-    );
-    if (suppressed) continue;
+  // Doc-level suppression is keyed on type alone (no spanSignature). Drop any
+  // incoming note whose type the user has muted before planning.
+  const incoming = newObs.filter(
+    (o) => !suppressions.some((s) => s.type === o.type && !s.spanSignature)
+  );
 
-    // Exact match OR high similarity (>0.6 Jaccard) → dedupe: the LLM rephrased
-    // the same observation; don't supersede on wording drift (OBS-012).
-    const exactMatch = existing.find(
-      (e) =>
-        e.type === newO.type &&
-        (normalizeText(e.text) === normalizeText(newO.text) ||
-          textSimilarity(e.text, newO.text) > 0.6) &&
-        !matchedExistingIds.has(e.id),
-    );
-    if (exactMatch) {
-      matchedExistingIds.add(exactMatch.id);
-      continue;
-    }
+  const { resolvedPriorIds = new Set<string>(), persistIds = new Set<string>() } = opts ?? {};
+  const now = Date.now();
 
-    // Same type, meaningfully different text → supersede
-    const supersedable = existing.find(
-      (e) => e.type === newO.type && !matchedExistingIds.has(e.id),
-    );
-    if (supersedable) {
-      await updateObservationStatus(supersedable.id, "superseded");
-      matchedExistingIds.add(supersedable.id);
-    }
-
-    await saveObservation({
-      id: nanoid(10),
-      docId,
-      status: "active",
-      ...newO,
-    });
-    if (import.meta.env.DEV) {
-      harness.emit("observation", { type: newO.type, blocks: [] });
+  // Pass 0-pre (paid tier): model-confirmed resolutions → force-close now.
+  // Mirrors section-eval's resolved_prior handling at line ~853.
+  const modelResolved = new Set<string>();
+  for (const e of existing) {
+    if (resolvedPriorIds.has(e.id)) {
+      await updateObservationStatus(e.id, "auto_closed");
+      archiveObs(e, "resolved_prior", evalId);
+      modelResolved.add(e.id);
     }
   }
 
-  // Auto-close orphaned doc-level observations
+  // Pass 1 (paid tier): persists — the model confirmed the note still holds
+  // (possibly rephrased). Keep the existing card (id + frozen text); reset the
+  // absence counter so it never ages toward closure.
+  const modelPersisted = new Set<string>();
   for (const e of existing) {
-    if (!matchedExistingIds.has(e.id)) {
+    if (modelResolved.has(e.id)) continue;
+    if (persistIds.has(e.id)) {
+      await saveObservation({ ...e, missCount: 0, lastSeenAt: now });
+      modelPersisted.add(e.id);
+    }
+  }
+
+  // Pass 2: lexical best-match fallback over the remaining unmatched existing
+  // notes vs the newObs that had no priorId mapping (or free tier: all of them).
+  const remainingExisting = existing.filter(
+    (e) => !modelResolved.has(e.id) && !modelPersisted.has(e.id)
+  );
+  const plan = planDocReconciliation(remainingExisting, incoming, textSimilarity, DOC_DEDUPE_FLOOR);
+
+  // Matched → keep the existing record (and its id); reset the absence counter
+  // so a re-confirmed note never ages toward closure. Wording is intentionally
+  // frozen (D5 default): we keep the existing text, not the rephrase.
+  for (const { existingId } of plan.dedupes) {
+    const ex = remainingExisting.find((e) => e.id === existingId);
+    if (ex) await saveObservation({ ...ex, missCount: 0, lastSeenAt: now });
+  }
+
+  // Genuinely new → insert active.
+  for (const inc of plan.inserts) {
+    await saveObservation({
+      ...inc,
+      id: nanoid(10),
+      docId,
+      status: "active",
+      missCount: 0,
+      lastSeenAt: now,
+    });
+    if (import.meta.env.DEV) {
+      harness.emit("observation", { type: inc.type, blocks: [] });
+    }
+  }
+
+  // Orphaned → apply the grace period: only close once a note has been absent
+  // for DOC_GRACE_THRESHOLD consecutive runs; otherwise bump its counter and
+  // leave it active. Closures are honestly labelled `auto_closed` (never a
+  // positional `superseded`).
+  for (const e of plan.orphans) {
+    const miss = (e.missCount ?? 0) + 1;
+    if (miss >= DOC_GRACE_THRESHOLD) {
       await updateObservationStatus(e.id, "auto_closed");
+      archiveObs(e, "auto_closed", evalId);
+    } else {
+      await saveObservation({ ...e, missCount: miss });
     }
   }
 }
@@ -408,12 +490,53 @@ If a bucket has no items, return an empty array for it.
 Do NOT include any text other than the raw JSON.
 ${PERSONA_GUIDE}`;
 
+/**
+ * All-pairs variant used by the **bootstrap sweep** (bulk paste / import). The
+ * per-section prompt above compares one section's *new* claims against the rest;
+ * here the whole freshly-built ledger arrives at once with no "new vs existing"
+ * split, so the model is asked to find conflicting *pairs* among all claims.
+ * Each conflict references two claim indices. See bulk_paste_evaluation.md.
+ */
+export const CONTRADICTION_SWEEP_SYSTEM_PROMPT = `You are a critical editor analyzing how the claims in a document relate to each other.
+You will be given the full list of 'Claims' the document makes, each with an index number.
+Find every pair of claims that conflict and sort each conflict into exactly one of two buckets:
+
+A) CONTRADICTION — a genuine logical incompatibility: the two claims cannot both be true. A direct conflict in a number, date, commitment, fact, or definition. ("Ships in Q2" vs "Ships in Q3"; "We will not store PII" vs "We log the user's email".)
+
+B) STRATEGIC TENSION — two claims each intended or desirable but pulling in opposite directions: a deliberate tradeoff, not a logical impossibility. Both can be true at once; they are simply in tension. Do NOT report these as contradictions.
+
+Return a JSON object with two keys, 'contradictions' and 'tensions', each an array of objects. Each object must have:
+- 'claimAId' and 'claimBId' (the two [Claim #N] index numbers that conflict)
+- 'message' (a short, confident observation phrased about the *later* claim — e.g. "This contradicts the Q3 target date set earlier." Never hedge with "might" or "possibly".)
+
+Report each conflicting pair once. If a bucket has no items, return an empty array for it.
+Do NOT include any text other than the raw JSON.
+${PERSONA_GUIDE}`;
+
+/** Hedged sweep prompt for the free tier (router.strong → flash-lite). Same
+ *  rationale as CONTRADICTION_SYSTEM_PROMPT_HEDGED. */
+export const CONTRADICTION_SWEEP_SYSTEM_PROMPT_HEDGED = `You are a careful editor looking at how the claims in a document relate to each other.
+You will be given the full list of 'Claims' the document makes, each with an index number.
+Find pairs of claims that conflict and sort each conflict into exactly one of two buckets:
+
+A) CONTRADICTION — only when the two claims genuinely cannot both be true: a direct conflict in a number, date, commitment, or fact. Differences in scope, phrasing, or emphasis are NOT contradictions. When in doubt, do not put it here.
+
+B) STRATEGIC TENSION — two claims each intended or desirable but pulling in opposite directions: a deliberate tradeoff, not a logical impossibility. Both can be true at once. Prefer this bucket whenever the conflict is about competing goals rather than incompatible facts.
+
+Return a JSON object with two keys, 'contradictions' and 'tensions', each an array of objects. Each object must have:
+- 'claimAId' and 'claimBId' (the two [Claim #N] index numbers that conflict)
+- 'message' (a short observation; cautious language such as "may conflict with" or "appears to contradict" is appropriate here.)
+
+Report each conflicting pair once. If a bucket has no items, return an empty array for it.
+Do NOT include any text other than the raw JSON.
+${PERSONA_GUIDE}`;
+
 /** Loose check for statements *about the document/artifact* rather than claims
  *  the document makes. Keeps hallucinated meta-claims out of the ledger. */
 export function isDocumentMetaClaim(text: string): boolean {
   const t = text.trim().toLowerCase();
   return /^(this|the)\s+(document|doc|prd|spec|specification|section|page|paper|memo|proposal)\b/.test(
-    t,
+    t
   );
 }
 
@@ -440,7 +563,7 @@ interface ContradictionObservation {
  */
 function anchorSubstring(
   members: SectionMember[],
-  substring: string,
+  substring: string
 ): { blockId: string; startOffset: number; endOffset: number } | null {
   for (const m of members) {
     const idx = m.text.indexOf(substring);
@@ -467,6 +590,9 @@ export async function evaluateSection(
   apiKey?: string,
   paidKey?: string,
   jargonAllowlist?: string[],
+  skipContradiction = false,
+  evalId?: string,
+  capability: ModelCapability = WEAK_CAPABILITY
 ): Promise<void> {
   // Mock mode replays canned responses, so it needs no key. Every other mode
   // hits the network and does.
@@ -499,10 +625,7 @@ export async function evaluateSection(
     //    Include stage and a glossary of already-defined terms so the model
     //    doesn't flag jargon the document has already introduced.
     const existingClaimsForGlossary = await loadActiveClaimsForDocument(docId);
-    const allowlistTerms = [
-      ...JARGON_PRESET,
-      ...(jargonAllowlist ?? []),
-    ];
+    const allowlistTerms = [...JARGON_PRESET, ...(jargonAllowlist ?? [])];
     const definedTerms = [
       ...new Set([
         ...allowlistTerms,
@@ -517,22 +640,22 @@ export async function evaluateSection(
     // blocks are relevant — doc-level observations are not section-scoped.
     const allActiveObs = (await loadActiveObservationsForDocument(docId)) ?? [];
     const priorObs = allActiveObs.filter(
-      (o) => o.scope === "span" && o.blockId != null && memberBlockIds.includes(o.blockId),
+      (o) => o.scope === "span" && o.blockId != null && memberBlockIds.includes(o.blockId)
     );
 
     const userParts: string[] = [cleanText];
     if (stage) userParts.push(`\nDocument context: ${stage}`);
     if (definedTerms.length > 0) {
-      userParts.push(`\nDefined terms (do not flag as undefined jargon):\n${definedTerms.join("\n")}`);
+      userParts.push(
+        `\nDefined terms (do not flag as undefined jargon):\n${definedTerms.join("\n")}`
+      );
     }
     if (priorObs.length > 0) {
-      const priorLines = priorObs
-        .map((o, i) => `[${i}]: (${o.type}) "${o.text}"`)
-        .join("\n");
+      const priorLines = priorObs.map((o, i) => `[${i}]: (${o.type}) "${o.text}"`).join("\n");
       // Injected in user content only (not system prompt) so the base fixture
       // hashes stay stable when there are no prior observations.
       userParts.push(
-        `\nPrior observations on this passage:\n${priorLines}\nIf your analysis finds any of these no longer applicable, add a "resolved_prior" key (array of integers) to your JSON response listing their indices.`,
+        `\nPrior observations on this passage:\n${priorLines}\nIf your analysis finds any of these no longer applicable, add a "resolved_prior" key (array of integers) to your JSON response listing their indices.`
       );
     }
     const userContent = userParts.join("");
@@ -543,6 +666,7 @@ export async function evaluateSection(
       system: MERGED_SYSTEM_PROMPT,
       user: userContent,
       json: true,
+      meta: { evalId, promptRef: "section-eval" },
     });
 
     const parsedMerged = parseJSONResponse(mergedRes.text) as {
@@ -568,9 +692,7 @@ export async function evaluateSection(
     const summaryText = parsedMerged.summary?.trim() || "";
     // Keep meta-statements about the artifact ("This document is a PRD") out of
     // the ledger — they pollute the glossary and the contradiction comparison.
-    const extractedClaims = (parsedMerged.claims || []).filter(
-      (c) => !isDocumentMetaClaim(c.text),
-    );
+    const extractedClaims = (parsedMerged.claims || []).filter((c) => !isDocumentMetaClaim(c.text));
     const clarityObservations = parsedMerged.clarity_observations || [];
     const unsupportedObservations = parsedMerged.unsupported_claim_observations || [];
     const jargonObservations = parsedMerged.undefined_jargon_observations || [];
@@ -578,6 +700,18 @@ export async function evaluateSection(
     // 4. Persist summary and claims first — observations may reference ledger IDs
     await saveBlockSummary({ blockId: sectionId, docId, summary: summaryText, hash: textHash });
     await saveClaimsForBlock(docId, sectionId, extractedClaims);
+
+    if (import.meta.env.DEV) {
+      llmLogger.recordProduced(mergedRes.callId, {
+        observations: [
+          ...clarityObservations.map(() => "clarity"),
+          ...unsupportedObservations.map(() => "unsupported_claim"),
+          ...jargonObservations.map(() => "undefined_jargon"),
+        ],
+        ledgerWrites: extractedClaims.length,
+        resolvedPrior: parsedMerged.resolved_prior ?? [],
+      });
+    }
 
     // 5. Collect all new observations (do not write to DB yet)
     const newObs: NewObservation[] = [];
@@ -590,10 +724,7 @@ export async function evaluateSection(
       ...extractedClaims.filter((c) => c.kind === "commitment"),
     ];
 
-    const addSpanObs = (
-      obsType: Observation["type"],
-      items: SpanObservation[],
-    ) => {
+    const addSpanObs = (obsType: Observation["type"], items: SpanObservation[]) => {
       for (const obs of items) {
         if (!obs.substring || !obs.text) continue;
         const anchor = anchorSubstring(members, obs.substring);
@@ -633,121 +764,135 @@ export async function evaluateSection(
     addSpanObs("unsupported_claim", unsupportedObservations);
     addSpanObs("undefined_jargon", jargonObservations);
 
-    // 6. Contradiction check (cross-document, uses claim ledger)
-    const existingClaims = await loadActiveClaimsForDocument(docId);
-    const otherClaims = existingClaims.filter((c) => c.sourceBlockId !== sectionId);
+    // 6. Contradiction check (cross-document, uses claim ledger).
+    //    Skipped on bulk paste / import: a single ledger-internal sweep covers
+    //    contradiction once the ledger is built, avoiding N paid-tier calls.
+    if (!skipContradiction) {
+      const existingClaims = await loadActiveClaimsForDocument(docId);
+      const otherClaims = existingClaims.filter((c) => c.sourceBlockId !== sectionId);
 
-    // Prefilter to top-10 most semantically relevant claims so the contradiction
-    // prompt stays bounded as documents grow. With ≤10 claims this is a no-op.
-    const newClaimsText = extractedClaims.map((c) => c.text).join(" ");
-    const candidateClaims = prefilterClaims(newClaimsText, otherClaims, 10);
+      // Prefilter to top-10 most semantically relevant claims so the contradiction
+      // prompt stays bounded as documents grow. With ≤10 claims this is a no-op.
+      const newClaimsText = extractedClaims.map((c) => c.text).join(" ");
+      const candidateClaims = prefilterClaims(newClaimsText, otherClaims, 10);
 
-    // Sort existing claims to a stable order (text then blockId) so the
-    // contradiction prompt is deterministic across runs — IDB auto-increment
-    // ids change every session and would break mock-mode replay hashes.
-    const sortedOther = [...candidateClaims].sort(
-      (a, b) => a.text.localeCompare(b.text) || a.sourceBlockId.localeCompare(b.sourceBlockId),
-    );
+      // Sort existing claims to a stable order (text then blockId) so the
+      // contradiction prompt is deterministic across runs — IDB auto-increment
+      // ids change every session and would break mock-mode replay hashes.
+      const sortedOther = [...candidateClaims].sort(
+        (a, b) => a.text.localeCompare(b.text) || a.sourceBlockId.localeCompare(b.sourceBlockId)
+      );
 
-    if (extractedClaims.length > 0 && sortedOther.length > 0) {
-      const contradictionUser = `New Claims:\n${extractedClaims
-        .map((c, i) => `[New Claim #${i}]: "${c.text}"`)
-        .join("\n")}\n\nExisting Claims:\n${sortedOther
-        .map((c, i) => `[Existing Claim #${i}]: "${c.text}"`)
-        .join("\n")}${stage ? `\n\nDocument Context: ${stage}` : ""}`;
+      if (extractedClaims.length > 0 && sortedOther.length > 0) {
+        const contradictionUser = `New Claims:\n${extractedClaims
+          .map((c, i) => `[New Claim #${i}]: "${c.text}"`)
+          .join("\n")}\n\nExisting Claims:\n${sortedOther
+          .map((c, i) => `[Existing Claim #${i}]: "${c.text}"`)
+          .join("\n")}${stage ? `\n\nDocument Context: ${stage}` : ""}`;
 
-      if (import.meta.env.DEV) {
-        harness.emit("request", { block: sectionId, tier: "strong", check: "contradiction" });
-      }
-      const contradictionStartedAt = Date.now();
-      // Calibrate confidence to the tier actually running the check: the
-      // confident "never hedge" prompt only when a paid key routes to a real
-      // reasoning model; otherwise the hedged prompt (free tier → flash-lite).
-      const contradictionRes = await router.strong({
-        system: paidKey ? CONTRADICTION_SYSTEM_PROMPT : CONTRADICTION_SYSTEM_PROMPT_HEDGED,
-        user: contradictionUser,
-        json: true,
-      });
-
-      const parsedContradictions = parseJSONResponse(contradictionRes.text) as {
-        contradictions?: ContradictionObservation[];
-        tensions?: ContradictionObservation[];
-      };
-      if (import.meta.env.DEV) {
-        harness.emit("response", {
-          block: sectionId,
-          tier: "strong",
-          latencyMs: Date.now() - contradictionStartedAt,
-          contradictions: parsedContradictions.contradictions?.length ?? 0,
-          tensions: parsedContradictions.tensions?.length ?? 0,
+        if (import.meta.env.DEV) {
+          harness.emit("request", { block: sectionId, tier: "strong", check: "contradiction" });
+        }
+        const contradictionStartedAt = Date.now();
+        // Calibrate confidence to the model's capability, not the credential: the
+        // confident "never hedge" prompt only when the model can adjudicate
+        // confidently (a real reasoning model); otherwise the hedged prompt.
+        const contradictionRes = await router.strong({
+          system: capability.adjudicateConfidently
+            ? CONTRADICTION_SYSTEM_PROMPT
+            : CONTRADICTION_SYSTEM_PROMPT_HEDGED,
+          user: contradictionUser,
+          json: true,
+          meta: {
+            evalId,
+            promptRef: capability.adjudicateConfidently ? "contradiction" : "contradiction-hedged",
+          },
         });
+
+        const parsedContradictions = parseJSONResponse(contradictionRes.text) as {
+          contradictions?: ContradictionObservation[];
+          tensions?: ContradictionObservation[];
+        };
+        if (import.meta.env.DEV) {
+          llmLogger.recordProduced(contradictionRes.callId, {
+            observations: [
+              ...(parsedContradictions.contradictions ?? []).map(() => "contradiction"),
+              ...(parsedContradictions.tensions ?? []).map(() => "strategic_tension"),
+            ],
+          });
+        }
+        if (import.meta.env.DEV) {
+          harness.emit("response", {
+            block: sectionId,
+            tier: "strong",
+            latencyMs: Date.now() - contradictionStartedAt,
+            contradictions: parsedContradictions.contradictions?.length ?? 0,
+            tensions: parsedContradictions.tensions?.length ?? 0,
+          });
+        }
+
+        // Emit one observation per conflict for both buckets. Contradictions are
+        // hard logical incompatibilities (kind: problem, tier-calibrated
+        // confidence); strategic tensions are deliberate tradeoffs (kind:
+        // opportunity, softer register — see OBS-004).
+        const emitConflict = (
+          con: ContradictionObservation,
+          obsType: "contradiction" | "strategic_tension"
+        ) => {
+          const matchingExisting = sortedOther[Number(con.existingClaimId)];
+          if (!matchingExisting) return;
+
+          // Anchor the new side to the member block holding the claim if we can
+          // find it; otherwise fall back to the section's representative block.
+          const exact = anchorSubstring(members, con.newClaimText);
+          const fallback = members[0] ?? { blockId: sectionId, text: cleanText };
+
+          // Resolve the new claim's kind for commitment×commitment escalation.
+          const newClaimKind = extractedClaims.find((c) => c.text === con.newClaimText)?.kind;
+
+          const { severity, confidence, priority } =
+            obsType === "contradiction"
+              ? computePriority({
+                  type: "contradiction",
+                  claimKinds: { newKind: newClaimKind, existingKind: matchingExisting.kind },
+                  contradictionTier: capability.adjudicateConfidently ? "confident" : "hedged",
+                })
+              : computePriority({ type: "strategic_tension" });
+
+          newObs.push({
+            type: obsType,
+            scope: "span",
+            kind: obsType === "contradiction" ? "problem" : "opportunity",
+            severity,
+            confidence,
+            priority,
+            text: con.message,
+            blockId: exact?.blockId ?? fallback.blockId,
+            startOffset: exact?.startOffset ?? 0,
+            endOffset: exact?.endOffset ?? fallback.text.length,
+            conflictingBlockId: matchingExisting.sourceBlockId,
+            conflictingStartOffset: 0,
+            conflictingEndOffset: 9999,
+          });
+        };
+
+        for (const con of parsedContradictions.contradictions || []) {
+          emitConflict(con, "contradiction");
+        }
+        for (const ten of parsedContradictions.tensions || []) {
+          emitConflict(ten, "strategic_tension");
+        }
       }
-
-      // Emit one observation per conflict for both buckets. Contradictions are
-      // hard logical incompatibilities (kind: problem, tier-calibrated
-      // confidence); strategic tensions are deliberate tradeoffs (kind:
-      // opportunity, softer register — see OBS-004).
-      const emitConflict = (
-        con: ContradictionObservation,
-        obsType: "contradiction" | "strategic_tension",
-      ) => {
-        const matchingExisting = sortedOther[Number(con.existingClaimId)];
-        if (!matchingExisting) return;
-
-        // Anchor the new side to the member block holding the claim if we can
-        // find it; otherwise fall back to the section's representative block.
-        const exact = anchorSubstring(members, con.newClaimText);
-        const fallback = members[0] ?? { blockId: sectionId, text: cleanText };
-
-        // Resolve the new claim's kind for commitment×commitment escalation.
-        const newClaimKind = extractedClaims.find(
-          (c) => c.text === con.newClaimText,
-        )?.kind;
-
-        const { severity, confidence, priority } =
-          obsType === "contradiction"
-            ? computePriority({
-                type: "contradiction",
-                claimKinds: { newKind: newClaimKind, existingKind: matchingExisting.kind },
-                contradictionTier: paidKey ? "confident" : "hedged",
-              })
-            : computePriority({ type: "strategic_tension" });
-
-        newObs.push({
-          type: obsType,
-          scope: "span",
-          kind: obsType === "contradiction" ? "problem" : "opportunity",
-          severity,
-          confidence,
-          priority,
-          text: con.message,
-          blockId: exact?.blockId ?? fallback.blockId,
-          startOffset: exact?.startOffset ?? 0,
-          endOffset: exact?.endOffset ?? fallback.text.length,
-          conflictingBlockId: matchingExisting.sourceBlockId,
-          conflictingStartOffset: 0,
-          conflictingEndOffset: 9999,
-        });
-      };
-
-      for (const con of parsedContradictions.contradictions || []) {
-        emitConflict(con, "contradiction");
-      }
-      for (const ten of parsedContradictions.tensions || []) {
-        emitConflict(ten, "strategic_tension");
-      }
-    }
+    } // end if (!skipContradiction)
 
     // 7. Reconcile new observations against existing active ones for this
     //    section's member blocks (dedupe / supersede / auto-close / insert).
     //    Pass any model-confirmed resolutions so they are force-closed first.
     const resolvedIndices = parsedMerged.resolved_prior ?? [];
     const resolvedPriorIds = new Set(
-      resolvedIndices
-        .map((i) => priorObs[i]?.id)
-        .filter((id): id is string => id != null),
+      resolvedIndices.map((i) => priorObs[i]?.id).filter((id): id is string => id != null)
     );
-    await reconcileObservations(docId, memberBlockIds, newObs, resolvedPriorIds);
+    await reconcileObservations(docId, memberBlockIds, newObs, resolvedPriorIds, evalId);
   } catch (error) {
     console.error("Evaluation error for section", sectionId, error);
   }
@@ -766,6 +911,7 @@ export async function evaluateBlock(
   apiKey?: string,
   paidKey?: string,
   jargonAllowlist?: string[],
+  capability: ModelCapability = WEAK_CAPABILITY
 ): Promise<void> {
   return evaluateSection(
     docId,
@@ -776,6 +922,9 @@ export async function evaluateBlock(
     apiKey,
     paidKey,
     jargonAllowlist,
+    false,
+    undefined,
+    capability
   );
 }
 
@@ -789,6 +938,8 @@ export async function evaluateDocument(
   apiKey?: string,
   onStageSuggestion?: (suggestion: string) => void,
   paidKey?: string,
+  evalId?: string,
+  capability: ModelCapability = WEAK_CAPABILITY
 ): Promise<void> {
   if (!apiKey && getLlmMode() !== "mock") {
     console.warn("Evaluator: No API key provided, skipping doc-level check.");
@@ -811,25 +962,43 @@ export async function evaluateDocument(
     `${stage ?? ""}|` +
       meaningful.map((s) => `${s.blockId}:${s.hash}`).join(",") +
       "|" +
-      claims.map((c) => `${c.sourceBlockId}:${c.text}`).join(";"),
+      claims.map((c) => `${c.sourceBlockId}:${c.text}`).join(";")
   );
   if ((await loadDocEvalState(docId)) === docStateHash) {
     return;
   }
 
+  // A1: Load prior doc-scope observations only when the model can drive
+  // resolution, so it can map persists and resolutions instead of the lexical
+  // fallback doing all the work. Weak model: priorDocObs stays empty → prompt
+  // unchanged → fixtures stable, and reconciliation stays on the lexical path.
+  let priorDocObs: Observation[] = [];
+  if (capability.driveResolution) {
+    const allActive = await loadActiveObservationsForDocument(docId);
+    priorDocObs = allActive.filter((o) => o.scope === "document");
+  }
+
   const parts: string[] = [];
   parts.push(stage ? `Stage/Context: ${stage}` : "Stage/Context: (none set)");
   parts.push(
-    `\nBlock Summaries:\n${meaningful.map((s, i) => `[${i + 1}] ${s.summary}`).join("\n")}`,
+    `\nBlock Summaries:\n${meaningful.map((s, i) => `[${i + 1}] ${s.summary}`).join("\n")}`
   );
   if (claims.length > 0) {
     parts.push(
-      `\nClaim Ledger:\n${claims.map((c, i) => `[${i + 1}] (${c.kind}): "${c.text}"`).join("\n")}`,
+      `\nClaim Ledger:\n${claims.map((c, i) => `[${i + 1}] (${c.kind}): "${c.text}"`).join("\n")}`
     );
   }
   if (!stage) {
     parts.push(
-      "\n\nIf you can confidently infer the document type and audience from the content, return it as suggested_stage. Otherwise null.",
+      "\n\nIf you can confidently infer the document type and audience from the content, return it as suggested_stage. Otherwise null."
+    );
+  }
+  if (priorDocObs.length > 0) {
+    const priorLines = priorDocObs.map((o, i) => `[${i}]: (${o.type}) "${o.text}"`).join("\n");
+    // Injected in user content only (not system prompt) so the base fixture
+    // hashes stay stable when there are no prior observations.
+    parts.push(
+      `\n\nPrior document-level observations (already visible to the user):\n${priorLines}\nFor each returned observation that continues / restates a listed prior, add "priorId": <index> to that item. List indices of priors that are now fully addressed in "resolved_prior": [<indices>]. Omit priorId when the observation is genuinely new.`
     );
   }
 
@@ -843,6 +1012,7 @@ export async function evaluateDocument(
       system: DOC_LEVEL_SYSTEM_PROMPT,
       user: parts.join(""),
       json: true,
+      meta: { evalId, promptRef: "doc-quality" },
     });
 
     if (import.meta.env.DEV) {
@@ -853,34 +1023,54 @@ export async function evaluateDocument(
       });
     }
 
+    type DocObsItem = { text: string; priorId?: number };
     const parsed = parseJSONResponse(res.text) as {
-      missing_topic_observations?: { text: string }[];
-      underexposed_topic_observations?: { text: string }[];
-      audience_mismatch_observations?: { text: string }[];
-      structure_flow_observations?: { text: string }[];
+      missing_topic_observations?: DocObsItem[];
+      underexposed_topic_observations?: DocObsItem[];
+      audience_mismatch_observations?: DocObsItem[];
+      structure_flow_observations?: DocObsItem[];
       suggested_stage?: string | null;
+      resolved_prior?: number[];
     };
 
+    // A2: Map model-declared resolutions → existing ids.
+    const resolvedPriorIds = new Set<string>();
+    for (const idx of parsed.resolved_prior ?? []) {
+      const id = priorDocObs[idx]?.id;
+      if (id) resolvedPriorIds.add(id);
+    }
+
+    // A2: Items with a valid priorId are persists (the same note, possibly
+    // rephrased by the model) — they keep the existing card and text frozen.
+    // Skip adding them to newObs; pass their existing ids via persistIds instead.
+    const persistIds = new Set<string>();
     const newObs: NewObservation[] = [];
 
     const addDocObs = (
       type: Observation["type"],
       kind: Observation["kind"],
-      items: { text: string }[] | undefined,
+      items: DocObsItem[] | undefined
     ) => {
       const { severity, confidence, priority } = computePriority({ type });
       for (const item of items ?? []) {
-        if (item.text?.trim()) {
-          newObs.push({
-            type,
-            scope: "document",
-            kind,
-            severity,
-            confidence,
-            priority,
-            text: item.text.trim(),
-          });
+        if (!item.text?.trim()) continue;
+        if (item.priorId != null) {
+          const existingId = priorDocObs[item.priorId]?.id;
+          // Only treat as a persist if the prior exists and wasn't just resolved.
+          if (existingId && !resolvedPriorIds.has(existingId)) {
+            persistIds.add(existingId);
+            continue;
+          }
         }
+        newObs.push({
+          type,
+          scope: "document",
+          kind,
+          severity,
+          confidence,
+          priority,
+          text: item.text.trim(),
+        });
       }
     };
 
@@ -889,7 +1079,11 @@ export async function evaluateDocument(
     addDocObs("audience_mismatch", "problem", parsed.audience_mismatch_observations);
     addDocObs("structure_flow", "problem", parsed.structure_flow_observations);
 
-    await reconcileDocumentObservations(docId, newObs);
+    if (import.meta.env.DEV) {
+      llmLogger.recordProduced(res.callId, { observations: newObs.map((o) => o.type) });
+    }
+
+    await reconcileDocumentObservations(docId, newObs, evalId, { resolvedPriorIds, persistIds });
     // Remember the inputs we just reviewed so an unchanged doc skips next time.
     await saveDocEvalState(docId, docStateHash);
 
@@ -903,5 +1097,228 @@ export async function evaluateDocument(
     }
   } catch (error) {
     console.error("Doc-level evaluation error:", error);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Bootstrap contradiction sweep (block-paste trigger)
+// ---------------------------------------------------------------------------
+
+interface SweepConflict {
+  claimAId: number | string;
+  claimBId: number | string;
+  message: string;
+}
+
+/** Dirty-check key for the sweep, kept separate from the doc-level eval state so
+ *  the two strong-tier passes don't clobber each other's hash. */
+const sweepStateKey = (docId: string) => `${docId}::sweep`;
+
+/** Order-independent identity for a conflict between two blocks of a given type
+ *  — used to dedupe sweep results against existing contradictions and across
+ *  re-runs (the sweep is purely additive and idempotent). */
+function conflictPairKey(o: NewObservation): string {
+  const a = o.blockId ?? "";
+  const b = o.conflictingBlockId ?? "";
+  const [lo, hi] = a < b ? [a, b] : [b, a];
+  return `${o.type}::${lo}|${hi}`;
+}
+
+/**
+ * Reconcile sweep contradictions against the active set.
+ *
+ * **Weak model (`!capability.driveResolution`):** additive only — insert new
+ * conflict-pairs, never close existing ones. Safe to re-run; won't disturb
+ * per-section contradictions. A weak model could drop a real conflict on a
+ * stochastic miss, so it is not trusted to drive closures.
+ *
+ * **Strong model (`capability.driveResolution`):** authoritative-with-grace —
+ * the sweep is treated as the full all-pairs authority. A conflict the sweep no
+ * longer emits is an orphan; it ages out via DOC_GRACE_THRESHOLD consecutive
+ * misses before being auto_closed. A re-emitted pair resets its missCount. This
+ * makes stale contradiction/strategic_tension notes close when the underlying
+ * claims change, without being brittle to single stochastic omissions.
+ */
+async function reconcileSweepContradictions(
+  docId: string,
+  newObs: NewObservation[],
+  capability: ModelCapability,
+  evalId?: string
+): Promise<void> {
+  const [allActive, suppressions] = await Promise.all([
+    loadActiveObservationsForDocument(docId),
+    loadSuppressionsForDocument(docId),
+  ]);
+  const existingConflicts = allActive.filter(
+    (o) => o.type === "contradiction" || o.type === "strategic_tension"
+  );
+
+  if (capability.driveResolution) {
+    // Authoritative-with-grace: sweep output is the source of truth.
+    const now = Date.now();
+    const newKeys = new Set(newObs.map(conflictPairKey));
+    const insertedKeys = new Set<string>();
+
+    for (const ex of existingConflicts) {
+      const key = conflictPairKey(ex);
+      if (newKeys.has(key)) {
+        // Re-emitted → still active; reset absence counter.
+        await saveObservation({ ...ex, missCount: 0, lastSeenAt: now });
+        insertedKeys.add(key); // suppress re-insert below
+      } else {
+        // Absent → bump grace counter; close if threshold reached.
+        const miss = (ex.missCount ?? 0) + 1;
+        if (miss >= DOC_GRACE_THRESHOLD) {
+          await updateObservationStatus(ex.id, "auto_closed");
+          archiveObs(ex, "auto_closed", evalId);
+        } else {
+          await saveObservation({ ...ex, missCount: miss });
+        }
+      }
+    }
+
+    // Insert genuinely new conflict-pairs (not already present, not suppressed).
+    for (const newO of newObs) {
+      const key = conflictPairKey(newO);
+      if (insertedKeys.has(key)) continue;
+      if (isSpanSuppressed(newO, suppressions)) continue;
+      await saveObservation({ id: nanoid(10), docId, status: "active", missCount: 0, lastSeenAt: now, ...newO });
+      if (import.meta.env.DEV) {
+        const blocks = [newO.blockId, newO.conflictingBlockId].filter(Boolean);
+        harness.emit("observation", { type: newO.type, blocks });
+      }
+    }
+  } else {
+    // Weak model: additive only (original behavior).
+    const existingKeys = new Set(existingConflicts.map(conflictPairKey));
+    for (const newO of newObs) {
+      const key = conflictPairKey(newO);
+      if (existingKeys.has(key)) continue;
+      if (isSpanSuppressed(newO, suppressions)) continue;
+      await saveObservation({ id: nanoid(10), docId, status: "active", ...newO });
+      existingKeys.add(key);
+      if (import.meta.env.DEV) {
+        const blocks = [newO.blockId, newO.conflictingBlockId].filter(Boolean);
+        harness.emit("observation", { type: newO.type, blocks });
+      }
+    }
+  }
+}
+
+/**
+ * One-shot, ledger-internal contradiction sweep run after a bulk paste / import
+ * has populated the claim ledger. A single strong-tier call finds conflicting
+ * claim *pairs* across the whole document, instead of the N per-section
+ * contradiction calls that a bulk insert would otherwise fire (OBS-020). Gated
+ * by the caller behind the content threshold; dirty-checked so an unchanged
+ * ledger skips the call. See docs/projects/bulk_paste_evaluation.md.
+ */
+export async function evaluateLedgerContradictions(
+  docId: string,
+  stage?: string,
+  apiKey?: string,
+  paidKey?: string,
+  evalId?: string,
+  capability: ModelCapability = WEAK_CAPABILITY
+): Promise<void> {
+  if (!apiKey && getLlmMode() !== "mock") {
+    console.warn("Evaluator: No API key provided, skipping contradiction sweep.");
+    return;
+  }
+
+  const claims = await loadActiveClaimsForDocument(docId);
+  if (claims.length < 2) return;
+
+  // Stable order so the prompt + dirty-check hash are deterministic across runs
+  // (IDB ids change per session; sort by text then source block).
+  const sorted = [...claims].sort(
+    (a, b) => a.text.localeCompare(b.text) || a.sourceBlockId.localeCompare(b.sourceBlockId)
+  );
+
+  // Dirty-check: skip if the ledger is unchanged since the last sweep.
+  const stateHash = hashCode(sorted.map((c) => `${c.sourceBlockId}:${c.text}`).join(";"));
+  if ((await loadDocEvalState(sweepStateKey(docId))) === stateHash) return;
+
+  const router = createRouter(apiKey ?? "", paidKey);
+  const user = `Claims:\n${sorted
+    .map((c, i) => `[Claim #${i}] (${c.kind}): "${c.text}"`)
+    .join("\n")}${stage ? `\n\nDocument Context: ${stage}` : ""}`;
+
+  if (import.meta.env.DEV)
+    harness.emit("request", { tier: "strong", check: "contradiction-sweep" });
+  const startedAt = Date.now();
+  try {
+    const res = await router.strong({
+      system: capability.adjudicateConfidently
+        ? CONTRADICTION_SWEEP_SYSTEM_PROMPT
+        : CONTRADICTION_SWEEP_SYSTEM_PROMPT_HEDGED,
+      user,
+      json: true,
+      meta: {
+        evalId,
+        promptRef: capability.adjudicateConfidently
+          ? "contradiction-sweep"
+          : "contradiction-sweep-hedged",
+      },
+    });
+    const parsed = parseJSONResponse(res.text) as {
+      contradictions?: SweepConflict[];
+      tensions?: SweepConflict[];
+    };
+    if (import.meta.env.DEV) {
+      harness.emit("response", {
+        tier: "strong",
+        check: "contradiction-sweep",
+        latencyMs: Date.now() - startedAt,
+        contradictions: parsed.contradictions?.length ?? 0,
+        tensions: parsed.tensions?.length ?? 0,
+      });
+    }
+
+    const newObs: NewObservation[] = [];
+    const emit = (con: SweepConflict, obsType: "contradiction" | "strategic_tension") => {
+      const a = sorted[Number(con.claimAId)];
+      const b = sorted[Number(con.claimBId)];
+      if (!a || !b || a.sourceBlockId === b.sourceBlockId) return;
+
+      const { severity, confidence, priority } =
+        obsType === "contradiction"
+          ? computePriority({
+              type: "contradiction",
+              claimKinds: { newKind: b.kind, existingKind: a.kind },
+              contradictionTier: capability.adjudicateConfidently ? "confident" : "hedged",
+            })
+          : computePriority({ type: "strategic_tension" });
+
+      newObs.push({
+        type: obsType,
+        scope: "span",
+        kind: obsType === "contradiction" ? "problem" : "opportunity",
+        severity,
+        confidence,
+        priority,
+        text: con.message,
+        // Whole-block anchoring: claims carry only their source block, not span
+        // offsets. Matches the existing contradiction fallback (endOffset 9999).
+        blockId: a.sourceBlockId,
+        startOffset: 0,
+        endOffset: 9999,
+        conflictingBlockId: b.sourceBlockId,
+        conflictingStartOffset: 0,
+        conflictingEndOffset: 9999,
+      });
+    };
+
+    for (const con of parsed.contradictions || []) emit(con, "contradiction");
+    for (const ten of parsed.tensions || []) emit(ten, "strategic_tension");
+
+    if (import.meta.env.DEV) {
+      llmLogger.recordProduced(res.callId, { observations: newObs.map((o) => o.type) });
+    }
+
+    await reconcileSweepContradictions(docId, newObs, capability, evalId);
+    await saveDocEvalState(sweepStateKey(docId), stateHash);
+  } catch (error) {
+    console.error("Contradiction sweep error:", error);
   }
 }

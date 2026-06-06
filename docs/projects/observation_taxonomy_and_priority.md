@@ -91,11 +91,24 @@ Five milestones with a strict dependency spine, now split across Phase 4 (A·B·
   - [x] `contradiction` observations always surface regardless of N (floor = show even if outside top-N, unless dismissed). *(Open: the floor has no **ceiling** — a doc with many contradictions surfaces them all, which the **discomfort budget** (R6.3) warns is demoralizing. Whether to cap floored items is owned by `docs/projects/philosophy_guardrails.md` (G4), not here.)*
   - [x] `reflection` observations are never shown in the main feed count — they live in the reflections panel (Milestone D). They do not consume budget slots.
   - [ ] `opportunity` observations can be toggled off without affecting `problem` observations. *(Part of noisiness control — deferred.)*
-- [ ] Add a **noisiness control** in settings. Design as a discrete three-step switch rather than a continuous slider (simpler to reason about and implement): *(Intentionally deferred — ship and dogfood the default N=7 budget first; add the switch only if the default proves wrong in practice.)*
-  - [ ] **Key issues only** — top-5, problems and contradictions only; opportunities and all reflections hidden.
-  - [ ] **Balanced** (default) — top-N budget with all kinds active.
-  - [ ] **Everything** — no budget cap; reflections panel auto-expands; opportunities surfaced aggressively.
-- [x] `data-testid="also-noticed-drawer"` · `data-testid="noisiness-control"` *(drawer delivered; noisiness-control testid deferred with the control itself)*.
+- [ ] Add a **noisiness control** — a discrete three-step switch (not a slider). *(Was deferred to dogfood the default N=7 first; now build-ready and scheduled as a Phase 6 backlog item in `docs/plan.md`. Spec below is executable as-is.)*
+
+  **Build spec (🟢 ready):**
+  - [ ] Define the mode → partition-config map next to `partitionFeed` in `src/sidecar/feedBudget.ts`:
+    ```ts
+    export type Noisiness = "key" | "balanced" | "everything";
+    // Maps a mode to the budget + the kinds eligible for the visible set.
+    export const NOISINESS: Record<Noisiness, { budget: number; kinds: Observation["kind"][] }> = {
+      key:        { budget: 5,        kinds: ["problem"] },                 // problems/contradictions only
+      balanced:   { budget: 7,        kinds: ["problem", "opportunity"] },  // current default
+      everything: { budget: Infinity, kinds: ["problem", "opportunity"] }, // no cap
+    };
+    ```
+  - [ ] Extend `FeedPartitionOptions` with `noisiness: Noisiness` (default `"balanced"`). In `partitionFeed`, before grouping, additionally filter `eligible` by `NOISINESS[noisiness].kinds` (reflection is already excluded), and use `NOISINESS[noisiness].budget` as the budget. `Infinity` budget ⇒ everything visible, empty "also noticed". Keep the contradiction-priority behavior unchanged. Add unit tests in `feedBudget.test.ts` for each mode (key hides opportunities; everything empties the drawer).
+  - [ ] Persist the mode like the other settings: `localStorage["writtten_noisiness"]` in `App.tsx` (mirror `writtten_stage`/`writtten_key_tier`), default `"balanced"`; thread it into the `partitionFeed` call in `SidecarFeed.tsx`.
+  - [ ] Render a three-segment control in the settings panel (`SidecarFeed.tsx`, in a new `.setting-group` near the jargon control) — Key issues / Balanced / Everything — with `data-testid="noisiness-control"` on the group and `data-testid="noisiness-key|noisiness-balanced|noisiness-everything"` on the segments. Copy: "Key issues only / Balanced / Everything".
+  - [ ] Reflections-panel auto-expand under "Everything" is **deferred with Milestone D** (no reflections produced yet) — note it, don't build it.
+- [x] `data-testid="also-noticed-drawer"` *(drawer delivered; `data-testid="noisiness-control"` ships with the control above)*.
 - [x] Update `docs/projects/message_generation_workflow.md` to reflect the new feed sort/budget contract.
 
 ---

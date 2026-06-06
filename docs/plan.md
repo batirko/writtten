@@ -6,6 +6,14 @@
 
 **Current phase: Phase 5 — "Egress, install, hardening."** (Phase 1 fully verified 2026-06-01. Phase 2 fully implemented 2026-06-02. Phase 3 fully implemented 2026-06-02. Phase 4 fully implemented 2026-06-05. Reprioritized 2026-06-03: the core write→observe→recommend loop led; egress/install follows.)
 
+> **Routing legend.** Open milestones below carry an annotation `— <readiness> <complexity> · <agent>` so it's clear what's ready, how hard, and who should build it. Completed (`[x]`) lines are left unannotated.
+>
+> - **Readiness:** 🟢 fully defined, ready to build · 🟡 mostly defined, decisions along the way · 🟠 not defined, needs pre-work/planning · 🔴 concept only, no design.
+> - **Complexity:** Low · Med · High.
+> - **Agent:** 🧠 capable/expensive (judgment, design, prompt-quality, architecture) · ⚙️ mid · 🔧 simple/mechanical (well-specified, low-decision).
+>
+> **This is required metadata, not decoration.** Every new open milestone (here or in any phase section) gets the annotation **on creation** — there is no unannotated open item. And it's **living:** whenever work touches an item, re-assess and update its annotation in the same change. **Readiness** moves the most (e.g. a design spec lands → 🟠→🟡, or a milestone is fully specced → 🟡→🟢); **complexity** and **agent** shift less often but get re-rated when new information changes the picture (e.g. a "simple" item turns out to need architectural judgment → 🔧→🧠). When an item is completed, drop the annotation as the `[x]` is added.
+
 ---
 
 ## Projects index
@@ -20,6 +28,7 @@
 | [agent_acceptance_harness](projects/agent_acceptance_harness.md) | done | 1 · 2 | Dev-only observability + control surface (debug state API, structured event stream, readiness signal, seedable state, mock LLM) so an agent can drive and verify acceptance tests deterministically. |
 | [evaluation_signal_quality](projects/evaluation_signal_quality.md) | done | 1 · 2 · 3 (remediation) | Signal-to-noise findings from a real PRD paste-test — heading-only blocks hallucinate, the ledger self-pollutes, free-tier "strong" checks run on a weak model and emit confident false contradictions, observations duplicate — remediated in Chunk 1. |
 | [section_as_eval_unit](projects/section_as_eval_unit.md) | done | 4 | Redesign the evaluation unit from individual ProseMirror blocks to semantic sections (heading + body), unifying typing and paste workflows and eliminating the heading-hallucination class of bugs. |
+| [bulk_paste_evaluation](projects/bulk_paste_evaluation.md) | done | 4 | Evaluate multi-section drafts on bulk paste/import — fast-tier span checks per section plus one ledger-internal contradiction sweep — closing the gap where a single paste went unevaluated and import fired N paid-tier calls. |
 | [observation_taxonomy_and_priority](projects/observation_taxonomy_and_priority.md) | in-progress | 4 (A·B·E ✅) · 6 (C·D) | Extend observations with kind/severity/confidence/priority axes, close the decision-rigor taxonomy gap, add a client-side reflection mirror kind, and introduce a budget-based noisiness model in the feed. |
 | [evaluator_quality_ratchet](projects/evaluator_quality_ratchet.md) | done | 4 | Labeled fixture corpus + two-tier scorer (deterministic replay CI + opt-in live precision/recall) so evaluator accuracy can't silently regress. Prerequisite for SkillOpt prompt optimization. |
 | [prompt_quality_observations](projects/prompt_quality_observations.md) | idea | 5 · 6 | Living log of observed prompt quality issues (false positives, misclassifications, missed signals) — accumulates across test sessions; remediated in a dedicated sprint. |
@@ -27,6 +36,12 @@
 | [quality_remediation_synthesis](projects/quality_remediation_synthesis.md) | idea | 4 (R1·R3·R5·transparency) · 5 (UX) · 6 (precision) | Root-cause synthesis of the prompt- and UX-quality logs — collapses ~32 field observations into 6 cross-cutting root causes, sequences the fixes, and flags which are Phase 4 acceptance blockers. |
 | [philosophy_guardrails](projects/philosophy_guardrails.md) | in-progress | 4 (G1·G2 ✅) · 5 (G3·G4) | The three unguarded qualitative guardrails — flattery-resistant dismissal, explicit anti-taxonomy, no-disguised-fix register — plus a discomfort-budget ceiling. Enforces the qualitative half of the fidelity bar in code + CI. |
 | [emotional_register](projects/emotional_register.md) | idea | 5 | Persona spec (trusted senior colleague), wrong-persona anti-patterns, message voice guide, and tone as a labeled eval dimension. The felt-tone half of register discipline. |
+| [debug_log](projects/debug_log.md) | in-progress | 4 ✅ · 5 | Redesign the debug/observability log into one call-centric, self-describing event model — merge request+response, dereference static prompts, add archival (user + system) records, unify the two divergent logs — for human reading and AI consumption. Phase 4 slice shipped; Phase 5 (log unify + token/cost) remains. |
+| [doc_scope_reconciliation](projects/doc_scope_reconciliation.md) | done | 4 (best-match + grace period) · 5 (resolution-aware + decisions) | Repair document-scope observation reconciliation. Tier 1: best-match pairing + grace (2026-06-05). Tier 2A: resolution-aware doc-scope reconciliation, priorId mapping, three-pass reconciler (2026-06-06). Tier 2B: ledger sweep authoritative-with-grace on paid tier (2026-06-06). |
+| [byok_capability_model](projects/byok_capability_model.md) | in-progress | 5 (capability decoupling ✅) · 6 (multi-key rotation) | Decouple model *capability* from the *credential* for BYOK. Phase 5 shipped (2026-06-06): explicit `ModelCapability` descriptor threaded via EvalContext, evaluator re-gated off `paidKey`, UI key-tier toggle. Phase 6 (multi-key rotation, additive in `gemini.ts`) remains. |
+| [egress](projects/egress.md) | idea | 5 | Build-ready specs for Export (MD + print-to-PDF behind a swap seam), Copy (rich text + MD), and PWA install/offline app shell. Lean; client-side only. |
+| [accessibility](projects/accessibility.md) | idea | 5 | Itemized a11y & keyboard-first checklist for the feed and hover/highlight interaction — mechanical items plus flagged design-dependent ones. |
+| [archive_trust](projects/archive_trust.md) | idea | 5 | R3b — persist each observation's ghost-anchor text + explicit closure reason and render them on archive cards so the archive is trustworthy. |
 
 ---
 
@@ -162,29 +177,30 @@ Milestones:
 
 Milestones:
 
-- [ ] Export: Markdown and PDF.
-- [ ] Copy to clipboard: rich text and Markdown.
-- [ ] PWA: installable, offline-capable, polished empty/early states that express the "quiet by design" intent.
-- [ ] Accessibility and keyboard-first polish in the feed and hover/highlight interactions.
-- [ ] **UI/UX mechanics pass** — audit and nail the interactions that define the product feel: hover → highlight contract, observation card anatomy (what's shown, in what order), dismiss gesture, span-focus scroll behaviour, "also noticed" drawer open/close. The mechanics are partly built in Phase 4; this pass makes them intentional and consistent.
-- [ ] **Visual style** — typography, colour, spacing, component language. The tool should feel calm, editorial, and opinionated — not another dev-tool grey box. Covers editor canvas, feed panel, cards, badges, archive, and empty states.
-- [ ] **Onboarding & first-run** — what a brand-new user sees on first open (the blank canvas moment), how the product introduces its own silence (quiet by design), and what the first observation feeling is like. Covers empty states, the first-settle micro-moment, and any minimal orientation copy.
-- [ ] **Emotional register** — persona spec (trusted senior colleague), wrong-persona anti-patterns, message voice/copy guide applied across the per-type prompts, and tone as a labeled eval dimension. The felt-tone half of register discipline; rides with visual style + onboarding as the "product feel" pass. → see `docs/projects/emotional_register.md` · R6
-- [ ] **No-disguised-fix register polish (G3)** — uniform prompt rule (locate, don't prescribe; no leading questions) hardened with a message lint/fixture. → see `docs/projects/philosophy_guardrails.md` (G3) · R2.2–R2.4
-- [ ] **Discomfort-budget ceiling (G4)** — decide whether the contradiction floor needs a ceiling so a doc with many hard critiques doesn't surface them all at once; overflow into "also noticed." → see `docs/projects/philosophy_guardrails.md` (G4) · R6.3
+- [ ] Export: Markdown and PDF (PDF via browser print-to-PDF behind a swap seam). → see `docs/projects/egress.md` — 🟢 Med · 🔧
+- [ ] Copy to clipboard: rich text and Markdown. → see `docs/projects/egress.md` — 🟢 Low · 🔧
+- [ ] PWA: installable, offline-capable app shell (empty/early-state _polish_ rides with Onboarding & Visual style). → see `docs/projects/egress.md` — 🟢 Med · 🔧
+- [ ] Accessibility and keyboard-first polish in the feed and hover/highlight interactions. → see `docs/projects/accessibility.md` — 🟢 Med · ⚙️
+- [ ] **UI/UX mechanics pass** — audit and nail the interactions that define the product feel: hover → highlight contract, observation card anatomy (what's shown, in what order), dismiss gesture, span-focus scroll behaviour, "also noticed" drawer open/close. The mechanics are partly built in Phase 4; this pass makes them intentional and consistent. — 🟡 High · 🧠
+- [ ] **Visual style** — typography, colour, spacing, component language. The tool should feel calm, editorial, and opinionated — not another dev-tool grey box. Covers editor canvas, feed panel, cards, badges, archive, and empty states. — 🔴 High · 🧠
+- [ ] **Onboarding & first-run** — what a brand-new user sees on first open (the blank canvas moment), how the product introduces its own silence (quiet by design), and what the first observation feeling is like. Covers empty states, the first-settle micro-moment, and any minimal orientation copy. — 🟠 High · 🧠
+- [ ] **Emotional register** — persona spec (trusted senior colleague), wrong-persona anti-patterns, message voice/copy guide applied across the per-type prompts, and tone as a labeled eval dimension. The felt-tone half of register discipline; rides with visual style + onboarding as the "product feel" pass. → see `docs/projects/emotional_register.md` · R6 — 🟠 High · 🧠
+- [ ] **No-disguised-fix register polish (G3)** — uniform prompt rule (locate, don't prescribe; no leading questions) hardened with a message lint/fixture. → see `docs/projects/philosophy_guardrails.md` (G3) · R2.2–R2.4 — 🟢 Med · ⚙️
+- [ ] **Discomfort-budget ceiling (G4)** — decide whether the contradiction floor needs a ceiling so a doc with many hard critiques doesn't surface them all at once; overflow into "also noticed." → see `docs/projects/philosophy_guardrails.md` (G4) · R6.3 — 🟡 High-decision/Low-build · 🧠 decide, 🔧 build
+- [ ] **Debug-log unify** — single emitter feeding both the agent event stream and the human debug panel; token/cost capture from Gemini `usageMetadata`; redaction + retention review. → see `docs/projects/debug_log.md` (Phase 5) — 🟢 Med · ⚙️
 
 **Quality remediation** (from the 2026-06-04 dogfooding synthesis — UX-layer work that depends on Phase 4's R3 reconciliation fix landing first; prompt-precision items that can run in parallel; root-cause analysis in `docs/projects/quality_remediation_synthesis.md`):
 
-- [ ] **Doc-level anchoring schema + category discipline (R4)** — extend the strong-tier doc-level JSON schema to optionally return anchoring targets (block id / substring) so `structure_flow` and `underexposed_topic` can highlight the text they're about; tighten prompts so `audience_mismatch` stops absorbing claim-evidence complaints and `structure_flow` stays strictly about ordering. → see `docs/projects/quality_remediation_synthesis.md` (R4) · resolves OBS-015, OBS-016, OBS-018 / UX-001
-- [ ] **Archive trust: closure context + ghost anchors (R3b)** — show the text an archived observation originally referenced ("ghost" anchor) and an explicit closure reason ("resolved by edit" / "superseded" / "text removed"). → see `docs/projects/quality_remediation_synthesis.md` (R3) · resolves UX-002, UX-011
-- [ ] **Feed choreography (R3c)** — enter/exit animation + transient "new"/"updated" badge so the user isn't change-blind after an eval. Depends on R3 reconciliation being stable first. → see `docs/projects/quality_remediation_synthesis.md` (R3) · resolves UX-007
-- [ ] **Scanning & interaction affordances (R7b)** — quoted-text subtitle on cards (UX-008); reverse-hover text → card (UX-006); auto-scroll / split-context for out-of-view and distant-contradiction spans (UX-009); visible editor formatting controls (UX-004). → see `docs/projects/quality_remediation_synthesis.md` (R7)
-- [ ] **Smart-feed-vs-manual-control design project (R2c)** — draft a spec resolving the zero-config philosophy against user desire for filtering/sorting/"top 5" controls; lightweight and opinionated, not a settings dashboard. → see `docs/projects/quality_remediation_synthesis.md` (R2) · resolves UX-010
-- [ ] **Fast-tier precision hardening (R6)** — attribution-is-support carve-out (OBS-001); per-kind claim examples to fix metric/commitment/constraint misclassification (OBS-002); few-shot exemplars for forward-looking metrics where zero-shot already failed despite an exact negative example (OBS-019); payments/fraud sub-domain jargon preset (OBS-003) and general process-terms expansion (OBS-005); remove premature user-facing jargon dictionary control until account/project scope exists (UX-005). → see `docs/projects/quality_remediation_synthesis.md` (R6) · resolves OBS-001, OBS-002, OBS-003, OBS-005, OBS-019 / UX-005
+- [ ] **Doc-level anchoring schema + category discipline (R4)** — extend the strong-tier doc-level JSON schema to optionally return anchoring targets (block id / substring) so `structure_flow` and `underexposed_topic` can highlight the text they're about; tighten prompts so `audience_mismatch` stops absorbing claim-evidence complaints and `structure_flow` stays strictly about ordering. → see `docs/projects/quality_remediation_synthesis.md` (R4) · resolves OBS-015, OBS-016, OBS-018 / UX-001 — 🟡 Med–High · 🧠
+- [ ] **Archive trust: closure context + ghost anchors (R3b)** — show the text an archived observation originally referenced ("ghost" anchor) and an explicit closure reason ("resolved by edit" / "superseded" / "text removed"). → see `docs/projects/archive_trust.md` · `docs/projects/quality_remediation_synthesis.md` (R3) · `docs/projects/doc_scope_reconciliation.md` (T1c makes doc-scope closure reasons honest) · resolves UX-002, UX-011 — 🟢 Med · ⚙️
+- [ ] **Feed choreography (R3c)** — enter/exit animation + transient "new"/"updated" badge so the user isn't change-blind after an eval. Depends on R3 reconciliation being stable first. → see `docs/projects/quality_remediation_synthesis.md` (R3) · resolves UX-007 — 🟡 Med · ⚙️/🧠
+- [ ] **Scanning & interaction affordances (R7b)** — quoted-text subtitle on cards (UX-008); reverse-hover text → card (UX-006); auto-scroll / split-context for out-of-view and distant-contradiction spans (UX-009); visible editor formatting controls (UX-004). → see `docs/projects/quality_remediation_synthesis.md` (R7) — 🟡 Med · 🧠
+- [ ] **Smart-feed-vs-manual-control design project (R2c)** — draft a spec resolving the zero-config philosophy against user desire for filtering/sorting/"top 5" controls; lightweight and opinionated, not a settings dashboard. → see `docs/projects/quality_remediation_synthesis.md` (R2) · resolves UX-010 — 🟠 High (design) · 🧠
+- [ ] **Fast-tier precision hardening (R6)** — attribution-is-support carve-out (OBS-001); per-kind claim examples to fix metric/commitment/constraint misclassification (OBS-002); few-shot exemplars for forward-looking metrics where zero-shot already failed despite an exact negative example (OBS-019); payments/fraud sub-domain jargon preset (OBS-003) and general process-terms expansion (OBS-005); remove premature user-facing jargon dictionary control until account/project scope exists (UX-005). → see `docs/projects/quality_remediation_synthesis.md` (R6) · resolves OBS-001, OBS-002, OBS-003, OBS-005, OBS-019 / UX-005 — 🟢 Med · 🧠
 
 **Exit criteria:** a user can import a draft, work in it, and export/copy clean output in all formats; the app installs and runs offline.
 
-**Harness exit criterion:** [x] `loadDoc` accepts a Markdown string as an alternative to the block-array fixture so import round-trips are testable without typing. [ ] `data-testid` on export/copy affordances and PWA install prompt. → `docs/projects/agent_acceptance_harness.md`
+**Harness exit criterion:** [x] `loadDoc` accepts a Markdown string as an alternative to the block-array fixture so import round-trips are testable without typing. [ ] `data-testid` on export/copy affordances and PWA install prompt (— 🟢 Low · 🔧). → `docs/projects/agent_acceptance_harness.md`
 
 ---
 
@@ -192,12 +208,14 @@ Milestones:
 
 Only if the drafting habit has taken hold. Don't pre-build any of this.
 
-- **Decision-rigor taxonomy expansion** — `unstated_assumption`, `alternatives_not_considered`, `unmeasurable_criteria`, `scope_ambiguity`, `ownerless_commitment`. **Research-gated:** validate against a corpus of 15–20 real PRDs before writing prompts. → see `docs/projects/observation_taxonomy_and_priority.md` (Milestone C)
-- **Reflection / document-mirror kind** — client-side, zero LLM calls, quiet separate panel. → see `docs/projects/observation_taxonomy_and_priority.md` (Milestone D)
-- Living _where users already write_ (Notion / Linear / Confluence / email) instead of being a drafting annex — the real long-term play, per `docs/concept.md`.
-- Documented **extension API** for the three seams (observation types, model providers, export formats) to invite OSS contribution.
-- Optional Tauri desktop wrapper.
-- Lightweight monetization exploration (hosted convenience / managed model access on an OSS core) — only if traction warrants it.
+- **Decision-rigor taxonomy expansion** — `unstated_assumption`, `alternatives_not_considered`, `unmeasurable_criteria`, `scope_ambiguity`, `ownerless_commitment`. **Research-gated:** validate against a corpus of 15–20 real PRDs before writing prompts. → see `docs/projects/observation_taxonomy_and_priority.md` (Milestone C) — 🟠 High · 🧠
+- **Reflection / document-mirror kind** — client-side, zero LLM calls, quiet separate panel. → see `docs/projects/observation_taxonomy_and_priority.md` (Milestone D) — 🟢 Med · ⚙️
+- **BYOK multi-key rotation** — pool entries become `{key, model}`, cool-down registry keyed by `key+model`; optional mid-capability tier. Additive, contained in `gemini.ts`. → see `docs/projects/byok_capability_model.md` (Phase 6) — 🟢 Med · ⚙️
+- **Noisiness control** — three-step switch (Key issues / Balanced / Everything) over the budget feed. → see `docs/projects/observation_taxonomy_and_priority.md` (Milestone E) — 🟢 Low · 🔧
+- Living _where users already write_ (Notion / Linear / Confluence / email) instead of being a drafting annex — the real long-term play, per `docs/concept.md`. — 🔴 Very High · 🧠
+- Documented **extension API** for the three seams (observation types, model providers, export formats) to invite OSS contribution. — 🟠 High · 🧠
+- Optional Tauri desktop wrapper — the "proper local app" path. Mostly _extend-not-rewrite_: the UI runs in the system webview and persistence + model-router are already sealed seams; the main new surface is multi-document and a SQLite/filesystem backend behind `db.ts`. The Tauri-vs-integrations fork and the two enabling invariants (idb sealed; `docId` never re-hardcoded) are documented in `docs/architecture.md` → _Local-app evolution path_; invariant 1 is enforced by an ESLint rule. — 🟡 Med · ⚙️
+- Lightweight monetization exploration (hosted convenience / managed model access on an OSS core) — only if traction warrants it. — 🔴 N/A · 🧠
 
 ---
 
@@ -205,7 +223,14 @@ Only if the drafting habit has taken hold. Don't pre-build any of this.
 
 > Insights from real test sessions not yet scoped into a phase. Triage each into a phase or discard — don't let them rot here. Source reviews live in `docs/snapshots/`. _(The 2026-06-03 signal-quality review's items — jargon allow-list, `strategic_tension`, aggregation, impact badging — have been triaged into Phase 4 above.)_
 
-- _(empty — triage new findings here as they surface.)_
+> Anticipated-but-unscheduled items below were surfaced by the 2026-06-06 scope analysis from project-doc open-questions / deferred decisions. Each is `(deferred)` (a path chosen against, revisit on a trigger) or an `(open question)` (a decision not yet made). Routing annotations apply as above.
+
+- **LEANN real-vector prefilter** `(deferred)` — shipped as a lexical Jaccard prefilter; real embeddings deferred (Python dep / WASM bundle weight). Revisit if claim density makes contradiction-check misses observable in practice. → `docs/projects/ai_tooling_integration.md` — 🟠 · 🧠
+- **markitdown binary import (DOCX/PDF)** `(deferred)` — held to preserve the local-first invariant; MD/TXT-only import shipped. Needs the WASM-port-vs-optional-local-helper decision before scoping. → `docs/projects/ai_tooling_integration.md` — 🟠 · 🧠
+- **Non-Gemini provider adapters (OpenAI / Anthropic / local)** `(open question)` — the `ModelRouter` seam already permits them; adapter work is unspecified and not blocked by the BYOK capability decoupling. → `docs/projects/byok_capability_model.md` (out of scope) — 🟠 · ⚙️/🧠
+- **Priority decay over session time** `(open question)` — gently decay an undismissed observation's priority so the feed stays fresh. UX refinement; don't build without dogfooding evidence that stale-but-undismissed cards are a real problem. → `docs/projects/observation_taxonomy_and_priority.md` — 🟠 · ⚙️
+- **Reflection tone-shift detection** `(deferred)` — needs per-section tone metadata in the block-summary schema first; do not build a speculative per-section tone call. → `docs/projects/observation_taxonomy_and_priority.md` — 🟠 · 🧠
+- **`ownerless_commitment` as a client-side regex check** `(open question)` — `commitment` claims are already in the ledger; a lightweight no-LLM scan may suffice if the false-positive rate is acceptable. Validate against corpus. → `docs/projects/observation_taxonomy_and_priority.md` — 🟡 · ⚙️
 
 ---
 

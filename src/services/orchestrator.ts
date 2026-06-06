@@ -13,7 +13,7 @@
  */
 
 import { type EvalTrigger, type EvalContext, type SectionMember } from "./types";
-import { evaluateSection, evaluateDocument } from "./evaluator";
+import { evaluateSection, evaluateDocument, evaluateLedgerContradictions } from "./evaluator";
 import {
   loadActiveObservationsForDocument,
   orphanClaimsForBlock,
@@ -23,6 +23,7 @@ import {
 import { llmLogger } from "../model/logger";
 import { harness } from "../debug/harness";
 import { isNearLimit } from "../model/rpmBudget";
+import { nanoid } from "nanoid";
 
 /**
  * How long to defer a doc-idle call when RPM is near the free-tier limit.
@@ -63,6 +64,9 @@ const pendingAfterInflight = new Map<string, PendingEntry>();
 let docIdleInFlight = false;
 let pendingDocIdle: { ctx: EvalContext; onComplete?: () => void } | null = null;
 
+let bootstrapSweepInFlight = false;
+let pendingBootstrapSweep: { ctx: EvalContext; onComplete?: () => void } | null = null;
+
 // ---------------------------------------------------------------------------
 // Internal helpers
 // ---------------------------------------------------------------------------
@@ -76,12 +80,17 @@ function recomputePending(): void {
         inFlightSections.size +
         pendingAfterInflight.size +
         (docIdleInFlight ? 1 : 0) +
-        (pendingDocIdle ? 1 : 0),
+        (pendingDocIdle ? 1 : 0) +
+        (bootstrapSweepInFlight ? 1 : 0) +
+        (pendingBootstrapSweep ? 1 : 0)
     );
   }
 }
 
-function logTrigger(triggerKind: string, id: string): void {
+/** Mint an eval-pass id and log its trigger; the id threads through every call
+ *  and archive the pass spawns so they read as one causal unit on export. */
+function logTrigger(triggerKind: string, id: string): string {
+  const evalId = nanoid(8);
   llmLogger.log({
     type: "trigger",
     model: "",
@@ -89,13 +98,15 @@ function logTrigger(triggerKind: string, id: string): void {
     payload: { system: "", user: "" },
     triggerKind,
     blockId: id,
+    evalId,
   });
+  return evalId;
 }
 
 async function handleBlockRemoved(
   blockId: string,
   ctx: EvalContext,
-  onComplete?: () => void,
+  onComplete?: () => void
 ): Promise<void> {
   // Cancel any pending coalesce or queued re-run for this block
   const entry = coalesceTimers.get(blockId);
@@ -106,7 +117,7 @@ async function handleBlockRemoved(
   pendingAfterInflight.delete(blockId);
   recomputePending();
 
-  logTrigger("block-removed", blockId);
+  const evalId = logTrigger("block-removed", blockId);
   if (import.meta.env.DEV) harness.emit("block-removed", { block: blockId });
 
   // Orphan claims — no LLM call needed
@@ -115,10 +126,28 @@ async function handleBlockRemoved(
 
   // Auto-close all observations anchored to or conflicting with this block
   const active = await loadActiveObservationsForDocument(ctx.docId);
-  const toClose = active.filter(
-    (o) => o.blockId === blockId || o.conflictingBlockId === blockId,
+  const toClose = active.filter((o) => o.blockId === blockId || o.conflictingBlockId === blockId);
+  await Promise.all(
+    toClose.map(async (o) => {
+      await updateObservationStatus(o.id, "auto_closed");
+      if (import.meta.env.DEV) {
+        harness.archive(
+          {
+            observationId: o.id,
+            obsType: o.type,
+            kind: o.kind,
+            severity: o.severity,
+            scope: o.scope,
+            blockId: o.blockId,
+            text: o.text,
+            reason: "block_removed",
+            actor: "system",
+          },
+          evalId
+        );
+      }
+    })
   );
-  await Promise.all(toClose.map((o) => updateObservationStatus(o.id, "auto_closed")));
 
   onComplete?.();
 }
@@ -129,7 +158,7 @@ async function dispatch(
   members: SectionMember[],
   ctx: EvalContext,
   triggerKind: string,
-  onComplete?: () => void,
+  onComplete?: () => void
 ): Promise<void> {
   // If in-flight, queue a re-run with the latest data
   if (inFlightSections.has(sectionId)) {
@@ -140,11 +169,23 @@ async function dispatch(
 
   inFlightSections.add(sectionId);
   recomputePending();
-  logTrigger(triggerKind, sectionId);
+  const evalId = logTrigger(triggerKind, sectionId);
   if (import.meta.env.DEV) harness.emit("settle", { trigger: triggerKind, sectionId });
 
   try {
-    await evaluateSection(ctx.docId, sectionId, text, members, ctx.stage, ctx.apiKey, ctx.paidKey, ctx.jargonAllowlist);
+    await evaluateSection(
+      ctx.docId,
+      sectionId,
+      text,
+      members,
+      ctx.stage,
+      ctx.apiKey,
+      ctx.paidKey,
+      ctx.jargonAllowlist,
+      ctx.skipContradiction,
+      evalId,
+      ctx.capability
+    );
   } catch (err) {
     console.error("[orchestrator] evaluateSection threw:", err);
   } finally {
@@ -156,7 +197,14 @@ async function dispatch(
     if (pending) {
       pendingAfterInflight.delete(sectionId);
       recomputePending();
-      dispatch(sectionId, pending.text, pending.members, pending.ctx, pending.triggerKind, pending.onComplete);
+      dispatch(
+        sectionId,
+        pending.text,
+        pending.members,
+        pending.ctx,
+        pending.triggerKind,
+        pending.onComplete
+      );
     } else {
       recomputePending();
       // Once the last in-flight section finishes, pick up any queued doc-idle.
@@ -167,6 +215,13 @@ async function dispatch(
         const pd = pendingDocIdle;
         pendingDocIdle = null;
         handleDocIdle(pd.ctx, pd.onComplete);
+      }
+      // Same drain for the bootstrap sweep: it must see the fully-populated
+      // ledger, so it waits for every pasted section's fast eval to finish.
+      if (inFlightSections.size === 0 && pendingBootstrapSweep) {
+        const pb = pendingBootstrapSweep;
+        pendingBootstrapSweep = null;
+        handleBootstrapSweep(pb.ctx, pb.onComplete);
       }
     }
   }
@@ -208,11 +263,19 @@ async function handleDocIdle(ctx: EvalContext, onComplete?: () => void): Promise
 
   docIdleInFlight = true;
   recomputePending();
-  logTrigger("doc-idle", "");
+  const evalId = logTrigger("doc-idle", "");
   if (import.meta.env.DEV) harness.emit("settle", { trigger: "doc-idle" });
 
   try {
-    await evaluateDocument(ctx.docId, ctx.stage, ctx.apiKey, ctx.onStageSuggestion, ctx.paidKey);
+    await evaluateDocument(
+      ctx.docId,
+      ctx.stage,
+      ctx.apiKey,
+      ctx.onStageSuggestion,
+      ctx.paidKey,
+      evalId,
+      ctx.capability
+    );
   } catch (err) {
     console.error("[orchestrator] evaluateDocument threw:", err);
   } finally {
@@ -230,14 +293,94 @@ async function handleDocIdle(ctx: EvalContext, onComplete?: () => void): Promise
   }
 }
 
+/**
+ * Bootstrap contradiction sweep (block-paste trigger). Mirrors handleDocIdle's
+ * serialisation: it must run against the fully-populated ledger, so it defers
+ * until every in-flight section eval (the per-section fast calls fired by the
+ * same paste) has finished. Also defers under RPM backpressure — like doc-idle,
+ * a single strong call that can wait. See docs/projects/bulk_paste_evaluation.md.
+ */
+async function handleBootstrapSweep(ctx: EvalContext, onComplete?: () => void): Promise<void> {
+  if (bootstrapSweepInFlight) {
+    pendingBootstrapSweep = { ctx, onComplete };
+    recomputePending();
+    return;
+  }
+
+  // Wait for the paste's section evals to populate the ledger first.
+  if (inFlightSections.size > 0) {
+    pendingBootstrapSweep = { ctx, onComplete };
+    recomputePending();
+    return;
+  }
+
+  if (isNearLimit()) {
+    if (import.meta.env.DEV) {
+      harness.emit("settle", { trigger: "bootstrap-sweep-deferred", reason: "rpm-limit" });
+    }
+    setTimeout(() => handleBootstrapSweep(ctx, onComplete), DOC_IDLE_RPM_DEFER_MS);
+    return;
+  }
+
+  bootstrapSweepInFlight = true;
+  recomputePending();
+  const evalId = logTrigger("bootstrap-sweep", "");
+  if (import.meta.env.DEV) harness.emit("settle", { trigger: "bootstrap-sweep" });
+
+  try {
+    await evaluateLedgerContradictions(
+      ctx.docId,
+      ctx.stage,
+      ctx.apiKey,
+      ctx.paidKey,
+      evalId,
+      ctx.capability
+    );
+  } catch (err) {
+    console.error("[orchestrator] evaluateLedgerContradictions threw:", err);
+  } finally {
+    bootstrapSweepInFlight = false;
+    onComplete?.();
+
+    const pending = pendingBootstrapSweep;
+    if (pending) {
+      pendingBootstrapSweep = null;
+      recomputePending();
+      handleBootstrapSweep(pending.ctx, pending.onComplete);
+    } else {
+      recomputePending();
+    }
+  }
+}
+
 async function handleStageChanged(ctx: EvalContext, onComplete?: () => void): Promise<void> {
-  logTrigger("stage-changed", "");
+  const evalId = logTrigger("stage-changed", "");
   if (import.meta.env.DEV) harness.emit("settle", { trigger: "stage-changed" });
 
   // Supersede all active doc-level observations (they were graded against the old stage)
   const active = await loadActiveObservationsForDocument(ctx.docId);
   const docLevel = active.filter((o) => o.scope === "document");
-  await Promise.all(docLevel.map((o) => updateObservationStatus(o.id, "superseded")));
+  await Promise.all(
+    docLevel.map(async (o) => {
+      await updateObservationStatus(o.id, "superseded");
+      if (import.meta.env.DEV) {
+        harness.archive(
+          {
+            observationId: o.id,
+            obsType: o.type,
+            kind: o.kind,
+            severity: o.severity,
+            scope: o.scope,
+            blockId: o.blockId,
+            text: o.text,
+            reason: "superseded",
+            actor: "system",
+          },
+          evalId
+        );
+      }
+    })
+  );
 
   // Re-run doc-level checks with the new stage
   await handleDocIdle(ctx, onComplete);
@@ -260,7 +403,7 @@ export function scheduleEval(
   trigger: EvalTrigger,
   text: string | null,
   ctx: EvalContext,
-  onComplete?: () => void,
+  onComplete?: () => void
 ): void {
   if (trigger.kind === "block-removed") {
     handleBlockRemoved(trigger.blockId, ctx, onComplete);
@@ -278,8 +421,10 @@ export function scheduleEval(
   }
 
   if (trigger.kind === "block-paste") {
-    // Phase 3: coalesce into a batched fast call.
-    // For now each block will settle individually via normal pause/blur triggers.
+    // Bulk paste / import bootstrap: the editor has already dispatched a
+    // fast-tier eval per pasted section; this runs the single ledger-internal
+    // contradiction sweep once those drain. See bulk_paste_evaluation.md.
+    handleBootstrapSweep(ctx, onComplete);
     return;
   }
 
@@ -287,9 +432,7 @@ export function scheduleEval(
   if (!text) return;
   const { sectionId, members } = trigger;
   const triggerKind =
-    trigger.kind === "block-settle-pause"
-      ? "settle-pause"
-      : `settle-blur:${trigger.reason}`;
+    trigger.kind === "block-settle-pause" ? "settle-pause" : `settle-blur:${trigger.reason}`;
 
   // Collapse into the coalesce window
   const existing = coalesceTimers.get(sectionId);

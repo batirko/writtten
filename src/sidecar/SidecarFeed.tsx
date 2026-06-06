@@ -1,6 +1,9 @@
 import { useState, useEffect, useRef } from "react";
 import type { Observation } from "../store/db";
-import type { LLMLogEntry, SessionStats } from "../model/logger";
+import { llmLogger, type LLMLogEntry, type SessionStats } from "../model/logger";
+import type { ModelTier } from "../model/capability";
+import { buildEnvelope } from "../model/debugLog";
+import { getLlmMode } from "../model/mock";
 import { subscribeStall } from "../model/stallSignal";
 import { partitionFeed, DEFAULT_FEED_BUDGET } from "./feedBudget";
 import type { GroupedObservation } from "./feedBudget";
@@ -140,6 +143,10 @@ interface Props {
   blockOrder?: string[];
   apiKey: string;
   onApiKeyChange: (key: string) => void;
+  /** User's declaration of their BYO key's capability tier. "strong" routes to
+   *  the paid pool and enables confident + resolution-aware paths. */
+  keyTier?: ModelTier;
+  onKeyTierChange?: (tier: ModelTier) => void;
   stage: string;
   onStageChange: (stage: string) => void;
   hoveredObservationId: string | null;
@@ -166,6 +173,8 @@ export function SidecarFeed({
   blockOrder = [],
   apiKey,
   onApiKeyChange,
+  keyTier = "weak",
+  onKeyTierChange,
   stage,
   onStageChange,
   hoveredObservationId,
@@ -236,7 +245,13 @@ export function SidecarFeed({
 
   const handleCopyLogs = async () => {
     try {
-      const text = JSON.stringify(logs, null, 2);
+      // Self-describing, call-centric envelope (request+response merged, static
+      // prompts dereferenced, chronological). See docs/projects/debug_log.md.
+      const envelope = buildEnvelope(llmLogger.getLogs(), llmLogger.getProducedByCall(), {
+        llmMode: getLlmMode(),
+        activeProvider: llmLogger.getActiveProvider(),
+      });
+      const text = JSON.stringify(envelope, null, 2);
       await navigator.clipboard.writeText(text);
       setCopySuccess(true);
       setTimeout(() => setCopySuccess(false), 2000);
@@ -426,6 +441,26 @@ export function SidecarFeed({
                   ? "✓ BYO key active — using your quota and model tier."
                   : "No key set — free tier (rate-limited). Get one at aistudio.google.com."}
               </span>
+              {apiKey && (
+                <label
+                  className="setting-checkbox"
+                  data-testid="key-tier-toggle"
+                  style={{ display: "flex", alignItems: "center", gap: "8px", cursor: "pointer", marginTop: "8px" }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={keyTier === "strong"}
+                    onChange={(e) => onKeyTierChange?.(e.target.checked ? "strong" : "weak")}
+                  />
+                  <span>
+                    This is a capable model (paid tier)
+                    <span className="setting-help" style={{ display: "block" }}>
+                      Enables confident contradiction calls and resolution-aware
+                      reconciliation. Leave off for free/lightweight models.
+                    </span>
+                  </span>
+                </label>
+              )}
             </div>
             <div className="setting-group">
               <label htmlFor="stage-input">Document Context / Stage</label>
@@ -699,6 +734,40 @@ export function SidecarFeed({
                     >
                       <span>▶ trigger={log.triggerKind} block={log.blockId?.slice(0, 8)}</span>
                       <span style={{ opacity: 0.7 }}>{log.timestamp.toLocaleTimeString()}</span>
+                    </div>
+                  );
+                }
+
+                // Archive entries: a compact one-liner showing who closed an
+                // observation and why (the gap this redesign closes).
+                if (log.type === 'archive' && log.archive) {
+                  const a = log.archive;
+                  const actorColor = a.actor === 'user' ? '#92400e' : '#6b7280';
+                  return (
+                    <div
+                      key={log.id}
+                      data-testid="debug-entry"
+                      data-log-type="archive"
+                      data-archive-actor={a.actor}
+                      data-archive-reason={a.reason}
+                      style={{
+                        background: '#fdf4ff',
+                        border: '1px solid #f0abfc',
+                        borderRadius: '4px',
+                        padding: '3px 6px',
+                        fontSize: '0.7rem',
+                        color: actorColor,
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        gap: '6px',
+                        fontFamily: 'monospace',
+                      }}
+                      title={a.text}
+                    >
+                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        ✕ {a.actor} {a.reason} · {a.obsType}
+                      </span>
+                      <span style={{ opacity: 0.7, flexShrink: 0 }}>{log.timestamp.toLocaleTimeString()}</span>
                     </div>
                   );
                 }

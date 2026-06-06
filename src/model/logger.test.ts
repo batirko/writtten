@@ -172,3 +172,44 @@ describe("llmLogger.getApiStats", () => {
     expect(stats.models[0].remainingToday).toBe(0);
   });
 });
+
+describe("llmLogger archive + produced", () => {
+  beforeEach(() => {
+    llmLogger.clearLogs();
+  });
+
+  it("logArchive appends an archive entry carrying actor + reason, without touching quota stats", () => {
+    llmLogger.logArchive(
+      {
+        observationId: "o1",
+        obsType: "clarity",
+        scope: "span",
+        blockId: "b1",
+        text: "vague phrase",
+        reason: "dismissed",
+        actor: "user",
+      },
+      "E7"
+    );
+    const entry = llmLogger.getLogs().find((l) => l.type === "archive");
+    expect(entry).toBeDefined();
+    expect(entry!.evalId).toBe("E7");
+    expect(entry!.archive).toMatchObject({ actor: "user", reason: "dismissed", obsType: "clarity" });
+    // Archive entries have no model, so they never pollute per-model quota stats.
+    expect(llmLogger.getApiStats().models).toHaveLength(0);
+  });
+
+  it("recordProduced merges repeated calls for the same callId", () => {
+    llmLogger.recordProduced("c1", { observations: ["clarity"], ledgerWrites: 2 });
+    llmLogger.recordProduced("c1", { observations: ["contradiction"], resolvedPrior: [1] });
+    const p = llmLogger.getProducedByCall().get("c1")!;
+    expect(p.observations).toEqual(["clarity", "contradiction"]);
+    expect(p.ledgerWrites).toBe(2);
+    expect(p.resolvedPrior).toEqual([1]);
+  });
+
+  it("recordProduced is a no-op when callId is undefined (mock mode)", () => {
+    llmLogger.recordProduced(undefined, { observations: ["clarity"] });
+    expect(llmLogger.getProducedByCall().size).toBe(0);
+  });
+});

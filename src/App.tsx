@@ -10,6 +10,7 @@ import {
 } from "./store/db";
 import { scheduleEval } from "./services/orchestrator";
 import type { EvalContext } from "./services/types";
+import { capabilityForTier, type ModelTier } from "./model/capability";
 import { llmLogger, type LLMLogEntry, type SessionStats } from "./model/logger";
 import { harness } from "./debug/harness";
 import { nanoid } from "nanoid";
@@ -25,8 +26,29 @@ export default function App() {
     );
   });
 
-  const paidKey: string | undefined =
+  // The user's declaration of their BYO key's capability tier. Persisted so a
+  // capable BYO key keeps driving the strong path across sessions. Default weak:
+  // never assume a pasted key is a reasoning model without an explicit say-so.
+  const [keyTier, setKeyTier] = useState<ModelTier>(() => {
+    return (localStorage.getItem("writtten_key_tier") as ModelTier) || "weak";
+  });
+  useEffect(() => {
+    localStorage.setItem("writtten_key_tier", keyTier);
+  }, [keyTier]);
+
+  // Credential ≠ capability. Capability is decided here, once, from the key
+  // configuration; the evaluator branches on it (never on `paidKey` presence).
+  // See docs/projects/byok_capability_model.md.
+  //   - An env paid key (default Gemini pack) → strong.
+  //   - A UI-entered BYO key the user declared "strong" → strong (routes to the
+  //     paid pool using that very key).
+  //   - Otherwise → weak (free pool, hedged prompts, lexical/additive fallback).
+  const envPaidKey: string | undefined =
     (import.meta.env.VITE_GEMINI_PAID_KEY as string) || undefined;
+  const effectiveTier: ModelTier = envPaidKey || keyTier === "strong" ? "strong" : "weak";
+  const paidKey: string | undefined =
+    envPaidKey ?? (keyTier === "strong" && apiKey ? apiKey : undefined);
+  const capability = capabilityForTier(effectiveTier);
 
   const [stage, setStage] = useState<string>(() => {
     return localStorage.getItem("writtten_stage") || "";
@@ -148,11 +170,40 @@ export default function App() {
       });
     }
     await updateObservationStatus(id, "dismissed");
+    if (import.meta.env.DEV && obs) {
+      harness.archive({
+        observationId: obs.id,
+        obsType: obs.type,
+        kind: obs.kind,
+        severity: obs.severity,
+        scope: obs.scope,
+        blockId: obs.blockId,
+        text: obs.text,
+        reason: "dismissed",
+        actor: "user",
+      });
+    }
     refreshObservations();
   };
 
   const handleObservationCollapsed = async (id: string) => {
     await updateObservationStatus(id, "auto_closed");
+    if (import.meta.env.DEV) {
+      const obs = observations.find((o) => o.id === id);
+      if (obs) {
+        harness.archive({
+          observationId: obs.id,
+          obsType: obs.type,
+          kind: obs.kind,
+          severity: obs.severity,
+          scope: obs.scope,
+          blockId: obs.blockId,
+          text: obs.text,
+          reason: "collapsed",
+          actor: "user",
+        });
+      }
+    }
     refreshObservations();
   };
 
@@ -169,6 +220,7 @@ export default function App() {
         docId: DOC_ID,
         apiKey: apiKeyRef.current ?? "",
         paidKey,
+        capability,
         stage: stageRef.current,
         onStageSuggestion: setStageSuggestion,
       };
@@ -191,6 +243,7 @@ export default function App() {
         <Editor
           apiKey={apiKey}
           paidKey={paidKey}
+          capability={capability}
           stage={stage}
           jargonAllowlist={jargonAllowlist.split("\n").map((s) => s.trim()).filter(Boolean)}
           observations={observations}
@@ -209,6 +262,8 @@ export default function App() {
         blockOrder={blockOrder}
         apiKey={apiKey}
         onApiKeyChange={setApiKey}
+        keyTier={keyTier}
+        onKeyTierChange={setKeyTier}
         stage={stage}
         onStageChange={setStage}
         jargonAllowlist={jargonAllowlist}

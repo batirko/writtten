@@ -8,6 +8,7 @@ import { resolveSection, resolveSections } from "./section";
 import { saveDocument, loadDocument, type Observation } from "../store/db";
 import { scheduleEval } from "../services/orchestrator";
 import type { EvalContext } from "../services/types";
+import type { ModelCapability } from "../model/capability";
 import { harness } from "../debug/harness";
 import { nanoid } from "nanoid";
 import { Markdown } from "tiptap-markdown";
@@ -24,6 +25,9 @@ const CONTENT_THRESHOLD_WORDS = 150;
 interface Props {
   apiKey?: string;
   paidKey?: string;
+  /** Model capability (decoupled from the credential) — threaded into every
+   *  EvalContext so the evaluator branches on it. See byok_capability_model.md. */
+  capability?: ModelCapability;
   stage?: string;
   /** Terms that should never be flagged as undefined jargon (in addition to
    *  the hardcoded preset). One entry per term; case-insensitive. */
@@ -62,9 +66,7 @@ function getWordCount(editor: ReturnType<typeof useEditor>): number {
 
 /** Live top-level blocks with their text — fed to the dev harness so an agent
  *  can read the document structure (and spot duplicate block ids). */
-function getBlocksWithText(
-  editor: ReturnType<typeof useEditor>,
-): { id: string; text: string }[] {
+function getBlocksWithText(editor: ReturnType<typeof useEditor>): { id: string; text: string }[] {
   const blocks: { id: string; text: string }[] = [];
   if (!editor) return blocks;
   editor.state.doc.forEach((node) => {
@@ -77,6 +79,7 @@ function getBlocksWithText(
 export function Editor({
   apiKey,
   paidKey,
+  capability,
   stage,
   jargonAllowlist,
   observations,
@@ -98,22 +101,43 @@ export function Editor({
   const lastActiveSectionId = useRef<string | null>(null);
   /** Previous doc block-id set, for removal detection. */
   const prevBlockIds = useRef<Set<string>>(new Set());
+  /** Set by handlePaste so the next onUpdate dispatches a per-section bulk eval
+   *  instead of the normal single-section pause. See bulk_paste_evaluation.md. */
+  const pastePendingRef = useRef(false);
 
   // Stable refs for props used inside event listeners / timers
   const apiKeyRef = useRef(apiKey);
-  useEffect(() => { apiKeyRef.current = apiKey; }, [apiKey]);
+  useEffect(() => {
+    apiKeyRef.current = apiKey;
+  }, [apiKey]);
   const paidKeyRef = useRef(paidKey);
-  useEffect(() => { paidKeyRef.current = paidKey; }, [paidKey]);
+  useEffect(() => {
+    paidKeyRef.current = paidKey;
+  }, [paidKey]);
+  const capabilityRef = useRef(capability);
+  useEffect(() => {
+    capabilityRef.current = capability;
+  }, [capability]);
   const stageRef = useRef(stage);
-  useEffect(() => { stageRef.current = stage; }, [stage]);
+  useEffect(() => {
+    stageRef.current = stage;
+  }, [stage]);
   const jargonAllowlistRef = useRef(jargonAllowlist);
-  useEffect(() => { jargonAllowlistRef.current = jargonAllowlist; }, [jargonAllowlist]);
+  useEffect(() => {
+    jargonAllowlistRef.current = jargonAllowlist;
+  }, [jargonAllowlist]);
   const onEvaluationCompleteRef = useRef(onEvaluationComplete);
-  useEffect(() => { onEvaluationCompleteRef.current = onEvaluationComplete; }, [onEvaluationComplete]);
+  useEffect(() => {
+    onEvaluationCompleteRef.current = onEvaluationComplete;
+  }, [onEvaluationComplete]);
   const onStageSuggestionRef = useRef(onStageSuggestion);
-  useEffect(() => { onStageSuggestionRef.current = onStageSuggestion; }, [onStageSuggestion]);
+  useEffect(() => {
+    onStageSuggestionRef.current = onStageSuggestion;
+  }, [onStageSuggestion]);
   const onBlockOrderChangeRef = useRef(onBlockOrderChange);
-  useEffect(() => { onBlockOrderChangeRef.current = onBlockOrderChange; }, [onBlockOrderChange]);
+  useEffect(() => {
+    onBlockOrderChangeRef.current = onBlockOrderChange;
+  }, [onBlockOrderChange]);
   /** Last emitted ordered blockId string, for change-detection. */
   const prevBlockOrderKeyRef = useRef<string>("");
 
@@ -151,6 +175,13 @@ export function Editor({
     content: "",
     editorProps: {
       attributes: { class: "tiptap" },
+      // Flag a paste so the next onUpdate treats it as a bulk insert and fires
+      // one fast-tier eval per pasted section (not just the cursor's section).
+      // Return false: let ProseMirror insert the content normally.
+      handlePaste() {
+        pastePendingRef.current = true;
+        return false;
+      },
     },
 
     onUpdate({ editor }) {
@@ -172,14 +203,12 @@ export function Editor({
             docId: DOC_ID,
             apiKey: apiKeyRef.current ?? "",
             paidKey: paidKeyRef.current,
+            capability: capabilityRef.current,
             stage: stageRef.current,
             jargonAllowlist: jargonAllowlistRef.current,
           };
-          scheduleEval(
-            { kind: "block-removed", blockId: id },
-            null,
-            ctx,
-            () => onEvaluationCompleteRef.current(),
+          scheduleEval({ kind: "block-removed", blockId: id }, null, ctx, () =>
+            onEvaluationCompleteRef.current()
           );
         }
       }
@@ -187,6 +216,59 @@ export function Editor({
 
       // --- 2b. Emit updated document-order block ids to the feed ---
       emitBlockOrderIfChanged(editor);
+
+      // --- 2c. Bulk paste: fire one fast-tier eval per pasted section ---
+      // A single paste lands the cursor in just the last section, so the normal
+      // single-section path (step 3) would leave every section above it
+      // unevaluated. Dispatch all sections fast-tier (skipContradiction) and let
+      // the block-paste sweep cover contradiction once the ledger is built.
+      // See docs/projects/bulk_paste_evaluation.md.
+      if (pastePendingRef.current) {
+        pastePendingRef.current = false;
+        // Defer one tick so BlockId's appendTransaction has assigned ids.
+        setTimeout(() => {
+          if (editor.isDestroyed) return;
+          const ctx: EvalContext = {
+            docId: DOC_ID,
+            apiKey: apiKeyRef.current ?? "",
+            paidKey: paidKeyRef.current,
+            capability: capabilityRef.current,
+            stage: stageRef.current,
+            jargonAllowlist: jargonAllowlistRef.current,
+            onStageSuggestion: onStageSuggestionRef.current,
+            skipContradiction: true,
+          };
+          prevBlockIds.current = getBlockIds(editor);
+          const sections = resolveSections(editor.state.doc);
+          lastActiveSectionId.current =
+            sections.length > 0 ? sections[sections.length - 1].sectionId : null;
+          for (const section of sections) {
+            if (section.combinedText.trim().length >= 15) {
+              scheduleEval(
+                {
+                  kind: "block-settle-pause",
+                  sectionId: section.sectionId,
+                  members: section.members,
+                },
+                section.combinedText,
+                ctx,
+                () => onEvaluationCompleteRef.current()
+              );
+            }
+          }
+          // Once the ledger is built, run a single contradiction sweep — but
+          // only once the draft crosses the doc-level content threshold.
+          if (getWordCount(editor) >= CONTENT_THRESHOLD_WORDS) {
+            scheduleEval(
+              { kind: "block-paste", blockIds: [...prevBlockIds.current] },
+              null,
+              ctx,
+              () => onEvaluationCompleteRef.current()
+            );
+          }
+        }, 0);
+        return;
+      }
 
       // --- 3. Track cursor's section and schedule a settle-pause eval ---
       const { selection } = editor.state;
@@ -226,15 +308,16 @@ export function Editor({
               docId: DOC_ID,
               apiKey: apiKeyRef.current ?? "",
               paidKey: paidKeyRef.current,
+              capability: capabilityRef.current,
               stage: stageRef.current,
-            jargonAllowlist: jargonAllowlistRef.current,
+              jargonAllowlist: jargonAllowlistRef.current,
               onStageSuggestion: onStageSuggestionRef.current,
             };
             scheduleEval(
               { kind: "block-settle-pause", sectionId, members: fresh.members },
               fresh.combinedText,
               ctx,
-              () => onEvaluationCompleteRef.current(),
+              () => onEvaluationCompleteRef.current()
             );
           }
         }, EVAL_DEBOUNCE_MS);
@@ -245,30 +328,23 @@ export function Editor({
       // Reset the doc-idle timer on every edit. Fires a doc-level check after
       // DOC_IDLE_MS of silence, but only when there's enough content.
       const wordCount = getWordCount(editor);
-      console.log(`[TIMER-DEBUG] onUpdate fired. wordCount=${wordCount}, timerExists=${!!docIdleTimer.current}`);
       if (docIdleTimer.current) {
         clearTimeout(docIdleTimer.current);
       }
       if (wordCount >= CONTENT_THRESHOLD_WORDS) {
         docIdleTimer.current = setTimeout(() => {
-          console.log(`[TIMER-DEBUG] onUpdate timer FIRED. wordCount=${getWordCount(editor)}`);
           docIdleTimer.current = null;
           const ctx: EvalContext = {
             docId: DOC_ID,
             apiKey: apiKeyRef.current ?? "",
             paidKey: paidKeyRef.current,
+            capability: capabilityRef.current,
             stage: stageRef.current,
             jargonAllowlist: jargonAllowlistRef.current,
             onStageSuggestion: onStageSuggestionRef.current,
           };
-          scheduleEval(
-            { kind: "doc-idle" },
-            null,
-            ctx,
-            () => onEvaluationCompleteRef.current(),
-          );
+          scheduleEval({ kind: "doc-idle" }, null, ctx, () => onEvaluationCompleteRef.current());
         }, DOC_IDLE_MS);
-        console.log(`[TIMER-DEBUG] onUpdate set timer id=${docIdleTimer.current}`);
       }
     },
 
@@ -290,7 +366,7 @@ export function Editor({
       }
 
       const currentSectionId = currentBlockId
-        ? resolveSection(editor.state.doc, currentBlockId)?.sectionId ?? null
+        ? (resolveSection(editor.state.doc, currentBlockId)?.sectionId ?? null)
         : null;
 
       const departedSectionId = lastActiveSectionId.current;
@@ -312,6 +388,7 @@ export function Editor({
             docId: DOC_ID,
             apiKey: apiKeyRef.current ?? "",
             paidKey: paidKeyRef.current,
+            capability: capabilityRef.current,
             stage: stageRef.current,
             jargonAllowlist: jargonAllowlistRef.current,
             onStageSuggestion: onStageSuggestionRef.current,
@@ -325,7 +402,7 @@ export function Editor({
             },
             departed.combinedText,
             ctx,
-            () => onEvaluationCompleteRef.current(),
+            () => onEvaluationCompleteRef.current()
           );
         }
       }
@@ -381,6 +458,7 @@ export function Editor({
         docId: DOC_ID,
         apiKey: apiKeyRef.current ?? "",
         paidKey: paidKeyRef.current,
+        capability: capabilityRef.current,
         stage: stageRef.current,
         onStageSuggestion: onStageSuggestionRef.current,
       };
@@ -389,14 +467,15 @@ export function Editor({
       emitBlockOrderIfChanged(editor);
       const sections = resolveSections(editor.state.doc);
       // Seed cursor tracking at the last section so subsequent edits depart cleanly.
-      lastActiveSectionId.current = sections.length > 0 ? sections[sections.length - 1].sectionId : null;
+      lastActiveSectionId.current =
+        sections.length > 0 ? sections[sections.length - 1].sectionId : null;
       for (const section of sections) {
         if (section.combinedText.trim().length >= 10) {
           scheduleEval(
             { kind: "block-settle-pause", sectionId: section.sectionId, members: section.members },
             section.combinedText,
             ctx,
-            () => onEvaluationCompleteRef.current(),
+            () => onEvaluationCompleteRef.current()
           );
         }
       }
@@ -412,24 +491,25 @@ export function Editor({
       // onUpdate clear our timer immediately after we set it.
       const seededWordCount = blocks.reduce(
         (sum, b) => sum + b.text.split(/\s+/).filter(Boolean).length,
-        0,
+        0
       );
-      console.log(`[TIMER-DEBUG] docWriter setContent done. seededWordCount=${seededWordCount}, threshold=${CONTENT_THRESHOLD_WORDS}`);
+      console.log(
+        `[TIMER-DEBUG] docWriter setContent done. seededWordCount=${seededWordCount}, threshold=${CONTENT_THRESHOLD_WORDS}`
+      );
       if (seededWordCount >= CONTENT_THRESHOLD_WORDS) {
         setTimeout(() => {
-          console.log(`[TIMER-DEBUG] docWriter setTimeout 0ms callback running. timerExists=${!!docIdleTimer.current}`);
+          console.log(
+            `[TIMER-DEBUG] docWriter setTimeout 0ms callback running. timerExists=${!!docIdleTimer.current}`
+          );
           if (docIdleTimer.current) {
             clearTimeout(docIdleTimer.current);
           }
           docIdleTimer.current = setTimeout(() => {
-            console.log(`[TIMER-DEBUG] docWriter timer FIRED. currentWordCount=${getWordCount(editor)}`);
-            docIdleTimer.current = null;
-            scheduleEval(
-              { kind: "doc-idle" },
-              null,
-              ctx,
-              () => onEvaluationCompleteRef.current(),
+            console.log(
+              `[TIMER-DEBUG] docWriter timer FIRED. currentWordCount=${getWordCount(editor)}`
             );
+            docIdleTimer.current = null;
+            scheduleEval({ kind: "doc-idle" }, null, ctx, () => onEvaluationCompleteRef.current());
           }, DOC_IDLE_MS);
           console.log(`[TIMER-DEBUG] docWriter set timer id=${docIdleTimer.current}`);
         }, 0);
@@ -459,10 +539,12 @@ export function Editor({
   }, [editor, clearTrigger]);
 
   // Handle imported content: set doc, then fire one fast-tier section eval per
-  // section so the sidecar lights up immediately. The doc-idle (strong-tier)
-  // pass is intentionally NOT armed here — it fires only after the user's first
-  // edit, same as any freshly opened document. BlockId's appendTransaction
-  // handles ID assignment; no manual loop needed.
+  // section so the sidecar lights up immediately. Like bulk paste, these run
+  // skipContradiction — a single block-paste sweep covers contradiction once the
+  // ledger is built (avoids N paid-tier calls per import). The doc-idle
+  // (strong-tier) pass is intentionally NOT armed here — it fires only after the
+  // user's first edit, same as any freshly opened document. BlockId's
+  // appendTransaction handles ID assignment; no manual loop needed.
   useEffect(() => {
     if (!editor || !importContent) return;
     // false = don't emit update so onUpdate doesn't race with our eval dispatch below
@@ -477,8 +559,10 @@ export function Editor({
         docId: DOC_ID,
         apiKey: apiKeyRef.current ?? "",
         paidKey: paidKeyRef.current,
+        capability: capabilityRef.current,
         stage: stageRef.current,
         onStageSuggestion: onStageSuggestionRef.current,
+        skipContradiction: true,
       };
       prevBlockIds.current = getBlockIds(editor);
       emitBlockOrderIfChanged(editor);
@@ -489,9 +573,15 @@ export function Editor({
             { kind: "block-settle-pause", sectionId: section.sectionId, members: section.members },
             section.combinedText,
             ctx,
-            () => onEvaluationCompleteRef.current(),
+            () => onEvaluationCompleteRef.current()
           );
         }
+      }
+      // Cover contradiction with a single ledger sweep once past threshold.
+      if (getWordCount(editor) >= CONTENT_THRESHOLD_WORDS) {
+        scheduleEval({ kind: "block-paste", blockIds: [...prevBlockIds.current] }, null, ctx, () =>
+          onEvaluationCompleteRef.current()
+        );
       }
     }, 0);
   }, [editor, importContent]);
@@ -505,9 +595,7 @@ export function Editor({
   // Sync hovered observation with the highlighter extension
   useEffect(() => {
     if (!editor || editor.isDestroyed) return;
-    editor.view.dispatch(
-      editor.state.tr.setMeta("setHoveredObservationId", hoveredObservationId),
-    );
+    editor.view.dispatch(editor.state.tr.setMeta("setHoveredObservationId", hoveredObservationId));
   }, [editor, hoveredObservationId]);
 
   return (

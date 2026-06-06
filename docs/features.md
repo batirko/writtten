@@ -30,17 +30,17 @@ Two classifying axes:
 
 Starting set:
 
-| Type                 | Scope                  | Nature      | What it flags                                                                       |
-| -------------------- | ---------------------- | ----------- | ----------------------------------------------------------------------------------- |
-| `clarity`            | span                   | defect      | Ambiguous, vague, or hard-to-parse passage.                                         |
-| `contradiction`      | span↔span / span↔stage | defect      | A claim that **logically cannot coexist** with another claim or the stated stage. **Hero feature.** |
+| Type                 | Scope                  | Nature      | What it flags                                                                                                                                      |
+| -------------------- | ---------------------- | ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `clarity`            | span                   | defect      | Ambiguous, vague, or hard-to-parse passage.                                                                                                        |
+| `contradiction`      | span↔span / span↔stage | defect      | A claim that **logically cannot coexist** with another claim or the stated stage. **Hero feature.**                                                |
 | `strategic_tension`  | span↔span              | opportunity | Two claims each desirable but pulling in opposite directions — a deliberate tradeoff, not a logical paradox. Softer register than `contradiction`. |
-| `unsupported_claim`  | span                   | defect      | An assertion presented as fact without basis.                                       |
-| `undefined_jargon`   | span                   | defect      | A term likely undefined for the stated audience.                                    |
-| `underexposed_topic` | span / document        | opportunity | A topic mentioned but not developed.                                                |
-| `missing_topic`      | document               | opportunity | A topic this _kind_ of doc usually covers but this one omits. Depends on the stage. |
-| `structure_flow`     | document               | opportunity | Ordering / flow issues across sections.                                             |
-| `audience_mismatch`  | document               | opportunity | Tone/depth misaligned with the stated audience.                                     |
+| `unsupported_claim`  | span                   | defect      | An assertion presented as fact without basis.                                                                                                      |
+| `undefined_jargon`   | span                   | defect      | A term likely undefined for the stated audience.                                                                                                   |
+| `underexposed_topic` | span / document        | opportunity | A topic mentioned but not developed.                                                                                                               |
+| `missing_topic`      | document               | opportunity | A topic this _kind_ of doc usually covers but this one omits. Depends on the stage.                                                                |
+| `structure_flow`     | document               | opportunity | Ordering / flow issues across sections.                                                                                                            |
+| `audience_mismatch`  | document               | opportunity | Tone/depth misaligned with the stated audience.                                                                                                    |
 
 This list is expected to evolve. Add types by extending the taxonomy and giving each a prompt and threshold — never by loosening into open-ended generation. See `docs/architecture.md` for how a type maps to a check.
 

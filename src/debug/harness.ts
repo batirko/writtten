@@ -32,7 +32,7 @@ import {
   type Observation,
 } from "../store/db";
 import { nanoid } from "nanoid";
-import { llmLogger, type SessionStats, type ApiStats } from "../model/logger";
+import { llmLogger, type SessionStats, type ApiStats, type ArchiveInfo } from "../model/logger";
 import {
   setLlmMode,
   getLlmMode,
@@ -47,6 +47,7 @@ export type HarnessEventType =
   | "response"
   | "ledger-write"
   | "observation"
+  | "archive"
   | "block-removed"
   | "error";
 
@@ -131,6 +132,22 @@ class Harness {
   /** Tail of the event stream: only events strictly newer than `sinceSeq`. */
   getEvents(sinceSeq = 0): HarnessEvent[] {
     return this.events.filter((e) => e.seq > sinceSeq);
+  }
+
+  /**
+   * Record an observation leaving the active feed in BOTH logs at once: the
+   * llmLogger archive record (for the human "Copy All" export) and the agent
+   * event stream (so automated tests can also see closures). The single entry
+   * point that keeps the two logs from diverging on archival.
+   */
+  archive(info: ArchiveInfo, evalId?: string): void {
+    llmLogger.logArchive(info, evalId);
+    this.emit("archive", {
+      obs: info.observationId,
+      type: info.obsType,
+      reason: info.reason,
+      actor: info.actor,
+    });
   }
 
   /** Current monotonic sequence number (last emitted event's seq). */

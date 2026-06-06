@@ -150,3 +150,24 @@ This is an OSS project; design for contributors using AI tooling to extend it wi
 - **Export formats** plug into an export registry.
 
 Keep these three seams clean and documented; they're where most contribution will happen.
+
+## Local-app evolution path
+
+The first public iteration ships as a **web-first, local-first PWA** (browser storage, direct-to-provider calls, install + offline). A later turn into a **"proper" local desktop app** (Tauri/Electron, real on-disk storage, optional local model) is an _extend, not rewrite_ — provided two invariants below are held. This is recorded now, while the seams are fresh, so the option stays cheap to exercise.
+
+**What transfers unchanged.** A Tauri shell runs the existing React/TipTap app inside the system webview — the entire UI (editor, decorations, the anchoring mechanic, feed, archive, settings) carries over as-is. The **model router** already hides the provider from every call site. The data model is **document-scoped**: `docId` is a first-class parameter through the orchestrator, evaluator, types, and the DB indexes (`by_doc`).
+
+**Bounded swaps** (reimplement one module behind a stable interface, near-zero call-site churn):
+
+- **Persistence** — rewrite `src/store/db.ts` against SQLite (Tauri SQL plugin) or the filesystem, keeping the exported function signatures. The boundary is sealed today (see invariant 1), so call sites don't change. The one real divergence is migrations: the idb `DB_VERSION`/`upgrade` cursor pattern becomes SQL migrations.
+- **Secrets** — the local key store (browser `localStorage`, used only in `App.tsx`) → OS keychain / Tauri store.
+- **A true local model** — a new adapter behind `ModelRouter` (Ollama was deferred; the seam is ready). This is the payoff that turns _local-first storage_ into genuine _no-egress privacy_ — closing the gap that document content is sent to the model provider for evaluation (see _Privacy_).
+
+**Genuinely new surface** (net-new feature work, not refactor): **multi-document** (the data layer is ready; what's missing is a doc library/open-save UI and making `DOC_ID` a selected value rather than the `App.tsx` constant); optional **file-based documents** on disk (built on the export serialization seam); a one-time **data migration** from the PWA's IndexedDB to the desktop store.
+
+**The two invariants that keep this path open** — both are _already true_; the cost is only not breaking them:
+
+1. **IndexedDB stays sealed behind `src/store/db.ts`.** No other module imports `idb` or touches the `indexedDB`/`IDBKeyRange` globals. _Enforced_ by an ESLint `no-restricted-imports`/`no-restricted-globals` rule (`eslint.config.js`) scoped to `src/**` with `db.ts` exempt — so a regression fails `npm run lint`, not a future port.
+2. **`docId` is never re-hardcoded.** New code threads it through rather than assuming a single document; the only pinned constant is `DOC_ID` in `App.tsx`.
+
+**The caveat is product, not technical.** "Proper local app" pulls toward file management, multi-doc, and maybe sync — the _destination-app_ territory the concept (`docs/concept.md`) defers in favor of owning the drafting moment. `docs/plan.md` Phase 6 frames the real fork: an **optional Tauri wrapper** (local-power-user wedge) vs. **living where users already write** (embedded-everywhere wedge). The architecture supports either; this section only guarantees the desktop option doesn't require a teardown.

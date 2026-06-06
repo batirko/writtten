@@ -18,5 +18,39 @@ export default tseslint.config(
     rules: {
       ...reactHooks.configs.recommended.rules,
     },
+  },
+  {
+    // Invariant: IndexedDB access stays sealed behind src/store/db.ts so the
+    // storage backend can be swapped (e.g. SQLite/filesystem for a desktop app)
+    // by rewriting one module. See docs/architecture.md → Local-app evolution path.
+    files: ["src/**/*.{ts,tsx}"],
+    ignores: ["src/store/db.ts"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          paths: [
+            {
+              name: "idb",
+              message:
+                "IndexedDB access must stay behind src/store/db.ts (Local-app evolution path invariant). Import a typed function from ../store/db instead.",
+            },
+          ],
+        },
+      ],
+      "no-restricted-globals": [
+        "error",
+        {
+          name: "indexedDB",
+          message:
+            "Use the persistence functions in src/store/db.ts instead of the raw indexedDB global (Local-app evolution path invariant).",
+        },
+        {
+          name: "IDBKeyRange",
+          message:
+            "Use the persistence functions in src/store/db.ts instead of IDBKeyRange (Local-app evolution path invariant).",
+        },
+      ],
+    },
   }
 );

@@ -2,6 +2,7 @@ import type { LLMRequest, LLMResponse, ModelRouter } from "./router";
 import { llmLogger, parse429 } from "./logger";
 import { trackCall } from "./rpmBudget";
 import { reportStall, reportProgress } from "./stallSignal";
+import { nanoid } from "nanoid";
 
 const GEMINI_API_BASE = "https://generativelanguage.googleapis.com/v1beta/models";
 
@@ -110,9 +111,12 @@ async function callGemini(
   apiKey: string,
   tier: "fast" | "strong",
   keyTier: "free" | "paid",
+  callId: string,
 ): Promise<LLMResponse> {
   const url = `${GEMINI_API_BASE}/${model}:generateContent?key=${apiKey}`;
   const loggedUrl = `${GEMINI_API_BASE}/${model}:generateContent?key=<${keyTier}>`;
+  const evalId = req.meta?.evalId;
+  const promptRef = req.meta?.promptRef;
 
   const generationConfig: {
     temperature: number;
@@ -139,6 +143,9 @@ async function callGemini(
     endpoint: loggedUrl,
     payload: { system: req.system, user: req.user },
     keyTier,
+    callId,
+    evalId,
+    promptRef,
   });
 
   const controller = new AbortController();
@@ -169,6 +176,9 @@ async function callGemini(
         payload: { system: req.system, user: req.user },
         errorMessage: `Request timeout (503) after ${timeoutMs}ms`,
         keyTier,
+        callId,
+        evalId,
+        promptRef,
       });
       throw new Error(`Gemini timeout (503) after ${timeoutMs}ms`);
     }
@@ -199,6 +209,9 @@ async function callGemini(
       payload: { system: req.system, user: req.user },
       errorMessage: err,
       keyTier,
+      callId,
+      evalId,
+      promptRef,
     });
     throw new Error(`Gemini error ${res.status}: ${err}`);
   }
@@ -216,6 +229,9 @@ async function callGemini(
     payload: { system: req.system, user: req.user },
     response: text,
     keyTier,
+    callId,
+    evalId,
+    promptRef,
   });
 
   // Record call completion for RPM budget tracking.
@@ -223,7 +239,7 @@ async function callGemini(
   // A good response clears any prior stall state.
   reportProgress();
 
-  return { text };
+  return { text, callId };
 }
 
 async function callWithRotation(
@@ -234,6 +250,9 @@ async function callWithRotation(
   keyTier: "free" | "paid",
 ): Promise<LLMResponse> {
   const reg = keyTier === "paid" ? paidRegistry : freeRegistry;
+  // One callId spans the whole logical call, including every rotation attempt,
+  // so the export projection folds request/retry/response/error into one record.
+  const callId = nanoid(10);
   let attempt = 0;
 
   for (const model of pool) {
@@ -248,14 +267,18 @@ async function callWithRotation(
           tier,
           model,
           endpoint: "",
+          latencyMs: backoff,
           payload: { system: req.system, user: req.user },
           errorMessage: `Retrying with ${model} after ${backoff}ms`,
           keyTier,
+          callId,
+          evalId: req.meta?.evalId,
+          promptRef: req.meta?.promptRef,
         });
         await delay(backoff);
       }
 
-      return await callGemini(model, req, apiKey, tier, keyTier);
+      return await callGemini(model, req, apiKey, tier, keyTier, callId);
     } catch (e) {
       const err = e as Error;
       if (

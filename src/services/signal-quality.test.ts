@@ -8,6 +8,9 @@ import {
 } from "./evaluator";
 import * as db from "../store/db";
 import type { ClaimLedgerEntry } from "../store/db";
+import { capabilityForTier } from "../model/capability";
+
+const STRONG = capabilityForTier("strong");
 
 vi.mock("../store/db", () => ({
   saveBlockSummary: vi.fn(),
@@ -149,7 +152,7 @@ describe("Tier B — contradiction prompt calibrated by tier", () => {
     expect(mockStrong.mock.calls[0][0].system).toBe(CONTRADICTION_SYSTEM_PROMPT_HEDGED);
   });
 
-  it("uses the confident prompt when a paid key is present", async () => {
+  it("uses the confident prompt when capability is strong", async () => {
     setup();
     await evaluateSection(
       docId,
@@ -159,6 +162,10 @@ describe("Tier B — contradiction prompt calibrated by tier", () => {
       undefined,
       apiKey,
       "paid-key",
+      undefined, // jargonAllowlist
+      false, // skipContradiction
+      undefined, // evalId
+      STRONG,
     );
     expect(mockStrong.mock.calls[0][0].system).toBe(CONTRADICTION_SYSTEM_PROMPT);
   });
