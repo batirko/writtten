@@ -54,7 +54,7 @@
 | R-ID | Gate | Kind | Status |
 | --- | --- | --- | --- |
 | R5.1 | Observations auto-close on resolving edit, dismiss on demand, and appear in the archive with the right status. | [automated] | ✅ |
-| R5.2 | Resolution reflects the _problem_ being gone: re-evaluation, not a cosmetic edit, closes the card. | [automated] | 🟡 (re-evaluates; cosmetic span-drop can still close) |
+| R5.2 | Resolution reflects the _problem_ being gone: re-evaluation, not a cosmetic edit, closes the card. | [automated] | 🟡 (re-evaluates; cosmetic span-drop can still close — and auto-close-on-deletion is currently dead code → tracked by `lifecycle_integrity` L2/L5) |
 | R5.3 | A dismissed span/type is not re-surfaced for the rest of the doc. | [automated] | ✅ |
 | R5.4 | **Dismissing a high-severity defect/contradiction does not suppress that category on _other_ spans** — flattery guard. Seed two contradictions, dismiss one, assert the other still fires. | [automated] | ❌ (suppression not kind/severity-aware → G1) |
 | R5.5 | _Superb:_ archive reads as a record of intellectual evolution. | [human] | — (north star) |
@@ -72,4 +72,4 @@
 
 ## Coverage note
 
-Every R-ID in `docs/product-requirements.md` appears above. Gaps (❌) and partials (🟡) that are scheduled work map to milestones G1–G4 in `docs/projects/philosophy_guardrails.md` and the persona/tone work in `docs/projects/emotional_register.md`. Superb-tier rows are intentionally ungated north stars.
+Every R-ID in `docs/product-requirements.md` appears above. Gaps (❌) and partials (🟡) that are scheduled work map to milestones G1–G4 in `docs/projects/philosophy_guardrails.md`, the persona/tone work in `docs/projects/emotional_register.md`, and — for the lifecycle-correctness partial (R5.2) — the hardening milestones in `docs/projects/lifecycle_integrity.md`. Superb-tier rows are intentionally ungated north stars.

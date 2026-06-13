@@ -97,7 +97,7 @@ All non-`active` states are visible in the **archive**. The archive is browsable
 
 ### Dismissal should teach — but must never flatter
 
-When a user dismisses an observation, suppress that specific observation (and ideally that _kind_ of observation for that _term/span_) for the rest of the document — at minimum per-doc, optionally per-user as a preference. Re-nagging about something the user explicitly waved off is the fastest way to make the tool feel dumb. Cheap to implement, large effect on perceived intelligence.
+When a user dismisses an observation, suppress that specific observation (and ideally that _kind_ of observation for that _term/span_) for the rest of the document. Re-nagging about something the user explicitly waved off is the fastest way to make the tool feel dumb. Cheap to implement, large effect on perceived intelligence. **Scope, honestly (2026-06-10 audit #10):** suppression today is **per-document** — the app is single-document (`DOC_ID` is a fixed constant in `App.tsx`/`Editor.tsx`). A **per-user** preference is a future option, not a current surface; it arrives with the multi-document work (Phase 6), not before.
 
 **The hard line: dismissal-learning must not collapse into flattery-learning** (R5.4). If "stop nagging me" trains the system to stop surfacing uncomfortable truths, you've built a tool that learns to flatter — the exact failure mode of the generation tools, reached from the opposite direction. The suppression must distinguish two intents:
 
@@ -149,5 +149,5 @@ Users write here, then take the text elsewhere — so frictionless egress is cor
 
 ## Free vs BYO-key (user-facing)
 
-- **Free tier:** cheap/fast models plugged in by default — enough to demonstrate the loop.
+- **Free tier:** cheap/fast models plugged in by default — enough to demonstrate the loop, with two caveats the 2026-06-10 audit (#3) made explicit: the binding constraint is ~20 requests/day per Flash model (and **0** RPD for the pro tier the strong checks are designed around), so a full real-PRD revision can exhaust quota mid-session; and free-tier "strong" checks run on a weak model, which can emit confident false contradictions — the single failure (R4.4) that discounts the entire feed. Whether the free tier is a _real tier_ or a _demo_ is an open decision (`docs/plan.md` → Strategic open questions); `docs/projects/field_validation.md` V1 measures the free-vs-paid delta that should settle it.
 - **BYO-key:** users supply their own API key for stronger models and better observations, paying their own inference costs. This is a settings-level choice, surfaced plainly. Mechanics and the router abstraction are in `docs/architecture.md`.

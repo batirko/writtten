@@ -45,6 +45,7 @@ Read alongside:
   - [ ] Add an explicit negative-list instruction to the span-check prompt (`src/services/evaluator.ts` ~L277–291): never flag grammar, spelling, punctuation, passive voice, sentence length, word choice, readability, "consider rephrasing."
   - [ ] Add a ratchet fixture (`src/services/eval-fixtures/`) whose labeled expectation asserts none of these categories appear on a deliberately surface-flawed-but-substantively-clean doc.
   - [ ] Wire the assertion into the Tier-1 deterministic scorer so a prompt regression fails CI.
+  - [ ] **`clarity` discrimination fixtures** (2026-06-10 due-diligence audit #8). The negative-list keeps surface nits off the *positive* taxonomy, but `clarity` ("ambiguous, vague, or hard-to-parse passage") is the slot a sentence-length/word-choice nit dresses itself up in — "this sentence is hard to parse" is a readability complaint wearing a meaning costume, and the model has been shown to ignore verbatim negative examples (OBS-019). Add per-type discrimination fixtures: passages that are *surface-flawed but substantively clear* and must **not** fire `clarity`, paired with genuinely ambiguous ones that must. One anti-taxonomy doc won't catch this drift; the gravity well arrives *through* `clarity`, not around the taxonomy.
 
 ### Phase 5
 

@@ -69,7 +69,12 @@ export interface Observation {
   blockId?: string;
   startOffset?: number;
   endOffset?: number;
-  /** Captured anchor text to allow matching across edits, resolving OBS-003 */
+  /** Captured snapshot of the referenced span's text. Stored and shown in the
+   *  archive today, but NOT yet used for matching across edits — suppression and
+   *  highlight rebuild still key off raw offsets. Making this load-bearing for
+   *  re-anchoring + suppression matching is `lifecycle_integrity` L5; the earlier
+   *  "to allow matching across edits, resolving OBS-003" claim was aspirational
+   *  (2026-06-10 code audit, drift #3). */
   anchorText?: string;
 
   // Contradiction specifics

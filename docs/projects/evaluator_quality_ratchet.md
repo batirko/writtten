@@ -1,7 +1,7 @@
 ---
 status: done
-phases: [4]
-summary: Labeled fixture corpus + two-tier scorer (deterministic replay + opt-in live precision/recall) wired into Vitest so evaluator recommendation accuracy can't silently regress as prompts change.
+phases: [4, 5]
+summary: Labeled fixture corpus + two-tier scorer (deterministic replay + opt-in live precision/recall) wired into Vitest so evaluator recommendation accuracy can't silently regress as prompts change. (Machinery shipped in Phase 4; a Phase 5 follow-on tightens the bar per the 2026-06-10 audit.)
 ---
 
 # Evaluator Quality Ratchet
@@ -19,6 +19,7 @@ summary: Labeled fixture corpus + two-tier scorer (deterministic replay + opt-in
 | Phase | Work |
 |---|---|
 | **4** | Build the machinery: types, scorer, `runFixture` harness, Tier 1 deterministic Vitest suite, seed corpus (~6–8 labeled fixtures), Tier 2 opt-in live scorer, record helper. |
+| **5** | **Tighten the bar (2026-06-10 due-diligence audit #7):** per-type precision floors that reflect the trust asymmetry (contradiction ≥ 0.95, nits looser) instead of one aggregate ≥ 0.7; a second-rater label pass so ground truth isn't solely prompt-author-authored; grow the corpus toward the 20–40-doc scale so a single flaky fixture can't swing the floor 14 points. |
 | **5 / 6** | Grow the corpus (remediation sprint for OBS-001…005 adds regression cases); run SkillOpt against the prompts once the corpus is large enough (20–40 docs). |
 
 ---
@@ -60,6 +61,15 @@ summary: Labeled fixture corpus + two-tier scorer (deterministic replay + opt-in
 - [ ] `docs/acceptance-testing/ratchet.md` — "How to add a fixture / run the ratchet" guide (record → label `expected` → Tier 1 green)
 - [ ] `docs/plan.md` — tick **Evaluator quality ratchet** milestone; check Phase 4 complete
 - [ ] `docs/projects/ai_tooling_integration.md` — check off "labeled eval test set" + "wire into Vitest" Phase 4 todos; note SkillOpt now unblocked
+
+### Phase 5 — tighten the bar (2026-06-10 due-diligence audit #7) — 🟡 Med · 🧠
+
+The machinery shipped, but the *floor it guards* is below the prose bar: R4.4 implies an effective precision near 1.0 for high-severity types ("one 'contradiction' that isn't one and the user discounts the entire feed"), while the live floor is one aggregate `precision ≥ 0.7` over ~6–8 fixtures — which permits the feed to be 30% wrong and still pass, and gives n≈7 no statistical meaning (a single flaky fixture swings it ~14 points).
+
+- [ ] **Per-type precision floors** in `evalRatchet.live.test.ts`: `contradiction` ≥ 0.95 (the trust-asymmetry tier), span nits looser. Replace the single aggregate assert.
+- [ ] **Second-rater labels** on at least part of the corpus, so `expected` ground truth isn't solely the prompt author's.
+- [ ] **Grow the corpus toward 20–40 docs** (overlaps with `field_validation.md` V1, which produces real-PRD material and per-type wild-precision numbers — reuse that corpus where licensing allows).
+- [ ] Note: this work is gated by — and feeds — `field_validation.md` V1/V3; the corpus study supplies the documents and the recall measurement this tightening needs.
 
 ---
 

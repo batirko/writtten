@@ -21,17 +21,17 @@ The principle has a finer edge than "no apply button," and three failure modes t
 
 ## Document map — read what's relevant to your task
 
-| File                   | Read it when…                                                                                                                              |
-| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| `docs/concept.md`      | You need the _why_ — philosophy, persona, positioning, non-goals.                                                                          |
-| `docs/product-requirements.md` | You need the _fidelity bar_ — the tiered requirements (Minimum/Good-enough/Superb) and the five load-bearing tensions that define faithfully holding the inversion. Acceptance gates derive from it in `docs/acceptance-testing/fidelity-criteria.md`. |
-| `docs/features.md`     | You're building UX, the observation taxonomy, message lifecycle, archive, export.                                                          |
-| `docs/architecture.md` | You're building the eval pipeline, claim ledger, persistence, model router, editor internals.                                              |
-| `docs/plan.md`         | You need to know what phase we're in and what's in/out of scope right now.                                                                 |
-| `docs/projects/`       | Deeper design docs for specific features/subsystems. Each file is a self-contained spec with status, phased plan, and per-phase todo list. |
-| `docs/snapshots/`      | Point-in-time reviews of product quality, test session results, and roadmap observations. Use to capture the state of the product over time.|
-| `docs/mechanics/`      | Detailed behavioural docs for implemented mechanics — how things actually work in the running system (timing, triggers, state machines). No design speculation; these describe what is built. Read before touching the relevant subsystem. **When you change code that alters a documented mechanic, update the corresponding file here as part of the same task.** |
-| `docs/projects/prompt_quality_observations.md` | You observe a prompt producing a false positive, false negative, or systematic misclassification during any test, harness run, or manual eval. **Append an entry to the Observation Log** — don't fix it inline unless it's trivially obvious and safe. The file accumulates until a remediation sprint is scheduled. |
+| File                                           | Read it when…                                                                                                                                                                                                                                                                                                                                                       |
+| ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `docs/concept.md`                              | You need the _why_ — philosophy, persona, positioning, non-goals.                                                                                                                                                                                                                                                                                                   |
+| `docs/product-requirements.md`                 | You need the _fidelity bar_ — the tiered requirements (Minimum/Good-enough/Superb) and the five load-bearing tensions that define faithfully holding the inversion. Acceptance gates derive from it in `docs/acceptance-testing/fidelity-criteria.md`.                                                                                                              |
+| `docs/features.md`                             | You're building UX, the observation taxonomy, message lifecycle, archive, export.                                                                                                                                                                                                                                                                                   |
+| `docs/architecture.md`                         | You're building the eval pipeline, claim ledger, persistence, model router, editor internals.                                                                                                                                                                                                                                                                       |
+| `docs/plan.md`                                 | You need to know what phase we're in and what's in/out of scope right now.                                                                                                                                                                                                                                                                                          |
+| `docs/projects/`                               | Deeper design docs for specific features/subsystems. Each file is a self-contained spec with status, phased plan, and per-phase todo list.                                                                                                                                                                                                                          |
+| `docs/snapshots/`                              | Point-in-time reviews of product quality, test session results, and roadmap observations. Use to capture the state of the product over time.                                                                                                                                                                                                                        |
+| `docs/mechanics/`                              | Detailed behavioural docs for implemented mechanics — how things actually work in the running system (timing, triggers, state machines). No design speculation; these describe what is built. Read before touching the relevant subsystem. **When you change code that alters a documented mechanic, update the corresponding file here as part of the same task.** |
+| `docs/projects/prompt_quality_observations.md` | You observe a prompt producing a false positive, false negative, or systematic misclassification during any test, harness run, or manual eval. **Append an entry to the Observation Log** — don't fix it inline unless it's trivially obvious and safe. The file accumulates until a remediation sprint is scheduled.                                               |
 
 **Always check `docs/plan.md` for the current phase before adding functionality.** Scope creep is the main risk on this project. If something belongs to a later phase, say so and don't build it.
 
@@ -72,7 +72,7 @@ Key tools (load via ToolSearch): `mcp__Claude_Preview__preview_start`, `preview_
 
 **Prefer for:** anything that drives `window.__sidecar__` — polling state (`await preview_eval("window.__sidecar__.getState()")`), waiting for `pending === 0`, inspecting the ledger or event stream, running record/replay sessions, seeding fixtures. Async JS in `preview_eval` returns clean JSON and handles arbitrary polling logic in one call. Also good for quick structural snapshots and network-log inspection.
 
-**Watch out for:** `preview_eval` has a **30-second hard timeout** — don't embed `while` loops that could exceed it; break them into smaller calls. Not great for *real* input events (hover, keyboard) — the ProseMirror editor sometimes ignores synthetic events from `eval`.
+**Watch out for:** `preview_eval` has a **30-second hard timeout** — don't embed `while` loops that could exceed it; break them into smaller calls. Not great for _real_ input events (hover, keyboard) — the ProseMirror editor sometimes ignores synthetic events from `eval`.
 
 **Start the server:** `preview_start` with config name `"writtten"` (`.claude/launch.json` is already set up). The preview server and the existing `npm run dev` at `http://localhost:5173` are the same Vite dev server — you only need one running.
 
@@ -84,23 +84,23 @@ Configured globally in `~/Library/Application Support/Claude/claude_desktop_conf
 
 **Prefer for:** interaction fidelity — hovering over observation cards to trigger highlights, real keyboard input into the ProseMirror editor, clicking UI elements by accessibility uid, native-dialog handling (`handle_dialog`). Also the right fallback whenever `preview_eval` is timing out or returning unexpected results.
 
-**Watch out for:** `wait_for` matches the **entire accessibility tree including history** — it can match stale text from a previous eval. Always wait for a string that will only appear *after* the action (e.g. `"idle"` on the `[data-testid="sidecar-status"]` element, which only transitions once `pending === 0`). Use `evaluate_script` to read `window.__sidecar__` state when the snapshot is too noisy.
+**Watch out for:** `wait_for` matches the **entire accessibility tree including history** — it can match stale text from a previous eval. Always wait for a string that will only appear _after_ the action (e.g. `"idle"` on the `[data-testid="sidecar-status"]` element, which only transitions once `pending === 0`). Use `evaluate_script` to read `window.__sidecar__` state when the snapshot is too noisy.
 
 ---
 
 ### Decision table
 
-| Task | Reach for |
-|---|---|
-| Inspect ledger / observations / event stream | **preview_eval** |
-| Wait for eval to finish (`pending === 0`) | **preview_eval** polling loop, or `wait_for("[data-testid='sidecar-status']", ["idle"])` on either tool |
-| Seed a fixture doc / ledger | **preview_eval** → `__sidecar__.loadDoc` / `loadLedger` |
-| Record or replay LLM responses | **preview_eval** → `__sidecar__.setLlmMode` / `dumpRecordings` |
-| Hover a card to trigger highlights | **chrome-devtools** `hover` |
-| Type into the editor | **chrome-devtools** `type_text` (real events) |
-| Click a button | Either — but chrome-devtools is more reliable for complex UI |
-| Screenshot / visual check | Either |
-| Native confirm dialogs | **chrome-devtools** `handle_dialog` (or use `__sidecar__.clear()` to skip entirely) |
+| Task                                         | Reach for                                                                                               |
+| -------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| Inspect ledger / observations / event stream | **preview_eval**                                                                                        |
+| Wait for eval to finish (`pending === 0`)    | **preview_eval** polling loop, or `wait_for("[data-testid='sidecar-status']", ["idle"])` on either tool |
+| Seed a fixture doc / ledger                  | **preview_eval** → `__sidecar__.loadDoc` / `loadLedger`                                                 |
+| Record or replay LLM responses               | **preview_eval** → `__sidecar__.setLlmMode` / `dumpRecordings`                                          |
+| Hover a card to trigger highlights           | **chrome-devtools** `hover`                                                                             |
+| Type into the editor                         | **chrome-devtools** `type_text` (real events)                                                           |
+| Click a button                               | Either — but chrome-devtools is more reliable for complex UI                                            |
+| Screenshot / visual check                    | Either                                                                                                  |
+| Native confirm dialogs                       | **chrome-devtools** `handle_dialog` (or use `__sidecar__.clear()` to skip entirely)                     |
 
 **Fallback rule:** if the primary tool returns unexpected results (stale matches, eval timeouts, synthetic events ignored), switch to the other one for that step — don't retry the same tool indefinitely. Document the switch in a comment if it affects a reproducible test.
 
@@ -108,7 +108,7 @@ The dev server runs at **`http://localhost:5173`** (`npm run dev`). Acceptance t
 
 ## Dev harness (`window.__sidecar__`)
 
-A dev-only observability + control surface, live whenever `npm run dev` is running (stripped from production builds). See `docs/projects/agent_acceptance_harness.md` for the full spec.
+A dev-only observability + control surface, live whenever `npm run dev` is running. See `docs/projects/agent_acceptance_harness.md` for the full spec. (Intended to be stripped from production builds — but the 2026-06-10 code audit found this only half-true: call sites are dead-code-eliminated, yet the harness module has a top-level side effect and a circular import with `db.ts`, so the module itself still ships. Tracked by `lifecycle_integrity` L7; unverifiable in `dist/` until the build is repaired — L1.)
 
 **Use it proactively — not just for acceptance testing.** Any time you're verifying that eval/ledger/feed behavior is correct (building a feature, debugging, confirming a fix), the harness is faster and more reliable than scraping the accessibility tree.
 
@@ -137,10 +137,7 @@ const api = window.__sidecar__.getApiStats();   // sync — no await needed
 //     lastStatus, lastRetryDelayMs, avgLatencyMs }
 ```
 
-The binding free-tier constraint is **requests-per-day (RPD) per model** (e.g. 20 for
-most Flash variants, 0 for `gemini-2.5-pro`), *not* the RPM/TPM gauges AI Studio
-foregrounds — which is why 429s appear while the dashboard looks idle. `quota429`
-tells you which quota actually bit; `remainingToday` is the live daily budget.
+The binding free-tier constraint is **requests-per-day (RPD) per model** (e.g. 20 for most Flash variants, 0 for `gemini-2.5-pro`), _not_ the RPM/TPM gauges AI Studio foregrounds — which is why 429s appear while the dashboard looks idle. `quota429` tells you which quota actually bit; `remainingToday` is the live daily budget.
 
 ### Waiting for idle (the right pattern)
 
@@ -195,7 +192,7 @@ window.__sidecar__.loadRecordings(fixture);
 window.__sidecar__.setLlmMode('live'); // reset when done
 ```
 
-> **Known gap:** the contradiction `strong` call is not yet deterministic in mock mode — its prompt embeds a DB auto-increment id that changes per run. Fix path is in `docs/projects/agent_acceptance_harness.md`. Workaround: test contradiction logic by seeding via `loadLedger` and asserting `getState().ledger`, not by replaying.
+> **Resolved (was a known gap):** the contradiction `strong` call is now deterministic in mock mode — the prompt is built from stable sorted claim indices, not a DB auto-increment id, so the request hash is stable across runs. `src/services/acceptance.phase1.test.ts` and the Tier-1 eval ratchet rely on this. The earlier note that the prompt embedded a per-run auto-increment id is **stale** — corrected per the 2026-06-10 code audit (`docs/snapshots/2026-06-10_code_architecture_audit.md`, drift #4).
 
 ### testid selectors (stable targeting)
 

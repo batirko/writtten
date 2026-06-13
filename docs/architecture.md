@@ -139,7 +139,14 @@ interface ModelRouter {
 
 ## Privacy
 
-Local-first is a feature, not an accident. Document content stays on the client by default; sensitive PRDs never need to leave the machine. Don't introduce required telemetry, server-side storage, or third-party egress without an explicit, logged decision. BYO keys live in local storage and are never transmitted anywhere except the chosen model provider.
+Local-first is a feature, but be precise about what it does and doesn't cover today — the 2026-06-10 due-diligence audit (#5) flagged this section as over-claiming, and it's worth stating plainly:
+
+- **Storage** is genuinely local. The document, block summaries, claim ledger, observations, and settings live in IndexedDB on the client. There is no required server, no required telemetry, no server-side storage. BYO keys live in `localStorage` (plaintext — acceptable for a local-first BYO-key tool; worth a README sentence) and are transmitted only to the chosen model provider.
+- **Evaluation is _not_ local.** Every settled block's text and the extracted claims are sent to the model provider for the eval calls — that's how the observations are produced at all. So for any document that gets evaluated, content **does** leave the machine. The earlier framing ("sensitive PRDs never need to leave the machine") was true only of storage, not of the running product.
+- **The free tier is the sharp edge.** Google's free-tier Gemini API terms permit training on submitted content. The first persona's core artifact is the confidential PRD (the project's own test fixture is one). An enterprise PM reading this honestly cannot use the free tier for a confidential doc — which compounds the free-tier-real-or-demo question in `docs/plan.md`. A paid key (or BYO key under terms that exclude training) is the honest minimum for confidential work today.
+- **The no-egress payoff is the local-model adapter**, not the local storage — see _Local-app evolution path_ below. Until an Ollama-class adapter lands behind `ModelRouter`, "local-first" is a statement about where your data is _stored_, not about whether your document is _seen_ by a third party.
+
+Don't introduce required telemetry, server-side storage, or new third-party egress beyond the model-provider eval calls without an explicit, logged decision in `docs/plan.md`.
 
 ## Extension seams (OSS / "vibecodable" friendliness)
 
@@ -168,6 +175,6 @@ The first public iteration ships as a **web-first, local-first PWA** (browser st
 **The two invariants that keep this path open** — both are _already true_; the cost is only not breaking them:
 
 1. **IndexedDB stays sealed behind `src/store/db.ts`.** No other module imports `idb` or touches the `indexedDB`/`IDBKeyRange` globals. _Enforced_ by an ESLint `no-restricted-imports`/`no-restricted-globals` rule (`eslint.config.js`) scoped to `src/**` with `db.ts` exempt — so a regression fails `npm run lint`, not a future port.
-2. **`docId` is never re-hardcoded.** New code threads it through rather than assuming a single document; the only pinned constant is `DOC_ID` in `App.tsx`.
+2. **`docId` is never re-hardcoded.** New code threads it through rather than assuming a single document. Today the pinned constant `DOC_ID = "default"` appears in **two** places — `src/App.tsx` and `src/editor/Editor.tsx` (the 2026-06-10 code audit corrected an earlier claim that it was only in `App.tsx`). The multi-document work in Phase 6 must converge both onto a single selected value, not assume one site.
 
 **The caveat is product, not technical.** "Proper local app" pulls toward file management, multi-doc, and maybe sync — the _destination-app_ territory the concept (`docs/concept.md`) defers in favor of owning the drafting moment. `docs/plan.md` Phase 6 frames the real fork: an **optional Tauri wrapper** (local-power-user wedge) vs. **living where users already write** (embedded-everywhere wedge). The architecture supports either; this section only guarantees the desktop option doesn't require a teardown.
