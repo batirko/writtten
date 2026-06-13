@@ -19,8 +19,6 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-import * as db from "../store/db";
 import { scoreObservations } from "./evalScorer";
 import { createFixtureRunner } from "./eval-fixtures/runFixture";
 import { corpus } from "./eval-fixtures/index";
@@ -77,14 +75,12 @@ describe("Evaluator quality ratchet — Tier 1 (deterministic replay)", () => {
     it(`${fixture.id}: ${fixture.description}`, async () => {
       const produced = await runner.run(fixture);
 
-      const sectionTexts = new Map(
-        fixture.sections.map((s) => [s.id, s.text]),
-      );
+      const sectionTexts = new Map(fixture.sections.map((s) => [s.id, s.text]));
 
       // G3 Message Lint: assert no generated message violates the no-disguised-fix rule
       for (const o of produced) {
         const textLow = o.text.toLowerCase();
-        
+
         // 1. No questions (catches Socratic/rhetorical questions like "Have you considered...?")
         expect(
           o.text.includes("?") || o.text.includes("? "),
@@ -101,7 +97,7 @@ describe("Evaluator quality ratchet — Tier 1 (deterministic replay)", () => {
           "it might be helpful",
           "it would be helpful",
           "i suggest",
-          "i recommend"
+          "i recommend",
         ];
         for (const pattern of prescriptivePatterns) {
           expect(
@@ -111,34 +107,35 @@ describe("Evaluator quality ratchet — Tier 1 (deterministic replay)", () => {
         }
       }
 
-      const result = scoreObservations(
-        fixture.id,
-        produced,
-        fixture.expected,
-        sectionTexts,
-      );
+      const result = scoreObservations(fixture.id, produced, fixture.expected, sectionTexts);
 
       // On failure, print a detailed breakdown to help diagnose.
       if (result.precision !== 1 || result.recall !== 1) {
         console.error(`\n[${fixture.id}] Score breakdown:`);
         console.error(
           `  Produced (${produced.length}):`,
-          produced.map((o) => `${o.type}@${o.blockId ?? "doc"}:"${o.text.slice(0, 60)}"`),
+          produced.map((o) => `${o.type}@${o.blockId ?? "doc"}:"${o.text.slice(0, 60)}"`)
         );
         console.error(
           `  Expected (${fixture.expected.length}):`,
-          fixture.expected.map((e) => `${e.type}@${e.sectionId ?? "doc"}${e.substring ? `:"${e.substring}"` : ""}`),
+          fixture.expected.map(
+            (e) => `${e.type}@${e.sectionId ?? "doc"}${e.substring ? `:"${e.substring}"` : ""}`
+          )
         );
         if (result.falsePositives.length > 0) {
           console.error(
             `  False positives:`,
-            result.falsePositives.map((o) => `${o.type}@${o.blockId ?? "doc"}:"${o.text.slice(0, 60)}"`),
+            result.falsePositives.map(
+              (o) => `${o.type}@${o.blockId ?? "doc"}:"${o.text.slice(0, 60)}"`
+            )
           );
         }
         if (result.falseNegatives.length > 0) {
           console.error(
             `  False negatives:`,
-            result.falseNegatives.map((e) => `${e.type}@${e.sectionId ?? "doc"}${e.substring ? `:"${e.substring}"` : ""}`),
+            result.falseNegatives.map(
+              (e) => `${e.type}@${e.sectionId ?? "doc"}${e.substring ? `:"${e.substring}"` : ""}`
+            )
           );
         }
       }

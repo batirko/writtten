@@ -32,7 +32,13 @@ import {
   type Observation,
 } from "../store/db";
 import { nanoid } from "nanoid";
-import { llmLogger, type SessionStats, type ApiStats, type ArchiveInfo } from "../model/logger";
+import {
+  llmLogger,
+  type LLMLogEntry,
+  type SessionStats,
+  type ApiStats,
+  type ArchiveInfo,
+} from "../model/logger";
 import {
   setLlmMode,
   getLlmMode,
@@ -121,12 +127,17 @@ class Harness {
 
   /** Append one structured event; mirror it to the console as a greppable line. */
   emit(type: HarnessEventType, fields: Record<string, unknown> = {}): void {
-    llmLogger.log({ type: type as any, ...fields });
+    llmLogger.log({ type: type as LLMLogEntry["type"], ...fields });
   }
 
   /** Called internally by llmLogger.setEventSyncHook to keep the agent stream in sync. */
   _syncFromLogger(type: string, fields: Record<string, unknown>): void {
-    const event: HarnessEvent = { seq: ++this.seq, t: Date.now(), type: type as HarnessEventType, ...fields };
+    const event: HarnessEvent = {
+      seq: ++this.seq,
+      t: Date.now(),
+      type: type as HarnessEventType,
+      ...fields,
+    };
     this.events.push(event);
     if (this.events.length > MAX_EVENTS) this.events.shift();
 

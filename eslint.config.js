@@ -17,6 +17,20 @@ export default tseslint.config(
     },
     rules: {
       ...reactHooks.configs.recommended.rules,
+      // Allow the destructure-to-omit idiom: `const { a, b, ...rest } = x`
+      // intentionally names keys only to strip them from `rest`.
+      "@typescript-eslint/no-unused-vars": [
+        "error",
+        { ignoreRestSiblings: true },
+      ],
+    },
+  },
+  {
+    // Test files use `any` for DOM/mock casts (editor stubs, ClipboardItem,
+    // global URL). tsc still type-checks these files via tsconfig.test.json.
+    files: ["**/*.test.{ts,tsx}"],
+    rules: {
+      "@typescript-eslint/no-explicit-any": "off",
     },
   },
   {
