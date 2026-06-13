@@ -46,9 +46,9 @@ The audit's one-line verdict: *"a promising prototype with unusually good archit
 
 ### L2 — Fix dead auto-close-on-deletion — 🟢 Low · 🔧 (audit #2)
 
-- [ ] `src/editor/extensions/ObservationHighlighter.ts:127–131` — `Decoration.inline(start, end, attrs)` lands `data-obs-id` in **`attrs`**, but the collapse detector at `:195–209` reads it off **`spec`** (which defaults to `noSpec`/`{}` when the 4th arg is omitted). So `hasDeco`/`wasDecoBefore` are always false, `onObservationCollapsed` never fires, and `App.tsx:205`'s handler is unreachable. **Fix: pass `{ "data-obs-id": obs.id }` as the 4th (`spec`) argument too.**
-- [ ] Add a collapse-path test (the file currently tests only `charOffsetToPmPos`, which is how this shipped): select a highlighted span, delete it, assert `onObservationCollapsed` fires and the card closes without waiting for a re-eval.
-- [ ] Reconcile the doc claim once fixed: `docs/projects/message_generation_workflow.md:138` "Auto-close on collapse is mandatory" is currently false-in-practice.
+- [x] `src/editor/extensions/ObservationHighlighter.ts` — passed `{ "data-obs-id": obs.id }` as the 4th (`spec`) argument to both `Decoration.inline` calls (primary span + cross-claim conflicting span). The collapse detector reads the id off `spec`, so `hasDeco`/`wasDecoBefore` now resolve correctly and `onObservationCollapsed` fires on deletion. (2026-06-13)
+- [x] Added a collapse-path test (`ObservationHighlighter.test.ts`, jsdom): registers an active span observation, deletes the highlighted span, asserts `onObservationCollapsed` fires with the obs id; plus a negative test that an unrelated edit leaving the span intact does **not** fire. (2026-06-13)
+- [x] Reconciled the doc claim: `docs/projects/message_generation_workflow.md:138` now annotated as wired-and-previously-dead. The fix makes the "mandatory" claim true in practice. (2026-06-13)
 
 ### L3 — Fix the eval-wedge under strong-call failure — 🟡 Med · 🧠 (audit #3)
 

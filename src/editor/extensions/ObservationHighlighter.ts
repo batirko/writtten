@@ -124,10 +124,19 @@ export const ObservationHighlighter = Extension.create<ObservationHighlighterOpt
 
                       if (start < end) {
                         decos.push(
-                          Decoration.inline(start, end, {
-                            class: `obs-highlight obs-highlight-${obs.type} ${isHovered ? "obs-highlight-hovered" : ""}`,
-                            "data-obs-id": obs.id,
-                          })
+                          Decoration.inline(
+                            start,
+                            end,
+                            {
+                              class: `obs-highlight obs-highlight-${obs.type} ${isHovered ? "obs-highlight-hovered" : ""}`,
+                              "data-obs-id": obs.id,
+                            },
+                            // The collapse detector (view().update below) reads
+                            // the obs id off `spec`, not `attrs`. Without this 4th
+                            // arg `spec` defaults to {} and auto-close-on-deletion
+                            // never fires. See lifecycle_integrity L2.
+                            { "data-obs-id": obs.id }
+                          )
                         );
                       }
 
@@ -162,10 +171,15 @@ export const ObservationHighlighter = Extension.create<ObservationHighlighterOpt
                             );
                             if (cStart < cEnd) {
                               decos.push(
-                                Decoration.inline(cStart, cEnd, {
-                                  class: `obs-highlight obs-highlight-${obs.type} ${isHovered ? "obs-highlight-hovered" : ""}`,
-                                  "data-obs-id": obs.id,
-                                })
+                                Decoration.inline(
+                                  cStart,
+                                  cEnd,
+                                  {
+                                    class: `obs-highlight obs-highlight-${obs.type} ${isHovered ? "obs-highlight-hovered" : ""}`,
+                                    "data-obs-id": obs.id,
+                                  },
+                                  { "data-obs-id": obs.id }
+                                )
                               );
                             }
                           }

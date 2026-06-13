@@ -135,7 +135,7 @@ Anti-patterns. Each is something the system **must not do**, with the reason it'
 
 - **A dismissed observation coming back later in the same session.** The fastest way to make the tool feel dumb. (See dismissal-teaches in [§7](#7-the-observation-lifecycle-vs-new-generations) and [§9](#9-llm-economy-batching-and-the-context-envelope).)
 - **An observation closing when the user fixes something _adjacent_ but not the issue itself.** Symptom of treating any edit-to-the-block as resolution. Resolution must be tested against the observation, not assumed.
-- **An observation referencing a span the user already deleted.** The span anchor was lost. Auto-close on collapse is mandatory.
+- **An observation referencing a span the user already deleted.** The span anchor was lost. Auto-close on collapse is mandatory — wired via the `ObservationHighlighter` collapse detector (fires `onObservationCollapsed` when a highlighted span's decoration is deleted, without waiting for a re-eval). _(This was dead until `lifecycle_integrity` L2, 2026-06-13: the obs id lived only in the decoration's `attrs`, but the detector reads it off `spec` — so it never fired.)_
 - **A contradiction observation whose two sides highlight the same paragraph.** Either the model misread the input or the orchestrator confused focal block with conflicting block. Should never reach the feed.
 - **All observations on a block being wiped and regenerated whenever the user types a typo fix.** The blanket-close-then-replace path. The Phase 1 fix in this doc.
 
