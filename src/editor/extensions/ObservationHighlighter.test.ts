@@ -1,8 +1,10 @@
-import { describe, it, expect } from "vitest";
-import { getSchema } from "@tiptap/core";
+/** @vitest-environment jsdom */
+import { describe, it, expect, vi } from "vitest";
+import { Editor, getSchema } from "@tiptap/core";
 import StarterKit from "@tiptap/starter-kit";
 import { BlockId } from "./BlockId";
-import { charOffsetToPmPos } from "./ObservationHighlighter";
+import { ObservationHighlighter, charOffsetToPmPos } from "./ObservationHighlighter";
+import type { Observation } from "../../store/db";
 
 const schema = getSchema([StarterKit, BlockId]);
 
@@ -112,5 +114,74 @@ describe("charOffsetToPmPos", () => {
       const end = charOffsetToPmPos(node, bp, subOffset + sub.length, true);
       expect(d.textBetween(start, end)).toBe(sub);
     });
+  });
+});
+
+describe("auto-close on span deletion (collapse detection)", () => {
+  const activeSpanObs = (over: Partial<Observation> = {}): Observation => ({
+    id: "obs-1",
+    docId: "doc-1",
+    type: "clarity",
+    scope: "span",
+    kind: "problem",
+    severity: "low",
+    confidence: "medium",
+    priority: 0.75,
+    text: "Vague phrase",
+    status: "active",
+    blockId: "b1",
+    startOffset: 6,
+    endOffset: 11,
+    anchorText: "world",
+    ...over,
+  });
+
+  /** Build an editor whose first paragraph carries blockId "b1". */
+  function makeEditor(onObservationCollapsed: (id: string) => void) {
+    return new Editor({
+      extensions: [StarterKit, BlockId, ObservationHighlighter.configure({ onObservationCollapsed })],
+      content: {
+        type: "doc",
+        content: [
+          {
+            type: "paragraph",
+            attrs: { blockId: "b1" },
+            content: [{ type: "text", text: "Hello world this is text" }],
+          },
+        ],
+      },
+    });
+  }
+
+  it("fires onObservationCollapsed when the highlighted span is deleted", () => {
+    const onCollapsed = vi.fn();
+    const editor = makeEditor(onCollapsed);
+    try {
+      // Register the observation → builds the decoration over "world" (chars 6–11).
+      editor.view.dispatch(editor.state.tr.setMeta("setObservations", [activeSpanObs()]));
+      // Setting observations must not be mistaken for a collapse.
+      expect(onCollapsed).not.toHaveBeenCalled();
+
+      // "world" sits at char offsets 6–11; in this single paragraph that maps to
+      // PM positions 7–12 (paragraph opens at 0, text starts at 1).
+      editor.view.dispatch(editor.state.tr.delete(7, 12));
+
+      expect(onCollapsed).toHaveBeenCalledWith("obs-1");
+    } finally {
+      editor.destroy();
+    }
+  });
+
+  it("does not fire while the highlighted span survives an unrelated edit", () => {
+    const onCollapsed = vi.fn();
+    const editor = makeEditor(onCollapsed);
+    try {
+      editor.view.dispatch(editor.state.tr.setMeta("setObservations", [activeSpanObs()]));
+      // Delete "this " (after the span) — the "world" highlight is untouched.
+      editor.view.dispatch(editor.state.tr.delete(13, 18));
+      expect(onCollapsed).not.toHaveBeenCalled();
+    } finally {
+      editor.destroy();
+    }
   });
 });
