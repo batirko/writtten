@@ -64,3 +64,4 @@ This is a pet project, framed as open source. **Do not design for monetization.*
 - No mobile-native app (PWA is enough; see `docs/architecture.md`).
 - No AI-authored or AI-edited document text, in any phase, ever.
 - No integrations with external doc tools yet (that's the long-term expansion, not the wedge).
+- No external-agent collaboration ("agent experience"). We will not expose a doc-as-shared-workspace bridge (presence/state/event-stream/edit APIs) for outside agents to co-author in, as competitors like Proof (proofeditor.ai) do — that is the AI-as-author model we invert. See `docs/snapshots/2026-06-13_competitor_proof_editor.md`.
