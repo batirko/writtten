@@ -184,8 +184,16 @@ describe("computePriority — bounds", () => {
     { type: "contradiction" },
     { type: "contradiction", contradictionTier: "confident" },
     { type: "contradiction", contradictionTier: "hedged" },
-    { type: "contradiction", claimKinds: { newKind: "commitment", existingKind: "commitment" }, contradictionTier: "confident" },
-    { type: "contradiction", claimKinds: { newKind: "metric", existingKind: "metric" }, contradictionTier: "hedged" },
+    {
+      type: "contradiction",
+      claimKinds: { newKind: "commitment", existingKind: "commitment" },
+      contradictionTier: "confident",
+    },
+    {
+      type: "contradiction",
+      claimKinds: { newKind: "metric", existingKind: "metric" },
+      contradictionTier: "hedged",
+    },
     { type: "unsupported_claim" },
     { type: "unsupported_claim", overlapsCommitment: true },
     { type: "strategic_tension" },
@@ -197,12 +205,9 @@ describe("computePriority — bounds", () => {
     { type: "structure_flow" },
   ];
 
-  it.each(allInputs)(
-    "priority is in [0.5, 3.0] for %o",
-    (input) => {
-      const { priority } = computePriority(input);
-      expect(priority).toBeGreaterThanOrEqual(0.5);
-      expect(priority).toBeLessThanOrEqual(3.0);
-    },
-  );
+  it.each(allInputs)("priority is in [0.5, 3.0] for %o", (input) => {
+    const { priority } = computePriority(input);
+    expect(priority).toBeGreaterThanOrEqual(0.5);
+    expect(priority).toBeLessThanOrEqual(3.0);
+  });
 });

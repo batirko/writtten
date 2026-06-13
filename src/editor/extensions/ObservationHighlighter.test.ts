@@ -13,9 +13,7 @@ const bullets = (id: string, items: string[]) =>
   schema.node(
     "bulletList",
     { blockId: id },
-    items.map((t) =>
-      schema.node("listItem", null, schema.node("paragraph", null, schema.text(t))),
-    ),
+    items.map((t) => schema.node("listItem", null, schema.node("paragraph", null, schema.text(t))))
   );
 
 function blockPosOf(docNode: ReturnType<typeof schema.node>, blockId: string): number {
@@ -53,7 +51,7 @@ describe("charOffsetToPmPos", () => {
   describe("bullet list with two items — the OBS-007/017 scenario", () => {
     // bulletList { listItem { para "Foo bar." } listItem { para "Zero increase" } }
     // flat textContent = "Foo bar.Zero increase"
-    const s1 = "Foo bar.";     // length 8 — first bullet
+    const s1 = "Foo bar."; // length 8 — first bullet
     const s2 = "Zero increase"; // length 13 — second bullet
 
     function makeDoc() {

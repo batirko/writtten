@@ -286,13 +286,25 @@ body,
 }
 
 /* Border accent: kind × severity → colour gradient */
-.observation-card[data-kind="problem"][data-severity="low"]    { border-left: 4px solid #8e8e93; }
-.observation-card[data-kind="problem"][data-severity="medium"] { border-left: 4px solid #f59e0b; }
-.observation-card[data-kind="problem"][data-severity="high"]   { border-left: 4px solid #ef4444; }
+.observation-card[data-kind="problem"][data-severity="low"] {
+  border-left: 4px solid #8e8e93;
+}
+.observation-card[data-kind="problem"][data-severity="medium"] {
+  border-left: 4px solid #f59e0b;
+}
+.observation-card[data-kind="problem"][data-severity="high"] {
+  border-left: 4px solid #ef4444;
+}
 
-.observation-card[data-kind="opportunity"][data-severity="low"]    { border-left: 4px solid #99c5d0; }
-.observation-card[data-kind="opportunity"][data-severity="medium"] { border-left: 4px solid #0ea5e9; }
-.observation-card[data-kind="opportunity"][data-severity="high"]   { border-left: 4px solid #0369a1; }
+.observation-card[data-kind="opportunity"][data-severity="low"] {
+  border-left: 4px solid #99c5d0;
+}
+.observation-card[data-kind="opportunity"][data-severity="medium"] {
+  border-left: 4px solid #0ea5e9;
+}
+.observation-card[data-kind="opportunity"][data-severity="high"] {
+  border-left: 4px solid #0369a1;
+}
 
 .card-header {
   display: flex;
@@ -317,13 +329,25 @@ body,
   opacity: 0.75;
 }
 
-.impact-cue.impact-kind-problem.impact-sev-low    { background-color: #8e8e93; }
-.impact-cue.impact-kind-problem.impact-sev-medium { background-color: #f59e0b; }
-.impact-cue.impact-kind-problem.impact-sev-high   { background-color: #ef4444; }
+.impact-cue.impact-kind-problem.impact-sev-low {
+  background-color: #8e8e93;
+}
+.impact-cue.impact-kind-problem.impact-sev-medium {
+  background-color: #f59e0b;
+}
+.impact-cue.impact-kind-problem.impact-sev-high {
+  background-color: #ef4444;
+}
 
-.impact-cue.impact-kind-opportunity.impact-sev-low    { background-color: #99c5d0; }
-.impact-cue.impact-kind-opportunity.impact-sev-medium { background-color: #0ea5e9; }
-.impact-cue.impact-kind-opportunity.impact-sev-high   { background-color: #0369a1; }
+.impact-cue.impact-kind-opportunity.impact-sev-low {
+  background-color: #99c5d0;
+}
+.impact-cue.impact-kind-opportunity.impact-sev-medium {
+  background-color: #0ea5e9;
+}
+.impact-cue.impact-kind-opportunity.impact-sev-high {
+  background-color: #0369a1;
+}
 
 .tag {
   font-size: 0.6875rem;
@@ -372,7 +396,7 @@ body,
 }
 
 .tag-underexposed_topic {
-  background-color: rgba(14, 165, 233, 0.10);
+  background-color: rgba(14, 165, 233, 0.1);
   color: #4a8fa8;
 }
 
@@ -522,7 +546,9 @@ body,
 }
 
 @media (prefers-reduced-motion: reduce) {
-  *, ::before, ::after {
+  *,
+  ::before,
+  ::after {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;

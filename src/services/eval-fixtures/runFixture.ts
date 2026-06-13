@@ -110,12 +110,10 @@ export function createFixtureRunner(): FixtureRunner {
             status: "active",
           });
         }
-      },
+      }
     );
 
-    vi.mocked(db.loadActiveClaimsForDocument).mockImplementation(
-      async () => [...claimsStore],
-    );
+    vi.mocked(db.loadActiveClaimsForDocument).mockImplementation(async () => [...claimsStore]);
 
     vi.mocked(db.saveObservation).mockImplementation(async (obsArg) => {
       savedObservations.push(obsArg as Observation);
@@ -142,22 +140,20 @@ export function createFixtureRunner(): FixtureRunner {
         section.text,
         [{ blockId: section.id, text: section.text }],
         fixture.stage,
-        "mock-key",          // not used in mock mode
-        undefined,           // no paid key
-        fixture.jargonAllowlist,
+        "mock-key", // not used in mock mode
+        undefined, // no paid key
+        fixture.jargonAllowlist
       );
     }
 
     // Return only active observations (reconciliation may have superseded some).
-    return savedObservations.filter(
-      (o) => o.status === "active" && !supersededIds.has(o.id),
-    );
+    return savedObservations.filter((o) => o.status === "active" && !supersededIds.has(o.id));
   }
 
   async function runLive(
     fixture: EvalFixture,
     apiKey: string,
-    paidKey?: string,
+    paidKey?: string
   ): Promise<Observation[]> {
     // Reset per-run
     claimsStore.length = 0;
@@ -179,13 +175,11 @@ export function createFixtureRunner(): FixtureRunner {
         fixture.stage,
         apiKey,
         paidKey,
-        fixture.jargonAllowlist,
+        fixture.jargonAllowlist
       );
     }
 
-    return savedObservations.filter(
-      (o) => o.status === "active" && !supersededIds.has(o.id),
-    );
+    return savedObservations.filter((o) => o.status === "active" && !supersededIds.has(o.id));
   }
 
   return { setup, teardown, run, runLive };

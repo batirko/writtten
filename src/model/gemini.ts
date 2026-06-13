@@ -31,29 +31,21 @@ const REQUEST_TIMEOUT_MS: Record<"fast" | "strong", number> = {
  * See docs/projects/model_rotation_and_debugging.md §2.
  */
 const FREE_FAST_POOL = [
-  "gemini-3.1-flash-lite",   // 500 RPD — primary workhorse on free tier
-  "gemini-2.5-flash-lite",   // 20 RPD fallback
-  "gemini-2.5-flash",        // 20 RPD fallback
-  "gemini-3.5-flash",        // 20 RPD last resort
+  "gemini-3.1-flash-lite", // 500 RPD — primary workhorse on free tier
+  "gemini-2.5-flash-lite", // 20 RPD fallback
+  "gemini-2.5-flash", // 20 RPD fallback
+  "gemini-3.5-flash", // 20 RPD last resort
 ];
 const FREE_STRONG_POOL = [
-  "gemini-3.1-flash-lite",   // 500 RPD — best available on free tier
-  "gemini-3.5-flash",        // 20 RPD fallback
-  "gemini-2.5-flash",        // 20 RPD last resort
+  "gemini-3.1-flash-lite", // 500 RPD — best available on free tier
+  "gemini-3.5-flash", // 20 RPD fallback
+  "gemini-2.5-flash", // 20 RPD last resort
   // gemini-2.5-pro excluded: 0 RPD on free tier (limit: 0 in every 429 payload)
 ];
 
 // Paid key pools: RPD not a bottleneck, so quality ordering.
-const PAID_FAST_POOL = [
-  "gemini-2.5-flash",
-  "gemini-3.5-flash",
-  "gemini-3.1-flash-lite",
-];
-const PAID_STRONG_POOL = [
-  "gemini-2.5-pro",
-  "gemini-2.5-flash",
-  "gemini-3.5-flash",
-];
+const PAID_FAST_POOL = ["gemini-2.5-flash", "gemini-3.5-flash", "gemini-3.1-flash-lite"];
+const PAID_STRONG_POOL = ["gemini-2.5-pro", "gemini-2.5-flash", "gemini-3.5-flash"];
 
 class CoolDownRegistry {
   private coolDowns = new Map<string, number>();
@@ -93,7 +85,10 @@ function msTilPacificMidnight(): number {
   const now = new Date();
   const formatter = new Intl.DateTimeFormat("en-US", {
     timeZone: "America/Los_Angeles",
-    hour: "numeric", minute: "numeric", second: "numeric", hour12: false,
+    hour: "numeric",
+    minute: "numeric",
+    second: "numeric",
+    hour12: false,
   });
   const parts = formatter.formatToParts(now);
   const get = (t: string) => parseInt(parts.find((p) => p.type === t)?.value ?? "0", 10);
@@ -111,7 +106,7 @@ async function callGemini(
   apiKey: string,
   tier: "fast" | "strong",
   keyTier: "free" | "paid",
-  callId: string,
+  callId: string
 ): Promise<LLMResponse> {
   const url = `${GEMINI_API_BASE}/${model}:generateContent?key=${apiKey}`;
   const loggedUrl = `${GEMINI_API_BASE}/${model}:generateContent?key=<${keyTier}>`;
@@ -219,11 +214,13 @@ async function callGemini(
   const data = await res.json();
   const text: string = data.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
   const usageMetadata = data.usageMetadata;
-  const usage = usageMetadata ? {
-    promptTokens: usageMetadata.promptTokenCount ?? 0,
-    candidateTokens: usageMetadata.candidatesTokenCount ?? 0,
-    totalTokens: usageMetadata.totalTokenCount ?? 0,
-  } : undefined;
+  const usage = usageMetadata
+    ? {
+        promptTokens: usageMetadata.promptTokenCount ?? 0,
+        candidateTokens: usageMetadata.candidatesTokenCount ?? 0,
+        totalTokens: usageMetadata.totalTokenCount ?? 0,
+      }
+    : undefined;
 
   llmLogger.log({
     type: "response",
@@ -254,7 +251,7 @@ async function callWithRotation(
   req: LLMRequest,
   apiKey: string,
   tier: "fast" | "strong",
-  keyTier: "free" | "paid",
+  keyTier: "free" | "paid"
 ): Promise<LLMResponse> {
   const reg = keyTier === "paid" ? paidRegistry : freeRegistry;
   // One callId spans the whole logical call, including every rotation attempt,

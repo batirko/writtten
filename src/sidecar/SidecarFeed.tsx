@@ -49,7 +49,7 @@ interface GroupedObsCardProps {
 function impactTooltip(
   severity: string,
   confidence: string,
-  slot: "primary" | "also-noticed",
+  slot: "primary" | "also-noticed"
 ): string {
   const sevLabel = severity === "high" ? "High" : severity === "medium" ? "Medium" : "Low";
   const confLabel =
@@ -64,7 +64,14 @@ function impactTooltip(
   return `${sevLabel} severity · ${confLabel} — surfaced in main feed`;
 }
 
-function GroupedObsCard({ group, isActive, isArriving, onHover, onDismiss, slot = "primary" }: GroupedObsCardProps) {
+function GroupedObsCard({
+  group,
+  isActive,
+  isArriving,
+  onHover,
+  onDismiss,
+  slot = "primary",
+}: GroupedObsCardProps) {
   const [expanded, setExpanded] = useState(false);
   const { primary, others } = group;
 
@@ -90,15 +97,17 @@ function GroupedObsCard({ group, isActive, isArriving, onHover, onDismiss, slot 
       onFocus={() => onHover(primary.id)}
       onBlur={() => onHover(null)}
       onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
+        if (e.key === "Enter" || e.key === " ") {
           e.preventDefault();
-          window.dispatchEvent(new CustomEvent('obs-card-activate', { detail: { id: primary.id } }));
+          window.dispatchEvent(
+            new CustomEvent("obs-card-activate", { detail: { id: primary.id } })
+          );
         }
       }}
     >
       <div className="card-header">
         <div className="card-header-left">
-          <span className={`tag tag-${primary.type}`}>{primary.type.replace(/_/g, ' ')}</span>
+          <span className={`tag tag-${primary.type}`}>{primary.type.replace(/_/g, " ")}</span>
           <span
             className={`impact-cue impact-kind-${primary.kind} impact-sev-${primary.severity}`}
             data-testid="impact-badge"
@@ -126,17 +135,21 @@ function GroupedObsCard({ group, isActive, isArriving, onHover, onDismiss, slot 
             onClick={() => setExpanded(!expanded)}
             data-testid="obs-group-toggle"
           >
-            <span>{expanded ? '▾' : '▸'}</span>
-            {' '}{others.length} more on this passage
+            <span>{expanded ? "▾" : "▸"}</span> {others.length} more on this passage
           </button>
-          {expanded && others.map((o) => (
-            <div key={o.id} className="card-also-item" data-testid="obs-group-item">
-              <span className={`tag tag-${o.type}`} style={{ fontSize: '0.625rem' }}>
-                {o.type.replace(/_/g, ' ')}
-              </span>
-              <p style={{ margin: '4px 0 0', fontSize: '0.75rem', color: '#555', lineHeight: 1.4 }}>{o.text}</p>
-            </div>
-          ))}
+          {expanded &&
+            others.map((o) => (
+              <div key={o.id} className="card-also-item" data-testid="obs-group-item">
+                <span className={`tag tag-${o.type}`} style={{ fontSize: "0.625rem" }}>
+                  {o.type.replace(/_/g, " ")}
+                </span>
+                <p
+                  style={{ margin: "4px 0 0", fontSize: "0.75rem", color: "#555", lineHeight: 1.4 }}
+                >
+                  {o.text}
+                </p>
+              </div>
+            ))}
         </div>
       )}
     </div>
@@ -244,7 +257,7 @@ export function SidecarFeed({
     if (file && onImportFile) {
       onImportFile(file);
     }
-    e.target.value = '';
+    e.target.value = "";
   };
 
   useEffect(() => {
@@ -295,32 +308,53 @@ export function SidecarFeed({
           className="modal-overlay"
           data-testid="clear-modal"
           style={{
-            position: 'fixed', inset: 0, zIndex: 1000,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            background: 'rgba(0,0,0,0.35)',
+            position: "fixed",
+            inset: 0,
+            zIndex: 1000,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            background: "rgba(0,0,0,0.35)",
           }}
           onClick={() => setShowClearConfirm(false)}
         >
           <div
             className="modal-card"
-            style={{ background: '#fff', borderRadius: '8px', padding: '16px', width: '80%', maxWidth: '320px', boxShadow: '0 8px 24px rgba(0,0,0,0.2)' }}
+            style={{
+              background: "#fff",
+              borderRadius: "8px",
+              padding: "16px",
+              width: "80%",
+              maxWidth: "320px",
+              boxShadow: "0 8px 24px rgba(0,0,0,0.2)",
+            }}
             onClick={(e) => e.stopPropagation()}
           >
-            <p style={{ margin: '0 0 12px' }}>
+            <p style={{ margin: "0 0 12px" }}>
               Clear the workspace? This erases all text, observations, and history.
             </p>
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: "8px" }}>
               <button
                 data-testid="clear-cancel"
                 onClick={() => setShowClearConfirm(false)}
-                style={{ padding: '6px 12px', cursor: 'pointer' }}
+                style={{ padding: "6px 12px", cursor: "pointer" }}
               >
                 Cancel
               </button>
               <button
                 data-testid="clear-confirm"
-                onClick={() => { setShowClearConfirm(false); onClearWorkspace(); }}
-                style={{ padding: '6px 12px', cursor: 'pointer', background: '#d93025', color: '#fff', border: 'none', borderRadius: '4px' }}
+                onClick={() => {
+                  setShowClearConfirm(false);
+                  onClearWorkspace();
+                }}
+                style={{
+                  padding: "6px 12px",
+                  cursor: "pointer",
+                  background: "#d93025",
+                  color: "#fff",
+                  border: "none",
+                  borderRadius: "4px",
+                }}
               >
                 Clear
               </button>
@@ -329,9 +363,12 @@ export function SidecarFeed({
         </div>
       )}
       <div className="sidecar-header">
-        <div className="sidecar-title-bar" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div
+          className="sidecar-title-bar"
+          style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}
+        >
           <h3>Sidecar Feed</h3>
-          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+          <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
             {(import.meta.env.DEV || stalled) && (
               <span
                 className="sidecar-status-chip"
@@ -341,17 +378,17 @@ export function SidecarFeed({
                 data-pending={pending}
                 data-stalled={stalled}
                 style={{
-                  fontSize: '0.75rem',
-                  padding: '2px 6px',
-                  borderRadius: '4px',
-                  background: stalled ? '#fce8e6' : pending === 0 ? '#e6f4ea' : '#fff4e5',
-                  color: stalled ? '#b3261e' : pending === 0 ? '#137333' : '#b06000',
+                  fontSize: "0.75rem",
+                  padding: "2px 6px",
+                  borderRadius: "4px",
+                  background: stalled ? "#fce8e6" : pending === 0 ? "#e6f4ea" : "#fff4e5",
+                  color: stalled ? "#b3261e" : pending === 0 ? "#137333" : "#b06000",
                 }}
               >
                 {stalled
-                  ? 'still working…'
+                  ? "still working…"
                   : pending === 0
-                    ? 'idle'
+                    ? "idle"
                     : `evaluating (${pending} pending)`}
               </span>
             )}
@@ -360,17 +397,26 @@ export function SidecarFeed({
                 className="active-provider-chip"
                 data-testid="provider-chip"
                 style={{
-                  fontSize: '0.75rem',
-                  padding: '2px 6px',
-                  background: activeProvider.includes('[paid]') ? '#fef3c7' : '#e0e0e0',
-                  borderRadius: '4px',
-                  color: activeProvider.includes('[paid]') ? '#92400e' : undefined,
-                  fontWeight: activeProvider.includes('[paid]') ? 600 : undefined,
+                  fontSize: "0.75rem",
+                  padding: "2px 6px",
+                  background: activeProvider.includes("[paid]") ? "#fef3c7" : "#e0e0e0",
+                  borderRadius: "4px",
+                  color: activeProvider.includes("[paid]") ? "#92400e" : undefined,
+                  fontWeight: activeProvider.includes("[paid]") ? 600 : undefined,
                 }}
               >
-                ⚡️ {activeProvider.replace(' [paid]', '')}
-                {activeProvider.includes('[paid]') && (
-                  <span style={{ marginLeft: 4, fontSize: '0.65rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>paid</span>
+                ⚡️ {activeProvider.replace(" [paid]", "")}
+                {activeProvider.includes("[paid]") && (
+                  <span
+                    style={{
+                      marginLeft: 4,
+                      fontSize: "0.65rem",
+                      textTransform: "uppercase",
+                      letterSpacing: "0.05em",
+                    }}
+                  >
+                    paid
+                  </span>
                 )}
               </span>
             )}
@@ -406,7 +452,7 @@ export function SidecarFeed({
               onChange={handleFileChange}
               data-testid="import-input"
             />
-            <div style={{ position: 'relative' }}>
+            <div style={{ position: "relative" }}>
               <button
                 className="settings-toggle-btn"
                 data-testid="export-menu-btn"
@@ -416,43 +462,89 @@ export function SidecarFeed({
                 title="Export or Copy Document"
                 aria-label="Export or Copy Document"
               >
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
                   <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
                   <polyline points="17 8 12 3 7 8"></polyline>
                   <line x1="12" y1="3" x2="12" y2="15"></line>
                 </svg>
               </button>
               {showExportMenu && (
-                <div className="settings-panel" style={{ position: 'absolute', top: '100%', right: 0, marginTop: '4px', zIndex: 100, minWidth: '160px' }}>
+                <div
+                  className="settings-panel"
+                  style={{
+                    position: "absolute",
+                    top: "100%",
+                    right: 0,
+                    marginTop: "4px",
+                    zIndex: 100,
+                    minWidth: "160px",
+                  }}
+                >
                   <div className="setting-group">
-                    <button 
-                      className="dismiss-btn" 
-                      style={{ width: '100%', textAlign: 'left', padding: '8px', borderBottom: '1px solid #eee' }} 
-                      onClick={() => { onExportMarkdown?.(); setShowExportMenu(false); }}
+                    <button
+                      className="dismiss-btn"
+                      style={{
+                        width: "100%",
+                        textAlign: "left",
+                        padding: "8px",
+                        borderBottom: "1px solid #eee",
+                      }}
+                      onClick={() => {
+                        onExportMarkdown?.();
+                        setShowExportMenu(false);
+                      }}
                       data-testid="export-md"
                     >
                       Download Markdown
                     </button>
-                    <button 
-                      className="dismiss-btn" 
-                      style={{ width: '100%', textAlign: 'left', padding: '8px', borderBottom: '1px solid #eee' }} 
-                      onClick={() => { onExportPdf?.(); setShowExportMenu(false); }}
+                    <button
+                      className="dismiss-btn"
+                      style={{
+                        width: "100%",
+                        textAlign: "left",
+                        padding: "8px",
+                        borderBottom: "1px solid #eee",
+                      }}
+                      onClick={() => {
+                        onExportPdf?.();
+                        setShowExportMenu(false);
+                      }}
                       data-testid="export-pdf"
                     >
                       Print / Save as PDF
                     </button>
-                    <button 
-                      className="dismiss-btn" 
-                      style={{ width: '100%', textAlign: 'left', padding: '8px', borderBottom: '1px solid #eee' }} 
-                      onClick={() => { onCopyMarkdown?.(); setShowExportMenu(false); }}
+                    <button
+                      className="dismiss-btn"
+                      style={{
+                        width: "100%",
+                        textAlign: "left",
+                        padding: "8px",
+                        borderBottom: "1px solid #eee",
+                      }}
+                      onClick={() => {
+                        onCopyMarkdown?.();
+                        setShowExportMenu(false);
+                      }}
                       data-testid="copy-md"
                     >
                       Copy Markdown
                     </button>
-                    <button 
-                      className="dismiss-btn" 
-                      style={{ width: '100%', textAlign: 'left', padding: '8px' }} 
-                      onClick={() => { onCopyRichText?.(); setShowExportMenu(false); }}
+                    <button
+                      className="dismiss-btn"
+                      style={{ width: "100%", textAlign: "left", padding: "8px" }}
+                      onClick={() => {
+                        onCopyRichText?.();
+                        setShowExportMenu(false);
+                      }}
                       data-testid="copy-rtf"
                     >
                       Copy Rich Text
@@ -529,7 +621,13 @@ export function SidecarFeed({
                 <label
                   className="setting-checkbox"
                   data-testid="key-tier-toggle"
-                  style={{ display: "flex", alignItems: "center", gap: "8px", cursor: "pointer", marginTop: "8px" }}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "8px",
+                    cursor: "pointer",
+                    marginTop: "8px",
+                  }}
                 >
                   <input
                     type="checkbox"
@@ -539,8 +637,8 @@ export function SidecarFeed({
                   <span>
                     This is a capable model (paid tier)
                     <span className="setting-help" style={{ display: "block" }}>
-                      Enables confident contradiction calls and resolution-aware
-                      reconciliation. Leave off for free/lightweight models.
+                      Enables confident contradiction calls and resolution-aware reconciliation.
+                      Leave off for free/lightweight models.
                     </span>
                   </span>
                 </label>
@@ -572,7 +670,9 @@ export function SidecarFeed({
               </span>
             </div>
             <div className="setting-group">
-              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+              <label
+                style={{ display: "flex", alignItems: "center", gap: "8px", cursor: "pointer" }}
+              >
                 <input
                   type="checkbox"
                   checked={debugMode}
@@ -585,34 +685,45 @@ export function SidecarFeed({
         )}
       </div>
 
-      <div className="feed-container" style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
+      <div
+        className="feed-container"
+        style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column" }}
+      >
         {stageSuggestion && (
           <div
             data-testid="stage-suggestion"
             style={{
-              margin: '8px',
-              padding: '10px 12px',
-              background: '#f0f9ff',
-              border: '1px solid #bae6fd',
-              borderRadius: '6px',
-              fontSize: '0.85rem',
+              margin: "8px",
+              padding: "10px 12px",
+              background: "#f0f9ff",
+              border: "1px solid #bae6fd",
+              borderRadius: "6px",
+              fontSize: "0.85rem",
             }}
           >
-            <p style={{ margin: '0 0 8px', color: '#0c4a6e' }}>
+            <p style={{ margin: "0 0 8px", color: "#0c4a6e" }}>
               Inferred context: <em>{stageSuggestion}</em>
             </p>
-            <div style={{ display: 'flex', gap: '8px' }}>
+            <div style={{ display: "flex", gap: "8px" }}>
               <button
                 data-testid="stage-suggestion-accept"
                 onClick={() => onAcceptStageSuggestion?.(stageSuggestion)}
-                style={{ fontSize: '0.8rem', padding: '3px 10px', cursor: 'pointer', background: '#0ea5e9', color: '#fff', border: 'none', borderRadius: '4px' }}
+                style={{
+                  fontSize: "0.8rem",
+                  padding: "3px 10px",
+                  cursor: "pointer",
+                  background: "#0ea5e9",
+                  color: "#fff",
+                  border: "none",
+                  borderRadius: "4px",
+                }}
               >
                 Use this
               </button>
               <button
                 data-testid="stage-suggestion-dismiss"
                 onClick={() => onDismissStageSuggestion?.()}
-                style={{ fontSize: '0.8rem', padding: '3px 10px', cursor: 'pointer' }}
+                style={{ fontSize: "0.8rem", padding: "3px 10px", cursor: "pointer" }}
               >
                 No thanks
               </button>
@@ -634,11 +745,11 @@ export function SidecarFeed({
                 <div
                   data-testid="arrival-indicator"
                   style={{
-                    padding: '4px 8px',
-                    fontSize: '0.75rem',
-                    color: '#6b7280',
-                    textAlign: 'center',
-                    animation: 'fadeIn 200ms ease-in',
+                    padding: "4px 8px",
+                    fontSize: "0.75rem",
+                    color: "#6b7280",
+                    textAlign: "center",
+                    animation: "fadeIn 200ms ease-in",
                   }}
                 >
                   +{arrivalBatchCount} new
@@ -649,7 +760,10 @@ export function SidecarFeed({
                   key={group.id}
                   group={group}
                   isActive={hoveredObservationId === group.primary.id}
-                  isArriving={arrivingIds.has(group.primary.id) || group.others.some((o) => arrivingIds.has(o.id))}
+                  isArriving={
+                    arrivingIds.has(group.primary.id) ||
+                    group.others.some((o) => arrivingIds.has(o.id))
+                  }
                   onHover={onHoverObservation}
                   onDismiss={onDismissObservation}
                 />
@@ -659,7 +773,7 @@ export function SidecarFeed({
               {alsoNoticedObs.length > 0 && (
                 <div
                   data-testid="also-noticed-drawer"
-                  style={{ borderTop: '1px solid #e5e7eb', marginTop: '4px', paddingTop: '4px' }}
+                  style={{ borderTop: "1px solid #e5e7eb", marginTop: "4px", paddingTop: "4px" }}
                 >
                   <button
                     data-testid="also-noticed-toggle"
@@ -667,30 +781,39 @@ export function SidecarFeed({
                     aria-controls="also-noticed-list"
                     onClick={() => setShowAlsoNoticed(!showAlsoNoticed)}
                     style={{
-                      width: '100%',
-                      textAlign: 'left',
-                      background: 'none',
-                      border: 'none',
-                      cursor: 'pointer',
-                      fontSize: '0.8rem',
-                      color: '#6b7280',
-                      padding: '4px 0',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '6px',
+                      width: "100%",
+                      textAlign: "left",
+                      background: "none",
+                      border: "none",
+                      cursor: "pointer",
+                      fontSize: "0.8rem",
+                      color: "#6b7280",
+                      padding: "4px 0",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "6px",
                     }}
                   >
-                    <span>{showAlsoNoticed ? '▾' : '▸'}</span>
-                    <span>Also noticed ({alsoNoticedObs.length} {alsoNoticedObs.length === 1 ? 'issue' : 'issues'})</span>
+                    <span>{showAlsoNoticed ? "▾" : "▸"}</span>
+                    <span>
+                      Also noticed ({alsoNoticedObs.length}{" "}
+                      {alsoNoticedObs.length === 1 ? "issue" : "issues"})
+                    </span>
                   </button>
                   {showAlsoNoticed && (
-                    <div id="also-noticed-list" style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    <div
+                      id="also-noticed-list"
+                      style={{ display: "flex", flexDirection: "column", gap: "4px" }}
+                    >
                       {alsoNoticedObs.map((group) => (
                         <GroupedObsCard
                           key={group.id}
                           group={group}
                           isActive={hoveredObservationId === group.primary.id}
-                          isArriving={arrivingIds.has(group.primary.id) || group.others.some((o) => arrivingIds.has(o.id))}
+                          isArriving={
+                            arrivingIds.has(group.primary.id) ||
+                            group.others.some((o) => arrivingIds.has(o.id))
+                          }
                           onHover={onHoverObservation}
                           onDismiss={onDismissObservation}
                           slot="also-noticed"
@@ -707,7 +830,7 @@ export function SidecarFeed({
         {archivedObservations.length > 0 && (
           <div
             data-testid="archive-section"
-            style={{ borderTop: '1px solid #e5e7eb', padding: '8px' }}
+            style={{ borderTop: "1px solid #e5e7eb", padding: "8px" }}
           >
             <button
               data-testid="archive-toggle"
@@ -715,70 +838,99 @@ export function SidecarFeed({
               aria-controls="archive-list"
               onClick={() => setShowArchive(!showArchive)}
               style={{
-                width: '100%',
-                textAlign: 'left',
-                background: 'none',
-                border: 'none',
-                cursor: 'pointer',
-                fontSize: '0.8rem',
-                color: '#6b7280',
-                padding: '4px 0',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px',
+                width: "100%",
+                textAlign: "left",
+                background: "none",
+                border: "none",
+                cursor: "pointer",
+                fontSize: "0.8rem",
+                color: "#6b7280",
+                padding: "4px 0",
+                display: "flex",
+                alignItems: "center",
+                gap: "6px",
               }}
             >
-              <span>{showArchive ? '▾' : '▸'}</span>
+              <span>{showArchive ? "▾" : "▸"}</span>
               <span>Archive ({archivedObservations.length})</span>
             </button>
             {showArchive && (
-              <div id="archive-list" data-testid="archive-list" style={{ marginTop: '4px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+              <div
+                id="archive-list"
+                data-testid="archive-list"
+                style={{ marginTop: "4px", display: "flex", flexDirection: "column", gap: "4px" }}
+              >
                 {archivedObservations.map((obs) => {
                   const reasonText =
-                    obs.closureReason === "resolved_by_edit" ? "resolved by edit" :
-                    obs.closureReason === "text_removed" ? "text removed" :
-                    obs.closureReason === "superseded" ? "superseded" :
-                    obs.closureReason === "dismissed" ? "dismissed" :
-                    obs.closureReason === "resolved_prior" ? "resolved" :
-                    obs.status.replace(/_/g, ' ');
+                    obs.closureReason === "resolved_by_edit"
+                      ? "resolved by edit"
+                      : obs.closureReason === "text_removed"
+                        ? "text removed"
+                        : obs.closureReason === "superseded"
+                          ? "superseded"
+                          : obs.closureReason === "dismissed"
+                            ? "dismissed"
+                            : obs.closureReason === "resolved_prior"
+                              ? "resolved"
+                              : obs.status.replace(/_/g, " ");
                   return (
-                  <div
-                    key={obs.id}
-                    data-testid="archive-card"
-                    data-obs-status={obs.status}
-                    data-obs-type={obs.type}
-                    style={{
-                      padding: '8px',
-                      background: '#f9fafb',
-                      border: '1px solid #e5e7eb',
-                      borderRadius: '6px',
-                      opacity: 0.75,
-                    }}
-                  >
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-                      <span className={`tag tag-${obs.type}`} style={{ fontSize: '0.7rem' }}>
-                        {obs.type.replace(/_/g, ' ')}
-                      </span>
-                      <span data-testid="archive-reason" style={{ fontSize: '0.7rem', color: '#6b7280' }}>
-                        {reasonText}
-                      </span>
-                    </div>
-                    <p style={{ margin: 0, fontSize: '0.8rem', color: '#4b5563' }}>{obs.text}</p>
-                    {obs.anchorText && (
-                      <div data-testid="archive-anchor" style={{ marginTop: '6px', fontSize: '0.75rem', color: '#6b7280', fontStyle: 'italic', borderLeft: '2px solid #d1d5db', paddingLeft: '6px' }}>
-                        “{obs.anchorText}”
-                        {obs.conflictingAnchorText && (
-                          <>
-                            <br />
-                            <span style={{ display: 'inline-block', marginTop: '4px' }}>
-                              vs. “{obs.conflictingAnchorText}”
-                            </span>
-                          </>
-                        )}
+                    <div
+                      key={obs.id}
+                      data-testid="archive-card"
+                      data-obs-status={obs.status}
+                      data-obs-type={obs.type}
+                      style={{
+                        padding: "8px",
+                        background: "#f9fafb",
+                        border: "1px solid #e5e7eb",
+                        borderRadius: "6px",
+                        opacity: 0.75,
+                      }}
+                    >
+                      <div
+                        style={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                          marginBottom: "4px",
+                        }}
+                      >
+                        <span className={`tag tag-${obs.type}`} style={{ fontSize: "0.7rem" }}>
+                          {obs.type.replace(/_/g, " ")}
+                        </span>
+                        <span
+                          data-testid="archive-reason"
+                          style={{ fontSize: "0.7rem", color: "#6b7280" }}
+                        >
+                          {reasonText}
+                        </span>
                       </div>
-                    )}
-                  </div>
-                );})}
+                      <p style={{ margin: 0, fontSize: "0.8rem", color: "#4b5563" }}>{obs.text}</p>
+                      {obs.anchorText && (
+                        <div
+                          data-testid="archive-anchor"
+                          style={{
+                            marginTop: "6px",
+                            fontSize: "0.75rem",
+                            color: "#6b7280",
+                            fontStyle: "italic",
+                            borderLeft: "2px solid #d1d5db",
+                            paddingLeft: "6px",
+                          }}
+                        >
+                          “{obs.anchorText}”
+                          {obs.conflictingAnchorText && (
+                            <>
+                              <br />
+                              <span style={{ display: "inline-block", marginTop: "4px" }}>
+                                vs. “{obs.conflictingAnchorText}”
+                              </span>
+                            </>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>
@@ -786,14 +938,31 @@ export function SidecarFeed({
       </div>
 
       {debugMode && (
-        <div className="debug-panel" style={{ borderTop: '1px solid #ddd', padding: '8px', maxHeight: '300px', overflowY: 'auto', background: '#f9f9f9', fontSize: '0.8rem' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+        <div
+          className="debug-panel"
+          style={{
+            borderTop: "1px solid #ddd",
+            padding: "8px",
+            maxHeight: "300px",
+            overflowY: "auto",
+            background: "#f9f9f9",
+            fontSize: "0.8rem",
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              marginBottom: "8px",
+            }}
+          >
             <h4 style={{ margin: 0 }}>LLM Debug Logs</h4>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              {copySuccess && <span style={{ color: '#4caf50', fontSize: '0.7rem' }}>Copied!</span>}
+            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              {copySuccess && <span style={{ color: "#4caf50", fontSize: "0.7rem" }}>Copied!</span>}
               <button
                 onClick={handleCopyLogs}
-                style={{ fontSize: '0.7rem', padding: '2px 8px', cursor: 'pointer' }}
+                style={{ fontSize: "0.7rem", padding: "2px 8px", cursor: "pointer" }}
               >
                 Copy All
               </button>
@@ -803,14 +972,14 @@ export function SidecarFeed({
             <div
               data-testid="session-stats"
               style={{
-                marginBottom: '8px',
-                padding: '4px 6px',
-                background: '#f0fdf4',
-                border: '1px solid #bbf7d0',
-                borderRadius: '4px',
-                fontSize: '0.7rem',
-                color: '#166534',
-                fontFamily: 'monospace',
+                marginBottom: "8px",
+                padding: "4px 6px",
+                background: "#f0fdf4",
+                border: "1px solid #bbf7d0",
+                borderRadius: "4px",
+                fontSize: "0.7rem",
+                color: "#166534",
+                fontFamily: "monospace",
               }}
             >
               Session: {sessionStats.fastCalls}f + {sessionStats.strongCalls}s calls
@@ -818,30 +987,32 @@ export function SidecarFeed({
             </div>
           )}
           {logs.length === 0 ? (
-            <div style={{ color: '#888' }}>No logs yet.</div>
+            <div style={{ color: "#888" }}>No logs yet.</div>
           ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-              {logs.map(log => {
+            <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+              {logs.map((log) => {
                 // Trigger entries render as a compact one-liner audit trail
-                if (log.type === 'trigger') {
+                if (log.type === "trigger") {
                   return (
                     <div
                       key={log.id}
                       data-testid="debug-entry"
                       data-log-type="trigger"
                       style={{
-                        background: '#eef2ff',
-                        border: '1px solid #c7d2fe',
-                        borderRadius: '4px',
-                        padding: '3px 6px',
-                        fontSize: '0.7rem',
-                        color: '#4338ca',
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        fontFamily: 'monospace',
+                        background: "#eef2ff",
+                        border: "1px solid #c7d2fe",
+                        borderRadius: "4px",
+                        padding: "3px 6px",
+                        fontSize: "0.7rem",
+                        color: "#4338ca",
+                        display: "flex",
+                        justifyContent: "space-between",
+                        fontFamily: "monospace",
                       }}
                     >
-                      <span>▶ trigger={log.triggerKind} block={log.blockId?.slice(0, 8)}</span>
+                      <span>
+                        ▶ trigger={log.triggerKind} block={log.blockId?.slice(0, 8)}
+                      </span>
                       <span style={{ opacity: 0.7 }}>{log.timestamp.toLocaleTimeString()}</span>
                     </div>
                   );
@@ -849,9 +1020,9 @@ export function SidecarFeed({
 
                 // Archive entries: a compact one-liner showing who closed an
                 // observation and why (the gap this redesign closes).
-                if (log.type === 'archive' && log.archive) {
+                if (log.type === "archive" && log.archive) {
                   const a = log.archive;
-                  const actorColor = a.actor === 'user' ? '#92400e' : '#6b7280';
+                  const actorColor = a.actor === "user" ? "#92400e" : "#6b7280";
                   return (
                     <div
                       key={log.id}
@@ -860,44 +1031,106 @@ export function SidecarFeed({
                       data-archive-actor={a.actor}
                       data-archive-reason={a.reason}
                       style={{
-                        background: '#fdf4ff',
-                        border: '1px solid #f0abfc',
-                        borderRadius: '4px',
-                        padding: '3px 6px',
-                        fontSize: '0.7rem',
+                        background: "#fdf4ff",
+                        border: "1px solid #f0abfc",
+                        borderRadius: "4px",
+                        padding: "3px 6px",
+                        fontSize: "0.7rem",
                         color: actorColor,
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        gap: '6px',
-                        fontFamily: 'monospace',
+                        display: "flex",
+                        justifyContent: "space-between",
+                        gap: "6px",
+                        fontFamily: "monospace",
                       }}
                       title={a.text}
                     >
-                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      <span
+                        style={{
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
                         ✕ {a.actor} {a.reason} · {a.obsType}
                       </span>
-                      <span style={{ opacity: 0.7, flexShrink: 0 }}>{log.timestamp.toLocaleTimeString()}</span>
+                      <span style={{ opacity: 0.7, flexShrink: 0 }}>
+                        {log.timestamp.toLocaleTimeString()}
+                      </span>
                     </div>
                   );
                 }
 
-                const color = log.type === 'error' ? '#ffebee' : log.type === 'retry' ? '#fff8e1' : log.type === 'response' ? '#e8f5e9' : 'transparent';
+                const color =
+                  log.type === "error"
+                    ? "#ffebee"
+                    : log.type === "retry"
+                      ? "#fff8e1"
+                      : log.type === "response"
+                        ? "#e8f5e9"
+                        : "transparent";
                 const isExpanded = expandedLogId === log.id;
                 return (
-                  <div key={log.id} data-testid="debug-entry" data-log-type={log.type} style={{ background: color, border: '1px solid #ccc', borderRadius: '4px', padding: '4px' }}>
+                  <div
+                    key={log.id}
+                    data-testid="debug-entry"
+                    data-log-type={log.type}
+                    style={{
+                      background: color,
+                      border: "1px solid #ccc",
+                      borderRadius: "4px",
+                      padding: "4px",
+                    }}
+                  >
                     <div
-                      style={{ display: 'flex', justifyContent: 'space-between', cursor: 'pointer', fontWeight: 'bold' }}
+                      style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        cursor: "pointer",
+                        fontWeight: "bold",
+                      }}
                       onClick={() => setExpandedLogId(isExpanded ? null : log.id)}
                     >
-                      <span>[{log.type.toUpperCase()}] {log.model}</span>
+                      <span>
+                        [{log.type.toUpperCase()}] {log.model}
+                      </span>
                       <span>{log.timestamp.toLocaleTimeString()}</span>
                     </div>
-                    {log.errorMessage && <div style={{ color: 'red', marginTop: '4px' }}>{log.errorMessage}</div>}
+                    {log.errorMessage && (
+                      <div style={{ color: "red", marginTop: "4px" }}>{log.errorMessage}</div>
+                    )}
                     {isExpanded && (
-                      <div style={{ marginTop: '8px', borderTop: '1px dashed #ccc', paddingTop: '4px' }}>
-                        <div><strong>Latency:</strong> {log.latencyMs}ms</div>
-                        <div><strong>Payload:</strong> <pre style={{ whiteSpace: 'pre-wrap', margin: '4px 0', fontSize: '0.7rem' }}>{JSON.stringify(log.payload, null, 2)}</pre></div>
-                        {log.response && <div><strong>Response:</strong> <pre style={{ whiteSpace: 'pre-wrap', margin: '4px 0', fontSize: '0.7rem' }}>{log.response}</pre></div>}
+                      <div
+                        style={{
+                          marginTop: "8px",
+                          borderTop: "1px dashed #ccc",
+                          paddingTop: "4px",
+                        }}
+                      >
+                        <div>
+                          <strong>Latency:</strong> {log.latencyMs}ms
+                        </div>
+                        <div>
+                          <strong>Payload:</strong>{" "}
+                          <pre
+                            style={{ whiteSpace: "pre-wrap", margin: "4px 0", fontSize: "0.7rem" }}
+                          >
+                            {JSON.stringify(log.payload, null, 2)}
+                          </pre>
+                        </div>
+                        {log.response && (
+                          <div>
+                            <strong>Response:</strong>{" "}
+                            <pre
+                              style={{
+                                whiteSpace: "pre-wrap",
+                                margin: "4px 0",
+                                fontSize: "0.7rem",
+                              }}
+                            >
+                              {log.response}
+                            </pre>
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>

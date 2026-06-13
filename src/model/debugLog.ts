@@ -162,7 +162,10 @@ export function buildEnvelope(
     if (!found) return user;
     if (!glossary) glossary = found;
     if (JSON.stringify(found) === JSON.stringify(glossary)) {
-      return user.replace(GLOSSARY_RE, `Defined terms (do not flag as undefined jargon):\n${GLOSSARY_TOKEN}\n`);
+      return user.replace(
+        GLOSSARY_RE,
+        `Defined terms (do not flag as undefined jargon):\n${GLOSSARY_TOKEN}\n`
+      );
     }
     return user;
   };
@@ -213,12 +216,33 @@ export function buildEnvelope(
     }
 
     if (!isCallLeg(e.type)) {
-      const { type, id, timestamp, tier, keyTier, model, endpoint, latencyMs, statusCode, payload, response, errorMessage, triggerKind, blockId, evalId, callId, promptRef, archive, usage, ...fields } = e as any;
+      const {
+        type,
+        id,
+        timestamp,
+        tier,
+        keyTier,
+        model,
+        endpoint,
+        latencyMs,
+        statusCode,
+        payload,
+        response,
+        errorMessage,
+        triggerKind,
+        blockId,
+        evalId,
+        callId,
+        promptRef,
+        archive,
+        usage,
+        ...fields
+      } = e as unknown as Record<string, unknown>;
       records.push({
         kind: "harness",
         t: ts,
         eventType: e.type,
-        fields
+        fields,
       });
       continue;
     }
@@ -266,7 +290,11 @@ export function buildEnvelope(
         last.status = e.statusCode ?? 200;
         last.latencyMs = e.latencyMs;
       } else {
-        call.attempts.push({ model: e.model || "", status: e.statusCode ?? 200, latencyMs: e.latencyMs });
+        call.attempts.push({
+          model: e.model || "",
+          status: e.statusCode ?? 200,
+          latencyMs: e.latencyMs,
+        });
       }
       call.status = e.statusCode ?? 200;
       call.latencyMs = e.latencyMs;
@@ -280,7 +308,12 @@ export function buildEnvelope(
         last.latencyMs = e.latencyMs;
         last.error = redactKeys(e.errorMessage);
       } else {
-        call.attempts.push({ model: e.model || "", status, latencyMs: e.latencyMs, error: redactKeys(e.errorMessage) });
+        call.attempts.push({
+          model: e.model || "",
+          status,
+          latencyMs: e.latencyMs,
+          error: redactKeys(e.errorMessage),
+        });
       }
       call.status = status;
       call.latencyMs = e.latencyMs;

@@ -35,7 +35,9 @@ export interface DocReconcilePlan {
 type Sim = (a: string, b: string) => number;
 
 /** Group items by their observation `type` so matching never crosses types. */
-function byType<T extends { type: Observation["type"] }>(items: T[]): Map<Observation["type"], T[]> {
+function byType<T extends { type: Observation["type"] }>(
+  items: T[]
+): Map<Observation["type"], T[]> {
   const m = new Map<Observation["type"], T[]>();
   for (const it of items) {
     const bucket = m.get(it.type);

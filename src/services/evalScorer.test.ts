@@ -54,9 +54,13 @@ describe("scoreObservations — perfect match", () => {
   });
 
   it("substring match against span text when message doesn't contain it", () => {
-    const produced = [obs({ text: "This is ambiguous.", blockId: "s1", startOffset: 3, endOffset: 8 })];
+    const produced = [
+      obs({ text: "This is ambiguous.", blockId: "s1", startOffset: 3, endOffset: 8 }),
+    ];
     // "will" is in the span s1[3..8] = "will "
-    const expected: ExpectedObservation[] = [{ type: "clarity", sectionId: "s1", substring: "will" }];
+    const expected: ExpectedObservation[] = [
+      { type: "clarity", sectionId: "s1", substring: "will" },
+    ];
     const r = scoreObservations("fx", produced, expected, sectionTexts);
     expect(r.recall).toBe(1);
   });
@@ -128,8 +132,8 @@ describe("scoreObservations — mixed", () => {
       obs({ id: "p2", type: "unsupported_claim", blockId: "s2" }), // FP
     ];
     const expected: ExpectedObservation[] = [
-      { type: "clarity", sectionId: "s1" },                      // matched by p1
-      { type: "contradiction", sectionId: "s2" },                 // FN
+      { type: "clarity", sectionId: "s1" }, // matched by p1
+      { type: "contradiction", sectionId: "s2" }, // FN
     ];
     const r = scoreObservations("fx", produced, expected, sectionTexts);
     expect(r.truePositives).toHaveLength(1);
@@ -172,7 +176,9 @@ describe("scoreObservations — edge cases", () => {
 
   it("case-insensitive substring match", () => {
     const produced = [obs({ text: "The term FALSE-POSITIVE is jargon.", blockId: "s1" })];
-    const expected: ExpectedObservation[] = [{ type: "clarity", sectionId: "s1", substring: "false-positive" }];
+    const expected: ExpectedObservation[] = [
+      { type: "clarity", sectionId: "s1", substring: "false-positive" },
+    ];
     const r = scoreObservations("fx", produced, expected, sectionTexts);
     expect(r.recall).toBe(1);
   });

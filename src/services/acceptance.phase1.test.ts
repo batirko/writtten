@@ -15,8 +15,6 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-import * as db from "../store/db";
 import { createFixtureRunner } from "./eval-fixtures/runFixture";
 import contradictionTimeline from "./eval-fixtures/contradiction-timeline";
 

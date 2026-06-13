@@ -280,7 +280,9 @@ async function reconcileObservations(
   // 4. Auto-close existing observations that have no counterpart in the new set
   for (const e of existing) {
     if (!matchedExistingIds.has(e.id)) {
-      const closureReason = memberBlockIds.includes(e.blockId!) ? "resolved_by_edit" : "text_removed";
+      const closureReason = memberBlockIds.includes(e.blockId!)
+        ? "resolved_by_edit"
+        : "text_removed";
       await updateObservationStatus(e.id, "auto_closed", closureReason);
       archiveObs(e, "auto_closed", evalId);
     }
@@ -1187,7 +1189,14 @@ async function reconcileSweepContradictions(
       const key = conflictPairKey(newO);
       if (insertedKeys.has(key)) continue;
       if (isSpanSuppressed(newO, suppressions)) continue;
-      await saveObservation({ id: nanoid(10), docId, status: "active", missCount: 0, lastSeenAt: now, ...newO });
+      await saveObservation({
+        id: nanoid(10),
+        docId,
+        status: "active",
+        missCount: 0,
+        lastSeenAt: now,
+        ...newO,
+      });
       if (import.meta.env.DEV) {
         const blocks = [newO.blockId, newO.conflictingBlockId].filter(Boolean);
         harness.emit("observation", { type: newO.type, blocks });

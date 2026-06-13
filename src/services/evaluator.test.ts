@@ -174,7 +174,6 @@ describe("evaluator - evaluateBlock", () => {
       priority: 0.75,
       text: "Vague launch date",
       status: "active",
-      blockId,
       startOffset: 30, // "in Q3" start in text
       endOffset: 35,
     });
@@ -196,7 +195,7 @@ describe("evaluator - evaluateBlock", () => {
       status: "active" as const,
     };
     vi.mocked(db.loadActiveClaimsForDocument)
-      .mockResolvedValueOnce([existingClaim])  // glossary call
+      .mockResolvedValueOnce([existingClaim]) // glossary call
       .mockResolvedValueOnce([existingClaim]); // contradiction call
 
     // Mock Gemini router responses
@@ -275,7 +274,7 @@ describe("evaluator - evaluateBlock", () => {
         kind: "problem",
         severity: "low",
         spanSignature: "block1:10:20",
-      }
+      },
     ]);
 
     const existingClaim = {
@@ -296,7 +295,7 @@ describe("evaluator - evaluateBlock", () => {
         claims: [{ text: "Launch in Q3.", kind: "commitment" }],
         clarity_observations: [
           // A new clarity nit on block3
-          { text: "Vague launch date", substring: "in Q3" }
+          { text: "Vague launch date", substring: "in Q3" },
         ],
       }),
     });
@@ -313,20 +312,24 @@ describe("evaluator - evaluateBlock", () => {
       }),
     });
 
-    // Evaluate block3! 
+    // Evaluate block3!
     const text = "We plan to launch in Q3.";
     await evaluateBlock(docId, "block3", text, "Test Stage", apiKey);
 
     // The high-severity contradiction suppression was on block1, so the new contradiction on block3 SHOULD fire (span-only suppression).
-    expect(db.saveObservation).toHaveBeenCalledWith(expect.objectContaining({
-      type: "contradiction",
-      blockId: "block3",
-    }));
+    expect(db.saveObservation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: "contradiction",
+        blockId: "block3",
+      })
+    );
 
     // The low-severity clarity suppression was on block1, so the new clarity nit on block3 should NOT fire (category-wide suppression).
-    expect(db.saveObservation).not.toHaveBeenCalledWith(expect.objectContaining({
-      type: "clarity",
-    }));
+    expect(db.saveObservation).not.toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: "clarity",
+      })
+    );
   });
 });
 
@@ -370,7 +373,7 @@ describe("evaluator - evaluateSection skipContradiction (bulk paste)", () => {
       apiKey,
       undefined,
       undefined,
-      true, // skipContradiction
+      true // skipContradiction
     );
 
     expect(mockFast).toHaveBeenCalledTimes(1);
@@ -428,7 +431,7 @@ describe("evaluator - evaluateLedgerContradictions (bootstrap sweep)", () => {
         startOffset: 0,
         endOffset: 9999,
         status: "active",
-      }),
+      })
     );
     expect(db.saveDocEvalState).toHaveBeenCalledWith(`${docId}::sweep`, expect.any(String));
   });
@@ -527,7 +530,11 @@ describe("evaluator - reconcileDocumentObservations (doc-scope grace period)", (
 
     await reconcileDocumentObservations(docId, []); // absent a 2nd consecutive run
 
-    expect(db.updateObservationStatus).toHaveBeenCalledWith("e1", "auto_closed", "resolved_by_edit");
+    expect(db.updateObservationStatus).toHaveBeenCalledWith(
+      "e1",
+      "auto_closed",
+      "resolved_by_edit"
+    );
   });
 
   it("resets missCount when an absent note reappears (re-matched)", async () => {
@@ -600,9 +607,7 @@ describe("evaluator - reconcileDocumentObservations (Tier 2 opts — A3)", () =>
 
     expect(db.updateObservationStatus).toHaveBeenCalledWith("p0", "auto_closed", "resolved_prior");
     // Grace pass must NOT re-close or bump an already-resolved note.
-    expect(db.saveObservation).not.toHaveBeenCalledWith(
-      expect.objectContaining({ id: "p0" })
-    );
+    expect(db.saveObservation).not.toHaveBeenCalledWith(expect.objectContaining({ id: "p0" }));
   });
 
   it("persist: keeps existing card, resets missCount, does NOT insert a new record", async () => {
@@ -620,9 +625,9 @@ describe("evaluator - reconcileDocumentObservations (Tier 2 opts — A3)", () =>
       expect.objectContaining({ id: "p0", missCount: 0 })
     );
     // Only one saveObservation call — the persist; no extra insert.
-    const insertCalls = vi.mocked(db.saveObservation).mock.calls.filter(
-      ([o]) => o.id === "mock-id"
-    );
+    const insertCalls = vi
+      .mocked(db.saveObservation)
+      .mock.calls.filter(([o]) => o.id === "mock-id");
     expect(insertCalls).toHaveLength(0);
   });
 
@@ -633,8 +638,15 @@ describe("evaluator - reconcileDocumentObservations (Tier 2 opts — A3)", () =>
 
     // Identical text matches lexically → dedupe (missCount reset, no new insert).
     await reconcileDocumentObservations(docId, [
-      { type: "missing_topic", scope: "document", kind: "problem",
-        severity: "medium", confidence: "medium", priority: 0, text: "No rollout plan." },
+      {
+        type: "missing_topic",
+        scope: "document",
+        kind: "problem",
+        severity: "medium",
+        confidence: "medium",
+        priority: 0,
+        text: "No rollout plan.",
+      },
     ]);
 
     expect(db.updateObservationStatus).not.toHaveBeenCalled();
@@ -759,22 +771,41 @@ describe("evaluator - evaluateLedgerContradictions (Workstream B — authoritati
 
   // Two claims that sort deterministically by text.
   const claimA = {
-    id: 1, docId, sourceBlockId: "b1", text: "A: ships Q3.", kind: "commitment" as const, status: "active" as const,
+    id: 1,
+    docId,
+    sourceBlockId: "b1",
+    text: "A: ships Q3.",
+    kind: "commitment" as const,
+    status: "active" as const,
   };
   const claimB = {
-    id: 2, docId, sourceBlockId: "b2", text: "B: ships Q2.", kind: "commitment" as const, status: "active" as const,
+    id: 2,
+    docId,
+    sourceBlockId: "b2",
+    text: "B: ships Q2.",
+    kind: "commitment" as const,
+    status: "active" as const,
   };
   // sorted[0] = claimA ("A:…"), sorted[1] = claimB ("B:…") → key = "contradiction::b1|b2"
 
   function existingConflict(missCount = 0): Observation {
     return {
-      id: "cx1", docId,
-      type: "contradiction", scope: "span", kind: "problem",
-      severity: "high", confidence: "high", priority: 0,
+      id: "cx1",
+      docId,
+      type: "contradiction",
+      scope: "span",
+      kind: "problem",
+      severity: "high",
+      confidence: "high",
+      priority: 0,
       text: "Q3 contradicts Q2.",
       status: "active",
-      blockId: "b1", startOffset: 0, endOffset: 9999,
-      conflictingBlockId: "b2", conflictingStartOffset: 0, conflictingEndOffset: 9999,
+      blockId: "b1",
+      startOffset: 0,
+      endOffset: 9999,
+      conflictingBlockId: "b2",
+      conflictingStartOffset: 0,
+      conflictingEndOffset: 9999,
       missCount,
     };
   }
@@ -789,7 +820,10 @@ describe("evaluator - evaluateLedgerContradictions (Workstream B — authoritati
   it("paid tier: stale pair survives first miss with missCount=1 (not closed)", async () => {
     vi.mocked(db.loadActiveObservationsForDocument).mockResolvedValue([existingConflict(0)]);
     // Sweep emits nothing → pair is absent.
-    mockStrong.mockResolvedValue({ callId: "c1", text: JSON.stringify({ contradictions: [], tensions: [] }) });
+    mockStrong.mockResolvedValue({
+      callId: "c1",
+      text: JSON.stringify({ contradictions: [], tensions: [] }),
+    });
 
     await evaluateLedgerContradictions(docId, undefined, apiKey, paidKey, undefined, STRONG);
 
@@ -801,14 +835,19 @@ describe("evaluator - evaluateLedgerContradictions (Workstream B — authoritati
 
   it("paid tier: stale pair is auto_closed once grace threshold reached", async () => {
     vi.mocked(db.loadActiveObservationsForDocument).mockResolvedValue([existingConflict(1)]);
-    mockStrong.mockResolvedValue({ callId: "c2", text: JSON.stringify({ contradictions: [], tensions: [] }) });
+    mockStrong.mockResolvedValue({
+      callId: "c2",
+      text: JSON.stringify({ contradictions: [], tensions: [] }),
+    });
 
     await evaluateLedgerContradictions(docId, undefined, apiKey, paidKey, undefined, STRONG);
 
-    expect(db.updateObservationStatus).toHaveBeenCalledWith("cx1", "auto_closed", "resolved_by_edit");
-    expect(db.saveObservation).not.toHaveBeenCalledWith(
-      expect.objectContaining({ id: "cx1" })
+    expect(db.updateObservationStatus).toHaveBeenCalledWith(
+      "cx1",
+      "auto_closed",
+      "resolved_by_edit"
     );
+    expect(db.saveObservation).not.toHaveBeenCalledWith(expect.objectContaining({ id: "cx1" }));
   });
 
   it("paid tier: re-emitted pair resets missCount to 0, no new insert", async () => {
@@ -830,23 +869,24 @@ describe("evaluator - evaluateLedgerContradictions (Workstream B — authoritati
       expect.objectContaining({ id: "cx1", missCount: 0 })
     );
     // No second insert with a fresh id.
-    const freshInserts = vi.mocked(db.saveObservation).mock.calls.filter(
-      ([o]) => o.id === "mock-id"
-    );
+    const freshInserts = vi
+      .mocked(db.saveObservation)
+      .mock.calls.filter(([o]) => o.id === "mock-id");
     expect(freshInserts).toHaveLength(0);
   });
 
   it("weak capability: additive only — stale pair is never closed or bumped", async () => {
     vi.mocked(db.loadActiveObservationsForDocument).mockResolvedValue([existingConflict(0)]);
-    mockStrong.mockResolvedValue({ callId: "c4", text: JSON.stringify({ contradictions: [], tensions: [] }) });
+    mockStrong.mockResolvedValue({
+      callId: "c4",
+      text: JSON.stringify({ contradictions: [], tensions: [] }),
+    });
 
     // Default weak capability (no capability arg) → additive path.
     await evaluateLedgerContradictions(docId, undefined, apiKey, undefined);
 
     expect(db.updateObservationStatus).not.toHaveBeenCalled();
     // No grace bump either — additive path leaves existing untouched.
-    expect(db.saveObservation).not.toHaveBeenCalledWith(
-      expect.objectContaining({ id: "cx1" })
-    );
+    expect(db.saveObservation).not.toHaveBeenCalledWith(expect.objectContaining({ id: "cx1" }));
   });
 });

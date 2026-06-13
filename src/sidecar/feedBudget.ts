@@ -55,7 +55,7 @@ export interface FeedPartition {
  */
 export function partitionFeed(
   observations: Observation[],
-  { budget, blockOrder }: FeedPartitionOptions,
+  { budget, blockOrder }: FeedPartitionOptions
 ): FeedPartition {
   // 1. Exclude reflection kind (Milestone D — none produced yet; defensive).
   const eligible = observations.filter((o) => o.kind !== "reflection");
@@ -87,8 +87,7 @@ export function partitionFeed(
   const blockIndexMap = new Map(blockOrder.map((id, i) => [id, i]));
 
   const docOrder = (g: GroupedObservation): number => {
-    const idx =
-      g.blockId != null ? (blockIndexMap.get(g.blockId) ?? Infinity) : Infinity;
+    const idx = g.blockId != null ? (blockIndexMap.get(g.blockId) ?? Infinity) : Infinity;
     return idx * 1e6 + (g.startOffset ?? 0);
   };
 

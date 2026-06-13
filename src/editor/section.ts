@@ -69,7 +69,7 @@ function buildCombined(members: SectionMember[]): string {
     .join("\n\n");
   if (combined.length > MAX_SECTION_CHARS) {
     console.warn(
-      `[section] combinedText ${combined.length} chars exceeds MAX_SECTION_CHARS (${MAX_SECTION_CHARS}); truncating.`,
+      `[section] combinedText ${combined.length} chars exceeds MAX_SECTION_CHARS (${MAX_SECTION_CHARS}); truncating.`
     );
     return combined.slice(0, MAX_SECTION_CHARS);
   }

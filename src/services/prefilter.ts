@@ -19,14 +19,80 @@
  */
 
 const STOP_WORDS = new Set([
-  "a", "an", "the", "is", "are", "was", "were", "be", "been", "being",
-  "have", "has", "had", "do", "does", "did", "will", "would", "shall",
-  "should", "may", "might", "must", "can", "could", "to", "of", "in",
-  "for", "on", "with", "at", "by", "from", "up", "about", "into",
-  "through", "during", "before", "after", "above", "below", "between",
-  "out", "off", "over", "under", "again", "then", "once", "and", "but",
-  "or", "so", "if", "as", "it", "its", "this", "that", "these", "those",
-  "i", "we", "you", "he", "she", "they", "what", "which", "who", "not", "no",
+  "a",
+  "an",
+  "the",
+  "is",
+  "are",
+  "was",
+  "were",
+  "be",
+  "been",
+  "being",
+  "have",
+  "has",
+  "had",
+  "do",
+  "does",
+  "did",
+  "will",
+  "would",
+  "shall",
+  "should",
+  "may",
+  "might",
+  "must",
+  "can",
+  "could",
+  "to",
+  "of",
+  "in",
+  "for",
+  "on",
+  "with",
+  "at",
+  "by",
+  "from",
+  "up",
+  "about",
+  "into",
+  "through",
+  "during",
+  "before",
+  "after",
+  "above",
+  "below",
+  "between",
+  "out",
+  "off",
+  "over",
+  "under",
+  "again",
+  "then",
+  "once",
+  "and",
+  "but",
+  "or",
+  "so",
+  "if",
+  "as",
+  "it",
+  "its",
+  "this",
+  "that",
+  "these",
+  "those",
+  "i",
+  "we",
+  "you",
+  "he",
+  "she",
+  "they",
+  "what",
+  "which",
+  "who",
+  "not",
+  "no",
 ]);
 
 /** Tokenize text into a set of meaningful terms (lowercased, stop-words removed). */
@@ -35,7 +101,7 @@ export function tokenize(text: string): Set<string> {
     text
       .toLowerCase()
       .split(/[^a-z0-9]+/)
-      .filter((t) => t.length > 1 && !STOP_WORDS.has(t)),
+      .filter((t) => t.length > 1 && !STOP_WORDS.has(t))
   );
 }
 
@@ -63,7 +129,7 @@ export interface Filterable {
 export function prefilterClaims<T extends Filterable>(
   query: string,
   candidates: T[],
-  topK = 10,
+  topK = 10
 ): T[] {
   if (candidates.length <= topK) return candidates;
 

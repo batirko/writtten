@@ -23,8 +23,22 @@ function makeObs(overrides: Partial<Observation> = {}): Observation {
 
 describe("groupObservations", () => {
   it("two observations on the same span collapse into one group", () => {
-    const a = makeObs({ id: "a", blockId: "b1", startOffset: 5, endOffset: 20, priority: 1.5, type: "contradiction" });
-    const b = makeObs({ id: "b", blockId: "b1", startOffset: 5, endOffset: 20, priority: 0.75, type: "clarity" });
+    const a = makeObs({
+      id: "a",
+      blockId: "b1",
+      startOffset: 5,
+      endOffset: 20,
+      priority: 1.5,
+      type: "contradiction",
+    });
+    const b = makeObs({
+      id: "b",
+      blockId: "b1",
+      startOffset: 5,
+      endOffset: 20,
+      priority: 0.75,
+      type: "clarity",
+    });
 
     const groups = groupObservations([a, b]);
 
@@ -60,7 +74,14 @@ describe("groupObservations", () => {
 
   it("hasContradiction is true if any member is type contradiction", () => {
     const a = makeObs({ id: "a", type: "clarity", blockId: "b1", startOffset: 0, endOffset: 5 });
-    const b = makeObs({ id: "b", type: "contradiction", priority: 0.5, blockId: "b1", startOffset: 0, endOffset: 5 });
+    const b = makeObs({
+      id: "b",
+      type: "contradiction",
+      priority: 0.5,
+      blockId: "b1",
+      startOffset: 0,
+      endOffset: 5,
+    });
 
     const [group] = groupObservations([a, b]);
 
@@ -77,8 +98,20 @@ describe("groupObservations", () => {
   });
 
   it("doc-scoped observations (no blockId) never aggregate", () => {
-    const a = makeObs({ id: "a", blockId: undefined, startOffset: undefined, endOffset: undefined, scope: "doc" as Observation["scope"] });
-    const b = makeObs({ id: "b", blockId: undefined, startOffset: undefined, endOffset: undefined, scope: "doc" as Observation["scope"] });
+    const a = makeObs({
+      id: "a",
+      blockId: undefined,
+      startOffset: undefined,
+      endOffset: undefined,
+      scope: "doc" as Observation["scope"],
+    });
+    const b = makeObs({
+      id: "b",
+      blockId: undefined,
+      startOffset: undefined,
+      endOffset: undefined,
+      scope: "doc" as Observation["scope"],
+    });
 
     const groups = groupObservations([a, b]);
 

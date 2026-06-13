@@ -87,14 +87,20 @@ export default function App() {
 
   const handleExportMarkdown = () => editorRef.current && downloadMarkdown(editorRef.current);
   const handleExportPdf = () => editorRef.current && exportPdf();
-  const handleCopyMarkdown = async () => editorRef.current && await copyMarkdown(editorRef.current);
-  const handleCopyRichText = async () => editorRef.current && await copyRichText(editorRef.current);
+  const handleCopyMarkdown = async () =>
+    editorRef.current && (await copyMarkdown(editorRef.current));
+  const handleCopyRichText = async () =>
+    editorRef.current && (await copyRichText(editorRef.current));
 
   // Stable refs for stage-change trigger
   const apiKeyRef = useRef(apiKey);
-  useEffect(() => { apiKeyRef.current = apiKey; }, [apiKey]);
+  useEffect(() => {
+    apiKeyRef.current = apiKey;
+  }, [apiKey]);
   const stageRef = useRef(stage);
-  useEffect(() => { stageRef.current = stage; }, [stage]);
+  useEffect(() => {
+    stageRef.current = stage;
+  }, [stage]);
   const stageSettleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Tracks the last stage value we've seen so we don't fire on initial mount
   // (also handles React StrictMode double-invoke cleanly).
@@ -261,7 +267,10 @@ export default function App() {
           paidKey={paidKey}
           capability={capability}
           stage={stage}
-          jargonAllowlist={jargonAllowlist.split("\n").map((s) => s.trim()).filter(Boolean)}
+          jargonAllowlist={jargonAllowlist
+            .split("\n")
+            .map((s) => s.trim())
+            .filter(Boolean)}
           observations={observations}
           hoveredObservationId={hoveredObservationId}
           onObservationCollapsed={handleObservationCollapsed}

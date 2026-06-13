@@ -3,7 +3,17 @@ import { nanoid } from "nanoid";
 export interface LLMLogEntry {
   id: string;
   timestamp: Date;
-  type: "trigger" | "request" | "response" | "retry" | "error" | "archive" | "settle" | "ledger-write" | "observation" | "block-removed";
+  type:
+    | "trigger"
+    | "request"
+    | "response"
+    | "retry"
+    | "error"
+    | "archive"
+    | "settle"
+    | "ledger-write"
+    | "observation"
+    | "block-removed";
   /** "fast" or "strong" — only set on request/response entries. */
   tier?: "fast" | "strong";
   /** "free" or "paid" — which API key tier made this call. */
@@ -155,12 +165,12 @@ export interface ApiStats {
  * A dynamically parsed quotaValue always overrides these.
  */
 const KNOWN_DAILY_RPD: Record<string, number> = {
-  "gemini-2.5-pro": 0,         // no free-tier quota; excluded from pool
+  "gemini-2.5-pro": 0, // no free-tier quota; excluded from pool
   "gemini-2.5-flash": 20,
   "gemini-3.5-flash": 20,
   "gemini-2.5-flash-lite": 20,
   "gemini-3.1-flash-lite": 500, // 25× higher RPD — primary workhorse
-  "gemini-2.0-flash": 0,        // no free-tier quota (confirmed in AI Studio)
+  "gemini-2.0-flash": 0, // no free-tier quota (confirmed in AI Studio)
   "gemini-2.0-flash-lite": 0,
 };
 
@@ -248,11 +258,16 @@ interface ModelAccum {
   cost: number;
 }
 
-function computeCost(model: string, keyTier: string, promptTokens: number, candidateTokens: number): number {
+function computeCost(
+  model: string,
+  keyTier: string,
+  promptTokens: number,
+  candidateTokens: number
+): number {
   if (keyTier !== "paid") return 0;
   const isPro = model.includes("-pro");
   const pRate = isPro ? 1.25 : 0.075;
-  const cRate = isPro ? 5.00 : 0.30;
+  const cRate = isPro ? 5.0 : 0.3;
   return (promptTokens / 1_000_000) * pRate + (candidateTokens / 1_000_000) * cRate;
 }
 
@@ -348,9 +363,8 @@ class LLMLogger {
       strongCalls: this._strongCalls,
       totalCalls,
       totalLatencyMs: this._totalLatencyMs,
-      avgLatencyMs: this._latencyCount > 0
-        ? Math.round(this._totalLatencyMs / this._latencyCount)
-        : 0,
+      avgLatencyMs:
+        this._latencyCount > 0 ? Math.round(this._totalLatencyMs / this._latencyCount) : 0,
       totalPromptTokens: this._totalPromptTokens,
       totalCandidateTokens: this._totalCandidateTokens,
       totalCost: this._totalCost,
@@ -364,7 +378,15 @@ class LLMLogger {
   getApiStats(): ApiStats {
     const day = pacificDayKey();
     const models: ModelApiStats[] = [];
-    const totals = { requests: 0, successes: 0, errors: 0, rate429: 0, promptTokens: 0, candidateTokens: 0, cost: 0 };
+    const totals = {
+      requests: 0,
+      successes: 0,
+      errors: 0,
+      rate429: 0,
+      promptTokens: 0,
+      candidateTokens: 0,
+      cost: 0,
+    };
 
     for (const [model, a] of this._apiStats) {
       const successesToday = a.successesByDay.get(day) ?? 0;
@@ -474,7 +496,12 @@ class LLMLogger {
       if (fullEntry.usage) {
         this._totalPromptTokens += fullEntry.usage.promptTokens;
         this._totalCandidateTokens += fullEntry.usage.candidateTokens;
-        const cost = computeCost(fullEntry.model || "", fullEntry.keyTier || "free", fullEntry.usage.promptTokens, fullEntry.usage.candidateTokens);
+        const cost = computeCost(
+          fullEntry.model || "",
+          fullEntry.keyTier || "free",
+          fullEntry.usage.promptTokens,
+          fullEntry.usage.candidateTokens
+        );
         this._totalCost += cost;
       }
     }
@@ -498,7 +525,12 @@ class LLMLogger {
         if (fullEntry.usage) {
           a.promptTokens += fullEntry.usage.promptTokens;
           a.candidateTokens += fullEntry.usage.candidateTokens;
-          a.cost += computeCost(m, fullEntry.keyTier || "free", fullEntry.usage.promptTokens, fullEntry.usage.candidateTokens);
+          a.cost += computeCost(
+            m,
+            fullEntry.keyTier || "free",
+            fullEntry.usage.promptTokens,
+            fullEntry.usage.candidateTokens
+          );
         }
       } else if (fullEntry.type === "error") {
         a.errors++;

@@ -1,5 +1,5 @@
 ---
-status: idea
+status: in-progress
 phases: [5]
 summary: The code-correctness hardening cluster from the 2026-06-10 code-architecture audit — repair the broken build/lint gates and add CI, then close the three silent-failure paths in the observation lifecycle (dead auto-close-on-deletion, the strong-call eval-wedge, the block-removal zombie-claim race) and make `anchorText` actually load-bearing so dismissals hold and highlights stay truthful through edits.
 ---
@@ -37,11 +37,12 @@ The audit's one-line verdict: *"a promising prototype with unusually good archit
 
 ### L1 — Repair gates + add CI — 🟢 Low–Med · 🔧 (audit #1, #10)
 
-- [ ] Stop the build pulling in test files: exclude `*.test.ts` from `tsconfig.app.json`, **or** add a dedicated test tsconfig + `@types/node`/`@types/jsdom` devDeps (the build errors are `node:fs`/`process`/`global`/`jsdom` untyped in test files).
-- [ ] Fix `vite.config.ts:30` — import `defineConfig` from `vitest/config` (not `vite`) so the `test` key type-checks (`TS2769`).
-- [ ] Remove the duplicate `blockId` key in `src/services/evaluator.test.ts:166–178` (`TS1117` — the second silently wins; type-strip hides it today).
-- [ ] Clear the 31 lint errors (`as any` / unused destructures in `src/model/debugLog.ts:216`, `src/model/logger.ts:525`, etc.). The lint rules are meaningful (they enforce the idb seal) — fix the code, not the rules.
-- [ ] Add a minimal `.github/workflows/ci.yml` running `npm ci && npm run build && npm test && npm run lint` on push/PR. *This is the keystone — everything else is unverifiable in `dist/` until build is green again.*
+- [x] Added a dedicated `tsconfig.test.json` (includes `src` + `vitest.record.config.ts`, `types: ["node", "jsdom"]`) referenced from the root `tsconfig.json`, and excluded `*.test.ts`/`*.test.tsx` from `tsconfig.app.json`. Installed `@types/node` + `@types/jsdom`. (2026-06-13)
+- [x] Fixed `vite.config.ts` — imports `defineConfig` from `vitest/config`. (2026-06-13)
+- [x] Removed the duplicate `blockId` key in `src/services/evaluator.test.ts` (the shorthand `blockId` after the explicit `blockId: "block1"`). (2026-06-13)
+- [x] Cleared all 31 lint errors: `@typescript-eslint/no-unused-vars` set with `ignoreRestSiblings: true` for the destructure-to-omit idiom (`debugLog.ts:216`, `logger.ts:525`); `no-explicit-any` turned off for `**/*.test.{ts,tsx}` only (DOM/mock casts — tsc still type-checks them); the two production `any` casts given precise types (`harness.ts` → `LLMLogEntry["type"]`, `debugLog.ts` → `as unknown as Record<string, unknown>`). The idb-seal rules are untouched. (2026-06-13)
+- [x] Side fix required for green CI: the Projects Index in `plan.md` used bare names; `projects.index.test.ts` (24 failures, pre-existing on `main`) requires markdown links — converted all 22 rows to `[name](projects/name.md)`. (2026-06-13)
+- [x] Added `.github/workflows/ci.yml` running `npm ci` → lint → build → test on push to `main` + all PRs (Node 20). Build is green: `dist/` produced incl. PWA `sw.js`/manifest. (2026-06-13)
 
 ### L2 — Fix dead auto-close-on-deletion — 🟢 Low · 🔧 (audit #2)
 

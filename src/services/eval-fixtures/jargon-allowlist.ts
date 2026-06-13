@@ -21,7 +21,8 @@ const fixture: EvalFixture = {
     },
   ],
   recordings: {
-    "r1kp5pd_3121": "{\n  \"summary\": \"The team will execute a 10% soft launch using the GQRS protocol for transaction validation prior to general availability.\",\n  \"claims\": [\n    {\n      \"text\": \"We plan a soft launch to a 10% rollout cohort before GA.\",\n      \"kind\": \"commitment\"\n    },\n    {\n      \"text\": \"The payment flow will use the GQRS protocol for all transaction validation.\",\n      \"kind\": \"constraint\"\n    }\n  ],\n  \"clarity_observations\": [\n    {\n      \"text\": \"The term GA is used without explicit definition or context regarding the timeline or scope.\",\n      \"substring\": \"GA\"\n    }\n  ],\n  \"unsupported_claim_observations\": [],\n  \"undefined_jargon_observations\": [\n    {\n      \"text\": \"GQRS is an acronym used without definition.\",\n      \"substring\": \"GQRS\"\n    }\n  ]\n}"
+    r1kp5pd_3121:
+      '{\n  "summary": "The team will execute a 10% soft launch using the GQRS protocol for transaction validation prior to general availability.",\n  "claims": [\n    {\n      "text": "We plan a soft launch to a 10% rollout cohort before GA.",\n      "kind": "commitment"\n    },\n    {\n      "text": "The payment flow will use the GQRS protocol for all transaction validation.",\n      "kind": "constraint"\n    }\n  ],\n  "clarity_observations": [\n    {\n      "text": "The term GA is used without explicit definition or context regarding the timeline or scope.",\n      "substring": "GA"\n    }\n  ],\n  "unsupported_claim_observations": [],\n  "undefined_jargon_observations": [\n    {\n      "text": "GQRS is an acronym used without definition.",\n      "substring": "GQRS"\n    }\n  ]\n}',
   },
   expected: [
     {
