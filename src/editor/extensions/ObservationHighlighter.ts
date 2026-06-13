@@ -19,7 +19,7 @@ export function charOffsetToPmPos(
   blockNode: PMNode,
   blockPos: number,
   charOffset: number,
-  isEnd: boolean,
+  isEnd: boolean
 ): number {
   let charCount = 0;
   let found = -1;
@@ -140,10 +140,26 @@ export const ObservationHighlighter = Extension.create<ObservationHighlighterOpt
                           const conflictNode = doc.nodeAt(conflictPos);
                           if (conflictNode) {
                             const cTextLength = conflictNode.textContent.length;
-                            const cRawStart = Math.max(0, Math.min(obs.conflictingStartOffset ?? 0, cTextLength));
-                            const cRawEnd = Math.max(0, Math.min(obs.conflictingEndOffset ?? cTextLength, cTextLength));
-                            const cStart = charOffsetToPmPos(conflictNode, conflictPos, cRawStart, false);
-                            const cEnd = charOffsetToPmPos(conflictNode, conflictPos, cRawEnd, true);
+                            const cRawStart = Math.max(
+                              0,
+                              Math.min(obs.conflictingStartOffset ?? 0, cTextLength)
+                            );
+                            const cRawEnd = Math.max(
+                              0,
+                              Math.min(obs.conflictingEndOffset ?? cTextLength, cTextLength)
+                            );
+                            const cStart = charOffsetToPmPos(
+                              conflictNode,
+                              conflictPos,
+                              cRawStart,
+                              false
+                            );
+                            const cEnd = charOffsetToPmPos(
+                              conflictNode,
+                              conflictPos,
+                              cRawEnd,
+                              true
+                            );
                             if (cStart < cEnd) {
                               decos.push(
                                 Decoration.inline(cStart, cEnd, {

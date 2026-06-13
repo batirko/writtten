@@ -40,7 +40,7 @@ export interface ScoreResult {
 function matches(
   produced: Observation,
   expected: ExpectedObservation,
-  sectionTexts: Map<string, string>,
+  sectionTexts: Map<string, string>
 ): boolean {
   // 1. Type must match.
   if (produced.type !== expected.type) return false;
@@ -59,10 +59,7 @@ function matches(
     // cases where the observation message paraphrases rather than quoting).
     if (produced.blockId) {
       const sectionText = sectionTexts.get(produced.blockId) ?? "";
-      if (
-        produced.startOffset !== undefined &&
-        produced.endOffset !== undefined
-      ) {
+      if (produced.startOffset !== undefined && produced.endOffset !== undefined) {
         const spanText = sectionText.slice(produced.startOffset, produced.endOffset);
         if (spanText.toLowerCase().includes(needle)) return true;
       }
@@ -87,7 +84,7 @@ export function scoreObservations(
   fixtureId: string,
   produced: Observation[],
   expected: ExpectedObservation[],
-  sectionTexts: Map<string, string>,
+  sectionTexts: Map<string, string>
 ): ScoreResult {
   const remainingProduced = [...produced];
   const truePositives: ScoreResult["truePositives"] = [];

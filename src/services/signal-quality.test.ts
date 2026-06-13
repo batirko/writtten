@@ -77,7 +77,7 @@ describe("Tier A — meta-claim guard", () => {
       "We will launch the fraud alerts in Q3.",
       [{ blockId: "sec1", text: "We will launch the fraud alerts in Q3." }],
       undefined,
-      apiKey,
+      apiKey
     );
 
     expect(db.saveClaimsForBlock).toHaveBeenCalledWith(docId, "sec1", [
@@ -107,7 +107,7 @@ describe("Tier A — defined-terms dedup", () => {
       "We promise a strong SLA for every customer tier here.",
       [{ blockId: "sec1", text: "We promise a strong SLA for every customer tier here." }],
       undefined,
-      apiKey,
+      apiKey
     );
 
     const userPayload = mockFast.mock.calls[0][0].user as string;
@@ -147,7 +147,7 @@ describe("Tier B — contradiction prompt calibrated by tier", () => {
       [{ blockId: "sec1", text: "We will launch in Q3." }],
       undefined,
       apiKey,
-      undefined, // no paid key
+      undefined // no paid key
     );
     expect(mockStrong.mock.calls[0][0].system).toBe(CONTRADICTION_SYSTEM_PROMPT_HEDGED);
   });
@@ -165,7 +165,7 @@ describe("Tier B — contradiction prompt calibrated by tier", () => {
       undefined, // jargonAllowlist
       false, // skipContradiction
       undefined, // evalId
-      STRONG,
+      STRONG
     );
     expect(mockStrong.mock.calls[0][0].system).toBe(CONTRADICTION_SYSTEM_PROMPT);
   });
@@ -209,7 +209,7 @@ describe("strategic_tension — tradeoffs route to the softer type", () => {
       "Notify users on every fraud block.",
       [{ blockId: "sec1", text: "Notify users on every fraud block." }],
       undefined,
-      apiKey,
+      apiKey
     );
 
     const saved = vi.mocked(db.saveObservation).mock.calls.map((c) => c[0]);
@@ -245,7 +245,7 @@ describe("Tier B — observation content dedup", () => {
       "We will ship in Q3 for sure.",
       [{ blockId: "sec1", text: "We will ship in Q3 for sure." }],
       undefined,
-      apiKey,
+      apiKey
     );
 
     expect(db.saveObservation).toHaveBeenCalledTimes(1);
@@ -300,7 +300,7 @@ describe("Tier B — span re-anchoring across members", () => {
         { blockId: "b1", text: "The impact varies significantly across cohorts." },
       ],
       undefined,
-      apiKey,
+      apiKey
     );
 
     expect(db.saveObservation).toHaveBeenCalledWith(
@@ -308,7 +308,7 @@ describe("Tier B — span re-anchoring across members", () => {
         type: "clarity",
         blockId: "b1",
         startOffset: "The impact ".length,
-      }),
+      })
     );
   });
 });

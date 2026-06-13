@@ -5,7 +5,7 @@ import { JSDOM } from "jsdom";
 // mounting a full TipTap editor. Mirrors the implementation in SemanticPaste.ts.
 function transformPastedHTML(html: string): string {
   try {
-    const parser = new (new JSDOM("").window.DOMParser)();
+    const parser = new new JSDOM("").window.DOMParser();
     const doc = parser.parseFromString(html, "text/html");
     let modified = false;
 

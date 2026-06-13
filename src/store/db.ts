@@ -410,7 +410,9 @@ export async function saveDocEvalState(docId: string, hash: string): Promise<voi
 
 export async function loadDocEvalState(docId: string): Promise<string | undefined> {
   const db = await getDb();
-  const rec = (await db.get("doc_eval_state", docId)) as { docId: string; hash: string } | undefined;
+  const rec = (await db.get("doc_eval_state", docId)) as
+    | { docId: string; hash: string }
+    | undefined;
   return rec?.hash;
 }
 

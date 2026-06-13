@@ -23,7 +23,8 @@ const fixture: EvalFixture = {
     },
   ],
   recordings: {
-    "rhr7e6d_3162": "{\n  \"summary\": \"Mandatory account creation during checkout is identified as the primary cause of user cart abandonment.\",\n  \"claims\": [\n    {\n      \"text\": \"Users always abandon carts when checkout takes more than 3 steps.\",\n      \"kind\": \"fact_claim\"\n    },\n    {\n      \"text\": \"The root cause of the conversion drop is the mandatory account creation step.\",\n      \"kind\": \"fact_claim\"\n    }\n  ],\n  \"clarity_observations\": [],\n  \"unsupported_claim_observations\": [\n    {\n      \"text\": \"The assertion that users always abandon carts when checkout exceeds 3 steps lacks supporting evidence.\",\n      \"substring\": \"Users always abandon carts when checkout takes more than 3 steps.\"\n    }\n  ],\n  \"undefined_jargon_observations\": []\n}"
+    rhr7e6d_3162:
+      '{\n  "summary": "Mandatory account creation during checkout is identified as the primary cause of user cart abandonment.",\n  "claims": [\n    {\n      "text": "Users always abandon carts when checkout takes more than 3 steps.",\n      "kind": "fact_claim"\n    },\n    {\n      "text": "The root cause of the conversion drop is the mandatory account creation step.",\n      "kind": "fact_claim"\n    }\n  ],\n  "clarity_observations": [],\n  "unsupported_claim_observations": [\n    {\n      "text": "The assertion that users always abandon carts when checkout exceeds 3 steps lacks supporting evidence.",\n      "substring": "Users always abandon carts when checkout takes more than 3 steps."\n    }\n  ],\n  "undefined_jargon_observations": []\n}',
   },
   expected: [
     {

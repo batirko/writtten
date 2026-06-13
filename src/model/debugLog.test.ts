@@ -63,8 +63,20 @@ describe("buildEnvelope — call merge", () => {
 
   it("dereferences the system prompt into the dictionary, not the call record", () => {
     const entries = [
-      entry({ type: "request", callId: "c1", promptRef: "doc-quality", payload: { system: SYS, user: "u" } }),
-      entry({ type: "response", callId: "c1", promptRef: "doc-quality", statusCode: 200, payload: { system: SYS, user: "u" }, response: "{}" }),
+      entry({
+        type: "request",
+        callId: "c1",
+        promptRef: "doc-quality",
+        payload: { system: SYS, user: "u" },
+      }),
+      entry({
+        type: "response",
+        callId: "c1",
+        promptRef: "doc-quality",
+        statusCode: 200,
+        payload: { system: SYS, user: "u" },
+        response: "{}",
+      }),
     ];
     const env = buildEnvelope(entries, new Map());
     expect(env.systemPrompts["doc-quality"]).toBe(SYS);
@@ -76,11 +88,42 @@ describe("buildEnvelope — call merge", () => {
 
   it("collapses rotation retries into the attempts array under one call", () => {
     const entries = [
-      entry({ type: "request", callId: "c1", model: "model-a", payload: { system: SYS, user: "u" } }),
-      entry({ type: "error", callId: "c1", model: "model-a", statusCode: 429, errorMessage: "rate", payload: { system: SYS, user: "u" } }),
-      entry({ type: "retry", callId: "c1", model: "model-b", latencyMs: 500, payload: { system: SYS, user: "u" } }),
-      entry({ type: "request", callId: "c1", model: "model-b", payload: { system: SYS, user: "u" } }),
-      entry({ type: "response", callId: "c1", model: "model-b", statusCode: 200, latencyMs: 900, payload: { system: SYS, user: "u" }, response: "{}" }),
+      entry({
+        type: "request",
+        callId: "c1",
+        model: "model-a",
+        payload: { system: SYS, user: "u" },
+      }),
+      entry({
+        type: "error",
+        callId: "c1",
+        model: "model-a",
+        statusCode: 429,
+        errorMessage: "rate",
+        payload: { system: SYS, user: "u" },
+      }),
+      entry({
+        type: "retry",
+        callId: "c1",
+        model: "model-b",
+        latencyMs: 500,
+        payload: { system: SYS, user: "u" },
+      }),
+      entry({
+        type: "request",
+        callId: "c1",
+        model: "model-b",
+        payload: { system: SYS, user: "u" },
+      }),
+      entry({
+        type: "response",
+        callId: "c1",
+        model: "model-b",
+        statusCode: 200,
+        latencyMs: 900,
+        payload: { system: SYS, user: "u" },
+        response: "{}",
+      }),
     ];
     const env = buildEnvelope(entries, new Map());
     const call = env.log.find((r) => r.kind === "call") as CallRecord;
@@ -120,7 +163,14 @@ describe("buildEnvelope — triggers, archives, produced", () => {
     const entries = [
       entry({ type: "trigger", triggerKind: "doc-idle", evalId: "E1" }),
       entry({ type: "request", callId: "c1", evalId: "E1", payload: { system: SYS, user: "u" } }),
-      entry({ type: "response", callId: "c1", evalId: "E1", statusCode: 200, payload: { system: SYS, user: "u" }, response: "{}" }),
+      entry({
+        type: "response",
+        callId: "c1",
+        evalId: "E1",
+        statusCode: 200,
+        payload: { system: SYS, user: "u" },
+        response: "{}",
+      }),
       entry({
         type: "archive",
         evalId: "E1",
@@ -156,7 +206,13 @@ describe("buildEnvelope — triggers, archives, produced", () => {
     ]);
     const entries = [
       entry({ type: "request", callId: "c1", payload: { system: SYS, user: "u" } }),
-      entry({ type: "response", callId: "c1", statusCode: 200, payload: { system: SYS, user: "u" }, response: "{}" }),
+      entry({
+        type: "response",
+        callId: "c1",
+        statusCode: 200,
+        payload: { system: SYS, user: "u" },
+        response: "{}",
+      }),
     ];
     const env = buildEnvelope(entries, produced);
     const call = env.log.find((r) => r.kind === "call") as CallRecord;

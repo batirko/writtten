@@ -19,9 +19,9 @@ describe("tokenize", () => {
 
   it("removes single-character tokens (2+ chars are kept)", () => {
     const tokens = tokenize("A B CD EFG");
-    expect(tokens.has("a")).toBe(false);  // single char stripped
-    expect(tokens.has("b")).toBe(false);  // single char stripped
-    expect(tokens.has("cd")).toBe(true);  // 2-char tokens kept (important for "q3", "q2", etc.)
+    expect(tokens.has("a")).toBe(false); // single char stripped
+    expect(tokens.has("b")).toBe(false); // single char stripped
+    expect(tokens.has("cd")).toBe(true); // 2-char tokens kept (important for "q3", "q2", etc.)
     expect(tokens.has("efg")).toBe(true);
   });
 
@@ -32,10 +32,7 @@ describe("tokenize", () => {
 
 describe("prefilterClaims", () => {
   it("returns all candidates unchanged when count <= topK", () => {
-    const claims = [
-      { text: "Launch in Q3." },
-      { text: "Budget is $1M." },
-    ];
+    const claims = [{ text: "Launch in Q3." }, { text: "Budget is $1M." }];
     const result = prefilterClaims("ship in Q3", claims, 10);
     expect(result).toBe(claims); // exact same array reference
   });

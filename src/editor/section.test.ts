@@ -14,7 +14,7 @@ const bullets = (id: string, items: string[]) =>
   schema.node(
     "bulletList",
     { blockId: id },
-    items.map((t) => schema.node("listItem", null, schema.node("paragraph", null, schema.text(t)))),
+    items.map((t) => schema.node("listItem", null, schema.node("paragraph", null, schema.text(t))))
   );
 const doc = (...nodes: ReturnType<typeof schema.node>[]) => schema.node("doc", null, nodes);
 
@@ -47,7 +47,7 @@ describe("resolveSections", () => {
     const d = doc(
       heading("h", "Background"),
       para("p1", "First para of background."),
-      bullets("ul", ["Bullet one", "Bullet two"]),
+      bullets("ul", ["Bullet one", "Bullet two"])
     );
     const sections = resolveSections(d);
 
@@ -62,7 +62,7 @@ describe("resolveSections", () => {
     const d = doc(
       heading("h1", "Goal"),
       heading("h2", "Success metrics"),
-      para("p", "Three metrics here."),
+      para("p", "Three metrics here.")
     );
     const sections = resolveSections(d);
 
@@ -92,11 +92,7 @@ describe("resolveSections", () => {
 
 describe("resolveSection", () => {
   it("resolves the owning section from any member block id", () => {
-    const d = doc(
-      heading("h", "Background"),
-      para("p1", "Body one."),
-      para("p2", "Body two."),
-    );
+    const d = doc(heading("h", "Background"), para("p1", "Body one."), para("p2", "Body two."));
 
     expect(resolveSection(d, "h")?.sectionId).toBe("h");
     expect(resolveSection(d, "p1")?.sectionId).toBe("h");

@@ -17,9 +17,12 @@ const fixture: EvalFixture = {
     { id: "block-q3", text: "This will ship in Q3." },
   ],
   recordings: {
-    "r7njj8m_3013": "{\n  \"summary\": \"The team plans to release the project during the second quarter.\",\n  \"claims\": [\n    {\n      \"text\": \"We'll launch this in Q2.\",\n      \"kind\": \"commitment\"\n    }\n  ],\n  \"clarity_observations\": [\n    {\n      \"text\": \"The scope of what constitutes 'this' is not specified.\",\n      \"substring\": \"this\"\n    }\n  ],\n  \"unsupported_claim_observations\": [],\n  \"undefined_jargon_observations\": []\n}",
-    "r1w24hgp_3010": "{\n  \"summary\": \"The project is scheduled for release during the third quarter.\",\n  \"claims\": [\n    {\n      \"text\": \"This will ship in Q3.\",\n      \"kind\": \"commitment\"\n    }\n  ],\n  \"clarity_observations\": [],\n  \"unsupported_claim_observations\": [],\n  \"undefined_jargon_observations\": []\n}",
-    "r121jun3_2216": "{\n  \"contradictions\": [\n    {\n      \"newClaimText\": \"This will ship in Q3.\",\n      \"existingClaimId\": 0,\n      \"message\": \"The Q3 shipping date directly contradicts the Q2 launch commitment.\"\n    }\n  ],\n  \"tensions\": []\n}"
+    r7njj8m_3013:
+      '{\n  "summary": "The team plans to release the project during the second quarter.",\n  "claims": [\n    {\n      "text": "We\'ll launch this in Q2.",\n      "kind": "commitment"\n    }\n  ],\n  "clarity_observations": [\n    {\n      "text": "The scope of what constitutes \'this\' is not specified.",\n      "substring": "this"\n    }\n  ],\n  "unsupported_claim_observations": [],\n  "undefined_jargon_observations": []\n}',
+    r1w24hgp_3010:
+      '{\n  "summary": "The project is scheduled for release during the third quarter.",\n  "claims": [\n    {\n      "text": "This will ship in Q3.",\n      "kind": "commitment"\n    }\n  ],\n  "clarity_observations": [],\n  "unsupported_claim_observations": [],\n  "undefined_jargon_observations": []\n}',
+    r121jun3_2216:
+      '{\n  "contradictions": [\n    {\n      "newClaimText": "This will ship in Q3.",\n      "existingClaimId": 0,\n      "message": "The Q3 shipping date directly contradicts the Q2 launch commitment."\n    }\n  ],\n  "tensions": []\n}',
   },
   expected: [
     {

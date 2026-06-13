@@ -19,7 +19,7 @@ import type { Observation } from "../store/db";
 
 let idSeq = 0;
 function obs(
-  overrides: Partial<Observation> & Pick<Observation, "type" | "priority">,
+  overrides: Partial<Observation> & Pick<Observation, "type" | "priority">
 ): Observation {
   return {
     id: `obs-${++idSeq}`,
@@ -100,9 +100,27 @@ describe("partitionFeed — budget selection", () => {
 
 describe("partitionFeed — same-span aggregation", () => {
   it("two observations on the same span consume one budget slot", () => {
-    const a = obs({ type: "clarity", priority: 0.75, blockId: "b1", startOffset: 5, endOffset: 20 });
-    const b = obs({ type: "unsupported_claim", priority: 1.5, blockId: "b1", startOffset: 5, endOffset: 20 });
-    const c = obs({ type: "missing_topic", priority: 1.0, blockId: "b2", startOffset: 0, endOffset: 10 });
+    const a = obs({
+      type: "clarity",
+      priority: 0.75,
+      blockId: "b1",
+      startOffset: 5,
+      endOffset: 20,
+    });
+    const b = obs({
+      type: "unsupported_claim",
+      priority: 1.5,
+      blockId: "b1",
+      startOffset: 5,
+      endOffset: 20,
+    });
+    const c = obs({
+      type: "missing_topic",
+      priority: 1.0,
+      blockId: "b2",
+      startOffset: 0,
+      endOffset: 10,
+    });
 
     const { visible, alsoNoticed } = partitionFeed([a, b, c], {
       budget: 2,
@@ -114,8 +132,20 @@ describe("partitionFeed — same-span aggregation", () => {
   });
 
   it("grouped card primary is the highest-priority member", () => {
-    const lo = obs({ type: "clarity", priority: 0.75, blockId: "b1", startOffset: 0, endOffset: 10 });
-    const hi = obs({ type: "contradiction", priority: 3.0, blockId: "b1", startOffset: 0, endOffset: 10 });
+    const lo = obs({
+      type: "clarity",
+      priority: 0.75,
+      blockId: "b1",
+      startOffset: 0,
+      endOffset: 10,
+    });
+    const hi = obs({
+      type: "contradiction",
+      priority: 3.0,
+      blockId: "b1",
+      startOffset: 0,
+      endOffset: 10,
+    });
 
     const { visible } = partitionFeed([lo, hi], {
       budget: 5,
@@ -130,8 +160,20 @@ describe("partitionFeed — same-span aggregation", () => {
 
   it("group with hasContradiction is capped by budget like anything else", () => {
     // contradiction is low priority but grouped with clarity on same span
-    const con = obs({ type: "contradiction", priority: 0.5, blockId: "b3", startOffset: 0, endOffset: 5 });
-    const cla = obs({ type: "clarity", priority: 0.5, blockId: "b3", startOffset: 0, endOffset: 5 });
+    const con = obs({
+      type: "contradiction",
+      priority: 0.5,
+      blockId: "b3",
+      startOffset: 0,
+      endOffset: 5,
+    });
+    const cla = obs({
+      type: "clarity",
+      priority: 0.5,
+      blockId: "b3",
+      startOffset: 0,
+      endOffset: 5,
+    });
     const high1 = obs({ type: "missing_topic", priority: 1.5, blockId: "b1" });
     const high2 = obs({ type: "unsupported_claim", priority: 1.5, blockId: "b2" });
 
@@ -220,7 +262,13 @@ describe("partitionFeed — display is document-order, NOT priority-order", () =
     const hi2 = obs({ type: "unsupported_claim", priority: 1.5, blockId: "b2" });
     // These two go to alsoNoticed; doc order should be b4 then doc-scoped
     const lo1 = obs({ type: "clarity", priority: 0.75, blockId: "b4", startOffset: 0 });
-    const lo2 = obs({ type: "structure_flow", priority: 0.75, scope: "document", blockId: undefined, startOffset: undefined });
+    const lo2 = obs({
+      type: "structure_flow",
+      priority: 0.75,
+      scope: "document",
+      blockId: undefined,
+      startOffset: undefined,
+    });
     // lo2 is doc-scoped (no blockId) → bottom of alsoNoticed group
 
     const { alsoNoticed } = partitionFeed([hi1, hi2, lo1, lo2], {
@@ -262,7 +310,12 @@ describe("partitionFeed — reflection kind excluded", () => {
 describe("partitionFeed — doc-scoped observations", () => {
   it("doc-scoped observations (no blockId) sort to bottom of their group", () => {
     const spanObs = obs({ type: "clarity", priority: 0.75, blockId: "b1", scope: "span" });
-    const docObs = obs({ type: "missing_topic", priority: 1.5, blockId: undefined, scope: "document" });
+    const docObs = obs({
+      type: "missing_topic",
+      priority: 1.5,
+      blockId: undefined,
+      scope: "document",
+    });
 
     const { visible } = partitionFeed([spanObs, docObs], {
       budget: DEFAULT_FEED_BUDGET,
@@ -275,8 +328,20 @@ describe("partitionFeed — doc-scoped observations", () => {
   });
 
   it("multiple doc-scoped obs maintain stable relative order", () => {
-    const docA = obs({ type: "missing_topic", priority: 1.5, blockId: undefined, scope: "document", startOffset: undefined });
-    const docB = obs({ type: "audience_mismatch", priority: 0.75, blockId: undefined, scope: "document", startOffset: undefined });
+    const docA = obs({
+      type: "missing_topic",
+      priority: 1.5,
+      blockId: undefined,
+      scope: "document",
+      startOffset: undefined,
+    });
+    const docB = obs({
+      type: "audience_mismatch",
+      priority: 0.75,
+      blockId: undefined,
+      scope: "document",
+      startOffset: undefined,
+    });
 
     const { visible } = partitionFeed([docA, docB], {
       budget: DEFAULT_FEED_BUDGET,

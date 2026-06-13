@@ -87,20 +87,17 @@ function resetDb() {
           status: "active",
         });
       }
-    },
+    }
   );
-  vi.mocked(db.loadActiveClaimsForDocument).mockImplementation(
-    async () => [...claimsStore],
-  );
+  vi.mocked(db.loadActiveClaimsForDocument).mockImplementation(async () => [...claimsStore]);
 }
 
 // ---------------------------------------------------------------------------
 // Figure out which fixture(s) to record
 // ---------------------------------------------------------------------------
 const targetId = process.env.EVAL_RECORD_ID;
-const fixturesToRecord = targetId === "--all" || !targetId
-  ? corpus
-  : corpus.filter((f) => f.id === targetId);
+const fixturesToRecord =
+  targetId === "--all" || !targetId ? corpus : corpus.filter((f) => f.id === targetId);
 
 // ---------------------------------------------------------------------------
 // Record each fixture
@@ -110,9 +107,7 @@ describe("eval:record — populate fixture recordings", () => {
 
   beforeAll(() => {
     if (!apiKey) {
-      throw new Error(
-        "VITE_GEMINI_API_KEY is not set. Copy .env.local.example → .env.local.",
-      );
+      throw new Error("VITE_GEMINI_API_KEY is not set. Copy .env.local.example → .env.local.");
     }
   });
 
@@ -136,7 +131,7 @@ describe("eval:record — populate fixture recordings", () => {
           fixture.stage,
           apiKey,
           undefined,
-          fixture.jargonAllowlist,
+          fixture.jargonAllowlist
         );
       }
 
@@ -165,7 +160,7 @@ describe("eval:record — populate fixture recordings", () => {
       if (startIdx === -1) {
         throw new Error(
           `Could not find 'recordings:' line in ${fixturePath}. ` +
-          `Ensure the fixture has a recordings field.`,
+            `Ensure the fixture has a recordings field.`
         );
       }
 
@@ -179,11 +174,23 @@ describe("eval:record — populate fixture recordings", () => {
         const line = lines[i];
         for (let j = 0; j < line.length; j++) {
           const ch = line[j];
-          if (escape) { escape = false; continue; }
-          if (ch === "\\" && inString) { escape = true; continue; }
-          if (ch === '"') { inString = !inString; continue; }
+          if (escape) {
+            escape = false;
+            continue;
+          }
+          if (ch === "\\" && inString) {
+            escape = true;
+            continue;
+          }
+          if (ch === '"') {
+            inString = !inString;
+            continue;
+          }
           if (inString) continue;
-          if (ch === "{") { depth++; started = true; }
+          if (ch === "{") {
+            depth++;
+            started = true;
+          }
           if (ch === "}") {
             depth--;
             if (started && depth === 0) {

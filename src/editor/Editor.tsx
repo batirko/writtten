@@ -418,10 +418,10 @@ export function Editor({
       const customEvent = e as CustomEvent<{ id: string }>;
       const { id } = customEvent.detail;
       if (!editor || !id) return;
-      
+
       const el = editor.view.dom.querySelector(`.obs-highlight[data-obs-id="${id}"]`);
       if (el) {
-        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        el.scrollIntoView({ behavior: "smooth", block: "center" });
         const pos = editor.view.posAtDOM(el, 0);
         if (pos >= 0) {
           editor.commands.setTextSelection(pos);
@@ -429,8 +429,8 @@ export function Editor({
         }
       }
     };
-    window.addEventListener('obs-card-activate', handleCardActivate);
-    return () => window.removeEventListener('obs-card-activate', handleCardActivate);
+    window.addEventListener("obs-card-activate", handleCardActivate);
+    return () => window.removeEventListener("obs-card-activate", handleCardActivate);
   }, [editor]);
 
   // Cleanup: cancel any pending doc-idle timer when the editor instance changes

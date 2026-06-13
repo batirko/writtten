@@ -65,7 +65,8 @@ describe("parse429", () => {
             "@type": "type.googleapis.com/google.rpc.QuotaFailure",
             violations: [
               {
-                quotaMetric: "generativelanguage.googleapis.com/generate_content_free_tier_requests",
+                quotaMetric:
+                  "generativelanguage.googleapis.com/generate_content_free_tier_requests",
                 quotaId: "GenerateRequestsPerMinutePerProjectPerModel-FreeTier",
               },
             ],
@@ -194,7 +195,11 @@ describe("llmLogger archive + produced", () => {
     const entry = llmLogger.getLogs().find((l) => l.type === "archive");
     expect(entry).toBeDefined();
     expect(entry!.evalId).toBe("E7");
-    expect(entry!.archive).toMatchObject({ actor: "user", reason: "dismissed", obsType: "clarity" });
+    expect(entry!.archive).toMatchObject({
+      actor: "user",
+      reason: "dismissed",
+      obsType: "clarity",
+    });
     // Archive entries have no model, so they never pollute per-model quota stats.
     expect(llmLogger.getApiStats().models).toHaveLength(0);
   });
