@@ -988,3 +988,136 @@ describe("evaluator - eval-wedge under strong-call failure (L3)", () => {
     expect(db.updateObservationStatus).not.toHaveBeenCalled();
   });
 });
+
+describe("evaluator - block-removal race / liveness guard (L4)", () => {
+  const docId = "docL4";
+  const sectionId = "sectionL4";
+  const apiKey = "mock-key";
+  const members = [{ blockId: sectionId, text: "Some text long enough to evaluate." }];
+
+  const otherClaim = {
+    id: 1,
+    docId,
+    sourceBlockId: "otherBlock",
+    text: "Launch is delayed to Q4.",
+    kind: "commitment" as const,
+    status: "active" as const,
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(db.loadBlockSummary).mockResolvedValue(undefined);
+    vi.mocked(db.loadActiveObservationsForDocument).mockResolvedValue([]);
+    vi.mocked(db.loadActiveClaimsForDocument).mockResolvedValue([]);
+  });
+
+  it("aborts all writes when the section is removed during the fast call (no zombie claims)", async () => {
+    let removed = false;
+    const isLive = () => !removed;
+    // The fast response lands *after* the block was removed mid-flight.
+    mockFast.mockImplementationOnce(async () => {
+      removed = true;
+      return {
+        text: JSON.stringify({
+          summary: "A summary.",
+          claims: [{ text: "A claim.", kind: "fact" }],
+          clarity_observations: [{ text: "Vague", substring: "Some text" }],
+        }),
+      };
+    });
+
+    await evaluateSection(
+      docId,
+      sectionId,
+      "Some text long enough to evaluate.",
+      members,
+      undefined,
+      apiKey,
+      undefined,
+      undefined,
+      false,
+      undefined,
+      STRONG,
+      isLive
+    );
+
+    // The removed section must not be resurrected: no claims, summary, or
+    // observations written. handleBlockRemoved already orphaned them.
+    expect(db.saveClaimsForBlock).not.toHaveBeenCalled();
+    expect(db.saveBlockSummary).not.toHaveBeenCalled();
+    expect(db.saveObservation).not.toHaveBeenCalled();
+  });
+
+  it("aborts reconcile + summary when removed during the strong call (claims already saved are left to the orphan path)", async () => {
+    let removed = false;
+    const isLive = () => !removed;
+    vi.mocked(db.loadActiveClaimsForDocument).mockResolvedValue([otherClaim]);
+    mockFast.mockResolvedValueOnce({
+      text: JSON.stringify({
+        summary: "Launch in Q3.",
+        claims: [{ text: "Launch in Q3.", kind: "commitment" }],
+        clarity_observations: [],
+      }),
+    });
+    // Removal happens while the contradiction (strong) call is in flight.
+    mockStrong.mockImplementationOnce(async () => {
+      removed = true;
+      return {
+        text: JSON.stringify({
+          contradictions: [
+            { newClaimText: "Launch in Q3.", existingClaimId: 0, message: "Contradicts Q4." },
+          ],
+        }),
+      };
+    });
+
+    await evaluateSection(
+      docId,
+      sectionId,
+      "We plan to launch in Q3.",
+      members,
+      undefined,
+      apiKey,
+      undefined,
+      undefined,
+      false,
+      undefined,
+      STRONG,
+      isLive
+    );
+
+    // Claims were saved before the removal (checkpoint 1 passed) — the orphan
+    // path in handleBlockRemoved is responsible for those. But reconcile and the
+    // summary/hash write must be skipped so no observation or summary is recreated.
+    expect(db.saveObservation).not.toHaveBeenCalled();
+    expect(db.saveBlockSummary).not.toHaveBeenCalled();
+  });
+
+  it("writes normally when the section stays live (guard is a no-op on the happy path)", async () => {
+    mockFast.mockResolvedValueOnce({
+      text: JSON.stringify({
+        summary: "A summary.",
+        claims: [{ text: "A claim.", kind: "fact" }],
+        clarity_observations: [],
+      }),
+    });
+
+    // Default isLive (always true) via the back-compat path.
+    await evaluateSection(
+      docId,
+      sectionId,
+      "Some text long enough to evaluate.",
+      members,
+      undefined,
+      apiKey,
+      undefined,
+      undefined,
+      true, // skipContradiction — keep it to the fast call
+      undefined,
+      STRONG
+    );
+
+    expect(db.saveClaimsForBlock).toHaveBeenCalled();
+    expect(db.saveBlockSummary).toHaveBeenCalled();
+  });
+});

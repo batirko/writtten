@@ -596,7 +596,13 @@ export async function evaluateSection(
   jargonAllowlist?: string[],
   skipContradiction = false,
   evalId?: string,
-  capability: ModelCapability = WEAK_CAPABILITY
+  capability: ModelCapability = WEAK_CAPABILITY,
+  /** Liveness predicate, supplied by the orchestrator. Returns false once the
+   *  section has been removed (or re-dispatched) while this eval was in flight,
+   *  so a late LLM response can't resurrect claims/observations for a section
+   *  that no longer exists. Defaults to always-live for direct callers/tests.
+   *  See lifecycle_integrity L4. */
+  isLive: () => boolean = () => true
 ): Promise<void> {
   // Mock mode replays canned responses, so it needs no key. Every other mode
   // hits the network and does.
@@ -620,6 +626,9 @@ export async function evaluateSection(
   //    observations. Hash written last (same atomicity rule as the main path):
   //    if reconcile throws, the section stays dirty and retries. (L3)
   if (cleanText.length < 10) {
+    // If the section was removed concurrently, handleBlockRemoved already did
+    // this cleanup — don't recreate an (empty) summary for a deleted block (L4).
+    if (!isLive()) return;
     await saveClaimsForBlock(docId, sectionId, []);
     await reconcileObservations(docId, memberBlockIds, []);
     await saveBlockSummary({ blockId: sectionId, docId, summary: "", hash: textHash });
@@ -702,6 +711,11 @@ export async function evaluateSection(
     const clarityObservations = parsedMerged.clarity_observations || [];
     const unsupportedObservations = parsedMerged.unsupported_claim_observations || [];
     const jargonObservations = parsedMerged.undefined_jargon_observations || [];
+
+    // Liveness checkpoint: if the section was removed while the fast call was in
+    // flight, abort before any write so we don't resurrect claims for a block
+    // that no longer exists (L4). handleBlockRemoved has already orphaned them.
+    if (!isLive()) return;
 
     // 4. Persist claims now (the contradiction check below reads the ledger).
     //    The block summary + dirty-check hash are written LAST (after reconcile
@@ -903,6 +917,12 @@ export async function evaluateSection(
     const resolvedPriorIds = new Set(
       resolvedIndices.map((i) => priorObs[i]?.id).filter((id): id is string => id != null)
     );
+
+    // Liveness checkpoint: the section may have been removed during the strong
+    // (contradiction) call. Abort before reconcile + hash so the late response
+    // doesn't recreate observations/summary for a deleted section (L4).
+    if (!isLive()) return;
+
     await reconcileObservations(docId, memberBlockIds, newObs, resolvedPriorIds, evalId);
 
     // 8. Commit the dirty-check hash LAST. Only now — after the fast call, the
