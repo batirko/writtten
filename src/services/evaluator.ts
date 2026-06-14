@@ -616,11 +616,13 @@ export async function evaluateSection(
     return;
   }
 
-  // 2. If section is now empty / too short, retire its data and close its observations
+  // 2. If section is now empty / too short, retire its data and close its
+  //    observations. Hash written last (same atomicity rule as the main path):
+  //    if reconcile throws, the section stays dirty and retries. (L3)
   if (cleanText.length < 10) {
-    await saveBlockSummary({ blockId: sectionId, docId, summary: "", hash: textHash });
     await saveClaimsForBlock(docId, sectionId, []);
     await reconcileObservations(docId, memberBlockIds, []);
+    await saveBlockSummary({ blockId: sectionId, docId, summary: "", hash: textHash });
     return;
   }
 
@@ -701,8 +703,10 @@ export async function evaluateSection(
     const unsupportedObservations = parsedMerged.unsupported_claim_observations || [];
     const jargonObservations = parsedMerged.undefined_jargon_observations || [];
 
-    // 4. Persist summary and claims first — observations may reference ledger IDs
-    await saveBlockSummary({ blockId: sectionId, docId, summary: summaryText, hash: textHash });
+    // 4. Persist claims now (the contradiction check below reads the ledger).
+    //    The block summary + dirty-check hash are written LAST (after reconcile
+    //    succeeds) so a failed strong call can't poison the dirty-check and wedge
+    //    the section. See lifecycle_integrity L3.
     await saveClaimsForBlock(docId, sectionId, extractedClaims);
 
     if (import.meta.env.DEV) {
@@ -900,6 +904,13 @@ export async function evaluateSection(
       resolvedIndices.map((i) => priorObs[i]?.id).filter((id): id is string => id != null)
     );
     await reconcileObservations(docId, memberBlockIds, newObs, resolvedPriorIds, evalId);
+
+    // 8. Commit the dirty-check hash LAST. Only now — after the fast call, the
+    //    contradiction call, and reconciliation have all succeeded — is the
+    //    section's text "fully evaluated". If anything above threw (e.g. a
+    //    rate-limited strong call), the hash stays unsaved and the next trigger
+    //    re-runs the whole eval instead of short-circuiting on a stale match.
+    await saveBlockSummary({ blockId: sectionId, docId, summary: summaryText, hash: textHash });
   } catch (error) {
     console.error("Evaluation error for section", sectionId, error);
   }
