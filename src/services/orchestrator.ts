@@ -61,6 +61,20 @@ const coalesceTimers = new Map<string, CoalesceEntry>();
 const inFlightSections = new Set<string>();
 const pendingAfterInflight = new Map<string, PendingEntry>();
 
+/**
+ * Eval-generation token per section id. Bumped whenever a block is removed, so
+ * an in-flight `evaluateSection` whose response lands *after* the removal can
+ * detect it is stale and skip its post-LLM writes — otherwise it would
+ * re-insert `active` claims and a summary for a section that no longer exists
+ * (zombie claims). See lifecycle_integrity L4.
+ */
+const sectionEvalGeneration = new Map<string, number>();
+
+/** Invalidate any in-flight eval for this section by bumping its generation. */
+function bumpSectionGeneration(sectionId: string): void {
+  sectionEvalGeneration.set(sectionId, (sectionEvalGeneration.get(sectionId) ?? 0) + 1);
+}
+
 let docIdleInFlight = false;
 let pendingDocIdle: { ctx: EvalContext; onComplete?: () => void } | null = null;
 
@@ -108,6 +122,10 @@ async function handleBlockRemoved(
   ctx: EvalContext,
   onComplete?: () => void
 ): Promise<void> {
+  // Invalidate any in-flight eval for this section so a late LLM response can't
+  // resurrect claims/observations for the now-removed block (L4).
+  bumpSectionGeneration(blockId);
+
   // Cancel any pending coalesce or queued re-run for this block
   const entry = coalesceTimers.get(blockId);
   if (entry) {
@@ -172,6 +190,12 @@ async function dispatch(
   const evalId = logTrigger(triggerKind, sectionId);
   if (import.meta.env.DEV) harness.emit("settle", { trigger: triggerKind, sectionId });
 
+  // Capture the section's generation at dispatch time. If a block-removed bumps
+  // it while this eval is in flight, isLive() goes false and evaluateSection
+  // skips its post-LLM writes (L4).
+  const startGeneration = sectionEvalGeneration.get(sectionId) ?? 0;
+  const isLive = () => (sectionEvalGeneration.get(sectionId) ?? 0) === startGeneration;
+
   try {
     await evaluateSection(
       ctx.docId,
@@ -184,7 +208,8 @@ async function dispatch(
       ctx.jargonAllowlist,
       ctx.skipContradiction,
       evalId,
-      ctx.capability
+      ctx.capability,
+      isLive
     );
   } catch (err) {
     console.error("[orchestrator] evaluateSection threw:", err);

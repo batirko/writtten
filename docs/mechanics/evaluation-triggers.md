@@ -99,6 +99,8 @@ Source: `onUpdate` in `src/editor/Editor.tsx`
 
 Fires for every blockId present in the previous snapshot but absent from the current doc. No model call — synchronously orphans the block's claims, deletes its summary, and auto-closes observations anchored to or conflicting with that block.
 
+It also **bumps the section's eval generation** (`sectionEvalGeneration` map in `orchestrator.ts`). If an `evaluateSection` is in flight for that block when it's removed, the generation bump makes the `isLive()` predicate it was handed go false, so the late LLM response skips its post-LLM writes instead of resurrecting `active` claims/summary for a deleted block (the L4 zombie-claim race). The in-flight `fetch` is not cancelled — only its writes are invalidated. See `evaluateSection` steps 4–6.
+
 ---
 
 ## Orchestrator shaping (between trigger and eval)
