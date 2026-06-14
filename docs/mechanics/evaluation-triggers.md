@@ -119,10 +119,12 @@ Even after a trigger fires, the orchestrator reshapes *when* the actual eval run
 
 ### `evaluateSection` (`src/services/evaluator.ts`)
 
-1. **Hash check** — if section text hash matches the stored summary, skip entirely (idempotent).
-2. **Short-circuit** — if text < 10 chars, retire claims/observations and return (no model call).
-3. **Merged fast call** — one round-trip: summary + claim extraction + span checks (`clarity`, `unsupported_claim`, `undefined_jargon`). Injects the existing glossary of defined terms and prior active observations so the model can confirm resolutions.
+1. **Hash check** — if section text hash matches the stored summary, skip entirely (idempotent). The hash is the dirty-check key; see step 6 for when it is committed.
+2. **Short-circuit** — if text < 10 chars, retire claims/observations and return (no model call). Same write-order as step 6: claims + reconcile first, hash last.
+3. **Merged fast call** — one round-trip: summary + claim extraction + span checks (`clarity`, `unsupported_claim`, `undefined_jargon`). Injects the existing glossary of defined terms and prior active observations so the model can confirm resolutions. Claims are persisted here (the contradiction call reads the ledger); the summary + hash are **not** — they wait for step 6.
 4. **Strong contradiction call** — only when there are both new claims *and* existing other-block claims, **and `skipContradiction` is not set** (it is, for bulk paste / import). Prefiltered to the top-10 most semantically relevant ledger claims. Uses a hedged prompt for a weak-capability model, confident prompt for a strong-capability one (`capability.adjudicateConfidently` — see _Model capability_ below).
+5. **Reconcile** — `reconcileObservations` writes the new span + contradiction observations and auto-closes unmatched existing ones for the section's member blocks.
+6. **Commit dirty-check hash (last)** — `saveBlockSummary` writes the summary + text hash only after steps 3–5 all succeed. The eval is **atomic**: if the strong call (or anything above) throws, the hash stays unsaved and the next trigger re-runs the whole eval instead of short-circuiting on a stale match. This is the `lifecycle_integrity` L3 fix — writing the hash before the strong call let a routine free-tier rate-limit (`Pool exhausted`) permanently wedge a section, its fast-call observations lost and stale ones never closing, until its text changed.
 
 ### `evaluateDocument` (`src/services/evaluator.ts`)
 

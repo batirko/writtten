@@ -890,3 +890,101 @@ describe("evaluator - evaluateLedgerContradictions (Workstream B — authoritati
     expect(db.saveObservation).not.toHaveBeenCalledWith(expect.objectContaining({ id: "cx1" }));
   });
 });
+
+describe("evaluator - eval-wedge under strong-call failure (L3)", () => {
+  const docId = "docL3";
+  const blockId = "blockL3";
+  const apiKey = "mock-key";
+
+  // An existing claim on a *different* block so the contradiction (strong) call
+  // is actually reached (needs extractedClaims > 0 AND other claims > 0).
+  const otherClaim = {
+    id: 1,
+    docId,
+    sourceBlockId: "otherBlock",
+    text: "Launch is delayed to Q4.",
+    kind: "commitment" as const,
+    status: "active" as const,
+  };
+
+  const fastWithClaim = {
+    text: JSON.stringify({
+      summary: "Launch in Q3.",
+      claims: [{ text: "Launch in Q3.", kind: "commitment" }],
+      clarity_observations: [],
+    }),
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(db.loadBlockSummary).mockResolvedValue(undefined);
+    vi.mocked(db.loadActiveClaimsForDocument).mockResolvedValue([otherClaim]);
+  });
+
+  it("does not commit the dirty-check hash when the strong call fails (no wedge)", async () => {
+    vi.mocked(db.loadActiveObservationsForDocument).mockResolvedValue([]);
+    mockFast.mockResolvedValueOnce(fastWithClaim);
+    mockStrong.mockRejectedValueOnce(new Error("Pool exhausted (free)"));
+
+    await evaluateBlock(docId, blockId, "We plan to launch in Q3.", "Stage", apiKey);
+
+    expect(mockStrong).toHaveBeenCalled(); // the strong call was actually reached
+    // The wedge: pre-fix the hash was saved before the strong call, so a failed
+    // strong call left a stale-but-matching hash that short-circuited every
+    // future eval. Post-fix the hash is committed last, so a failure leaves the
+    // section dirty for retry.
+    expect(db.saveBlockSummary).not.toHaveBeenCalled();
+    // Reconcile is skipped on throw → nothing is written this round.
+    expect(db.saveObservation).not.toHaveBeenCalled();
+  });
+
+  it("commits the hash only after observations are reconciled (atomic ordering)", async () => {
+    vi.mocked(db.loadActiveObservationsForDocument).mockResolvedValue([]);
+    mockFast.mockResolvedValueOnce(fastWithClaim);
+    mockStrong.mockResolvedValueOnce({
+      text: JSON.stringify({
+        contradictions: [
+          { newClaimText: "Launch in Q3.", existingClaimId: 0, message: "Contradicts Q4." },
+        ],
+      }),
+    });
+
+    await evaluateBlock(docId, blockId, "We plan to launch in Q3.", "Stage", apiKey);
+
+    expect(db.saveObservation).toHaveBeenCalled();
+    expect(db.saveBlockSummary).toHaveBeenCalled();
+    // The dirty-check hash must be written AFTER the observation is persisted
+    // (i.e. after reconcile completed) — the core of the atomic-eval fix.
+    const obsOrder = vi.mocked(db.saveObservation).mock.invocationCallOrder[0];
+    const summaryOrder = vi.mocked(db.saveBlockSummary).mock.invocationCallOrder[0];
+    expect(summaryOrder).toBeGreaterThan(obsOrder);
+  });
+
+  it("does not auto-close an existing contradiction when the strong call fails", async () => {
+    const existingContradiction: Observation = {
+      id: "cx-old",
+      docId,
+      type: "contradiction",
+      scope: "span",
+      kind: "problem",
+      severity: "high",
+      confidence: "low",
+      priority: 1.5,
+      text: "Pre-existing contradiction",
+      status: "active",
+      blockId,
+      startOffset: 0,
+      endOffset: 5,
+      conflictingBlockId: "otherBlock",
+    };
+    vi.mocked(db.loadActiveObservationsForDocument).mockResolvedValue([existingContradiction]);
+    mockFast.mockResolvedValueOnce(fastWithClaim);
+    mockStrong.mockRejectedValueOnce(new Error("Pool exhausted (free)"));
+
+    await evaluateBlock(docId, blockId, "We plan to launch in Q3.", "Stage", apiKey);
+
+    // Reconcile never ran, so the still-valid contradiction must not be touched.
+    // (This is the failure mode option (a) would have introduced.)
+    expect(db.updateObservationStatus).not.toHaveBeenCalled();
+  });
+});
