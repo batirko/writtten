@@ -44,6 +44,49 @@ export function charOffsetToPmPos(
   return found >= 0 ? found : blockPos + 1 + charOffset;
 }
 
+/**
+ * Re-derive a span's character offsets from its `anchorText` against the block's
+ * *current* flat text, falling back to the stored offsets. This is what makes a
+ * highlight stay on the right words after the user edits earlier in the block:
+ * `refreshObservations` rebuilds every decoration from offsets captured at eval
+ * time, so without this they redraw at stale positions until the next keystroke
+ * triggers ProseMirror's position mapping. See lifecycle_integrity L5.
+ *
+ * Rules:
+ *  - Empty/whitespace `anchorText` (pre-v8 records) → stored offsets.
+ *  - Whole-block sentinel (`storedStart === 0 && storedEnd >= 9999`, used by the
+ *    contradiction conflicting-side and the ledger sweep) → unchanged; these are
+ *    intentionally whole-block and the caller's clamp turns 9999 into the real
+ *    text length.
+ *  - Otherwise locate `anchorText` in `blockText`: no match → stored offsets
+ *    (text was edited away; the obs will auto-close on the next eval); one match
+ *    → that occurrence; multiple → the occurrence whose start is nearest the
+ *    stored start (the user most likely edited near, not at, the anchor).
+ * Matching is exact (no case-folding) because `anchorText` was captured from the
+ * same flattened block text and we need precise character positions.
+ */
+export function reanchorOffset(
+  blockText: string,
+  anchorText: string,
+  storedStart: number,
+  storedEnd: number
+): { start: number; end: number } {
+  const anchor = anchorText.trim();
+  if (anchor === "") return { start: storedStart, end: storedEnd };
+  if (storedStart === 0 && storedEnd >= 9999) return { start: storedStart, end: storedEnd };
+
+  let bestIdx = -1;
+  let idx = blockText.indexOf(anchorText);
+  while (idx !== -1) {
+    if (bestIdx === -1 || Math.abs(idx - storedStart) < Math.abs(bestIdx - storedStart)) {
+      bestIdx = idx;
+    }
+    idx = blockText.indexOf(anchorText, idx + 1);
+  }
+  if (bestIdx === -1) return { start: storedStart, end: storedEnd };
+  return { start: bestIdx, end: bestIdx + anchorText.length };
+}
+
 const pluginKey = new PluginKey("observationHighlighter");
 
 interface ObservationHighlighterOptions {
@@ -108,8 +151,17 @@ export const ObservationHighlighter = Extension.create<ObservationHighlighterOpt
                     const blockNode = doc.nodeAt(blockPos);
                     if (blockNode) {
                       const textLength = blockNode.textContent.length;
-                      const rawStart = Math.max(0, Math.min(obs.startOffset ?? 0, textLength));
-                      const rawEnd = Math.max(0, Math.min(obs.endOffset ?? textLength, textLength));
+                      // L5: re-derive offsets from anchorText against current
+                      // text so a refresh-driven rebuild doesn't redraw the
+                      // highlight at stale offsets.
+                      const re = reanchorOffset(
+                        blockNode.textContent,
+                        obs.anchorText ?? "",
+                        obs.startOffset ?? 0,
+                        obs.endOffset ?? textLength
+                      );
+                      const rawStart = Math.max(0, Math.min(re.start, textLength));
+                      const rawEnd = Math.max(0, Math.min(re.end, textLength));
                       const start = charOffsetToPmPos(blockNode, blockPos, rawStart, false);
                       const end = charOffsetToPmPos(blockNode, blockPos, rawEnd, true);
 
@@ -149,14 +201,17 @@ export const ObservationHighlighter = Extension.create<ObservationHighlighterOpt
                           const conflictNode = doc.nodeAt(conflictPos);
                           if (conflictNode) {
                             const cTextLength = conflictNode.textContent.length;
-                            const cRawStart = Math.max(
-                              0,
-                              Math.min(obs.conflictingStartOffset ?? 0, cTextLength)
+                            // L5: re-anchor the conflicting side too. In practice
+                            // the conflicting offsets are the 0:9999 whole-block
+                            // sentinel, which reanchorOffset passes through.
+                            const cRe = reanchorOffset(
+                              conflictNode.textContent,
+                              obs.conflictingAnchorText ?? "",
+                              obs.conflictingStartOffset ?? 0,
+                              obs.conflictingEndOffset ?? cTextLength
                             );
-                            const cRawEnd = Math.max(
-                              0,
-                              Math.min(obs.conflictingEndOffset ?? cTextLength, cTextLength)
-                            );
+                            const cRawStart = Math.max(0, Math.min(cRe.start, cTextLength));
+                            const cRawEnd = Math.max(0, Math.min(cRe.end, cTextLength));
                             const cStart = charOffsetToPmPos(
                               conflictNode,
                               conflictPos,
