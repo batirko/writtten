@@ -9,6 +9,7 @@ import {
   type Observation,
 } from "./store/db";
 import { scheduleEval } from "./services/orchestrator";
+import { conflictPairKey } from "./services/evaluator";
 import type { EvalContext } from "./services/types";
 import { capabilityForTier, type ModelTier } from "./model/capability";
 import { llmLogger, type LLMLogEntry, type SessionStats } from "./model/logger";
@@ -181,6 +182,8 @@ export default function App() {
         obs.scope === "span" && obs.blockId != null
           ? `${obs.blockId}:${obs.startOffset ?? ""}:${obs.endOffset ?? ""}`
           : undefined;
+      // L5: store the anchor identity so the suppression matches across edits.
+      const isConflict = obs.type === "contradiction" || obs.type === "strategic_tension";
       await saveDismissalSuppression({
         id: nanoid(10),
         docId: DOC_ID,
@@ -188,6 +191,12 @@ export default function App() {
         kind: obs.kind,
         severity: obs.severity,
         spanSignature,
+        anchorText: obs.anchorText,
+        conflictingAnchorText: isConflict ? obs.conflictingAnchorText : undefined,
+        conflictPairKey:
+          isConflict && obs.blockId != null && obs.conflictingBlockId != null
+            ? conflictPairKey(obs)
+            : undefined,
         note: closureReason,
       });
     }

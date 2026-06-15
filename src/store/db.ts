@@ -2,7 +2,7 @@ import { openDB, type IDBPDatabase } from "idb";
 import { harness } from "../debug/harness";
 
 const DB_NAME = "writtten";
-const DB_VERSION = 8;
+const DB_VERSION = 9;
 
 export interface DocumentRecord {
   id: string;
@@ -93,8 +93,23 @@ export interface DismissalSuppression {
   type: Observation["type"];
   kind?: Observation["kind"];
   severity?: Observation["severity"];
-  /** "blockId:startOffset:endOffset" for span obs; absent for doc-level obs. */
+  /** "blockId:startOffset:endOffset" for span obs; absent for doc-level obs.
+   *  Remains the fallback key when the anchor-text fields below are absent
+   *  (legacy suppressions) or empty. */
   spanSignature?: string;
+  /** Snapshot of the dismissed span's text (from the observation's `anchorText`).
+   *  Load-bearing for matching across edits: a span-level suppression matches a
+   *  fresh observation by (blockId + normalized anchorText), so a dismissal holds
+   *  when surrounding edits shift offsets. Empty string / undefined → offset
+   *  fallback. See lifecycle_integrity L5. */
+  anchorText?: string;
+  /** Snapshot of the conflicting span's text, for contradiction/strategic_tension. */
+  conflictingAnchorText?: string;
+  /** Order-independent block-pair key (`${type}::${lo}|${hi}`) for
+   *  contradiction/strategic_tension. Lets a dismissed conflict suppress both
+   *  the per-section re-emission (precise offsets) and the ledger-sweep
+   *  re-emission (whole-block 0:9999) of the same logical conflict. */
+  conflictPairKey?: string;
   note?: string;
 }
 
@@ -192,6 +207,13 @@ async function getDb(): Promise<IDBPDatabase> {
           await cursor.update(record);
           cursor = await cursor.continue();
         }
+      }
+      if (oldVersion < 9) {
+        // L5: DismissalSuppression gained anchorText / conflictingAnchorText /
+        // conflictPairKey for edit-resilient matching. No backfill: legacy
+        // suppressions keep these undefined and continue to match on
+        // spanSignature (offset fallback). The version bump is required because
+        // new code writes the new shape; no object-store/index changes needed.
       }
     },
   });
