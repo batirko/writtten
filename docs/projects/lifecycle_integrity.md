@@ -80,10 +80,15 @@ The audit's one-line verdict: *"a promising prototype with unusually good archit
 - [x] **5b — Re-anchor highlights by `anchorText` on rebuild.** Added a pure `reanchorOffset(blockText, anchorText, storedStart, storedEnd)` helper in `ObservationHighlighter.ts` and wired it into the `setObservations` rebuild for both the primary and conflicting spans. It re-derives offsets from `anchorText` against the block's current flat text (nearest-to-stored on repeats; falls back to stored offsets on no-match/empty-anchor; passes `0:9999` sentinels through untouched). The live-typing `tr.mapping` path is unchanged. So a refresh-driven rebuild no longer redraws a highlight at stale offsets after the user edited earlier in the block. +6 tests (incl. a DOM-level assertion that the highlight lands on the anchor span), regression-verified. (2026-06-14)
 - [x] Coordinated with `archive_trust.md` (R3b) on the `anchorText`/`conflictingAnchorText` contract — both read the field; 5a makes it authoritative for matching and never mutates it after creation.
 
-### L6 — Split `evaluator.ts` (enabling refactor) — 🟢 Med · ⚙️ (audit #8)
+### L6 — Split `evaluator.ts` (enabling refactor) — ✅ done (audit #8, 2026-06-15)
 
-- [ ] Extract the 1,331-line god-module into `prompts.ts` / `anchoring.ts` / `reconcile.ts` along the seam `docReconcile.ts` already proved (pure planner, injected similarity, well-tested). The in-file reconcilers interleave DB awaits with decision logic, which is exactly why L3's ordering bug wasn't visible. Do this **alongside** L3–L5 so each fix lands in a reviewable unit, not on top of the others.
-- [ ] Sweep minor rot while splitting: dead `closureReason` branch (~:283, `text_removed` unreachable because `existing` is pre-filtered to member blocks), the `9999` end-offset sentinel, 32-bit `hashCode` dirty-checks (a collision silently skips an eval).
+- [x] Extracted the 1,433-line god-module into three focused modules along the seam `docReconcile.ts` already proved:
+  - `evaluatorPrompts.ts` — all LLM prompt strings + `parseJSONResponse` + `isDocumentMetaClaim` (pure, no side effects)
+  - `evaluatorAnchoring.ts` — anchoring helpers, identity functions (`hashCode`, `conflictPairKey`, `anchorSubstring`, etc.), and `NewObservation` type (pure)
+  - `evaluatorReconcile.ts` — the reconciliation functions that interleave DB awaits (`reconcileObservations`, `reconcileDocumentObservations`, `reconcileSweepContradictions`); imports only from the two pure modules above
+  - `evaluator.ts` rewritten to import from all three and re-export the full prior public API — zero consumer changes required (App.tsx, orchestrator.ts, test files all unchanged). 
+- [x] Dead `closureReason` branch removed: the `"text_removed"` unreachable branch in `reconcileObservations` simplified to `"resolved_by_edit"` (the `existing` array is pre-filtered to `memberBlockIds`).
+- [x] No behavior change: 393 tests pass, lint clean, build green.
 
 ### L7 — Close the prod prompt-leak — ✅ done (audit #9)
 
