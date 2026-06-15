@@ -3,7 +3,7 @@ import { describe, it, expect, vi } from "vitest";
 import { Editor, getSchema } from "@tiptap/core";
 import StarterKit from "@tiptap/starter-kit";
 import { BlockId } from "./BlockId";
-import { ObservationHighlighter, charOffsetToPmPos } from "./ObservationHighlighter";
+import { ObservationHighlighter, charOffsetToPmPos, reanchorOffset } from "./ObservationHighlighter";
 import type { Observation } from "../../store/db";
 
 const schema = getSchema([StarterKit, BlockId]);
@@ -180,6 +180,82 @@ describe("auto-close on span deletion (collapse detection)", () => {
       // Delete "this " (after the span) — the "world" highlight is untouched.
       editor.view.dispatch(editor.state.tr.delete(13, 18));
       expect(onCollapsed).not.toHaveBeenCalled();
+    } finally {
+      editor.destroy();
+    }
+  });
+});
+
+describe("reanchorOffset (L5)", () => {
+  it("returns the single occurrence's offsets, ignoring stale stored offsets", () => {
+    const text = "AAAA the moon is here";
+    // stored 0:4 points at "AAAA"; anchor "the moon" is at 5:13.
+    expect(reanchorOffset(text, "the moon", 0, 4)).toEqual({ start: 5, end: 13 });
+  });
+
+  it("falls back to stored offsets when the anchor is not found", () => {
+    expect(reanchorOffset("nothing here", "the moon", 3, 11)).toEqual({ start: 3, end: 11 });
+  });
+
+  it("falls back to stored offsets for empty/whitespace anchor (pre-v8 records)", () => {
+    expect(reanchorOffset("some text", "", 2, 6)).toEqual({ start: 2, end: 6 });
+    expect(reanchorOffset("some text", "   ", 2, 6)).toEqual({ start: 2, end: 6 });
+  });
+
+  it("leaves the whole-block 0:9999 sentinel unchanged", () => {
+    // Even though "x" occurs, sentinels must not be re-anchored.
+    expect(reanchorOffset("x y z", "x", 0, 9999)).toEqual({ start: 0, end: 9999 });
+  });
+
+  it("picks the occurrence nearest the stored start when the anchor repeats", () => {
+    // "ab" occurs at indices 0, 3, 6. Stored start 4 → nearest is the one at 3.
+    const text = "ab_ab_ab__";
+    expect(reanchorOffset(text, "ab", 4, 6)).toEqual({ start: 3, end: 5 });
+  });
+});
+
+describe("highlight re-anchoring on rebuild (L5)", () => {
+  const activeSpanObs = (over: Partial<Observation> = {}): Observation => ({
+    id: "obs-1",
+    docId: "doc-1",
+    type: "clarity",
+    scope: "span",
+    kind: "problem",
+    severity: "low",
+    confidence: "medium",
+    priority: 0.75,
+    text: "Vague phrase",
+    status: "active",
+    blockId: "b1",
+    startOffset: 0,
+    endOffset: 4,
+    anchorText: "the moon",
+    ...over,
+  });
+
+  function makeEditor() {
+    return new Editor({
+      extensions: [StarterKit, BlockId, ObservationHighlighter],
+      content: {
+        type: "doc",
+        content: [
+          {
+            type: "paragraph",
+            attrs: { blockId: "b1" },
+            content: [{ type: "text", text: "AAAA the moon is here" }],
+          },
+        ],
+      },
+    });
+  }
+
+  it("draws the highlight on the anchorText span, not the stale stored offsets", () => {
+    const editor = makeEditor();
+    try {
+      // Stored offsets 0:4 point at "AAAA"; anchorText "the moon" is at 5:13.
+      editor.view.dispatch(editor.state.tr.setMeta("setObservations", [activeSpanObs()]));
+      const highlighted = editor.view.dom.querySelector(".obs-highlight")?.textContent;
+      expect(highlighted).toBe("the moon");
     } finally {
       editor.destroy();
     }
