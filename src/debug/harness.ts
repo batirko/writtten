@@ -310,6 +310,8 @@ class Harness {
 
 export const harness = new Harness();
 
-llmLogger.setEventSyncHook((type, fields) => {
-  harness._syncFromLogger(type, fields);
-});
+if (import.meta.env.DEV) {
+  llmLogger.setEventSyncHook((type, fields) => {
+    harness._syncFromLogger(type, fields);
+  });
+}

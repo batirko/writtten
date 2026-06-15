@@ -85,10 +85,12 @@ The audit's one-line verdict: *"a promising prototype with unusually good archit
 - [ ] Extract the 1,331-line god-module into `prompts.ts` / `anchoring.ts` / `reconcile.ts` along the seam `docReconcile.ts` already proved (pure planner, injected similarity, well-tested). The in-file reconcilers interleave DB awaits with decision logic, which is exactly why L3's ordering bug wasn't visible. Do this **alongside** L3–L5 so each fix lands in a reviewable unit, not on top of the others.
 - [ ] Sweep minor rot while splitting: dead `closureReason` branch (~:283, `text_removed` unreachable because `existing` is pre-filtered to member blocks), the `9999` end-offset sentinel, 32-bit `hashCode` dirty-checks (a collision silently skips an eval).
 
-### L7 — Close the prod prompt-leak — 🟢 Low · 🔧 (audit #9)
+### L7 — Close the prod prompt-leak — ✅ done (audit #9)
 
-- [ ] Default the LLM debug panel **off** — `src/sidecar/SidecarFeed.tsx:221` is `useState(true)`, so production users get a panel showing full prompts (their document text) by default.
-- [ ] DEV-gate `llmLogger` so the panel/log can't ship enabled. Re-verify the "harness stripped from production builds" claim once L1 makes `dist/` buildable — the harness module has a top-level side effect (`harness.ts:302`) and a circular import with `db.ts`, so today only its call sites are DCE'd, not the module.
+- [x] **Default debug panel off.** Changed `useState(true)` → `useState(false)` for `debugMode` in `SidecarFeed.tsx`. +1 regression test (neutralized and confirmed red). (2026-06-15)
+- [x] **DEV-gate the panel UI.** Wrapped the "Enable LLM Debug Mode" settings checkbox and the debug panel render (`className="debug-panel"`) with `import.meta.env.DEV &&` — Vite DCEs both in production so no user can access the prompt log. (2026-06-15)
+- [x] **Removed the harness top-level side effect.** `harness.ts` had `llmLogger.setEventSyncHook(...)` at module level, which forced the harness module into the prod bundle even though all call sites were already DEV-gated. Wrapped in `if (import.meta.env.DEV)` — the hook now only wires in development. (2026-06-15)
+- [x] **Re-verified harness/call-site gating.** All `harness.emit()` and `harness.archive()` calls in `evaluator.ts`, `db.ts`, `orchestrator.ts`, `App.tsx`, and `Editor.tsx` were confirmed already wrapped in `if (import.meta.env.DEV)` guards. The remaining prod bundle footprint (the static `import { harness }` in each file and the `new Harness()` singleton) is inert — `window.__sidecar__` is never attached in prod, events accumulate in a bounded in-memory ring buffer with no external egress. Full DCE would require switching to dynamic imports across all callers; noted as future work. (2026-06-15)
 
 ### L8 — Editor hot-path perf — 🟠 Med · ⚙️ (audit #10)
 

@@ -231,7 +231,7 @@ export function SidecarFeed({
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [showArchive, setShowArchive] = useState(false);
   const [showAlsoNoticed, setShowAlsoNoticed] = useState(false);
-  const [debugMode, setDebugMode] = useState(true);
+  const [debugMode, setDebugMode] = useState(false);
   const [expandedLogId, setExpandedLogId] = useState<string | null>(null);
   const [copySuccess, setCopySuccess] = useState(false);
   // Stall state: raised when an LLM request exceeds its timeout, so the chip
@@ -669,18 +669,20 @@ export function SidecarFeed({
                 Terms listed here (plus common PM vocabulary) are never flagged as undefined jargon.
               </span>
             </div>
-            <div className="setting-group">
-              <label
-                style={{ display: "flex", alignItems: "center", gap: "8px", cursor: "pointer" }}
-              >
-                <input
-                  type="checkbox"
-                  checked={debugMode}
-                  onChange={(e) => setDebugMode(e.target.checked)}
-                />
-                Enable LLM Debug Mode
-              </label>
-            </div>
+            {import.meta.env.DEV && (
+              <div className="setting-group">
+                <label
+                  style={{ display: "flex", alignItems: "center", gap: "8px", cursor: "pointer" }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={debugMode}
+                    onChange={(e) => setDebugMode(e.target.checked)}
+                  />
+                  Enable LLM Debug Mode
+                </label>
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -937,7 +939,7 @@ export function SidecarFeed({
         )}
       </div>
 
-      {debugMode && (
+      {import.meta.env.DEV && debugMode && (
         <div
           className="debug-panel"
           style={{
