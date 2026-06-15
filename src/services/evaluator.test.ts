@@ -1250,3 +1250,114 @@ describe("evaluator - suppression matching by anchor text (L5a)", () => {
     expect(db.saveObservation).not.toHaveBeenCalled(); // but the pair is suppressed
   });
 });
+
+describe("evaluator - conflict identity unified on conflictPairKey (L5c)", () => {
+  const docId = "doc1";
+  const apiKey = "mock-key";
+
+  // An existing claim on another block so the per-section contradiction call runs.
+  const otherClaim = {
+    id: 1,
+    docId,
+    sourceBlockId: "block2",
+    text: "Launch is delayed to Q4.",
+    kind: "commitment" as const,
+    status: "active" as const,
+  };
+  const fastWithClaim = {
+    text: JSON.stringify({
+      summary: "Launch in Q3.",
+      claims: [{ text: "Launch in Q3.", kind: "commitment" }],
+      clarity_observations: [],
+    }),
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(db.loadBlockSummary).mockResolvedValue(undefined);
+    vi.mocked(db.loadActiveClaimsForDocument).mockResolvedValue([otherClaim]);
+    vi.mocked(db.loadSuppressionsForDocument).mockResolvedValue([]);
+    mockFast.mockResolvedValue(fastWithClaim);
+  });
+
+  it("dedupes a per-section contradiction against an existing sweep conflict for the same pair (reworded text)", async () => {
+    // A sweep-created conflict: whole-block 0:9999, carries grace state.
+    const existingConflict: Observation = {
+      id: "cx-old",
+      docId,
+      type: "contradiction",
+      scope: "span",
+      kind: "problem",
+      severity: "high",
+      confidence: "low",
+      priority: 1.5,
+      text: "Original wording: Q3 vs Q4.",
+      status: "active",
+      blockId: "block1",
+      conflictingBlockId: "block2",
+      startOffset: 0,
+      endOffset: 9999,
+      missCount: 1,
+    };
+    vi.mocked(db.loadActiveObservationsForDocument).mockResolvedValue([existingConflict]);
+    // Per-section re-emits the same pair (block1|block2), precise offsets, REWORDED.
+    mockStrong.mockResolvedValueOnce({
+      text: JSON.stringify({
+        contradictions: [
+          { newClaimText: "Launch in Q3.", existingClaimId: 0, message: "Reworded: the Q3 date conflicts with Q4." },
+        ],
+      }),
+    });
+
+    await evaluateBlock(docId, "block1", "We plan to launch in Q3.", "Stage", apiKey);
+
+    // Same pair → coalesce: no new card, and the existing one is kept (not
+    // superseded/auto-closed), so its grace state survives. Pre-5c this pair
+    // mismatched on contentSig and churned (supersede + insert).
+    expect(db.saveObservation).not.toHaveBeenCalled();
+    expect(db.updateObservationStatus).not.toHaveBeenCalled();
+  });
+
+  it("collapses two same-pair conflicts in one batch into a single card", async () => {
+    vi.mocked(db.loadActiveObservationsForDocument).mockResolvedValue([]);
+    mockStrong.mockResolvedValueOnce({
+      text: JSON.stringify({
+        contradictions: [
+          { newClaimText: "Launch in Q3.", existingClaimId: 0, message: "First phrasing." },
+          { newClaimText: "Launch in Q3.", existingClaimId: 0, message: "Second phrasing, same pair." },
+        ],
+      }),
+    });
+
+    await evaluateBlock(docId, "block1", "We plan to launch in Q3.", "Stage", apiKey);
+
+    expect(db.saveObservation).toHaveBeenCalledTimes(1);
+    expect(db.saveObservation).toHaveBeenCalledWith(expect.objectContaining({ type: "contradiction" }));
+  });
+
+  it("regression-watch: an existing conflict whose pair is not re-emitted still auto-closes", async () => {
+    const existingConflict: Observation = {
+      id: "cx-old",
+      docId,
+      type: "contradiction",
+      scope: "span",
+      kind: "problem",
+      severity: "high",
+      confidence: "low",
+      priority: 1.5,
+      text: "Q3 vs Q4.",
+      status: "active",
+      blockId: "block1",
+      conflictingBlockId: "block2",
+      startOffset: 0,
+      endOffset: 9999,
+    };
+    vi.mocked(db.loadActiveObservationsForDocument).mockResolvedValue([existingConflict]);
+    mockFast.mockResolvedValueOnce(fastWithClaim);
+    mockStrong.mockResolvedValueOnce({ text: JSON.stringify({ contradictions: [] }) });
+
+    await evaluateBlock(docId, "block1", "We plan to launch in Q3.", "Stage", apiKey);
+
+    expect(db.updateObservationStatus).toHaveBeenCalledWith("cx-old", "auto_closed", "resolved_by_edit");
+  });
+});

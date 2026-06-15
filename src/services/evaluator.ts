@@ -230,6 +230,9 @@ async function reconcileObservations(
   // observations that say the same thing (or one that duplicates a kept
   // existing one at a different offset) collapse to a single card.
   const seenContent = new Set<string>();
+  // L5c: conflict types are deduped by their (offset-free) block-pair key, so
+  // they coalesce across the per-section and ledger-sweep paths.
+  const seenPairKeys = new Set<string>();
 
   // 0-pre. Force-close any observation the model explicitly confirmed resolved.
   // This happens before the normal loop so the force-closed obs are already
@@ -245,6 +248,36 @@ async function reconcileObservations(
   for (const newO of newObs) {
     // Suppression check — never re-insert a dismissed span
     if (isSpanSuppressed(newO, suppressions)) continue;
+
+    // L5c: contradictions / strategic_tension are identified by their
+    // order-independent block pair (offset-free), the same key the ledger sweep
+    // uses. Matching on it (instead of contentSig/spanSig) means a per-section
+    // emission and the sweep's re-emission of the same conflict coalesce into a
+    // single card — and a re-emission with reworded text keeps the existing
+    // record (id + wording frozen, no flicker), preserving any sweep grace
+    // state (missCount/lastSeenAt) on it.
+    if (newO.type === "contradiction" || newO.type === "strategic_tension") {
+      const pk = conflictPairKey(newO);
+      if (seenPairKeys.has(pk)) continue; // in-batch dupe
+      const pairMatch = existing.find(
+        (e) =>
+          (e.type === "contradiction" || e.type === "strategic_tension") &&
+          conflictPairKey(e) === pk &&
+          !matchedExistingIds.has(e.id)
+      );
+      if (pairMatch) {
+        matchedExistingIds.add(pairMatch.id);
+        seenPairKeys.add(pk);
+        continue;
+      }
+      await saveObservation({ id: nanoid(10), docId, status: "active", ...newO });
+      seenPairKeys.add(pk);
+      if (import.meta.env.DEV) {
+        const blockIds = [newO.blockId, newO.conflictingBlockId].filter(Boolean);
+        harness.emit("observation", { type: newO.type, blocks: blockIds });
+      }
+      continue;
+    }
 
     const csig = contentSig(newO);
     // Already kept/inserted an equivalent observation in this batch → drop dupe.
