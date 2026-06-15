@@ -164,6 +164,8 @@ function isSpanSuppressed(newO: NewObservation, suppressions: DismissalSuppressi
     newO.blockId != null
       ? `${newO.blockId}:${newO.startOffset ?? ""}:${newO.endOffset ?? ""}`
       : undefined;
+  const isConflict = newO.type === "contradiction" || newO.type === "strategic_tension";
+  const newAnchorNorm = newO.anchorText ? normalizeText(newO.anchorText) : "";
   return suppressions.some((s) => {
     if (s.type !== newO.type) return false;
 
@@ -173,13 +175,35 @@ function isSpanSuppressed(newO: NewObservation, suppressions: DismissalSuppressi
     const isSpanOnly =
       s.severity === "high" || s.type === "contradiction" || s.type === "unsupported_claim";
 
-    if (isSpanOnly) {
-      if (s.spanSignature) return s.spanSignature === spanKey;
-      return false;
-    } else {
+    if (!isSpanOnly) {
       // Category-wide suppression for this document
       return true;
     }
+
+    // L5 — match by content identity, with the offset signature as fallback so
+    // legacy suppressions (and observations without anchor text) still work.
+    if (isConflict) {
+      // Conflicts are identified by their (order-independent) block pair, which
+      // is offset-free — so a dismissal holds whether the pair is re-emitted by
+      // the per-section path (precise offsets) or the ledger sweep (0:9999).
+      if (s.conflictPairKey) return s.conflictPairKey === conflictPairKey(newO);
+      return s.spanSignature != null && s.spanSignature === spanKey;
+    }
+
+    // Span observations (clarity / unsupported_claim / undefined_jargon): match
+    // on (blockId + normalized anchor text) so the dismissal survives edits that
+    // shift offsets. blockId keeps it precise (the same phrase in another block
+    // is a genuinely different span). blockId is recovered from the suppression's
+    // spanSignature ("blockId:start:end").
+    if (s.anchorText && s.anchorText.trim() && newAnchorNorm) {
+      const suppressedBlockId = s.spanSignature?.split(":")[0];
+      return (
+        suppressedBlockId != null &&
+        suppressedBlockId === newO.blockId &&
+        normalizeText(s.anchorText) === newAnchorNorm
+      );
+    }
+    return s.spanSignature != null && s.spanSignature === spanKey;
   });
 }
 
@@ -1154,8 +1178,13 @@ const sweepStateKey = (docId: string) => `${docId}::sweep`;
 
 /** Order-independent identity for a conflict between two blocks of a given type
  *  — used to dedupe sweep results against existing contradictions and across
- *  re-runs (the sweep is purely additive and idempotent). */
-function conflictPairKey(o: NewObservation): string {
+ *  re-runs (the sweep is purely additive and idempotent), and (L5) to match
+ *  dismissal suppressions for conflicts regardless of offsets. This is the
+ *  single source of the conflict identity: the dismiss handler imports it so
+ *  per-section and sweep emissions of the same pair share a suppression key. */
+export function conflictPairKey(
+  o: Pick<Observation, "type" | "blockId" | "conflictingBlockId">
+): string {
   const a = o.blockId ?? "";
   const b = o.conflictingBlockId ?? "";
   const [lo, hi] = a < b ? [a, b] : [b, a];

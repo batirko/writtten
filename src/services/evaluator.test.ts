@@ -1121,3 +1121,132 @@ describe("evaluator - block-removal race / liveness guard (L4)", () => {
     expect(db.saveBlockSummary).toHaveBeenCalled();
   });
 });
+
+describe("evaluator - suppression matching by anchor text (L5a)", () => {
+  const docId = "doc1";
+  const apiKey = "mock-key";
+  // "the moon is made of cheese" starts at offset 15, length 26 → ends at 41.
+  const text = "We assert that the moon is made of cheese here.";
+  const anchor = "the moon is made of cheese";
+
+  const fastWithUnsupported = {
+    text: JSON.stringify({
+      summary: "s",
+      claims: [],
+      unsupported_claim_observations: [{ text: "No evidence given", substring: anchor }],
+    }),
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(db.loadBlockSummary).mockResolvedValue(undefined);
+    vi.mocked(db.loadActiveObservationsForDocument).mockResolvedValue([]);
+    vi.mocked(db.loadActiveClaimsForDocument).mockResolvedValue([]); // no contradiction call
+  });
+
+  it("a span suppression with anchorText holds when offsets have shifted", async () => {
+    // Captured at stale offsets 0:5, but carries the anchor text.
+    vi.mocked(db.loadSuppressionsForDocument).mockResolvedValueOnce([
+      {
+        id: "s1",
+        docId,
+        type: "unsupported_claim",
+        kind: "problem",
+        severity: "medium",
+        spanSignature: "block1:0:5",
+        anchorText: anchor,
+      },
+    ]);
+    mockFast.mockResolvedValueOnce(fastWithUnsupported);
+
+    await evaluateBlock(docId, "block1", text, undefined, apiKey);
+
+    // Same block + same anchor text → suppressed despite the offset drift.
+    expect(db.saveObservation).not.toHaveBeenCalled();
+  });
+
+  it("a span suppression does NOT hold in a different block (same anchor text)", async () => {
+    vi.mocked(db.loadSuppressionsForDocument).mockResolvedValueOnce([
+      {
+        id: "s1",
+        docId,
+        type: "unsupported_claim",
+        kind: "problem",
+        severity: "medium",
+        spanSignature: "block1:0:5",
+        anchorText: anchor,
+      },
+    ]);
+    mockFast.mockResolvedValueOnce(fastWithUnsupported);
+
+    await evaluateBlock(docId, "block2", text, undefined, apiKey);
+
+    expect(db.saveObservation).toHaveBeenCalledWith(
+      expect.objectContaining({ type: "unsupported_claim", blockId: "block2" })
+    );
+  });
+
+  it("a legacy suppression (no anchorText) still matches by offset signature", async () => {
+    // anchorSubstring places the span at block1:15:41 for this text.
+    vi.mocked(db.loadSuppressionsForDocument).mockResolvedValueOnce([
+      {
+        id: "s1",
+        docId,
+        type: "unsupported_claim",
+        kind: "problem",
+        severity: "medium",
+        spanSignature: "block1:15:41",
+      },
+    ]);
+    mockFast.mockResolvedValueOnce(fastWithUnsupported);
+
+    await evaluateBlock(docId, "block1", text, undefined, apiKey);
+
+    expect(db.saveObservation).not.toHaveBeenCalled();
+  });
+
+  it("a contradiction suppression keyed on conflictPairKey suppresses the sweep re-emission", async () => {
+    const claimA = {
+      id: 1,
+      docId,
+      sourceBlockId: "blockA",
+      text: "Launch in Q3.",
+      kind: "commitment" as const,
+      status: "active" as const,
+    };
+    const claimB = {
+      id: 2,
+      docId,
+      sourceBlockId: "blockB",
+      text: "Launch is delayed to Q4.",
+      kind: "commitment" as const,
+      status: "active" as const,
+    };
+    vi.mocked(db.loadActiveClaimsForDocument).mockResolvedValue([claimA, claimB]);
+    vi.mocked(db.loadActiveObservationsForDocument).mockResolvedValue([]);
+    // Dismissed earlier as a per-section contradiction; suppression carries the
+    // offset-free pair key. The sweep anchors the pair whole-block (0:9999).
+    vi.mocked(db.loadSuppressionsForDocument).mockResolvedValue([
+      {
+        id: "s1",
+        docId,
+        type: "contradiction",
+        kind: "problem",
+        severity: "high",
+        spanSignature: "blockA:5:20|blockB:0:24", // stale per-section span sig
+        conflictPairKey: "contradiction::blockA|blockB",
+      },
+    ]);
+    mockStrong.mockResolvedValueOnce({
+      text: JSON.stringify({
+        contradictions: [{ claimAId: 0, claimBId: 1, message: "Q3 vs Q4." }],
+        tensions: [],
+      }),
+    });
+
+    await evaluateLedgerContradictions(docId, "Stage", apiKey);
+
+    expect(mockStrong).toHaveBeenCalledTimes(1); // sweep ran
+    expect(db.saveObservation).not.toHaveBeenCalled(); // but the pair is suppressed
+  });
+});
