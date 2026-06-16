@@ -1,5 +1,6 @@
 ---
 status: done
+kind: spec
 phases: [4, 5]
 summary: Repair document-scope observation reconciliation — replace type-bucketed positional supersession with best-match pairing + an absence grace period (Phase 4 correctness), then make re-evaluation resolution-aware and decide the harder reassessment forks (Phase 5).
 ---

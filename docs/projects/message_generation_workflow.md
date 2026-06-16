@@ -1,5 +1,6 @@
 ---
 status: done
+kind: spec
 phases: [1, 2, 3]
 summary: The contract between editor, evaluator, model router, and sidecar feed — when observations are generated, what context the LLM sees, how the feed behaves, and what the user feels.
 ---

@@ -1,5 +1,6 @@
 ---
 status: idea
+kind: spec
 phases: [5]
 summary: Build-ready specs for the three Phase 5 egress/install milestones — Markdown+PDF export, rich-text+Markdown copy, and PWA install/offline — scoped and decided so a mechanical agent can execute without judgment calls. Lean by design (print-to-PDF behind a seam; no library until it earns its place).
 ---

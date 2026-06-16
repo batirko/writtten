@@ -1,5 +1,6 @@
 ---
 status: in-progress
+kind: infra
 phases: [5]
 summary: The code-correctness hardening cluster from the 2026-06-10 code-architecture audit — repair the broken build/lint gates and add CI, then close the three silent-failure paths in the observation lifecycle (dead auto-close-on-deletion, the strong-call eval-wedge, the block-removal zombie-claim race) and make `anchorText` actually load-bearing so dismissals hold and highlights stay truthful through edits.
 ---

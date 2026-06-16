@@ -1,5 +1,6 @@
 ---
 status: idea
+kind: spec
 phases: [5]
 summary: A concrete, itemized accessibility & keyboard-first checklist for the feed and the hover/highlight interactions — enumerated to the point where a mechanical agent can execute item by item, with the few judgment-dependent items flagged for the product-feel pass.
 ---

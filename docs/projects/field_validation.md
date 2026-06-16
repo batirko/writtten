@@ -1,5 +1,6 @@
 ---
 status: idea
+kind: research
 phases: [5]
 summary: The 2026-06-10 due-diligence audit's headline work — falsify (or confirm) the central bet with evidence from outside the founder's own head. A base-rate corpus study over real PRDs, structured sessions with external PMs on their own drafts, and instrumentation that can finally see the hero capability's *misses* (not just its false positives). Scheduled as a parallel track that does not gate the Phase 5 UX polish.
 ---
@@ -16,7 +17,7 @@ Read alongside:
 
 - `docs/snapshots/2026-06-10_due_diligence_audit.md` — the source findings (this file's V-IDs map to its numbered findings).
 - `docs/product-requirements.md` (§3 — the silence/rhythm bet is "a bet, not a settled truth"; R4.4/R4.6 — the precision asymmetry and the load-bearing hero) — the theories this work tests.
-- `docs/projects/prompt_quality_observations.md` (OBS-010) — the one register-discipline field datum, which *contradicts* the register; V2 is its falsification.
+- `docs/logs/prompt_quality_observations.md` (OBS-010) — the one register-discipline field datum, which *contradicts* the register; V2 is its falsification.
 - `docs/projects/quality_remediation_synthesis.md` (R2 — severity ∝ maturity) — the hypothesis V2 confirms or kills.
 - `docs/projects/observation_taxonomy_and_priority.md` (Milestone C) — the Phase-6 decision-rigor taxonomy whose research gate **is** V1 (pulled forward).
 - `docs/projects/evaluator_quality_ratchet.md` — the corpus/scorer machinery V1 and V3 run on; the per-type-floor tightening (audit #7) is a new milestone there.

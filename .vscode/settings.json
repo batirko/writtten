@@ -1,0 +1,14 @@
+{
+  // Markdown formatting is routed to Prettier on purpose.
+  //
+  // The Projects Index in docs/plan.md uses inline links — [name](projects/name.md) —
+  // that docs/projects.index.test.ts requires. Some Markdown formatters (e.g. certain
+  // "Markdown All in One" / table-formatter setups) rewrite those link cells to bare
+  // text on save, which silently breaks the index test (this has shipped before — see
+  // the L1 milestone in docs/plan.md). Prettier preserves the links, so we pin it as the
+  // Markdown formatter and let it own format-on-save here.
+  "[markdown]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode",
+    "editor.formatOnSave": true
+  }
+}

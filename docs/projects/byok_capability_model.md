@@ -1,5 +1,6 @@
 ---
 status: in-progress
+kind: infra
 phases: [5, 6]
 summary: Decouple model *capability* from the *credential* for BYOK — `paidKey` conflated "I have a second key" with "my model can reason well enough." Phase 5 shipped (2026-06-06): explicit `ModelCapability` descriptor threaded via EvalContext, evaluator re-gated, UI key-tier toggle. Phase 6 (multi-key rotation) remains.
 ---

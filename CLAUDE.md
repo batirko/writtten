@@ -31,7 +31,8 @@ The principle has a finer edge than "no apply button," and three failure modes t
 | `docs/projects/`                               | Deeper design docs for specific features/subsystems. Each file is a self-contained spec with status, phased plan, and per-phase todo list.                                                                                                                                                                                                                          |
 | `docs/snapshots/`                              | Point-in-time reviews of product quality, test session results, and roadmap observations. Use to capture the state of the product over time.                                                                                                                                                                                                                        |
 | `docs/mechanics/`                              | Detailed behavioural docs for implemented mechanics — how things actually work in the running system (timing, triggers, state machines). No design speculation; these describe what is built. Read before touching the relevant subsystem. **When you change code that alters a documented mechanic, update the corresponding file here as part of the same task.** |
-| `docs/projects/prompt_quality_observations.md` | You observe a prompt producing a false positive, false negative, or systematic misclassification during any test, harness run, or manual eval. **Append an entry to the Observation Log** — don't fix it inline unless it's trivially obvious and safe. The file accumulates until a remediation sprint is scheduled.                                               |
+| `docs/logs/`                                   | Append-only field logs — the living observation logs (`prompt_quality_observations.md`, `ux_quality_observations.md`) that accumulate raw issues across test sessions until a remediation sprint drains them. Distinct from `docs/projects/` specs: logs never reach `done` and are intentionally **not** in the plan.md Projects Index. `docs/projects/quality_remediation_synthesis.md` is the analysis layer over both.                                                                                          |
+| `docs/logs/prompt_quality_observations.md` | You observe a prompt producing a false positive, false negative, or systematic misclassification during any test, harness run, or manual eval. **Append an entry to the Observation Log** — don't fix it inline unless it's trivially obvious and safe. The file accumulates until a remediation sprint is scheduled.                                               |
 
 **Always check `docs/plan.md` for the current phase before adding functionality.** Scope creep is the main risk on this project. If something belongs to a later phase, say so and don't build it.
 
@@ -46,15 +47,21 @@ The principle has a finer edge than "no apply button," and three failure modes t
 
 `docs/projects.index.test.ts` asserts that the folder, the index table, and each file's frontmatter stay consistent — so drift fails CI rather than going unnoticed.
 
+> **Index links are load-bearing — don't let a Markdown formatter eat them.** Each index row's name must stay an inline link `[name](projects/name.md)`; the test rejects bare text. Some editor Markdown formatters rewrite link cells to bare text on save (this has shipped before — see the L1 milestone below), which silently de-links the whole index. **Prettier preserves the links** (`npx prettier --write docs/plan.md` is the safe fix _and_ re-aligns the table); the repo's `.vscode/settings.json` pins Prettier as the Markdown formatter to stop the strip at the source. CI (`npm test`) is the backstop.
+
 | `status:`     | Meaning                                                             |
 | ------------- | ------------------------------------------------------------------- |
 | `idea`        | Design is written; not yet scheduled or started.                    |
 | `in-progress` | Actively being built (linked from current phase in `docs/plan.md`). |
 | `done`        | Fully shipped and verified.                                         |
 
+**Files are grouped by genre via the `kind:` frontmatter field.** Each project file declares a required `kind:` — one of `spec` (feature & platform build-ready specs) · `quality` (signal & philosophy quality) · `infra` (pipeline & dev infrastructure) · `research` (research & synthesis). The Projects Index in `docs/plan.md` is grouped under one `### ` sub-header per kind, and a file's row must sit under the sub-header matching its `kind`. The index test enforces both the valid `kind` and the correct grouping.
+
+**Living logs are not projects.** Append-only field logs (`prompt_quality_observations`, `ux_quality_observations`) live in `docs/logs/`, not here — they never reach `done` and are intentionally absent from the Projects Index and its completeness contract.
+
 **Each project file must contain** (in order):
 
-1. **YAML frontmatter** with `status`, `phases` (array of plan-phase numbers it spans), and a one-line `summary`.
+1. **YAML frontmatter** with `status`, `kind`, `phases` (array of plan-phase numbers it spans), and a one-line `summary`.
 2. A `## Status` block — human-readable phase scope. (Status badge is the frontmatter; don't duplicate a conflicting one here.)
 3. A `## Phased Plan` section — which plan phases this work spans and what each phase contributes.
 4. A `## Todo` section with a concrete checklist scoped per phase.

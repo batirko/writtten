@@ -1,5 +1,6 @@
 ---
 status: done
+kind: quality
 phases: [1, 2, 3]
 summary: Signal-to-noise findings from a real PRD paste-test — heading-only blocks hallucinate, the ledger self-pollutes, free-tier "strong" checks run on a weak model and emit confident false contradictions, and observations duplicate; with a prioritized remediation plan.
 ---

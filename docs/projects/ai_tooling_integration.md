@@ -1,5 +1,6 @@
 ---
 status: idea
+kind: infra
 phases: [3, 4, 5]
 summary: SkillOpt, LEANN, and markitdown — external tooling anchored to specific product phases; when to adopt, what prerequisite each needs, and how to use each.
 ---

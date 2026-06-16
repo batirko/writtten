@@ -1,5 +1,6 @@
 ---
 status: idea
+kind: quality
 phases: [5]
 summary: Make the feed's voice intentional — a persona spec (trusted senior colleague), the wrong-persona anti-patterns, a message voice/copy guide, and tone as a labeled eval dimension — so the emotional register that determines whether critique-without-a-fix is bearable is designed, not incidental.
 ---
@@ -16,7 +17,7 @@ Read alongside:
 
 - `docs/product-requirements.md` § 6 (the requirement) and `docs/features.md` → _Emotional register_ (the product-level home).
 - `docs/projects/philosophy_guardrails.md` (G3 owns the _structural_ no-disguised-fix rule; this project owns the _felt-tone_ half — the cold-fix failure mode).
-- `docs/projects/prompt_quality_observations.md` (where tone violations get logged in the field).
+- `docs/logs/prompt_quality_observations.md` (where tone violations get logged in the field).
 - `docs/projects/evaluator_quality_ratchet.md` (where the tone eval dimension plugs in).
 
 ## Phased Plan

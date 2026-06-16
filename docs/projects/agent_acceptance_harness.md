@@ -1,5 +1,6 @@
 ---
 status: done
+kind: infra
 phases: [1, 2]
 summary: A dev-only agent harness — debug state API, structured event stream, readiness signal, seedable state, and mock LLM — so acceptance tests run deterministically and an agent can observe app internals.
 ---
