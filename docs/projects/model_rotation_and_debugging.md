@@ -1,5 +1,6 @@
 ---
 status: done
+kind: spec
 phases: [1, 3]
 summary: Handles Gemini free-tier rate limits via call batching, model rotation, and a debug panel; adds local Ollama fallback for offline dev.
 ---

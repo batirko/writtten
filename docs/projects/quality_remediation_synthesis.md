@@ -1,12 +1,13 @@
 ---
 status: idea
+kind: research
 phases: [4, 5, 6]
 summary: Root-cause synthesis of the prompt-quality and UX-quality observation logs — collapses the ~32 field-observed issues into a handful of cross-cutting root causes, sequences the fixes, and names which are Phase 4 acceptance blockers vs. later remediation.
 ---
 
 # Quality Remediation Synthesis
 
-> Reads the two living logs — `docs/projects/prompt_quality_observations.md` (OBS-NNN) and `docs/projects/ux_quality_observations.md` (UX-NNN) — as a whole, not a list. The logs keep accumulating raw observations; **this file is the analysis layer** that groups them by shared root cause and turns them into a sequenced remediation plan. Every active observation in both logs is referenced by exactly one theme below (see the **Coverage matrix**).
+> Reads the two living logs — `docs/logs/prompt_quality_observations.md` (OBS-NNN) and `docs/logs/ux_quality_observations.md` (UX-NNN) — as a whole, not a list. The logs keep accumulating raw observations; **this file is the analysis layer** that groups them by shared root cause and turns them into a sequenced remediation plan. Every active observation in both logs is referenced by exactly one theme below (see the **Coverage matrix**).
 
 ## Status
 

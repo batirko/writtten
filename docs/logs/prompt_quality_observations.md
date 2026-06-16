@@ -158,7 +158,7 @@ Each entry follows the format:
 
 ### OBS-008 — Unanchored observations (missing topics) lack distinct visual treatment
 
-> _Migrated to `docs/projects/ux_quality_observations.md` as UX-001_
+> _Migrated to `docs/logs/ux_quality_observations.md` as UX-001_
 
 ---
 
@@ -190,7 +190,7 @@ Each entry follows the format:
 
 ### OBS-011 — Archived messages lack document context
 
-> _Migrated to `docs/projects/ux_quality_observations.md` as UX-002_
+> _Migrated to `docs/logs/ux_quality_observations.md` as UX-002_
 
 ---
 
@@ -213,7 +213,7 @@ Each entry follows the format:
 
 ### OBS-013 — Opaque prioritization between primary feed and "also noticed"
 
-> _Migrated to `docs/projects/ux_quality_observations.md` as UX-003_
+> _Migrated to `docs/logs/ux_quality_observations.md` as UX-003_
 
 ---
 

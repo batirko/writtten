@@ -1,5 +1,6 @@
 ---
 status: done
+kind: spec
 phases: [4]
 summary: Evaluate multi-section drafts on bulk paste/import — fast-tier span checks per section plus one ledger-internal contradiction sweep — instead of the dead silence (paste) or N paid-tier-call burst (import) the section-departure model produced.
 ---

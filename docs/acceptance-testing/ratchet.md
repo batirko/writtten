@@ -132,4 +132,4 @@ Current seed cases in `src/services/eval-fixtures/`:
 | `jargon-allowlist`          | Preset terms suppressed; genuinely undefined term fires (OBS-003/005 tracking)        |
 | `clean-doc`                 | Clean, specific section → zero observations (false-positive guard)                    |
 
-Corpus grows over time. The `prompt_quality_observations.md` remediation sprint will add regression cases for each OBS-001…005 fix.
+Corpus grows over time. The `docs/logs/prompt_quality_observations.md` remediation sprint will add regression cases for each OBS-001…005 fix.

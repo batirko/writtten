@@ -1,5 +1,6 @@
 ---
 status: idea
+kind: spec
 phases: [5]
 summary: Build-ready spec for R3b — make the archive trustworthy by persisting each observation's original anchored text ("ghost anchor") and an explicit closure reason, then rendering both on archive cards. Two new persisted fields + a migration + capture at the five archival sites + a card render change.
 ---

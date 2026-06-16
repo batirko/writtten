@@ -1,5 +1,6 @@
 ---
 status: done
+kind: spec
 phases: [4]
 summary: Redesign the evaluation unit from individual ProseMirror blocks to semantic sections (heading + body), unifying the typing and paste workflows and eliminating the heading-hallucination class of bugs.
 ---

@@ -1,5 +1,6 @@
 ---
 status: in-progress
+kind: infra
 phases: [4, 5]
 summary: Redesign the debug/observability log into one call-centric, self-describing event model — merge request+response, dereference static prompts, add archival (user + system) records, and unify the two divergent logs — optimized for human reading and AI consumption (automated testing or pasted-by-user).
 ---

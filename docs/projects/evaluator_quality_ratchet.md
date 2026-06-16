@@ -1,5 +1,6 @@
 ---
 status: done
+kind: infra
 phases: [4, 5]
 summary: Labeled fixture corpus + two-tier scorer (deterministic replay + opt-in live precision/recall) wired into Vitest so evaluator recommendation accuracy can't silently regress as prompts change. (Machinery shipped in Phase 4; a Phase 5 follow-on tightens the bar per the 2026-06-10 audit.)
 ---
