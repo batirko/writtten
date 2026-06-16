@@ -1,14 +1,17 @@
 {
-  // Markdown formatting is routed to Prettier on purpose.
+  // Force *.md to open in VS Code's built-in PLAIN-TEXT editor in this workspace.
   //
-  // The Projects Index in docs/plan.md uses inline links — [name](projects/name.md) —
-  // that docs/projects.index.test.ts requires. Some Markdown formatters (e.g. certain
-  // "Markdown All in One" / table-formatter setups) rewrite those link cells to bare
-  // text on save, which silently breaks the index test (this has shipped before — see
-  // the L1 milestone in docs/plan.md). Prettier preserves the links, so we pin it as the
-  // Markdown formatter and let it own format-on-save here.
-  "[markdown]": {
-    "editor.defaultFormatter": "esbenp.prettier-vscode",
-    "editor.formatOnSave": true
+  // The "Markdown Studio" extension (tanishq-chaudhary.its-markdown-studio)
+  // registers a WYSIWYG custom editor for *.md with priority "default" and
+  // autoSave on. Opening a Markdown file there re-serializes it on save, and its
+  // serializer drops inline links inside table cells — which silently strips the
+  // [name](projects/name.md) links in docs/plan.md's Projects Index that
+  // docs/projects.index.test.ts requires (this has broken the index repeatedly).
+  //
+  // With this association, Markdown files open as text and are never re-serialized.
+  // To deliberately use the rich editor on a file: right-click it →
+  // "Reopen Editor With…" → "Markdown Studio".
+  "workbench.editorAssociations": {
+    "*.md": "default"
   }
 }
