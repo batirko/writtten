@@ -13,16 +13,16 @@ summary: Decouple model *capability* from the *credential* for BYOK — `paidKey
 
 > Canonical status lives in the frontmatter above and is mirrored in the Projects Index in `docs/plan.md`. This block carries the human-readable scope only.
 
-**Status: `in-progress`** (Phase 5 shipped 2026-06-06; Phase 6 remaining). The credential→capability decoupling is done: an explicit `ModelCapability` descriptor (`src/model/capability.ts`) is decided once at the App boundary and threaded through `EvalContext`; the evaluator branches on it, never on `paidKey` presence; a UI toggle lets a BYO key declare itself capable. The architecture now *takes BYOK without major refactoring* — confirmed by doing it. Phase 6 (multi-key rotation) is the remaining, additive piece (contained in `gemini.ts`).
+**Status: `in-progress`** (Phase 5 shipped 2026-06-06; Phase 6 remaining). The credential→capability decoupling is done: an explicit `ModelCapability` descriptor (`src/model/capability.ts`) is decided once at the App boundary and threaded through `EvalContext`; the evaluator branches on it, never on `paidKey` presence; a UI toggle lets a BYO key declare itself capable. The architecture now _takes BYOK without major refactoring_ — confirmed by doing it. Phase 6 (multi-key rotation) is the remaining, additive piece (contained in `gemini.ts`).
 
 This is **model-router / capability-gating** work — client-side, no server/telemetry/egress (standing rule 5). BYOK is the privacy-respecting heavy-user path already assumed by `docs/concept.md` ("BYO-key design already means heavy users pay their own inference costs").
 
 ## Phased Plan
 
-| Phase | Contribution |
-| ----- | ------------ |
+| Phase | Contribution                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| ----- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **5** | **Capability decoupling (the debt).** Replace the `paidKey?: string` capability-predicate threaded through the evaluator with an explicit capability descriptor decided once at the `createRouter` boundary. Credential stays in the router for routing/quota; capability is what reconciliation branches on. Wire the UI BYO key (today only `apiKey`) into a declarable tier so a capable single key drives the strong path. Contained: ~5 signatures, no logic rewrite. |
-| **6** | **Multi-key rotation (additive).** Extend each rotation pool from "models on one key" to "(key, model) pairs"; key the cool-down registry by `key+model`. Fully contained in `gemini.ts` — zero call-site impact behind the `ModelRouter` interface. Optional richer capability tiers (mid-capability BYO models). |
+| **6** | **Multi-key rotation (additive).** Extend each rotation pool from "models on one key" to "(key, model) pairs"; key the cool-down registry by `key+model`. Fully contained in `gemini.ts` — zero call-site impact behind the `ModelRouter` interface. Optional richer capability tiers (mid-capability BYO models).                                                                                                                                                         |
 
 ## Todo
 
@@ -40,6 +40,18 @@ This is **model-router / capability-gating** work — client-side, no server/tel
 - [ ] Key `CoolDownRegistry` by `key+model` (today: `model`).
 - [ ] Optional: a third capability tier for mid-capability BYO models (local Llama, Haiku) — better than flash-lite but not trusted to drive authoritative closures.
 
+### Phase 6 — BYOK management UX (the surface multi-key enables)
+
+The rotation plumbing above is invisible to the user; this is the UI over it. Today the BYO surface is one key field + one "this is a capable model" checkbox (`SidecarFeed.tsx`). The richer surface:
+
+- [ ] **Multiple keys.** Let the user add/remove several keys (entry + validation), persisted client-side.
+- [ ] **"Here are your models, here's how we use them."** Show, per key, which models it grants and how the router uses each (which check runs fast vs strong, what each tier means for observation quality). This is the "want to change something?" view — readable, not a raw config dump.
+- [ ] **Optional routing override.** Let an advanced user pin a model to a tier, on top of the `capability.ts` descriptor (which already decouples credential from capability — so this is UI over an existing seam, not a re-architecture).
+- [ ] **Provider scope decision.** Which providers this surface offers — Gemini today; OpenAI / Anthropic / local adapters are an **unspecced open question** (the `ModelRouter` seam permits them but no adapter is written — see plan Discovered/unscheduled). Decide whether the management UX is Gemini-only or multi-provider before building it.
+- [ ] Stays fully client-side (standing rule 5) — no key ever leaves the machine except as the auth header on the user's own model calls.
+
+> Tracked as the **BYOK management UX** milestone in `docs/plan.md` (Phase 6). Promoted out of "Out of scope" below now that it has a home.
+
 ## The finding
 
 ### `paidKey` is one word doing three jobs
@@ -48,7 +60,7 @@ Across the codebase `paidKey?: string` is overloaded with three concerns that **
 
 1. **A credential** — which key to authenticate with (`gemini.ts`).
 2. **A quota strategy** — which RPD-ordered pool to rotate (`FREE_*_POOL` vs `PAID_*_POOL`, `gemini.ts:33–56`).
-3. **A capability claim** — "this model can reason well enough." This is what every `if (paidKey)` in `evaluator.ts` *actually means*: confident vs hedged prompts (`:799`), resolution-aware doc regen (`:963`, Tier-2 A), authoritative-with-grace sweep (`:1141`, Tier-2 B).
+3. **A capability claim** — "this model can reason well enough." This is what every `if (paidKey)` in `evaluator.ts` _actually means_: confident vs hedged prompts (`:799`), resolution-aware doc regen (`:963`, Tier-2 A), authoritative-with-grace sweep (`:1141`, Tier-2 B).
 
 For the default pack these are the same fact (paid key → strong pool → `gemini-2.5-pro` → capable). For BYOK they split.
 
@@ -60,10 +72,10 @@ For the default pack these are the same fact (paid key → strong pool → `gemi
 
 ### Two BYOK scenarios, one root cause
 
-| Scenario | Was broken | Now |
-| --- | --- | --- |
+| Scenario                           | Was broken                                                                           | Now                                                                                                                                              |
+| ---------------------------------- | ------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------ |
 | **One capable key for everything** | Treated as `freeKey`; `strong()` → flash-lite pool; hedged + no resolution-awareness | ✅ Phase 5: declare tier strong → key promoted to `paidKey` slot, `strong()` routes to it, capability enables confident + resolution-aware paths |
-| **Several keys for rotation** | No path — pools rotate models on a single key | ⏳ Phase 6: pool entries become `{key, model}`; cool-down keyed by `key+model`; capability is the pool's configured floor |
+| **Several keys for rotation**      | No path — pools rotate models on a single key                                        | ⏳ Phase 6: pool entries become `{key, model}`; cool-down keyed by `key+model`; capability is the pool's configured floor                        |
 
 ## What's already clean (no rework needed)
 
@@ -77,9 +89,9 @@ The hard seams are sound:
 
 ## The decision: credential ≠ capability
 
-**Branch reconciliation on an explicit capability descriptor decided once at the boundary; keep the credential in the router for routing/quota.** This is a rename-and-relocate, not a rewrite — the router interface, every `router.fast/strong` call shape, the mock layer, and the reconciliation logic itself are untouched. Only the *source* and *type* of the gating boolean change. The Tier-2 work in `doc_scope_reconciliation.md` is safe under this: it already branches on a capability flag that today happens to be spelled `paidKey`.
+**Branch reconciliation on an explicit capability descriptor decided once at the boundary; keep the credential in the router for routing/quota.** This is a rename-and-relocate, not a rewrite — the router interface, every `router.fast/strong` call shape, the mock layer, and the reconciliation logic itself are untouched. Only the _source_ and _type_ of the gating boolean change. The Tier-2 work in `doc_scope_reconciliation.md` is safe under this: it already branches on a capability flag that today happens to be spelled `paidKey`.
 
-Two things to bake in *while* doing the rename, cheaply:
+Two things to bake in _while_ doing the rename, cheaply:
 
 - **Capability is not binary.** A BYO user may bring a mid model (local Llama, Haiku) that beats flash-lite but shouldn't be trusted to drive authoritative closures. The resolution-aware features need "a genuine reasoning model" — a per-capability judgment, not free-vs-paid. Type the descriptor so a third tier doesn't force another cross-cutting sweep, even if only two values are used now.
 - **Read capability from config, not `import.meta.env`.** That's where "one capable key for everything" gets answered: the user (or a sane default) declares the key's tier, and `strong()` routes to it.

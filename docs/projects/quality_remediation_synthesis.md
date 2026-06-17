@@ -56,7 +56,7 @@ The strong-tier doc schema only returns `{"text": "..."}`. Consequences:
 - With no proper home, the model **dumps** unsupported-claim complaints into `audience_mismatch` (**OBS-018**) — a claim-evidence judgment that belongs in the fast tier.
 - Phrasing **blurs categories**: `structure_flow` ("before _fully defining_ the problem") reads as a depth critique when the real issue is ordering (**OBS-016**).
 
-One schema change — let doc-level checks optionally return anchoring targets — plus prompt tightening fixes OBS-015, OBS-016, OBS-018, UX-001, and UX-009 together. The already-shipped `strategic_tension` split (**OBS-004**, done 2026-06-04) is the precedent: give the model the right bucket and the misclassification stops.
+One schema change — let doc-level checks optionally return anchoring targets — plus prompt tightening fixes OBS-015, OBS-016, OBS-018, UX-001, and UX-009 together. The already-shipped `strategic_tension` split (**OBS-004**, done 2026-06-04) is the precedent: give the model the right bucket and the misclassification stops. **Graduated into its own build-ready spec (2026-06-17): `docs/projects/doc_level_anchoring.md`** — decision: section-level anchoring (blockId) + optional substring fallback, since the doc-level model reasons over summaries, not verbatim text.
 
 ### R5 — Text extraction drops block separators
 

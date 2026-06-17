@@ -27,10 +27,10 @@ Read alongside:
 
 ## Phased Plan
 
-| Phase | Contributes |
-| --- | --- |
+| Phase | Contributes                                                                                                                                                                                                                  |
+| ----- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **4** | **G1** kind/severity-aware dismissal suppression (flattery guard) and **G2** explicit anti-taxonomy negative list + ratchet fixture. Both directly serve the Phase 4 exit criterion that the feed is calm _and trustworthy_. |
-| **5** | **G3** no-disguised-fix register rule hardened with a message lint/fixture; **G4** discomfort-budget ceiling on the contradiction floor. Land once the core loop is worth living in. |
+| **5** | **G3** no-disguised-fix register rule hardened with a message lint/fixture; **G4** discomfort-budget ceiling on the contradiction floor. Land once the core loop is worth living in.                                         |
 
 ## Todo
 
@@ -46,7 +46,7 @@ Read alongside:
   - [ ] Add an explicit negative-list instruction to the span-check prompt (`src/services/evaluator.ts` ~L277–291): never flag grammar, spelling, punctuation, passive voice, sentence length, word choice, readability, "consider rephrasing."
   - [ ] Add a ratchet fixture (`src/services/eval-fixtures/`) whose labeled expectation asserts none of these categories appear on a deliberately surface-flawed-but-substantively-clean doc.
   - [ ] Wire the assertion into the Tier-1 deterministic scorer so a prompt regression fails CI.
-  - [ ] **`clarity` discrimination fixtures** (2026-06-10 due-diligence audit #8). The negative-list keeps surface nits off the *positive* taxonomy, but `clarity` ("ambiguous, vague, or hard-to-parse passage") is the slot a sentence-length/word-choice nit dresses itself up in — "this sentence is hard to parse" is a readability complaint wearing a meaning costume, and the model has been shown to ignore verbatim negative examples (OBS-019). Add per-type discrimination fixtures: passages that are *surface-flawed but substantively clear* and must **not** fire `clarity`, paired with genuinely ambiguous ones that must. One anti-taxonomy doc won't catch this drift; the gravity well arrives *through* `clarity`, not around the taxonomy.
+  - [ ] **`clarity` discrimination fixtures** (2026-06-10 due-diligence audit #8). The negative-list keeps surface nits off the _positive_ taxonomy, but `clarity` ("ambiguous, vague, or hard-to-parse passage") is the slot a sentence-length/word-choice nit dresses itself up in — "this sentence is hard to parse" is a readability complaint wearing a meaning costume, and the model has been shown to ignore verbatim negative examples (OBS-019). Add per-type discrimination fixtures: passages that are _surface-flawed but substantively clear_ and must **not** fire `clarity`, paired with genuinely ambiguous ones that must. One anti-taxonomy doc won't catch this drift; the gravity well arrives _through_ `clarity`, not around the taxonomy.
 
 ### Phase 5
 
@@ -54,9 +54,11 @@ Read alongside:
   - [ ] Prompt rule across all observation prompts: messages locate, never prescribe; no leading/Socratic questions; no replacement text. (Partly present — make it explicit and uniform.)
   - [ ] Message lint / fixture: assert no generated message contains an imperative-prescription pattern ("you need…", "add…", "change…") or a `?`-terminated leading clause.
   - [ ] Hand the felt-tone half to `emotional_register.md`.
-- [ ] **G4 — Discomfort-budget ceiling (R6.3).**
-  - [ ] Decide whether the contradiction floor in `src/sidecar/feedBudget.ts` needs a ceiling so a doc with many hard critiques doesn't surface them all at once.
-  - [ ] If yes: cap floored items, overflow into the "also noticed" drawer ordered by priority; unit-test the partition.
+- [ ] **G4 — Discomfort-budget ceiling (R6.3).** _Decision settled 2026-06-17: **floor + ceiling hybrid** (§ G4)._
+  - [ ] Add a contradiction floor+ceiling to `partitionFeed` (`src/sidecar/feedBudget.ts`): reserve up to `CONTRADICTION_CEILING` (default **3**) visible slots for the top-priority `contradiction` groups so a nit can never displace a contradiction (floor); cap visible contradictions at the same number so extras overflow even if priority would otherwise seat them (ceiling). Fill the remaining budget with the top non-contradiction groups by priority. Use the existing `hasContradiction` flag on `GroupedObservation` (`obsAggregation.ts:20`).
+  - [ ] Signpost the overflow: when contradictions overflow into "also noticed", surface them under an explicit **"N more contradictions"** label (not buried among nits) so the user knows hard items await. (SidecarFeed "also noticed" drawer.)
+  - [ ] Correct the now-misleading `feedBudget.ts` comments (L51, L69 claim a "discomfort-budget ceiling" that is actually a uniform cap with no contradiction floor/ceiling) to describe the implemented floor+ceiling.
+  - [ ] Unit-test the partition: (a) ≤3 contradictions all stay visible even against many higher-count nits (floor holds); (b) >3 contradictions → exactly 3 visible, rest in "also noticed" under the signpost (ceiling holds); (c) `strategic_tension` is **not** floored (opportunity, never cried-wolf — features.md).
 
 ## Design
 
@@ -79,4 +81,18 @@ The disguised fix (leading questions) and the cold fix (hostile tone) are the tw
 
 ### G4 — Discomfort-budget ceiling
 
-The budget feed caps the _count_ of visible cards, but the `contradiction` floor exempts contradictions from the budget — so a document with six real contradictions surfaces all six, which the requirements doc warns is demoralizing regardless of accuracy (R6.3). The open question is whether the floor needs a ceiling, and if so how overflow is signposted so the user knows more hard items await without being hit by all of them at once.
+**The problem (R6.3).** Too much true-but-hard critique at once is demoralizing _regardless of accuracy_. Contradictions are the highest-weight item, so a document with many real contradictions is exactly the case the requirements doc warns against.
+
+**Drift found 2026-06-17.** The feature docs (`features.md`, and the prior version of this section) describe a `contradiction` _floor_ that **exempts** contradictions from the budget — guaranteeing they always show. But the code diverged: commit `b7b3780` ("implement discomfort-budget ceiling") made `partitionFeed` a **uniform top-N cap** with no contradiction floor _or_ ceiling — every group, contradictions included, competes for the same `DEFAULT_FEED_BUDGET` (7) slots by priority. The `feedBudget.ts` comments still claim a "discomfort-budget ceiling," which is misleading. So neither the floor (guaranteed visibility) nor an explicit ceiling (capped count) actually exists today.
+
+**The tension this exposes.** A pure floor (always show all contradictions) protects the hero capability but reintroduces the wall-of-red R6.3 warns against. A pure cap (current code) avoids the wall but can bury a real contradiction below the budget in the generic "also noticed" — corrosive for a product whose whole pitch is contradiction-at-distance.
+
+**Decision (2026-06-17): floor + ceiling hybrid.** Reconcile both, parameterised by a single constant `CONTRADICTION_CEILING` (default **3**):
+
+- **Floor (hero protection):** the top-priority `contradiction` groups are guaranteed visible up to the ceiling — a lower-priority nit can never displace a contradiction from the visible set.
+- **Ceiling (overwhelm protection):** at most `CONTRADICTION_CEILING` contradictions are visible at once. If a document has more, the extras overflow into "also noticed" — _even if_ their priority would otherwise seat them in the budget.
+- **Overflow signpost:** overflowing contradictions appear in "also noticed" under an explicit **"N more contradictions"** label, so the user knows hard items await without being hit by all of them at once (this is the R6.3 "rhythm" — surfacing hard truths in waves, not a dump).
+- **Remaining budget:** filled by the top non-contradiction groups by priority (unchanged behaviour).
+- **Scope:** the floor/ceiling applies only to `type === "contradiction"` (use the existing `hasContradiction` flag). `strategic_tension` is deliberately excluded — it's an `opportunity`, softer register, "never cried wolf" (features.md), so it neither needs the floor nor counts against the ceiling.
+
+This is a small, well-bounded change to the pure `partitionFeed` function plus one labelled drawer section — "High-decision / Low-build," now decided. It interacts with `emotional_register.md` (the _phrasing_ of each contradiction) only at the level of total emotional load: G4 governs _how many_ surface at once; emotional*register governs \_how each reads*.

@@ -85,6 +85,9 @@ The first observation a user ever sees (in their own doc) is the real first impr
 First-run asks for nothing:
 
 - **No stage form.** The stage is _inferred_ once enough content exists and shown back for one-click confirm (features.md → stage inference). A blank-field setup step would starve exactly the checks that need it and contradict the calm posture.
+
+  > **Open: discoverability of the stage field (flagged 2026-06-17).** "No first-run form" must not mean "permanently hidden." Today the combined **Document Context / Stage** field (it's already _one_ input, not two — `SidecarFeed.tsx`) lives only behind the settings gear, so a user who wants to set context — or who got a wrong/empty inference — may never find it. The decision (own it here or on the plan's _Document Context / Stage discoverability_ milestone): make the field **reachable and legible without a setup gate** — e.g. surface it when inference is low-confidence/absent, or via a quiet always-available affordance — while preserving the no-upfront-setup posture. The inferred-context chip already handles the happy path; this is the fallback when inference isn't enough.
+
 - **No API-key gate.** The free tier runs keyless. BYO-key lives in settings; any nudge toward it is quiet and surfaces only _after_ the user has seen value, never as a first-run blocker.
 
 > **Open dependency (not resolved here):** whether the free tier is a _real tier_ or a _demo_ is a strategic open question (`docs/plan.md`; `field_validation.md` V1 measures the free-vs-paid delta). If evidence later shows BYO-key is effectively required to meet the fidelity bar, the first-run posture above (keyless, no nudge) is the thing that changes — the welcome/example/empty-state design holds either way. Flagged so the build doesn't hard-code an assumption that a later decision may overturn.

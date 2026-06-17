@@ -41,6 +41,7 @@ Anchor files: `src/sidecar/SidecarFeed.tsx` (feed, cards, drawers, dismiss), `sr
 - [ ] **Card anatomy ordering** — confirm the DOM order matches the visual_style card spec (impact dot → tag → dismiss; body; "also noticed"); the quoted-text subtitle is R7b/UX-008, not built here (§ C4).
 - [ ] **Two-drawer contract** — distinguish and document the per-card group drawer (`expanded`, "N more on this passage") from the feed-level budget drawer (`showAlsoNoticed`, "also noticed"); consistent toggle affordance, `aria-expanded`/`aria-controls` (already present), token-driven reveal (§ C5).
 - [ ] **Document-scope hover** — doc-level observations (no span) show the "whole document" affordance on hover instead of a span highlight (§ C6); verify it's distinct and calm.
+- [ ] **Highlight density / auto-highlight decision (§ C7)** — resolve always-on vs on-interaction vs user-toggle for span highlights (today: all active spans highlighted persistently, hover only boosts). Implement the chosen default with visual_style highlight tokens; preserve dual-span contradiction behaviour.
 - [ ] **Consistency pass** — one hover/transition language across all of the above: only the visual_style `--dur-*`/`--ease-*` tokens, `transform`/`opacity` only, reduced-motion honored (§ Consistency rules).
 
 ## Design
@@ -96,6 +97,18 @@ Both use the visual_style reveal (slide+fade, `--dur-base`/`--ease-out`, reduced
 #### C6 — Document-scope hover affordance
 
 Doc-level observations (`missing_topic`, `structure_flow`, `audience_mismatch`, doc-scope `underexposed_topic`) have no span. On hover/focus they show a subtle **"whole document"** affordance (per features.md → Anchoring) rather than a span highlight — e.g. a calm edge indication on the editor column, not an alarm. Distinct from span highlights; never a full-canvas flash.
+
+#### C7 — Highlight density / auto-highlight (OPEN DECISION)
+
+**Today, every active span observation is highlighted _persistently_** — `ObservationHighlighter` decorates all `scope === "span" && status === "active"` observations on every rebuild (`ObservationHighlighter.ts`), and hover only _intensifies_ via `obs-highlight-hovered` (`styles.css`). So C1's "hover highlights" is really "hover boosts an already-on highlight." On a doc with many active observations the canvas can read as **busy/marked-up**, which sits in tension with the calm-editorial canvas (`visual_style`) and the "your text is yours" stance.
+
+The decision (unresolved — settle in this pass):
+
+- **(a) Keep always-on** — every active span tinted by default; hover boosts. Maximally discoverable (the user sees there's something to look at), but can feel like markup on a dense doc.
+- **(b) Highlight-on-interaction** — spans are _un_-highlighted at rest; a span lights up only when its card is hovered/focused (and the reverse, R7b/UX-006, when built). Calmest canvas; risk that observations feel "hidden" and the user doesn't realize the feed maps to text.
+- **(c) User toggle** — a quiet control ("show highlights: always / on hover") defaulting to one of the above. Honest, but adds a setting to a deliberately zero-config product (cross-ref the R2c smart-feed-vs-manual-control tension).
+
+**Recommendation (for debate, not decided):** default to a _gentler always-on_ (much lower-contrast at-rest wash than today, strong boost on interaction) so discoverability survives without the marked-up feeling; reserve a toggle for later only if dogfooding shows the at-rest wash still distracts. Whatever is chosen, it must honor the contradiction/strategic_tension dual-span behaviour (C1) and the visual_style highlight tokens. → tracked on the **UI/UX mechanics pass** milestone in `docs/plan.md`.
 
 ### Scope boundaries (what this pass does NOT own)
 

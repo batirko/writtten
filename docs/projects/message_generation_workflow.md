@@ -95,7 +95,7 @@ What a single user session looks like when the whole pipeline works as intended.
 
 > A few minutes in, she hasn't typed for about fifteen seconds. A `doc-idle` trigger fires. One `strong`-tier call covers `missing_topic`, `audience_mismatch`, and `structure_flow` against her summaries + ledger + stage. Two new observations land at the top of the feed, in a pinned "About this document" group: _"No mention of rollout plan — typical for a PRD"_ and _"Section 3 reads more like a status update than a spec."_ Her existing span observations are untouched.
 
-> One of those — the missing-rollout one — she disagrees with. She clicks the dismiss `×`. It animates out. Behind the scenes a suppression record gets written. The next doc-level run will not re-raise it, and the system prompt for that run will include a line: _"User has dismissed missing_topic:rollout_plan — do not re-raise."_
+> One of those — the missing-rollout one — she disagrees with. She clicks the dismiss `×`. It animates out. Behind the scenes a suppression record gets written. The next doc-level run will not re-raise it — the re-emitted observation is filtered out locally before it reaches the feed. _(As-built this is local-only filtering; the model is not told. See §9 for the drift note on the originally-specced prompt-injection variant.)_
 
 > She deletes paragraph 2 entirely. Its two observations leave the feed quietly. A contradiction in paragraph 5 that referenced a claim from paragraph 2 also auto-closes — its other side is gone.
 
@@ -189,13 +189,13 @@ Every LLM-bound call originates from exactly one of these triggers. The set is c
 ```ts
 type EvalTrigger =
   | { kind: "block-settle-pause"; blockId: string; reason: "terminal-punc+idle" }
-  | { kind: "block-settle-blur";  blockId: string; reason: "cursor-departed-block" }
-  | { kind: "block-settle-blur";  blockId: string; reason: "window-blurred" }
-  | { kind: "block-removed";      blockId: string }
-  | { kind: "block-paste";        blockIds: string[]; reason: "large-paste" }
-  | { kind: "doc-idle";           reason: "no-edits-15s+content-threshold" }
+  | { kind: "block-settle-blur"; blockId: string; reason: "cursor-departed-block" }
+  | { kind: "block-settle-blur"; blockId: string; reason: "window-blurred" }
+  | { kind: "block-removed"; blockId: string }
+  | { kind: "block-paste"; blockIds: string[]; reason: "large-paste" }
+  | { kind: "doc-idle"; reason: "no-edits-15s+content-threshold" }
   | { kind: "stage-changed" }
-  | { kind: "manual-rescan" };          // explicit user gesture, Phase 4+; not now
+  | { kind: "manual-rescan" }; // explicit user gesture, Phase 4+; not now
 ```
 
 ### What each trigger does
@@ -283,7 +283,7 @@ The behavior described in [§4](#4-the-user-perceptible-behavior-model) imposes 
 
 **Priority governs membership; document-order governs display.** Two separate concerns:
 
-1. **Budget selection (by priority):** `partitionFeed()` in `src/sidecar/feedBudget.ts` sorts all active observations by `priority` descending and takes the top-N (default N=7) as the visible set. This is *selection*, not display — it decides which observations are in the main feed vs. the "also noticed" drawer.
+1. **Budget selection (by priority):** `partitionFeed()` in `src/sidecar/feedBudget.ts` sorts all active observations by `priority` descending and takes the top-N (default N=7) as the visible set. This is _selection_, not display — it decides which observations are in the main feed vs. the "also noticed" drawer.
 
 2. **Display (document-order):** within each group (visible or also-noticed), observations are sorted by the document position of their anchor block (top-of-doc first), then by `startOffset`. Document-scoped observations (no `blockId`) sort to the bottom of their group. A newly-arriving observation slots into its natural document position — **the rest of the feed does not shuffle** (feed stability preserved).
 
@@ -291,7 +291,7 @@ The behavior described in [§4](#4-the-user-perceptible-behavior-model) imposes 
 
 4. **"Also noticed" drawer:** overflow observations below the budget live in a collapsed drawer (`data-testid="also-noticed-drawer"`) below the main list. These are real active observations with full hover/dismiss behaviour — they are never dropped, just deprioritised.
 
-Open-Q#1 (*"doc-order or recency?"*) is **resolved**: document-order. Open-Q#2 (pinned "About this document" group for doc-scoped observations) remains a styling refinement for a later phase.
+Open-Q#1 (_"doc-order or recency?"_) is **resolved**: document-order. Open-Q#2 (pinned "About this document" group for doc-scoped observations) remains a styling refinement for a later phase.
 
 ### Arrival animation
 
@@ -327,27 +327,29 @@ Every evaluation builds an **envelope** describing what the model gets to see. E
 ```ts
 interface ContextEnvelope {
   // Always:
-  stage?: string;                          // current stage definition, if any
+  stage?: string; // current stage definition, if any
 
   // Block-scoped triggers add:
   block?: {
     id: string;
-    text: string;                          // raw text of the focal block
-    priorSummary?: string;                 // last known summary, for diff-aware prompts
+    text: string; // raw text of the focal block
+    priorSummary?: string; // last known summary, for diff-aware prompts
   };
 
   // Cross-document checks add (summaries, not raw text):
   docContext?: {
-    masterSummary?: string;                // doc-level rollup, when it exists
-    siblingSummaries?: Array<{             // top-N most-relevant other-block summaries
+    masterSummary?: string; // doc-level rollup, when it exists
+    siblingSummaries?: Array<{
+      // top-N most-relevant other-block summaries
       blockId: string;
       summary: string;
     }>;
-    ledgerSlice?: ClaimLedgerEntry[];      // active claims, optionally prefiltered (Phase 3)
+    ledgerSlice?: ClaimLedgerEntry[]; // active claims, optionally prefiltered (Phase 3)
   };
 
   // Always at the tail:
-  suppressions?: Array<{                   // dismissal-teaches
+  suppressions?: Array<{
+    // dismissal-teaches
     type: ObservationType;
     spanSignature?: string;
     note?: string;
@@ -384,7 +386,9 @@ A first-class object as soon as Phase 2 begins. Built lazily on the first `doc-i
 
 ### Dismissal-teaches as prompt input
 
-Each `suppressions[]` entry becomes a line in the system prompt: _"The user has previously dismissed clarity observations on the term 'activation' — do not re-raise."_ This is cheap (a few tokens), unambiguous (a fixed sentence pattern), and works for any model.
+> **⚠️ Not implemented as described (drift corrected 2026-06-17).** This section describes the _envelope_ design — suppressions travelling to the model. **What actually shipped is local-only:** dismissal writes a `DismissalSuppression` record (`App.tsx` `handleDismissObservation`) and `isSpanSuppressed` (`evaluatorReconcile.ts`) drops re-emitted matches **before insert, after the LLM returns** — the model never sees suppressions (neither `EvalContext` nor `evaluatorPrompts.ts` carry them). G1 (`philosophy_guardrails.md`) made the local filter severity-aware: high-severity / `contradiction` / `unsupported_claim` suppress **span-only**; low/medium suppress **category-wide for the document**. The consequence — the model re-generates dismissed observations every eval and we discard them — is tracked as an open question ("Inject dismissals into the prompt vs. local-only filtering") in `docs/plan.md` → Discovered/unscheduled. The design below remains the spec _if_ that question resolves toward prompt injection.
+
+The intended design (unbuilt): each `suppressions[]` entry becomes a line in the system prompt: _"The user has previously dismissed clarity observations on the term 'activation' — do not re-raise."_ Cheap (a few tokens), unambiguous (a fixed sentence pattern), and works for any model.
 
 ---
 
