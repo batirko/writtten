@@ -1,25 +1,17 @@
 {
-  // --- Why these two settings exist ---
-  // The "Markdown Studio" extension (tanishq-chaudhary.its-markdown-studio)
-  // opens *.md in a WYSIWYG custom editor and round-trips the file md → html → md
-  // on save. That round-trip flattens inline links inside GFM table cells, which
-  // strips the [name](projects/name.md) links in docs/plan.md's Projects Index
-  // that docs/projects.index.test.ts requires. This has de-linked the index
-  // repeatedly.
-
-  // 1) Don't silently rewrite a file just because it was opened in the rich
-  //    editor. With autoSave on (the extension default), merely opening a .md
-  //    persists the lossy round-trip to disk. Off = opening is read-only until
-  //    YOU explicitly save. (Note: if you edit AND save a link-in-table file in
-  //    the rich editor, the round-trip still flattens those links — that's an
-  //    upstream serializer bug; edit such files in the plain-text editor.)
-  "markdownStudio.autoSave": false,
-
-  // 2) Hard-protect the CI-critical index file: docs/plan.md always opens in the
-  //    plain-text editor, never the WYSIWYG one. Other *.md still open in
-  //    Markdown Studio by default. To force any file to text: right-click →
-  //    "Reopen Editor With…" → "Text Editor".
+  // Division of labour: VS Code edits Markdown as PLAIN TEXT (source of truth for
+  // git + Claude Code); rich/WYSIWYG editing is done in Obsidian (open docs/ as a
+  // vault — Obsidian is markdown-native, so it never round-trips through HTML and
+  // can't flatten the [name](projects/name.md) links in docs/plan.md's Projects
+  // Index that docs/projects.index.test.ts requires).
+  //
+  // Force every *.md to open in the built-in text editor here, so the
+  // "Markdown Studio" WYSIWYG custom editor never claims a Markdown file in VS
+  // Code (it re-serializes on save and strips links inside table cells).
   "workbench.editorAssociations": {
-    "**/plan.md": "default"
-  }
+    "*.md": "default"
+  },
+  // Belt-and-suspenders: if a file is ever opened in Markdown Studio anyway,
+  // don't let it silently rewrite the file on open.
+  "markdownStudio.autoSave": false
 }
