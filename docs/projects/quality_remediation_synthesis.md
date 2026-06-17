@@ -76,7 +76,7 @@ The **most trust-damaging class**, because the user can _see_ these are wrong:
 The cheap fast-tier output is correct but **invisible** — buried by opaque sorting or eaten by the thrashing dedup engine (the inverted cost/value ratio called out in OBS-020). The remedy is transparency and reduced eye-travel, all of which assume a stable feed:
 
 - **Prioritization transparency** — explain promote vs. "also noticed" (**UX-003 / OBS-013**). _(Pull to Phase 4 — it's part of "calm feed.")_
-- **Quoted-text subtitle** on cards (**UX-008**); **reverse-hover** text → card (**UX-006**); **auto-scroll / split-context** for distant spans (**UX-009**); visible **editor formatting** controls (**UX-004**).
+- **Quoted-text subtitle** on cards (**UX-008**); **reverse-hover** text → card (**UX-006**); **auto-scroll / split-context** for distant spans (**UX-009**). _(**UX-004** visible editor formatting controls was promoted out of this R7b grouping to its own "Editor formatting UX" milestone in `docs/plan.md` — 🟠, pending a control-surface decision — since discoverable formatting is core to a writing tool, not a scanning affordance.)_
 
 ---
 
