@@ -81,14 +81,14 @@ A single namespaced object, attached only when Debug Mode is active:
 interface SidecarDebugApi {
   // --- reads (pure) ---
   getState(): {
-    seq: number;                       // monotonic event counter (see §3)
-    pending: number;                   // in-flight evaluations; 0 == idle
+    seq: number; // monotonic event counter (see §3)
+    pending: number; // in-flight evaluations; 0 == idle
     blocks: Array<{ id: string; text: string }>;
     ledger: Array<{ blockId: string; text: string; kind: ClaimKind }>;
     observations: Array<{ id: string; type: ObservationType; message: string; blockIds: string[] }>;
     activeModel: string;
   };
-  getEvents(sinceSeq?: number): HarnessEvent[];   // tail of the structured log
+  getEvents(sinceSeq?: number): HarnessEvent[]; // tail of the structured log
 
   // --- writes (test-only; Phase 2) ---
   loadDoc(fixture: DocFixture): void;

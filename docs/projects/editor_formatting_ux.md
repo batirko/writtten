@@ -1,7 +1,7 @@
 ---
 status: idea
 kind: spec
-phases: [5]
+phases: [6]
 summary: Discoverable formatting for the writing canvas — a selection bubble menu (inline marks + links) and a slash menu (block types), both appear-on-demand with zero standing chrome, plus a Link extension. Closes UX-004: rich-text/markdown formatting already works but is invisible to a user without markdown muscle-memory.
 ---
 
@@ -11,7 +11,7 @@ summary: Discoverable formatting for the writing canvas — a selection bubble m
 
 > Canonical status lives in the frontmatter above and is mirrored in the Projects Index in `docs/plan.md`. This block carries the human-readable scope only.
 
-**Idea — Phase 5 (design fully written, ready to build).** Promoted out of the R7b "scanning affordances" grab-bag because discoverable formatting is core to a _writing_ tool, not a feed affordance. The capability already exists — TipTap StarterKit + `tiptap-markdown` input rules + keyboard shortcuts (`src/editor/Editor.tsx:160`) — but it's **invisible**: there is no toolbar or menu, so a user without markdown muscle-memory has no discoverable way to make a heading, list, or emphasis. This spec adds the _control surface_; the _styling_ of formatted elements is already specced in `visual_style.md` § Editor canvas.
+**Idea — Phase 6 (design fully written, ready to build).** Promoted out of the R7b "scanning affordances" grab-bag because discoverable formatting is core to a _writing_ tool, not a feed affordance. The capability already exists — TipTap StarterKit + `tiptap-markdown` input rules + keyboard shortcuts (`src/editor/Editor.tsx:160`) — but it's **invisible**: there is no toolbar or menu, so a user without markdown muscle-memory has no discoverable way to make a heading, list, or emphasis. This spec adds the _control surface_; the _styling_ of formatted elements is already specced in `visual_style.md` § Editor canvas.
 
 Read alongside:
 
@@ -30,7 +30,7 @@ Read alongside:
 
 | Phase | Contributes                                                                                                                                                                                                                                                                                             |
 | ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **5** | The bubble menu (inline marks + link), the slash menu (block types), the Link extension with a link-edit popover and Markdown round-trip, full keyboard operability for both menus, and the menu component styling — all additive over the existing markdown/keyboard formatting, which is left intact. |
+| **6** | The bubble menu (inline marks + link), the slash menu (block types), the Link extension with a link-edit popover and Markdown round-trip, full keyboard operability for both menus, and the menu component styling — all additive over the existing markdown/keyboard formatting, which is left intact. |
 
 ## Todo
 

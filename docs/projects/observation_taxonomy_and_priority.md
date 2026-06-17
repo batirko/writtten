@@ -1,7 +1,7 @@
 ---
 status: in-progress
 kind: quality
-phases: [4, 6]
+phases: [4, 7]
 summary: Extend the observation model with three structured axes (kind, severity, confidence → priority), close the decision-rigor gap in the type taxonomy, add a reflection/mirror kind, and wire a budget-based noisiness model into the feed.
 ---
 
@@ -11,7 +11,7 @@ summary: Extend the observation model with three structured axes (kind, severity
 
 > Canonical status lives in the frontmatter above and is mirrored in the Projects Index in `docs/plan.md`. This block carries the human-readable scope only.
 
-**Phase scope (reprioritized 2026-06-03):** split across two phases. Milestones **A · B · E** (priority axes → priority function → budget/calm feed) are **Phase 4 — the current core-experience target**, because a calm, priority-ranked feed _is_ the core recommendation experience. Milestones **C** (decision-rigor taxonomy, research-gated) and **D** (reflection kind) are **Phase 6 (post-traction)**. Do Milestone A first; everything else depends on it.
+**Phase scope (reprioritized 2026-06-03):** split across two phases. Milestones **A · B · E** (priority axes → priority function → budget/calm feed) are **Phase 4 — the current core-experience target**, because a calm, priority-ranked feed _is_ the core recommendation experience. Milestones **C** (decision-rigor taxonomy, research-gated) and **D** (reflection kind) are **Phase 7 (post-traction)**. Do Milestone A first; everything else depends on it.
 
 Read alongside:
 
@@ -24,18 +24,18 @@ Read alongside:
 
 ## Phased Plan
 
-Five milestones with a strict dependency spine, now split across Phase 4 (A·B·E) and Phase 6 (C·D):
+Five milestones with a strict dependency spine, now split across Phase 4 (A·B·E) and Phase 7 (C·D):
 
 **A → B → E** (sequential — each depends on the previous).  
 **C** and **D** hang off A and can proceed in parallel with B and each other.
 
-| Milestone | Name | Dependencies | Notes |
-|---|---|---|---|
-| **A** | Metadata axes in the data model | none | Foundation; ships invisibly (no UX change) |
-| **B** | Priority as a pure, testable function | A | New `priority.ts` module; fully unit-testable |
-| **C** | Decision-rigor taxonomy gap | A | Research-gated; requires corpus validation first |
-| **D** | Reflection kind (document mirror) | A | Client-side only; zero new LLM calls |
-| **E** | Feed: budget model + noisiness | B, D | UX work; the noisiness slider is the last piece |
+| Milestone | Name                                  | Dependencies | Notes                                            |
+| --------- | ------------------------------------- | ------------ | ------------------------------------------------ |
+| **A**     | Metadata axes in the data model       | none         | Foundation; ships invisibly (no UX change)       |
+| **B**     | Priority as a pure, testable function | A            | New `priority.ts` module; fully unit-testable    |
+| **C**     | Decision-rigor taxonomy gap           | A            | Research-gated; requires corpus validation first |
+| **D**     | Reflection kind (document mirror)     | A            | Client-side only; zero new LLM calls             |
+| **E**     | Feed: budget model + noisiness        | B, D         | UX work; the noisiness slider is the last piece  |
 
 ---
 
@@ -64,7 +64,7 @@ Five milestones with a strict dependency spine, now split across Phase 4 (A·B·
 - [ ] Candidate types to add (per brainstorm; confirm against corpus residual):
   - `unstated_assumption` — a claim resting on a premise never made explicit. Scope: span. Kind: `problem`. Distinct from `unsupported_claim` (which is about external facts; this is about an internal load-bearing belief). Example: "Users will prefer push notifications" — implicitly assumes users have push enabled.
   - `alternatives_not_considered` — a direction is asserted but competing options are never mentioned. Scope: document. Kind: `opportunity`. Stage-dependent: early drafts are exempt.
-  - `unmeasurable_criteria` — a stated goal with no metric, or a metric with no target/timeframe. Scope: span. Kind: `problem`. Complement to the existing `unsupported_claim` carve-out for success targets — the carve-out protects *set* targets; this flags targets that have not been set.
+  - `unmeasurable_criteria` — a stated goal with no metric, or a metric with no target/timeframe. Scope: span. Kind: `problem`. Complement to the existing `unsupported_claim` carve-out for success targets — the carve-out protects _set_ targets; this flags targets that have not been set.
   - `scope_ambiguity` — what is in/out is undefined or contradicted. Scope: document. Kind: `problem`.
   - `ownerless_commitment` — a `commitment`-kind claim with no named owner or timeframe. Scope: span. Kind: `problem`. Signal is already in the ledger (`kind: "commitment"` claims) — may be derivable client-side without a new LLM call.
 - [ ] For each confirmed type: add enum value to `Observation["type"]` in `src/store/db.ts`; add prompt section to the appropriate call (merged fast or doc-level); set `kind`, `scope`, and type-prior severity in `computePriority`.
@@ -86,13 +86,13 @@ Five milestones with a strict dependency spine, now split across Phase 4 (A·B·
 
 ### Milestone E — Feed: budget model + noisiness
 
-- [x] In `src/sidecar/SidecarFeed.tsx`: sort active observations by `priority` (descending) instead of arrival order. *(Budget-select by priority; display in document-order — see `src/sidecar/feedBudget.ts`.)*
+- [x] In `src/sidecar/SidecarFeed.tsx`: sort active observations by `priority` (descending) instead of arrival order. _(Budget-select by priority; display in document-order — see `src/sidecar/feedBudget.ts`.)_
 - [x] Implement a **budget model** (not a threshold): show the top-N observations by priority; the rest move into an "also noticed" drawer (collapsed by default). Initial N = 7 (tune after dogfooding). The drawer keeps everything visible on demand without the feed becoming a wall.
 - [x] Kind floors and ceilings on the budget:
-  - [x] `contradiction` observations always surface regardless of N (floor = show even if outside top-N, unless dismissed). *(Open: the floor has no **ceiling** — a doc with many contradictions surfaces them all, which the **discomfort budget** (R6.3) warns is demoralizing. Whether to cap floored items is owned by `docs/projects/philosophy_guardrails.md` (G4), not here.)*
+  - [x] `contradiction` observations always surface regardless of N (floor = show even if outside top-N, unless dismissed). _(Open: the floor has no **ceiling** — a doc with many contradictions surfaces them all, which the **discomfort budget** (R6.3) warns is demoralizing. Whether to cap floored items is owned by `docs/projects/philosophy_guardrails.md` (G4), not here.)_
   - [x] `reflection` observations are never shown in the main feed count — they live in the reflections panel (Milestone D). They do not consume budget slots.
-  - [ ] `opportunity` observations can be toggled off without affecting `problem` observations. *(Part of noisiness control — deferred.)*
-- [ ] Add a **noisiness control** — a discrete three-step switch (not a slider). *(Was deferred to dogfood the default N=7 first; now build-ready and scheduled as a Phase 6 backlog item in `docs/plan.md`. Spec below is executable as-is.)*
+  - [ ] `opportunity` observations can be toggled off without affecting `problem` observations. _(Part of noisiness control — deferred.)_
+- [ ] Add a **noisiness control** — a discrete three-step switch (not a slider). _(Was deferred to dogfood the default N=7 first; now build-ready and scheduled as a Phase 7 backlog item in `docs/plan.md`. Spec below is executable as-is.)_
 
   **Build spec (🟢 ready):**
   - [ ] Define the mode → partition-config map next to `partitionFeed` in `src/sidecar/feedBudget.ts`:
@@ -100,8 +100,8 @@ Five milestones with a strict dependency spine, now split across Phase 4 (A·B·
     export type Noisiness = "key" | "balanced" | "everything";
     // Maps a mode to the budget + the kinds eligible for the visible set.
     export const NOISINESS: Record<Noisiness, { budget: number; kinds: Observation["kind"][] }> = {
-      key:        { budget: 5,        kinds: ["problem"] },                 // problems/contradictions only
-      balanced:   { budget: 7,        kinds: ["problem", "opportunity"] },  // current default
+      key: { budget: 5, kinds: ["problem"] }, // problems/contradictions only
+      balanced: { budget: 7, kinds: ["problem", "opportunity"] }, // current default
       everything: { budget: Infinity, kinds: ["problem", "opportunity"] }, // no cap
     };
     ```
@@ -109,7 +109,8 @@ Five milestones with a strict dependency spine, now split across Phase 4 (A·B·
   - [ ] Persist the mode like the other settings: `localStorage["writtten_noisiness"]` in `App.tsx` (mirror `writtten_stage`/`writtten_key_tier`), default `"balanced"`; thread it into the `partitionFeed` call in `SidecarFeed.tsx`.
   - [ ] Render a three-segment control in the settings panel (`SidecarFeed.tsx`, in a new `.setting-group` near the jargon control) — Key issues / Balanced / Everything — with `data-testid="noisiness-control"` on the group and `data-testid="noisiness-key|noisiness-balanced|noisiness-everything"` on the segments. Copy: "Key issues only / Balanced / Everything".
   - [ ] Reflections-panel auto-expand under "Everything" is **deferred with Milestone D** (no reflections produced yet) — note it, don't build it.
-- [x] `data-testid="also-noticed-drawer"` *(drawer delivered; `data-testid="noisiness-control"` ships with the control above)*.
+
+- [x] `data-testid="also-noticed-drawer"` _(drawer delivered; `data-testid="noisiness-control"` ships with the control above)_.
 - [x] Update `docs/projects/message_generation_workflow.md` to reflect the new feed sort/budget contract.
 
 ---
@@ -120,7 +121,7 @@ Five milestones with a strict dependency spine, now split across Phase 4 (A·B·
 
 Everything in this project is built on keeping two concepts distinct. Collapsing them creates a mess that is hard to untangle later.
 
-**Kind** is what register is this observation in? It is a fixed, intrinsic attribute of the observation *type* — not per-instance. A `contradiction` is always a `problem`; a `missing_topic` is always an `opportunity`; a claim-count reflection is always a `reflection`. There is no such thing as a `missing_topic` that is sometimes a `problem` and sometimes a `suggestion`. Resist any design where kind varies per-instance.
+**Kind** is what register is this observation in? It is a fixed, intrinsic attribute of the observation _type_ — not per-instance. A `contradiction` is always a `problem`; a `missing_topic` is always an `opportunity`; a claim-count reflection is always a `reflection`. There is no such thing as a `missing_topic` that is sometimes a `problem` and sometimes a `suggestion`. Resist any design where kind varies per-instance.
 
 **Priority** carries all the per-instance variation — how urgent is this specific occurrence? It is a computed scalar derived from structural signals, not a fuzzy LLM score.
 
@@ -130,23 +131,23 @@ The feed's noisiness control rides on `priority`. Visual styling and panel place
 
 Three values replace the current binary `nature: "defect" | "opportunity"`:
 
-| Kind | Old `nature` | Register | Visual treatment |
-|---|---|---|---|
-| `problem` | `defect` | Something is wrong or missing that could hurt this doc's effectiveness. | Alert weight; red/amber accent. |
-| `opportunity` | `opportunity` | Something could be stronger; a gap worth filling. | Softer weight; blue/teal accent. |
-| `reflection` | *(new)* | Neutral, non-judgmental awareness of what the doc is doing. | Muted; no accent colour; distinct panel. |
+| Kind          | Old `nature`  | Register                                                                | Visual treatment                         |
+| ------------- | ------------- | ----------------------------------------------------------------------- | ---------------------------------------- |
+| `problem`     | `defect`      | Something is wrong or missing that could hurt this doc's effectiveness. | Alert weight; red/amber accent.          |
+| `opportunity` | `opportunity` | Something could be stronger; a gap worth filling.                       | Softer weight; blue/teal accent.         |
+| `reflection`  | _(new)_       | Neutral, non-judgmental awareness of what the doc is doing.             | Muted; no accent colour; distinct panel. |
 
 Existing type → kind mapping (all existing types keep their scope and kind assignment):
 
-| Type | Kind |
-|---|---|
-| `clarity` | `problem` |
-| `contradiction` | `problem` |
-| `unsupported_claim` | `problem` |
-| `undefined_jargon` | `problem` |
-| `audience_mismatch` | `problem` |
-| `structure_flow` | `problem` |
-| `missing_topic` | `opportunity` |
+| Type                 | Kind          |
+| -------------------- | ------------- |
+| `clarity`            | `problem`     |
+| `contradiction`      | `problem`     |
+| `unsupported_claim`  | `problem`     |
+| `undefined_jargon`   | `problem`     |
+| `audience_mismatch`  | `problem`     |
+| `structure_flow`     | `problem`     |
+| `missing_topic`      | `opportunity` |
 | `underexposed_topic` | `opportunity` |
 
 New types under Milestone C will each have a fixed kind assigned at the time they are confirmed (candidates listed in the Todo).
@@ -159,21 +160,21 @@ All inputs are structural — no LLM vibe scores.
 
 **Type-prior severity** (default; overridable by escalation):
 
-| Type | Base severity |
-|---|---|
-| `contradiction` | `medium` |
-| `unsupported_claim` | `medium` |
-| `missing_topic` | `medium` |
-| `unmeasurable_criteria` *(candidate)* | `medium` |
-| `unstated_assumption` *(candidate)* | `medium` |
-| `ownerless_commitment` *(candidate)* | `medium` |
-| `clarity` | `low` |
-| `undefined_jargon` | `low` |
-| `underexposed_topic` | `low` |
-| `audience_mismatch` | `low` |
-| `structure_flow` | `low` |
-| `scope_ambiguity` *(candidate)* | `low` |
-| `alternatives_not_considered` *(candidate)* | `low` |
+| Type                                        | Base severity |
+| ------------------------------------------- | ------------- |
+| `contradiction`                             | `medium`      |
+| `unsupported_claim`                         | `medium`      |
+| `missing_topic`                             | `medium`      |
+| `unmeasurable_criteria` _(candidate)_       | `medium`      |
+| `unstated_assumption` _(candidate)_         | `medium`      |
+| `ownerless_commitment` _(candidate)_        | `medium`      |
+| `clarity`                                   | `low`         |
+| `undefined_jargon`                          | `low`         |
+| `underexposed_topic`                        | `low`         |
+| `audience_mismatch`                         | `low`         |
+| `structure_flow`                            | `low`         |
+| `scope_ambiguity` _(candidate)_             | `low`         |
+| `alternatives_not_considered` _(candidate)_ | `low`         |
 
 > **Implementation note (Option A, resolved 2026-06-03):** `contradiction` and `unsupported_claim` are base `medium` (not `high`). The escalation rules below target exactly these two types — they need headroom below `high` to do real work. A commitment×commitment conflict or unsupported-claim-underpinning-a-commitment escalates to `high`. This is the only internally-coherent reading of "conflicting commitments are the most damaging" given the escalation rules' target types.
 
@@ -186,12 +187,13 @@ All inputs are structural — no LLM vibe scores.
 **Confidence factor** (multiplier on the priority number):
 
 | Confidence | Factor |
-|---|---|
-| `high` | 1.0 |
-| `medium` | 0.75 |
-| `low` | 0.5 |
+| ---------- | ------ |
+| `high`     | 1.0    |
+| `medium`   | 0.75   |
+| `low`      | 0.5    |
 
 Confidence sources:
+
 - `contradiction` via hedged prompt (free tier) → `low`.
 - `contradiction` via confident prompt (paid key) → `high`.
 - All other types default to `medium` until the LLM optionally returns an explicit confidence field.
@@ -203,9 +205,10 @@ Confidence sources:
 The feed shows the **top-N active observations by priority**; remaining observations move into a collapsed "also noticed" drawer. This is deliberately not a priority-threshold filter.
 
 Why budget beats threshold:
+
 - Threshold gives an inconsistent feed size — 40 cards on a messy doc, 0 on a clean one. The cognitive load the user experiences is not about doc quality; it is about the number of cards they have to process.
 - Budget makes the feed feel consistent — "I always see my top concerns" — regardless of doc state.
-- Doc quality changes *what* is in the top-N, not *how many* you are hit with.
+- Doc quality changes _what_ is in the top-N, not _how many_ you are hit with.
 - The slider becomes an attention budget (cognitive load), which is the thing the user actually wants to control.
 
 Floors override the budget: a `contradiction` with `priority > 0` always appears in the main feed even if outside top-N. The user may dismiss it, which removes it from the budget calculation entirely.
@@ -215,6 +218,7 @@ Floors override the budget: a `contradiction` with `priority > 0` always appears
 The reflection panel is the product's clearest distance from Grammarly-with-extra-steps. Grammarly has warnings and suggestions. Nobody has a calm, running structural mirror of a PM doc.
 
 Key properties:
+
 - Derived client-side from the claim ledger and block summaries — no LLM, no latency, no cost.
 - Ephemeral — recomputed in memory, never persisted. If IndexedDB is cleared, reflections regenerate instantly on next ledger read.
 - Non-judgmental by construction — they are counts and facts, not flags. "7 commitments, 3 undated" is awareness, not a problem declaration.
@@ -226,9 +230,10 @@ Key properties:
 The candidate decision-rigor types (Milestone C) are based on reasoning, not data. They must be validated against real docs before prompts are written.
 
 Method:
+
 1. Collect 15–20 PRDs and decision docs from the target persona (PMs; mix of quality and doc type).
 2. Run each through the existing tool in record mode. Capture observations produced.
-3. Independently, run a strong model (e.g. `gemini-2.5-pro`) with a prompt asking for *all* margin notes a senior PM reviewer would write on each doc. Collect and categorize.
+3. Independently, run a strong model (e.g. `gemini-2.5-pro`) with a prompt asking for _all_ margin notes a senior PM reviewer would write on each doc. Collect and categorize.
 4. The residual set — notes from step 3 that map to no existing type — is the empirical taxonomy gap. Compare against the candidate list.
 5. Only types that appear in the residual set get built. Types in the candidate list that do not appear get dropped or deferred.
 
@@ -238,22 +243,22 @@ This method produces real evidence without a user research study and is completa
 
 ## Open questions and decisions
 
-### Noisiness slider granularity *(open)*
+### Noisiness slider granularity _(open)_
 
 Three discrete steps (Key issues / Balanced / Everything) vs. a continuous 1–10 slider. Three steps is simpler to implement and reason about; a slider allows fine-tuning. Recommendation: ship three steps; upgrade to slider only if dogfooding reveals that users want intermediate positions.
 
-### `ownerless_commitment` as a client-side check *(open)*
+### `ownerless_commitment` as a client-side check _(open)_
 
 `commitment`-kind claims are already in the ledger with their source block. Checking for missing owner/date may be doable with a lightweight regex scan of the claim text (no LLM call required) — "we will…" with no name, "by Q3" with no named owner. Validate against corpus whether the false-positive rate is acceptable before adding an LLM-based version.
 
-### Reflection: tone-shift detection *(deferred)*
+### Reflection: tone-shift detection _(deferred)_
 
 A tone-shift flag ("tone shifts from analytical to promotional around §4") requires per-section tone classification. This is derivable from block summaries if they include a tone signal, but the current summary schema does not include one. Defer until summaries are extended with tone metadata. Do not build the LLM-per-section tone call speculatively.
 
-### Priority decay over session time *(deferred)*
+### Priority decay over session time _(deferred)_
 
 An observation that has been in the feed for 20 minutes without dismissal is probably not actionable right now. Decaying its `priority` gently over session time could keep the feed fresh without forcing dismissal. This is a UX refinement — do not build until there is evidence from dogfooding that stale-but-undismissed cards are a real problem.
 
-### Interaction with dismissal suppression *(open)*
+### Interaction with dismissal suppression _(open)_
 
 Currently dismissal suppression is keyed on `(type, spanSignature)`. With kind added, should suppression also reset when kind changes? No — kind is a fixed attribute of a type, so kind and type always move together. The existing suppression key is sufficient.

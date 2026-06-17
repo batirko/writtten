@@ -1,7 +1,7 @@
 ---
 status: idea
 kind: spec
-phases: [5]
+phases: [6]
 summary: The first-run experience for a brand-new user — a single dismissible welcome moment that frames the inversion, an optional one-click "See it in action" example doc (planted contradiction) so the hero capability is witnessable immediately, the quiet-by-design empty states, and the first-settle micro-moment — all without a tour, a setup form, or a key gate.
 ---
 
@@ -11,7 +11,7 @@ summary: The first-run experience for a brand-new user — a single dismissible 
 
 > Canonical status lives in the frontmatter above and is mirrored in the Projects Index in `docs/plan.md`. This block carries the human-readable scope only.
 
-**Idea — Phase 5 (design fully written, ready to build).** The fourth leg of the "product feel" pass, and the most philosophically delicate: the product defines itself by _being quiet_, so onboarding must orient without contradicting that. It also must solve a real tension — the hero (contradiction-at-distance) needs settled text before it can fire, so a blank first session risks feeling like nothing happens (the "time-to-first-wow" problem).
+**Idea — Phase 6 (design fully written, ready to build).** The fourth leg of the "product feel" pass, and the most philosophically delicate: the product defines itself by _being quiet_, so onboarding must orient without contradicting that. It also must solve a real tension — the hero (contradiction-at-distance) needs settled text before it can fire, so a blank first session risks feeling like nothing happens (the "time-to-first-wow" problem).
 
 Consumes the three prior product-feel specs:
 
@@ -28,7 +28,7 @@ Consumes the three prior product-feel specs:
 
 | Phase | Contributes                                                                                                                                                                                                                                                              |
 | ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **5** | The welcome card + first-run persistence, the example-doc fixture + load/clear affordance, the quiet-by-design empty states (editor + feed), the first-settle micro-moment hand-off to R3c, and the "no upfront setup" first-run posture (stage inference, no key gate). |
+| **6** | The welcome card + first-run persistence, the example-doc fixture + load/clear affordance, the quiet-by-design empty states (editor + feed), the first-settle micro-moment hand-off to R3c, and the "no upfront setup" first-run posture (stage inference, no key gate). |
 
 ## Todo
 
@@ -59,7 +59,7 @@ A single card at the top of the feed on first open, styled as a calm variant of 
   - A one-line framing of the rhythm: quiet while you draft, pointed while you revise.
   - The optional affordance: a quiet text link — _"See it in action →"_.
 - **Dismiss:** the standard dismiss affordance (mechanics C3) — but **no Undo toast and no suppression write** (it's chrome, not an observation). Dismissing sets the persisted `hasSeenWelcome` flag so it never returns unprompted.
-- **Persistence:** localStorage flag (single-document app today; a per-user/multi-doc story arrives with Phase 6 — don't over-build).
+- **Persistence:** localStorage flag (single-document app today; a per-user/multi-doc story arrives with Phase 7 — don't over-build).
 
 ### The example ("See it in action")
 

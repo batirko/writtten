@@ -23,13 +23,13 @@ Read alongside:
 
 ## Phased Plan
 
-| Phase | Contributes |
-| --- | --- |
+| Phase | Contributes                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | **5** | **L1** repair gates + add CI. **L2–L4** the "feed is silently wrong" cluster (dead auto-close, eval-wedge, block-removal race), landed as one unit. **L5** `anchorText` load-bearing (dismissals hold, highlights stay truthful). **L6** split `evaluator.ts` along the `docReconcile.ts` seam so the lifecycle fixes are reviewable and don't risk each other. **L7** close the prod prompt-leak. **L8** editor hot-path perf (lower priority). |
 
 ## The problem (today)
 
-The audit's one-line verdict: *"a promising prototype with unusually good architectural instincts, carrying a cluster of correctness debt exactly where the product can least afford it."* Two compounding facts:
+The audit's one-line verdict: _"a promising prototype with unusually good architectural instincts, carrying a cluster of correctness debt exactly where the product can least afford it."_ Two compounding facts:
 
 1. **The gates are rotten and nothing notices.** `npm run build` exits 1 and `npm run lint` fails with 31 errors, with **no CI**. So the PWA/export/accessibility milestones marked `[x]` in Phase 5 are **unverifiable in `dist/`** — the ship path is dead and rots invisibly while tests stay green.
 2. **The observation lifecycle — the product's trust currency — has three independent silent-failure paths.** The feed can show stale, missing, or zombie observations with no error anywhere, and the affected modules (orchestrator, Editor, db, the lifecycle paths in evaluator) have **zero tests**. A feed that silently disagrees with the document is read by the user as "this section is fine" — the precise failure the product can't afford.
@@ -53,11 +53,11 @@ The audit's one-line verdict: *"a promising prototype with unusually good archit
 
 ### L3 — Fix the eval-wedge under strong-call failure — ✅ done (audit #3)
 
-> **Re-verified 2026-06-14: the wedge was real on current `main`.** `saveBlockSummary` with the dirty-check `hash` ran at `evaluator.ts:705`, *before* the strong contradiction call (`:805`) and `reconcileObservations` (`:902`), with a terminal `catch` (`:903`) that only `console.error`s. A thrown `router.strong()` skipped reconcile but left the hash saved, so the next eval short-circuited on the hash match (`:615`) — section wedged until its text changed.
+> **Re-verified 2026-06-14: the wedge was real on current `main`.** `saveBlockSummary` with the dirty-check `hash` ran at `evaluator.ts:705`, _before_ the strong contradiction call (`:805`) and `reconcileObservations` (`:902`), with a terminal `catch` (`:903`) that only `console.error`s. A thrown `router.strong()` skipped reconcile but left the hash saved, so the next eval short-circuited on the hash match (`:615`) — section wedged until its text changed.
 
-- [x] **Fixed via option (b): atomic dirty-check.** Moved the `saveBlockSummary` hash write to *after* `reconcileObservations` (both the main path and the empty-section path). `saveClaimsForBlock` stays before the contradiction call (the ledger read needs it). On a strong-call failure the hash is now never committed, so the next trigger re-runs the whole eval; existing observations are left untouched (reconcile is skipped, not run with partial data). (2026-06-14)
-- [x] **Rejected option (a)** (reconcile fast obs on strong-failure): the reconcile orphan pass (`:280–289`) auto-closes any existing observation on the section's blocks not present in the new set, so reconciling a fast-only batch would *falsely auto-close a still-valid contradiction* (absent only because the strong call failed). Documented as an invariant test.
-- [x] Added three failure tests (`evaluator.test.ts`, "eval-wedge under strong-call failure (L3)"): (1) strong throws → hash not committed + nothing written (verified to **fail** against pre-fix code — real regression guard); (2) on success the hash is committed *after* the observation write (invocation-order assertion); (3) strong throws → an existing contradiction is not auto-closed. (2026-06-14)
+- [x] **Fixed via option (b): atomic dirty-check.** Moved the `saveBlockSummary` hash write to _after_ `reconcileObservations` (both the main path and the empty-section path). `saveClaimsForBlock` stays before the contradiction call (the ledger read needs it). On a strong-call failure the hash is now never committed, so the next trigger re-runs the whole eval; existing observations are left untouched (reconcile is skipped, not run with partial data). (2026-06-14)
+- [x] **Rejected option (a)** (reconcile fast obs on strong-failure): the reconcile orphan pass (`:280–289`) auto-closes any existing observation on the section's blocks not present in the new set, so reconciling a fast-only batch would _falsely auto-close a still-valid contradiction_ (absent only because the strong call failed). Documented as an invariant test.
+- [x] Added three failure tests (`evaluator.test.ts`, "eval-wedge under strong-call failure (L3)"): (1) strong throws → hash not committed + nothing written (verified to **fail** against pre-fix code — real regression guard); (2) on success the hash is committed _after_ the observation write (invocation-order assertion); (3) strong throws → an existing contradiction is not auto-closed. (2026-06-14)
 - [x] Updated the mechanic doc (`docs/mechanics/evaluation-triggers.md` → `evaluateSection` steps) to document the commit-hash-last atomicity. (2026-06-14)
 
 ### L4 — Fix the block-removal race (zombie claims) — ✅ done (audit #4)
@@ -66,7 +66,7 @@ The audit's one-line verdict: *"a promising prototype with unusually good archit
 
 - [x] **Eval-generation token.** `orchestrator.ts` keeps `sectionEvalGeneration: Map<sectionId, number>`. `handleBlockRemoved` calls `bumpSectionGeneration(blockId)` (first line, synchronous). `dispatch` captures the generation at start and passes an `isLive: () => generation.get(sectionId) === captured` predicate into `evaluateSection`. (2026-06-14)
 - [x] **Liveness checkpoints in `evaluateSection`.** `isLive` is checked at two points that bracket the network waits — after `router.fast` (before `saveClaimsForBlock`) and after `router.strong` (before `reconcileObservations` + the summary/hash write) — plus the empty-section path. If stale → return without writing. New trailing optional param, defaults to always-live (so `evaluateBlock` + existing callers/tests are unaffected). (2026-06-14)
-- [x] **Did not cancel the in-flight `fetch`.** Invalidating the *writes* fully fixes the zombie-claim correctness bug; fetch cancellation (threading an `AbortSignal` through the router into `gemini.ts`) is only a quota optimisation and is left as a noted follow-up.
+- [x] **Did not cancel the in-flight `fetch`.** Invalidating the _writes_ fully fixes the zombie-claim correctness bug; fetch cancellation (threading an `AbortSignal` through the router into `gemini.ts`) is only a quota optimisation and is left as a noted follow-up.
 - [x] Added the race tests: `orchestrator.test.ts` (new file — first orchestrator test; proves `block-removed` flips the in-flight section's `isLive` to false, and that an unrelated removal does not) and three `evaluator.test.ts` liveness-guard tests (removed during fast call → no writes; removed during strong call → no reconcile/summary; happy path still writes). All regression-verified by neutralising the fix. (2026-06-14)
 - [x] Updated `docs/mechanics/evaluation-triggers.md` (`block-removed` cascade + `evaluateSection`) to document the generation guard.
 
@@ -78,6 +78,7 @@ The audit's one-line verdict: *"a promising prototype with unusually good archit
 - [x] **5c — Unify per-section conflict identity on `conflictPairKey`.** `reconcileObservations` now dedupes `contradiction`/`strategic_tension` by `conflictPairKey` (a dedicated branch before the `contentSig`/`spanSig` path, which is untouched for non-conflict types). A per-section emission and the ledger sweep's re-emission of the same block pair coalesce into one card; a reworded re-emission keeps the existing record (id + wording frozen, sweep grace state preserved) instead of churning via supersede+insert. Auto-close of an unmatched conflict is unchanged (regression-watch test). +3 tests, the two new-behavior ones regression-verified. (2026-06-14)
 
 **L5 complete (5a + 5b + 5c).** `anchorText` is now load-bearing for suppression matching and highlight re-anchoring, and conflict identity is unified on `conflictPairKey` across the per-section and sweep paths.
+
 - [x] **5b — Re-anchor highlights by `anchorText` on rebuild.** Added a pure `reanchorOffset(blockText, anchorText, storedStart, storedEnd)` helper in `ObservationHighlighter.ts` and wired it into the `setObservations` rebuild for both the primary and conflicting spans. It re-derives offsets from `anchorText` against the block's current flat text (nearest-to-stored on repeats; falls back to stored offsets on no-match/empty-anchor; passes `0:9999` sentinels through untouched). The live-typing `tr.mapping` path is unchanged. So a refresh-driven rebuild no longer redraws a highlight at stale offsets after the user edited earlier in the block. +6 tests (incl. a DOM-level assertion that the highlight lands on the anchor span), regression-verified. (2026-06-14)
 - [x] Coordinated with `archive_trust.md` (R3b) on the `anchorText`/`conflictingAnchorText` contract — both read the field; 5a makes it authoritative for matching and never mutates it after creation.
 
@@ -87,7 +88,7 @@ The audit's one-line verdict: *"a promising prototype with unusually good archit
   - `evaluatorPrompts.ts` — all LLM prompt strings + `parseJSONResponse` + `isDocumentMetaClaim` (pure, no side effects)
   - `evaluatorAnchoring.ts` — anchoring helpers, identity functions (`hashCode`, `conflictPairKey`, `anchorSubstring`, etc.), and `NewObservation` type (pure)
   - `evaluatorReconcile.ts` — the reconciliation functions that interleave DB awaits (`reconcileObservations`, `reconcileDocumentObservations`, `reconcileSweepContradictions`); imports only from the two pure modules above
-  - `evaluator.ts` rewritten to import from all three and re-export the full prior public API — zero consumer changes required (App.tsx, orchestrator.ts, test files all unchanged). 
+  - `evaluator.ts` rewritten to import from all three and re-export the full prior public API — zero consumer changes required (App.tsx, orchestrator.ts, test files all unchanged).
 - [x] Dead `closureReason` branch removed: the `"text_removed"` unreachable branch in `reconcileObservations` simplified to `"resolved_by_edit"` (the `existing` array is pre-filtered to `memberBlockIds`).
 - [x] No behavior change: 393 tests pass, lint clean, build green.
 
@@ -106,7 +107,7 @@ The audit's one-line verdict: *"a promising prototype with unusually good archit
 ## Notes / non-goals
 
 - This file **schedules** the fixes; it does not perform them. Each L-ID is a follow-up session's unit of work.
-- No product-behavior changes — these are correctness and tooling fixes. The lifecycle *design* (when to archive/supersede) is owned by R3 in `quality_remediation_synthesis.md`; this is the correctness floor beneath it.
+- No product-behavior changes — these are correctness and tooling fixes. The lifecycle _design_ (when to archive/supersede) is owned by R3 in `quality_remediation_synthesis.md`; this is the correctness floor beneath it.
 - L2–L4 should land as **one PR/unit** (the audit's recommendation) with their tests, since they're the same "feed silently wrong" failure surface and share the orchestrator/evaluator paths.
 
 ## Verification

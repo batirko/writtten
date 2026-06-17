@@ -1,7 +1,7 @@
 ---
 status: idea
 kind: research
-phases: [4, 5, 6]
+phases: [4, 6]
 summary: Root-cause synthesis of the prompt-quality and UX-quality observation logs — collapses the ~32 field-observed issues into a handful of cross-cutting root causes, sequences the fixes, and names which are Phase 4 acceptance blockers vs. later remediation.
 ---
 
@@ -20,7 +20,7 @@ summary: Root-cause synthesis of the prompt-quality and UX-quality observation l
 | Phase   | Work                                                                                                                                                                                    |
 | ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 4       | R1 (trigger model), R5 (text extraction), R3 (reconciliation), R7a (prioritisation transparency) — acceptance blockers for the calm-feed goal; milestones in `docs/plan.md` Phase 4.    |
-| 5       | R4 (doc-level anchoring), R3b/R3c (archive trust + choreography), R7b (scanning affordances), R2c (smart-feed design), R6 (fast-tier precision) — milestones in `docs/plan.md` Phase 5. |
+| 6       | R4 (doc-level anchoring), R3b/R3c (archive trust + choreography), R7b (scanning affordances), R2c (smart-feed design), R6 (fast-tier precision) — milestones in `docs/plan.md` Phase 6. |
 | Ongoing | New raw observations still land in the two source logs; re-run this synthesis when a new cluster forms or a theme is retired.                                                           |
 
 ---

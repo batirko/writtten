@@ -20,16 +20,16 @@ summary: Redesign the debug/observability log into one call-centric, self-descri
 
 This redesign is the third leg: the **log record model and export** shared by both.
 
-**Phase scope:** Phase 4 (the call-centric merge + archival records + envelope — the insights needed to field-test signal quality *now*) · Phase 5 (unify the two logs behind one emitter; token/cost capture; retention/redaction polish that rides with hardening).
+**Phase scope:** Phase 4 (the call-centric merge + archival records + envelope — the insights needed to field-test signal quality _now_) · Phase 5 (unify the two logs behind one emitter; token/cost capture; retention/redaction polish that rides with hardening).
 
 ---
 
 ## Phased Plan
 
-| Phase       | Contribution                                                                                                                                                                                                 |
-| ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Phase       | Contribution                                                                                                                                                                                                                                                                                                                                 |
+| ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Phase 4** | The high-value, low-risk wins that make a pasted log legible: (1) **archival records** with actor + reason + metadata; (2) **merge request+response** into one call record with collapsed retries/rotation; (3) **dereference static system prompts + glossary** into an envelope dictionary; (4) **chronological, self-describing export**. |
-| **Phase 5** | **Unify** the harness event stream and the `llmLogger` call log behind a single emitter with two read-views (agent stream vs. human panel), so an event added once shows up in both. Optional **token/cost capture** from Gemini `usageMetadata`. Retention tuning + secret redaction audit for the export path. |
+| **Phase 5** | **Unify** the harness event stream and the `llmLogger` call log behind a single emitter with two read-views (agent stream vs. human panel), so an event added once shows up in both. Optional **token/cost capture** from Gemini `usageMetadata`. Retention tuning + secret redaction audit for the export path.                             |
 
 ---
 
@@ -38,11 +38,11 @@ This redesign is the third leg: the **log record model and export** shared by bo
 ### Phase 4 — shipped 2026-06-05
 
 - [x] Add an `archive` record emitted from every observation status transition — user dismissal (`App.handleDismissObservation`), auto-collapse (`handleObservationCollapsed`), block-removed + stage-changed (`orchestrator.ts`), and the three system transitions in `evaluator.ts` (`auto_closed`, `superseded`, `resolved_prior`). Carries `actor`, `reason`, `obsType`, `kind`, `severity`, `scope`, `blockId`, `text`, and `supersededBy` where applicable. Single emit point `harness.archive()` writes both logs (see D5 note below).
-- [x] Merge the separate `request`/`response`/`error`/`retry` rows into a single **call record** keyed by a `callId` (minted in `gemini.callWithRotation`), with rotation attempts collapsed into an `attempts[]` array and the terminal `status`/`latencyMs`/`response` on the record. *Done as an export-time projection* (`debugLog.ts`) over the append-only raw log, so the quota accumulators and existing tests stay untouched.
+- [x] Merge the separate `request`/`response`/`error`/`retry` rows into a single **call record** keyed by a `callId` (minted in `gemini.callWithRotation`), with rotation attempts collapsed into an `attempts[]` array and the terminal `status`/`latencyMs`/`response` on the record. _Done as an export-time projection_ (`debugLog.ts`) over the append-only raw log, so the quota accumulators and existing tests stay untouched.
 - [x] Group calls and their triggering event under a shared `evalId` (minted in `orchestrator.logTrigger`, threaded via `LLMRequest.meta` → `gemini` → log entries; system archives stamped with it too).
 - [x] Hoist static `payload.system` text into an envelope `systemPrompts` dictionary; store only a `promptRef` on each call. Same for the static defined-terms glossary in `payload.user` (`{{glossary}}` token).
 - [x] Change "Copy All" to emit the **export envelope** (meta header + dictionaries + chronological `log`) instead of `JSON.stringify(logs)` newest-first.
-- [x] Add `produced` linkage to the call record (observation types yielded, ledger-write count, `resolved_prior` indices) via `llmLogger.recordProduced(callId, …)`, so a reader sees a call's *effect*, not just its response string.
+- [x] Add `produced` linkage to the call record (observation types yielded, ledger-write count, `resolved_prior` indices) via `llmLogger.recordProduced(callId, …)`, so a reader sees a call's _effect_, not just its response string.
 - [x] Drop the dead `fallback` type variant; trigger/call/archive are distinct record shapes in the projection.
 
 **Files:** `model/router.ts` (`meta`/`callId` on the request/response types), `model/logger.ts` (correlation fields + `archive` type + `logArchive`/`recordProduced`), `model/debugLog.ts` (the projection + envelope, new) and `debugLog.test.ts`, `model/gemini.ts` (callId lifecycle), `services/orchestrator.ts` + `services/evaluator.ts` (evalId threading + archives + produced), `App.tsx` (user archives), `debug/harness.ts` (`archive()` dual-write + event type), `sidecar/SidecarFeed.tsx` (archive rendering + envelope export). Verified live: envelope shows merged calls, dereferenced prompt/glossary, archive `actor`/`reason`, and `produced` effects.
@@ -60,15 +60,15 @@ This redesign is the third leg: the **log record model and export** shared by bo
 
 There are **two independent logging systems**, with different vocabularies, buffers, ordering, and consumers. This is the root structural problem; the three reported symptoms are downstream of it.
 
-| | **`llmLogger`** (`src/model/logger.ts`) | **`harness`** (`src/debug/harness.ts`) |
-|---|---|---|
-| Record type | `LLMLogEntry` | `HarnessEvent` |
-| Event vocabulary | `trigger · request · response · retry · fallback* · error` | `settle · request · response · ledger-write · observation · block-removed · error` |
-| Consumer | Debug **panel** UI + **"Copy All"** export (`JSON.stringify(logs, null, 2)`) | `window.__sidecar__.getEvents(sinceSeq)` — agent polling |
-| Ordering | newest-first (`logs.unshift`) | oldest-first (monotonic `seq`) |
-| Retention | `maxLogs = 50` | `MAX_EVENTS = 500` |
-| Correlation key | none | monotonic `seq` only |
-| Knows about archival? | **no** | **no** (emits `observation` on *create*, nothing on close) |
+|                       | **`llmLogger`** (`src/model/logger.ts`)                                      | **`harness`** (`src/debug/harness.ts`)                                             |
+| --------------------- | ---------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| Record type           | `LLMLogEntry`                                                                | `HarnessEvent`                                                                     |
+| Event vocabulary      | `trigger · request · response · retry · fallback* · error`                   | `settle · request · response · ledger-write · observation · block-removed · error` |
+| Consumer              | Debug **panel** UI + **"Copy All"** export (`JSON.stringify(logs, null, 2)`) | `window.__sidecar__.getEvents(sinceSeq)` — agent polling                           |
+| Ordering              | newest-first (`logs.unshift`)                                                | oldest-first (monotonic `seq`)                                                     |
+| Retention             | `maxLogs = 50`                                                               | `MAX_EVENTS = 500`                                                                 |
+| Correlation key       | none                                                                         | monotonic `seq` only                                                               |
+| Knows about archival? | **no**                                                                       | **no** (emits `observation` on _create_, nothing on close)                         |
 
 \* `fallback` is declared in the union but never emitted — dead schema.
 
@@ -84,19 +84,19 @@ Notice the vocabularies barely overlap: `llmLogger` has `trigger`/`retry` that t
 
 Observations change status through **five** code paths, and **none** emits a log record:
 
-| Transition | Site | Actor |
-|---|---|---|
-| `dismissed` | `App.tsx` `handleDismissObservation` (+ writes a `DismissalSuppression`) | **user** |
-| `auto_closed` (collapse) | `App.tsx` `handleObservationCollapsed` | **user** |
-| `auto_closed` (no counterpart in new eval) | `evaluator.ts` reconcile loop | **system** |
-| `auto_closed` (model confirmed `resolved_prior`) | `evaluator.ts` force-close | **system** |
-| `superseded` (new obs overlaps old, different text) | `evaluator.ts` reconcile | **system** |
+| Transition                                          | Site                                                                     | Actor      |
+| --------------------------------------------------- | ------------------------------------------------------------------------ | ---------- |
+| `dismissed`                                         | `App.tsx` `handleDismissObservation` (+ writes a `DismissalSuppression`) | **user**   |
+| `auto_closed` (collapse)                            | `App.tsx` `handleObservationCollapsed`                                   | **user**   |
+| `auto_closed` (no counterpart in new eval)          | `evaluator.ts` reconcile loop                                            | **system** |
+| `auto_closed` (model confirmed `resolved_prior`)    | `evaluator.ts` force-close                                               | **system** |
+| `superseded` (new obs overlaps old, different text) | `evaluator.ts` reconcile                                                 | **system** |
 
-A reader of the log sees an observation appear (harness `observation` event) and then silently vanish. There is no way to tell *dismissed-by-user* from *auto-closed-by-system* from *superseded*, nor why. This is exactly the question that opened this session and the log could not answer it.
+A reader of the log sees an observation appear (harness `observation` event) and then silently vanish. There is no way to tell _dismissed-by-user_ from _auto-closed-by-system_ from _superseded_, nor why. This is exactly the question that opened this session and the log could not answer it.
 
 ### P2 — The static system prompt is repeated on every row
 
-Every `request`/`response`/`error`/`retry` entry carries the full `payload.system` — the ~1.5 KB editor persona + instructions. There is a **small fixed set** of distinct system prompts (section-eval fast, contradiction strong, doc-quality strong). In the pasted 25-entry log the *same* section-eval system prompt appears verbatim ~6 times and the doc-quality prompt ~4 times. This dominates the byte budget, pushes real signal out of the 50-entry buffer faster, and bloats anything pasted to an AI.
+Every `request`/`response`/`error`/`retry` entry carries the full `payload.system` — the ~1.5 KB editor persona + instructions. There is a **small fixed set** of distinct system prompts (section-eval fast, contradiction strong, doc-quality strong). In the pasted 25-entry log the _same_ section-eval system prompt appears verbatim ~6 times and the doc-quality prompt ~4 times. This dominates the byte budget, pushes real signal out of the 50-entry buffer faster, and bloats anything pasted to an AI.
 
 The same is true of the **defined-terms glossary** appended to every fast `payload.user` (~34 lines of `sprint/backlog/roadmap/...`) — static boilerplate repeated per call.
 
@@ -106,7 +106,7 @@ A single LLM call produces **two** rows — a `request` and a `response` — and
 
 ### P4 — No correlation; effects aren't linked to causes
 
-Records are a flat stream with no shared key. To reconstruct "this `doc-idle` trigger fired this strong call which produced these 4 missing-topic observations and resolved prior [0]", a reader must eyeball matching `model` + `payload` + adjacent timestamps. There is no `callId` joining request↔response↔retries↔error, no `evalId` joining a trigger to the calls it spawned, and no link from a call to the **observations/ledger-writes it produced**. The log shows inputs and outputs but never *which output came from which input*.
+Records are a flat stream with no shared key. To reconstruct "this `doc-idle` trigger fired this strong call which produced these 4 missing-topic observations and resolved prior [0]", a reader must eyeball matching `model` + `payload` + adjacent timestamps. There is no `callId` joining request↔response↔retries↔error, no `evalId` joining a trigger to the calls it spawned, and no link from a call to the **observations/ledger-writes it produced**. The log shows inputs and outputs but never _which output came from which input_.
 
 ### P5 — The export isn't self-describing
 
@@ -128,8 +128,8 @@ Replace the single flat `LLMLogEntry` with a discriminated union of purpose-buil
 // A trigger: something asked the system to (re)evaluate.
 type TriggerRecord = {
   kind: "trigger";
-  evalId: string;            // groups everything this trigger spawned
-  triggerKind: string;       // doc-idle | settle-pause | bootstrap-sweep | stage-changed | block-removed | rerun | ...
+  evalId: string; // groups everything this trigger spawned
+  triggerKind: string; // doc-idle | settle-pause | bootstrap-sweep | stage-changed | block-removed | rerun | ...
   blockId?: string;
   t: number;
 };
@@ -138,48 +138,57 @@ type TriggerRecord = {
 type CallRecord = {
   kind: "call";
   callId: string;
-  evalId: string;            // back-link to the trigger
+  evalId: string; // back-link to the trigger
   tier: "fast" | "strong";
   keyTier: "free" | "paid";
-  promptRef: string;         // dictionary key, NOT the full system text
-  user: string;              // variable user content (glossary dereferenced — see D3)
-  attempts: Array<{          // rotation collapsed here; one entry per model tried
+  promptRef: string; // dictionary key, NOT the full system text
+  user: string; // variable user content (glossary dereferenced — see D3)
+  attempts: Array<{
+    // rotation collapsed here; one entry per model tried
     model: string;
     status: number | "timeout";
     latencyMs: number;
     retryDelayMs?: number;
     error?: string;
   }>;
-  status: number | "timeout";// terminal outcome
-  latencyMs: number;         // terminal attempt latency
-  response?: string;         // parsed model output (the JSON the model returned)
-  produced?: {               // what this call DID — the missing effect-linkage (P4)
+  status: number | "timeout"; // terminal outcome
+  latencyMs: number; // terminal attempt latency
+  response?: string; // parsed model output (the JSON the model returned)
+  produced?: {
+    // what this call DID — the missing effect-linkage (P4)
     observations?: Array<{ id: string; type: string }>;
     ledgerWrites?: Array<{ blockId: string; action: "insert" | "overwrite" }>;
     resolvedPrior?: number[];
   };
-  t0: number; t1: number;
+  t0: number;
+  t1: number;
 };
 
 // An archive: an observation left the active feed. The reported gap (P1).
 type ArchiveRecord = {
   kind: "archive";
   observationId: string;
-  obsType: string;           // missing_topic | clarity | contradiction | ...
-  obsKind?: string;          // taxonomy kind axis
+  obsType: string; // missing_topic | clarity | contradiction | ...
+  obsKind?: string; // taxonomy kind axis
   severity?: string;
   scope: "span" | "document";
   blockId?: string;
-  text: string;              // the observation text, so the log is readable standalone
-  reason: "dismissed" | "collapsed" | "auto_closed" | "superseded" | "resolved_prior" | "block_removed";
+  text: string; // the observation text, so the log is readable standalone
+  reason:
+    | "dismissed"
+    | "collapsed"
+    | "auto_closed"
+    | "superseded"
+    | "resolved_prior"
+    | "block_removed";
   actor: "user" | "system";
-  supersededBy?: string;     // observationId, when reason = superseded
-  evalId?: string;           // which eval pass closed it, for system reasons
+  supersededBy?: string; // observationId, when reason = superseded
+  evalId?: string; // which eval pass closed it, for system reasons
   t: number;
 };
 ```
 
-`actor` is the single field that answers the session's opening question: **user vs. system**. `reason` answers *why*. `supersededBy`/`evalId` answer *by what*.
+`actor` is the single field that answers the session's opening question: **user vs. system**. `reason` answers _why_. `supersededBy`/`evalId` answer _by what_.
 
 ### D2 — Correlation via `evalId` / `callId`
 
@@ -201,21 +210,30 @@ The export carries a `systemPrompts` map (and a shared `glossary`) **once**; eve
     "schemaVersion": 2,
     "appBuild": "<git sha / vite build id>",
     "capturedAt": "2026-06-05T17:53:20Z",
-    "llmMode": "live",            // live | mock | record
+    "llmMode": "live", // live | mock | record
     "activeKeyTier": "paid",
-    "triggerKinds": ["doc-idle", "settle-pause", "bootstrap-sweep", "stage-changed", "block-removed", "rerun"]
+    "triggerKinds": [
+      "doc-idle",
+      "settle-pause",
+      "bootstrap-sweep",
+      "stage-changed",
+      "block-removed",
+      "rerun",
+    ],
   },
   "systemPrompts": {
     "section-eval-v3": "You are an AI sidecar evaluating a section…",
     "contradiction-v2": "You are a critical editor analyzing how the claims…",
-    "doc-quality-v2":   "You are a critical editor reviewing a document…"
+    "doc-quality-v2": "You are a critical editor reviewing a document…",
   },
   "glossary": ["sprint", "backlog", "roadmap", "…"],
-  "log": [ /* chronological TriggerRecord | CallRecord | ArchiveRecord */ ]
+  "log": [
+    /* chronological TriggerRecord | CallRecord | ArchiveRecord */
+  ],
 }
 ```
 
-`promptRef` values are **versioned** (`-v3`) so a pasted log records *which* prompt revision ran — useful when prompt edits change behavior between sessions.
+`promptRef` values are **versioned** (`-v3`) so a pasted log records _which_ prompt revision ran — useful when prompt edits change behavior between sessions.
 
 ### D4 — Chronological, self-describing export (P5)
 
@@ -261,7 +279,7 @@ One emitter records each event once; the agent stream (`getEvents`) and the huma
   "reason": "resolved_prior", "actor": "system", "evalId": "E7", "t": 1749… }
 ```
 
-Same session, dramatically fewer bytes, and every question the original could not answer — *who closed that observation, why, and from which call* — is now answerable by reading one record.
+Same session, dramatically fewer bytes, and every question the original could not answer — _who closed that observation, why, and from which call_ — is now answerable by reading one record.
 
 ---
 
@@ -270,7 +288,7 @@ Same session, dramatically fewer bytes, and every question the original could no
 1. **Unify now or stage it?** Recommended: ship the call-centric model + archival + envelope on `llmLogger` in Phase 4 (immediate field-test value, low blast radius), then unify the emitters in Phase 5. Doing both at once risks destabilizing the agent harness mid-Phase-4.
 2. **`produced` linkage requires threading the call's `callId` into the evaluator** so reconcile can attribute observations/archives back to the call. If that plumbing is too invasive for Phase 4, ship archival + merge + envelope first and add `produced` with the unify work.
 3. **Token/cost capture** (Gemini `usageMetadata`) is genuinely useful for quota debugging but is additive — defer to Phase 5 unless a 429-debugging session needs it sooner.
-4. **Panel ordering** stays newest-first (monitoring ergonomics); only the *export* flips to chronological. Confirm this split is acceptable.
+4. **Panel ordering** stays newest-first (monitoring ergonomics); only the _export_ flips to chronological. Confirm this split is acceptable.
 
 ## Out of scope
 

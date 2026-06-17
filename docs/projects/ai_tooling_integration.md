@@ -17,11 +17,11 @@ summary: SkillOpt, LEANN, and markitdown — external tooling anchored to specif
 
 ## Phased Plan
 
-| Phase        | Tool       | Contribution                                                                                                                                                            |
-| ------------ | ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Phase 4**  | SkillOpt   | Offline optimization of evaluator prompts — improve accuracy of contradiction/clarity checks without runtime overhead. Gated on building a labeled eval test set first (the Phase 4 "evaluator quality ratchet"). |
-| **Phase 3**  | LEANN      | Graph-based vector index as the engine for the claim-ledger embedding prefilter. Keeps contradiction checks bounded as documents grow. Local-first, MCP-native. (Shipped as a lexical prefilter.)         |
-| **Phase 5**  | markitdown | Binary-format → Markdown converter (DOCX, PDF) for the "import existing PRD" feature; rides with egress. Constraint: must run without a required server (local-first invariant).           |
+| Phase       | Tool       | Contribution                                                                                                                                                                                                      |
+| ----------- | ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Phase 4** | SkillOpt   | Offline optimization of evaluator prompts — improve accuracy of contradiction/clarity checks without runtime overhead. Gated on building a labeled eval test set first (the Phase 4 "evaluator quality ratchet"). |
+| **Phase 3** | LEANN      | Graph-based vector index as the engine for the claim-ledger embedding prefilter. Keeps contradiction checks bounded as documents grow. Local-first, MCP-native. (Shipped as a lexical prefilter.)                 |
+| **Phase 5** | markitdown | Binary-format → Markdown converter (DOCX, PDF) for the "import existing PRD" feature; rides with egress. Constraint: must run without a required server (local-first invariant).                                  |
 
 ---
 

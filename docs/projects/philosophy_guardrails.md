@@ -1,7 +1,7 @@
 ---
 status: in-progress
 kind: quality
-phases: [4, 5]
+phases: [4, 6]
 summary: Build the three unguarded philosophy guardrails — flattery-resistant dismissal, an explicit anti-taxonomy, and no-disguised-fix register discipline — plus a discomfort-budget ceiling, so the qualitative half of the fidelity bar is enforced in code and CI rather than left to model goodwill.
 ---
 
@@ -14,7 +14,7 @@ summary: Build the three unguarded philosophy guardrails — flattery-resistant 
 **Idea — scheduled across two phases.** The 2026-06-04 requirements analysis (`docs/snapshots/2026-06-04_requirements-analysis.md`) found that the product meets the _structural_ floor of the fidelity bar but leaves three _qualitative_ guardrails asserted-but-unbuilt: they look like helpfulness from the inside, so nothing in code stops them. This project builds the guards.
 
 - **Phase 4 (current core experience):** G1 flattery-resistant dismissal, G2 anti-taxonomy. These are trust/signal-quality work — they belong with the calm-feed milestones, not in packaging.
-- **Phase 5:** G3 no-disguised-fix register polish (the prompt rule lands in Phase 4; the human-tone half rides with `emotional_register`), G4 discomfort-budget ceiling.
+- **Phase 6:** G3 no-disguised-fix register polish (the prompt rule lands in Phase 4; the human-tone half rides with `emotional_register`), G4 discomfort-budget ceiling.
 
 Read alongside:
 
@@ -30,7 +30,7 @@ Read alongside:
 | Phase | Contributes                                                                                                                                                                                                                  |
 | ----- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **4** | **G1** kind/severity-aware dismissal suppression (flattery guard) and **G2** explicit anti-taxonomy negative list + ratchet fixture. Both directly serve the Phase 4 exit criterion that the feed is calm _and trustworthy_. |
-| **5** | **G3** no-disguised-fix register rule hardened with a message lint/fixture; **G4** discomfort-budget ceiling on the contradiction floor. Land once the core loop is worth living in.                                         |
+| **6** | **G3** no-disguised-fix register rule hardened with a message lint/fixture; **G4** discomfort-budget ceiling on the contradiction floor. Land once the core loop is worth living in.                                         |
 
 ## Todo
 
@@ -48,7 +48,7 @@ Read alongside:
   - [ ] Wire the assertion into the Tier-1 deterministic scorer so a prompt regression fails CI.
   - [ ] **`clarity` discrimination fixtures** (2026-06-10 due-diligence audit #8). The negative-list keeps surface nits off the _positive_ taxonomy, but `clarity` ("ambiguous, vague, or hard-to-parse passage") is the slot a sentence-length/word-choice nit dresses itself up in — "this sentence is hard to parse" is a readability complaint wearing a meaning costume, and the model has been shown to ignore verbatim negative examples (OBS-019). Add per-type discrimination fixtures: passages that are _surface-flawed but substantively clear_ and must **not** fire `clarity`, paired with genuinely ambiguous ones that must. One anti-taxonomy doc won't catch this drift; the gravity well arrives _through_ `clarity`, not around the taxonomy.
 
-### Phase 5
+### Phase 6
 
 - [ ] **G3 — No-disguised-fix register rule (R2.2–R2.4).**
   - [ ] Prompt rule across all observation prompts: messages locate, never prescribe; no leading/Socratic questions; no replacement text. (Partly present — make it explicit and uniform.)

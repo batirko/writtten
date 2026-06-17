@@ -1,7 +1,7 @@
 ---
 status: idea
 kind: spec
-phases: [5]
+phases: [6]
 summary: Give doc-level checks (structure_flow, underexposed_topic, audience_mismatch) the ability to anchor to the text they're about — section-level via blockId with an optional substring fallback — and tighten the prompts so categories stop bleeding (audience_mismatch absorbing claim-evidence complaints; structure_flow drifting into depth). Resolves R4 / OBS-015, OBS-016, OBS-018, UX-001, UX-009.
 ---
 
@@ -11,7 +11,7 @@ summary: Give doc-level checks (structure_flow, underexposed_topic, audience_mis
 
 > Canonical status lives in the frontmatter above and is mirrored in the Projects Index in `docs/plan.md`. This block carries the human-readable scope only.
 
-**Idea — Phase 5 (design fully written, ready to build).** Graduated from root cause **R4** in `docs/projects/quality_remediation_synthesis.md` into its own spec, the same way R3b → `archive_trust.md` and R3 → `doc_scope_reconciliation.md` did. The strong-tier doc-level schema returns only `{text}`, so doc-level critiques are architecturally second-class:
+**Idea — Phase 6 (design fully written, ready to build).** Graduated from root cause **R4** in `docs/projects/quality_remediation_synthesis.md` into its own spec, the same way R3b → `archive_trust.md` and R3 → `doc_scope_reconciliation.md` did. The strong-tier doc-level schema returns only `{text}`, so doc-level critiques are architecturally second-class:
 
 - They **can't anchor** — `structure_flow` / `underexposed_topic` point at text that _exists_ but can't highlight it (OBS-015 / UX-001), and there's nothing for auto-scroll to target (UX-009).
 - With no proper home, the model **dumps** unsupported-claim (claim-vs-evidence) complaints into `audience_mismatch` (OBS-018).
@@ -34,7 +34,7 @@ Read alongside:
 
 | Phase | Contributes                                                                                                                                                                                                                                                                                                  |
 | ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **5** | Extend the doc-level input (block references) and output schema (optional `blockId` + `substring`), add the three-tier anchor resolver, populate the existing Observation anchor fields, and tighten the four doc-level category prompts. Unit/ratchet tests guard the category discipline and the fallback. |
+| **6** | Extend the doc-level input (block references) and output schema (optional `blockId` + `substring`), add the three-tier anchor resolver, populate the existing Observation anchor fields, and tighten the four doc-level category prompts. Unit/ratchet tests guard the category discipline and the fallback. |
 
 ## Todo
 

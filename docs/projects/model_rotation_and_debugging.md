@@ -91,7 +91,7 @@ Rate limits in Google AI Studio are tracked **per model**, so rotating to a diff
    - Record the model in the **cool-down registry** with the `retry-delay`-derived duration.
    - Wait using **exponential backoff** (500 ms base).
    - Rotate to the next model in the pool.
-1. **Pool exhausted:** fall back to local Ollama (if active) or surface a user-friendly "AI cooldown" warning. Never fail silently.
+3. **Pool exhausted:** fall back to local Ollama (if active) or surface a user-friendly "AI cooldown" warning. Never fail silently.
 
 ---
 
@@ -108,10 +108,10 @@ To avoid browser CORS blocks, proxy `/api/ollama` in `vite.config.ts`:
 export default defineConfig({
   server: {
     proxy: {
-      '/api/ollama': {
-        target: 'http://localhost:11434',
+      "/api/ollama": {
+        target: "http://localhost:11434",
         changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api\/ollama/, ''),
+        rewrite: (path) => path.replace(/^\/api\/ollama/, ""),
       },
     },
   },
@@ -139,7 +139,7 @@ A togglable **Debug Mode** that logs all outgoing and incoming API data, includi
 interface LLMLogEntry {
   id: string;
   timestamp: Date;
-  type: 'request' | 'response' | 'retry' | 'fallback' | 'error';
+  type: "request" | "response" | "retry" | "fallback" | "error";
   model: string;
   endpoint: string;
   latencyMs?: number;

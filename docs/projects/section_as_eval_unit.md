@@ -78,7 +78,7 @@ New: the cursor tracks the active **section** (call `resolveSection` to find whi
 
 **Paste / import unification:** when a section is pasted, the cursor lands at the end of the last pasted block (typically the last block of the pasted section). The user then pastes the next section, moving the cursor forward — which triggers section-departure on the just-pasted section. This is the same event sequence as typing a section and pressing Enter to start a new one.
 
-> **Correction (2026-06-05):** this only holds for *section-by-section* pasting that moves the cursor between pastes. A single **bulk paste** of a whole draft is one selection jump — the cursor lands only in the last section, so departure never fires for the sections above it and they go unevaluated. Bulk paste/import therefore *does* need explicit handling. See `docs/projects/bulk_paste_evaluation.md`.
+> **Correction (2026-06-05):** this only holds for _section-by-section_ pasting that moves the cursor between pastes. A single **bulk paste** of a whole draft is one selection jump — the cursor lands only in the last section, so departure never fires for the sections above it and they go unevaluated. Bulk paste/import therefore _does_ need explicit handling. See `docs/projects/bulk_paste_evaluation.md`.
 
 Within-section edits reset the section's debounce timer but do not fire intermediate evaluations. This reduces call frequency for sections that are typed incrementally.
 

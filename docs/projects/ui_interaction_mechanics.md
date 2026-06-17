@@ -1,7 +1,7 @@
 ---
 status: idea
 kind: spec
-phases: [5]
+phases: [6]
 summary: The canonical interaction contracts for the feed↔editor — hover/focus highlight, card activation (click scrolls-to-span), the dismiss gesture with an Undo toast that rolls back suppression, card anatomy & ordering, and the two "also noticed" drawers. Makes the partly-built Phase-4 mechanics intentional and consistent, and draws clean scope lines against R7b, R3c, and the shipped accessibility work.
 ---
 
@@ -11,7 +11,7 @@ summary: The canonical interaction contracts for the feed↔editor — hover/foc
 
 > Canonical status lives in the frontmatter above and is mirrored in the Projects Index in `docs/plan.md`. This block carries the human-readable scope only.
 
-**Idea — Phase 5 (design fully written, ready to build).** The third leg of the "product feel" pass. The interactions that define how the tool _feels_ — hover a card, see its span light up; click, go there; dismiss, with a way back — are **partly built already** (Phase 4 shipped most of the plumbing). This pass doesn't rebuild them; it makes the contracts **intentional, consistent, and documented**, and it resolves the two product-feel decisions that were left open.
+**Idea — Phase 6 (design fully written, ready to build).** The third leg of the "product feel" pass. The interactions that define how the tool _feels_ — hover a card, see its span light up; click, go there; dismiss, with a way back — are **partly built already** (Phase 4 shipped most of the plumbing). This pass doesn't rebuild them; it makes the contracts **intentional, consistent, and documented**, and it resolves the two product-feel decisions that were left open.
 
 This is appearance-and-behaviour glue that sits on top of:
 
@@ -29,7 +29,7 @@ This is appearance-and-behaviour glue that sits on top of:
 
 | Phase | Contributes                                                                                                                                                                                                                                                                                        |
 | ----- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **5** | Codify the six interaction contracts (§ Contracts) into consistent, token-driven implementations; add the Undo toast + suppression rollback; add click-scroll-to-span + pulse. Leaves the new R7b affordances and R3c choreography to their own milestones, satisfying the contracts defined here. |
+| **6** | Codify the six interaction contracts (§ Contracts) into consistent, token-driven implementations; add the Undo toast + suppression rollback; add click-scroll-to-span + pulse. Leaves the new R7b affordances and R3c choreography to their own milestones, satisfying the contracts defined here. |
 
 ## Todo
 

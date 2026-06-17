@@ -21,8 +21,8 @@ Read alongside:
 
 ## Phased Plan
 
-| Phase | Contributes |
-| --- | --- |
+| Phase | Contributes                                                                                                |
+| ----- | ---------------------------------------------------------------------------------------------------------- |
 | **5** | Export (MD + print-to-PDF), Copy (MD + rich text), PWA (installable + offline app shell). All client-side. |
 
 ## Todo
@@ -30,6 +30,7 @@ Read alongside:
 ### D1 — Serialization seam (`src/services/export.ts`, new) — do first
 
 - [ ] Create `src/services/export.ts` exporting a pure-ish module that takes the live TipTap editor and produces output. No React, no DOM coupling beyond the clipboard/anchor calls.
+
   ```ts
   import type { Editor } from "@tiptap/react";
 
@@ -82,6 +83,7 @@ Read alongside:
     window.print();
   }
   ```
+
 - [ ] Unit test `src/services/export.test.ts`: build a headless editor (the repo already runs TipTap under jsdom in `section.test.ts` — follow that setup), assert `toMarkdown` round-trips a heading+paragraph+bullet doc, and assert `downloadFile` constructs an anchor with the right `download` attr (stub `URL.createObjectURL`/anchor click). Clipboard functions: assert they call a mocked `navigator.clipboard`.
 
 ### D2 — Expose the live editor to the feed buttons

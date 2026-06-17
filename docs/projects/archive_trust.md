@@ -1,7 +1,7 @@
 ---
 status: idea
 kind: spec
-phases: [5]
+phases: [6]
 summary: Build-ready spec for R3b — make the archive trustworthy by persisting each observation's original anchored text ("ghost anchor") and an explicit closure reason, then rendering both on archive cards. Two new persisted fields + a migration + capture at the five archival sites + a card render change.
 ---
 
@@ -11,7 +11,7 @@ summary: Build-ready spec for R3b — make the archive trustworthy by persisting
 
 ## Status
 
-**Idea — Phase 5.** Unblocked by the R3 reconciliation engine (shipped, Phase 4) and the doc-scope closure-reason honesty (`doc_scope_reconciliation.md`, done). This is the presentation layer that makes the archive answer "what was this about, and why did it close?". Read alongside:
+**Idea — Phase 6.** Unblocked by the R3 reconciliation engine (shipped, Phase 4) and the doc-scope closure-reason honesty (`doc_scope_reconciliation.md`, done). This is the presentation layer that makes the archive answer "what was this about, and why did it close?". Read alongside:
 
 - `docs/projects/debug_log.md` — its `ArchiveRecord` already enumerates the five status-transition sites and their `reason`/`actor` values. **Reuse that exact mapping** (this doc and that one must agree).
 - `docs/projects/quality_remediation_synthesis.md` (R3 / resolves UX-002, UX-011).
@@ -19,9 +19,9 @@ summary: Build-ready spec for R3b — make the archive trustworthy by persisting
 
 ## Phased Plan
 
-| Phase | Contributes |
-| --- | --- |
-| **5** | Persist `anchorText` (+ `conflictingAnchorText` for contradictions) and `closureReason` on `Observation`; capture them at create/archive time; render them on archive cards. |
+| Phase | Contributes                                                                                                                                                                  |
+| ----- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **6** | Persist `anchorText` (+ `conflictingAnchorText` for contradictions) and `closureReason` on `Observation`; capture them at create/archive time; render them on archive cards. |
 
 ## The problem (today)
 
@@ -59,14 +59,14 @@ Archive cards (`src/sidecar/SidecarFeed.tsx` ~L648–671) show only: the type ta
 
 **Closure reason at archival.** `debug_log.md` already mapped the five transition sites — stamp `closureReason` at each, using the same vocabulary as its `ArchiveRecord.reason`:
 
-| Transition | Site | `closureReason` |
-| --- | --- | --- |
-| user dismissal | `App.tsx` `handleDismissObservation` | `dismissed` |
-| user collapse (aggregation) | `App.tsx` `handleObservationCollapsed` | (keeps `auto_closed`; reason `resolved_by_edit` is wrong here — use `dismissed`? **decision below**) |
-| reconcile: no counterpart, span still present | `evaluator.ts` reconcile loop | `resolved_by_edit` |
-| reconcile: span/block deleted | `evaluator.ts` (block-removed / span gone) | `text_removed` |
-| model-confirmed prior resolved | `evaluator.ts` force-close | `resolved_prior` |
-| superseded by overlapping new obs | `evaluator.ts` reconcile | `superseded` (also set `supersededBy` is not persisted today — out of scope; the debug log carries it) |
+| Transition                                    | Site                                       | `closureReason`                                                                                        |
+| --------------------------------------------- | ------------------------------------------ | ------------------------------------------------------------------------------------------------------ |
+| user dismissal                                | `App.tsx` `handleDismissObservation`       | `dismissed`                                                                                            |
+| user collapse (aggregation)                   | `App.tsx` `handleObservationCollapsed`     | (keeps `auto_closed`; reason `resolved_by_edit` is wrong here — use `dismissed`? **decision below**)   |
+| reconcile: no counterpart, span still present | `evaluator.ts` reconcile loop              | `resolved_by_edit`                                                                                     |
+| reconcile: span/block deleted                 | `evaluator.ts` (block-removed / span gone) | `text_removed`                                                                                         |
+| model-confirmed prior resolved                | `evaluator.ts` force-close                 | `resolved_prior`                                                                                       |
+| superseded by overlapping new obs             | `evaluator.ts` reconcile                   | `superseded` (also set `supersededBy` is not persisted today — out of scope; the debug log carries it) |
 
 - [ ] Set `closureReason` in `updateObservationStatus` calls, or extend `updateObservationStatus(id, status, closureReason?)` to take and persist the reason (cleanest — one signature change, all sites pass the reason). Prefer extending the function so the field is written atomically with `status`.
 - [ ] **Decision — the collapse case:** aggregation-collapse (`handleObservationCollapsed`) isn't a resolution; map it to `closureReason: "dismissed"` (the user folded it into the primary card) — or introduce a sixth value `collapsed`. Recommend reusing `dismissed` to keep the enum tight; the debug log already distinguishes `collapsed` for forensics, the archive card doesn't need that granularity. **Pick `dismissed` unless review says otherwise.**

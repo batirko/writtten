@@ -1,7 +1,7 @@
 ---
 status: idea
 kind: spec
-phases: [5]
+phases: [6]
 summary: The visual design system — type, colour (OKLCH tokens), spacing, elevation, motion, and per-component language — that makes the tool feel calm, editorial, and opinionated rather than a dev-tool grey box. Light-first; dark deferred. Serif writing canvas, sans observation feed, ink-indigo brand accent on warm paper.
 ---
 
@@ -11,7 +11,7 @@ summary: The visual design system — type, colour (OKLCH tokens), spacing, elev
 
 > Canonical status lives in the frontmatter above and is mirrored in the Projects Index in `docs/plan.md`. This block carries the human-readable scope only.
 
-**Idea — Phase 5 (design fully written, ready to build).** This is the design-system half of the Phase 5 "product feel" pass. It defines the tokens and component language; the **UI/UX mechanics pass** (interaction contracts), **emotional register** (voice/copy), and **onboarding & first-run** (the blank-canvas moment) consume it. Defining it first is deliberate — everything else references the type, colour, and spacing vocabulary set here.
+**Idea — Phase 6 (design fully written, ready to build).** This is the design-system half of the Phase 6 "product feel" pass. It defines the tokens and component language; the **UI/UX mechanics pass** (interaction contracts), **emotional register** (voice/copy), and **onboarding & first-run** (the blank-canvas moment) consume it. Defining it first is deliberate — everything else references the type, colour, and spacing vocabulary set here.
 
 The four taste decisions that set the identity were made 2026-06-17:
 
@@ -33,7 +33,7 @@ This spec is build-ready against the **Hallmark** editorial-genre discipline (OK
 
 | Phase | Contributes                                                                                                                                                                                                                                                                                                                                                                                                                                    |
 | ----- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **5** | The full light-mode design system — tokens (type, colour, spacing, radius, elevation, motion) + per-component visual language for every existing surface (editor canvas, feed panel, observation card, tags/badges, highlights, archive, settings, empty states). Dark mode is specified at the token level but deferred to a later slice. Lands with the UI/UX mechanics pass, emotional register, and onboarding as the "product feel" pass. |
+| **6** | The full light-mode design system — tokens (type, colour, spacing, radius, elevation, motion) + per-component visual language for every existing surface (editor canvas, feed panel, observation card, tags/badges, highlights, archive, settings, empty states). Dark mode is specified at the token level but deferred to a later slice. Lands with the UI/UX mechanics pass, emotional register, and onboarding as the "product feel" pass. |
 
 ## Todo
 

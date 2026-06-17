@@ -11,13 +11,13 @@ summary: A concrete, itemized accessibility & keyboard-first checklist for the f
 
 ## Status
 
-**Idea — Phase 5.** Hardening leg of the phase. The product's primary interaction — hover a card → highlight its span — is mouse-only today; the load-bearing a11y work is giving that a keyboard/AT equivalent. Read alongside `docs/projects/quality_remediation_synthesis.md` (R7b scanning affordances — overlaps the reverse-hover/scroll items) and the UX-mechanics pass in `docs/plan.md` (Phase 5).
+**Idea — Phase 5.** Hardening leg of the phase. The product's primary interaction — hover a card → highlight its span — is mouse-only today; the load-bearing a11y work is giving that a keyboard/AT equivalent. Read alongside `docs/projects/quality_remediation_synthesis.md` (R7b scanning affordances — overlaps the reverse-hover/scroll items) and the UX-mechanics pass in `docs/plan.md` (Phase 6).
 
 ## Phased Plan
 
-| Phase | Contributes |
-| --- | --- |
-| **5** | Semantic roles/labels on the feed, a keyboard path for card↔span focus and highlight, focus-visible styling, and a reduced-motion guard for the Phase-5 feed choreography. |
+| Phase | Contributes                                                                                                                                                                |
+| ----- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **5** | Semantic roles/labels on the feed, a keyboard path for card↔span focus and highlight, focus-visible styling, and a reduced-motion guard for the Phase-6 feed choreography. |
 
 ## Todo
 
@@ -47,7 +47,7 @@ Today highlight is driven by `onMouseEnter`/`onMouseLeave` → `onHoverObservati
 ### A4 — Contrast & reduced motion (mechanical)
 
 - [ ] Audit text/badge contrast against WCAG AA (the muted greys `#9ca3af`/`#6b7280` on `#f9fafb` archive cards are borderline — bump if under 4.5:1 for body text). This is a pass over `src/styles.css` and the inline styles in `SidecarFeed.tsx`.
-- [ ] Add `@media (prefers-reduced-motion: reduce)` that disables the Phase-5 feed choreography animations (R3c) and any transitions. (Coordinate: if R3c isn't built yet, leave a one-line note in `quality_remediation_synthesis.md` R3c that the animation must honor this guard.)
+- [ ] Add `@media (prefers-reduced-motion: reduce)` that disables the Phase-6 feed choreography animations (R3c) and any transitions. (Coordinate: if R3c isn't built yet, leave a one-line note in `quality_remediation_synthesis.md` R3c that the animation must honor this guard.)
 
 ### A5 — Editor a11y (mechanical, light)
 
