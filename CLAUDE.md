@@ -1,6 +1,6 @@
 # [CLAUDE.md](http://CLAUDE.md)
 
-> Operational guide for AI coding agents working in this repo. Read this first, every session. Working title: **Sidecar** (placeholder — rename when a real name is chosen).
+> Operational guide for AI coding agents working in this repo. Read this first, every session. Product name: **writtten** (hosted at writtten.com).
 
 ## What this is
 

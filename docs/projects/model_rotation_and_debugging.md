@@ -157,7 +157,7 @@ interface LLMLogEntry {
 
 When Debug Mode is enabled:
 
-1. **Collapsible panel** at the bottom of the Sidecar feed.
+1. **Collapsible panel** at the bottom of the writtten feed.
 2. **Status colors:** green = success, yellow = retry/rotation/backoff, red = exhausted or fatal.
 3. **JSON inspector** on each entry — raw outgoing prompt (`system` + `user`) and response text or JSON.
 4. **Active provider chip** in the sidecar status bar (always visible, not just in debug mode) — shows the model that produced the last observation so the user knows when quality has degraded.

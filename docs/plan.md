@@ -99,7 +99,7 @@ Scope is ruthless. Only:
 - [x] **Block summarization** on settle, with trivial-change short-circuit (hash diff). Merge summarize + claims + clarity into one structured-output `router.fast` call per block to stay within free-tier RPM limits. → see `docs/projects/model_rotation_and_debugging.md`
 - [x] **Claim ledger** (extract → upsert/retire per block; orphan on block delete).
 - [x] **Two checks only:** `clarity` (span) and `contradiction` (against the ledger / stage).
-- [x] **Sidecar feed** rendering active observations. → see `docs/projects/message_generation_workflow.md`
+- [x] **writtten feed** rendering active observations. → see `docs/projects/message_generation_workflow.md`
 - [x] **Hover → highlight** the referenced span(s); contradiction highlights both sides.
 - [x] **Anchoring via position mapping** so highlights track text through edits.
 - [x] **Auto-close** observations resolved by an edit (incl. close when the span is deleted). → see `docs/projects/message_generation_workflow.md`

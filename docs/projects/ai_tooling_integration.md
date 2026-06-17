@@ -51,7 +51,7 @@ summary: SkillOpt, LEANN, and markitdown — external tooling anchored to specif
 
 **What it is.** Microsoft Research's offline prompt optimizer ([github.com/microsoft/SkillOpt](https://github.com/microsoft/SkillOpt), arXiv 2605.23904). Treats a prompt document as the trainable parameter of a frozen LLM. Runs optimization epochs: an optimizer model proposes bounded text edits, scores them against a held-out validation set, and accepts only changes that strictly improve accuracy. Output: a compact `best_skill.md` (300–2k tokens) with zero inference-time overhead — it's just a better prompt.
 
-**Why it matters here.** Sidecar's value is entirely downstream of whether the evaluator catches real problems the user wrote. The prompts in `src/services/evaluator.ts` are the product's core. SkillOpt is the only tool in this document with a built-in answer to "is it working better?" — it reports validation accuracy on your own test set, before and after.
+**Why it matters here.** writtten's value is entirely downstream of whether the evaluator catches real problems the user wrote. The prompts in `src/services/evaluator.ts` are the product's core. SkillOpt is the only tool in this document with a built-in answer to "is it working better?" — it reports validation accuracy on your own test set, before and after.
 
 Benchmark results from the paper (across 6 benchmarks, 7 models): +19–25 point average accuracy improvement. Optimized prompts transfer across model scales, so a prompt optimized on Gemini Flash stays good when upgrading to a stronger model.
 
@@ -126,7 +126,7 @@ leann search claim_ledger_index "<new claim text>" --top-k 5
 
 **What it is.** Microsoft's file-to-Markdown converter ([github.com/microsoft/markitdown](https://github.com/microsoft/markitdown)). Handles DOCX, PDF, PPTX, XLSX, HTML, images (via vision captioning), and more. Single Python function call, returns clean Markdown optimized for LLM consumption.
 
-**Why it matters here.** Phase 4 adds "Import / lossless round-trip of existing Markdown drafts." But the primary persona — PMs — don't draft in Markdown. Their existing PRDs live in Word, Google Docs exports, Confluence HTML, and email PDFs. markitdown closes the gap between "where the draft lives" and "where Sidecar can read it." Without it, "import" means Markdown-only, which serves developers but not the target persona.
+**Why it matters here.** Phase 4 adds "Import / lossless round-trip of existing Markdown drafts." But the primary persona — PMs — don't draft in Markdown. Their existing PRDs live in Word, Google Docs exports, Confluence HTML, and email PDFs. markitdown closes the gap between "where the draft lives" and "where writtten can read it." Without it, "import" means Markdown-only, which serves developers but not the target persona.
 
 **Hard constraint.** Local-first invariant (#5 in `CLAUDE.md`) prohibits a required server. markitdown is a Python library — three compliant paths:
 

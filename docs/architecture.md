@@ -34,7 +34,7 @@ Everything runs client-side by default:
 │                       claim ledger · observations · settings │
 │      │                                                        │
 │      ▼                                                        │
-│   Sidecar Feed UI  ·  Archive  ·  Export                      │
+│   writtten Feed UI  ·  Archive  ·  Export                     │
 └─────────────────────────────────────────────────────────────┘
 ```
 
