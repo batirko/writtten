@@ -2,3 +2,6 @@ node_modules
 dist
 .env.local
 *.tsbuildinfo
+
+# Obsidian vault config (rich-text editing of docs/ — local, per-machine)
+.obsidian/
