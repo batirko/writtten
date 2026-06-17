@@ -17,12 +17,9 @@ const fixture: EvalFixture = {
     { id: "block-q3", text: "This will ship in Q3." },
   ],
   recordings: {
-    r7njj8m_3013:
-      '{\n  "summary": "The team plans to release the project during the second quarter.",\n  "claims": [\n    {\n      "text": "We\'ll launch this in Q2.",\n      "kind": "commitment"\n    }\n  ],\n  "clarity_observations": [\n    {\n      "text": "The scope of what constitutes \'this\' is not specified.",\n      "substring": "this"\n    }\n  ],\n  "unsupported_claim_observations": [],\n  "undefined_jargon_observations": []\n}',
-    r1w24hgp_3010:
-      '{\n  "summary": "The project is scheduled for release during the third quarter.",\n  "claims": [\n    {\n      "text": "This will ship in Q3.",\n      "kind": "commitment"\n    }\n  ],\n  "clarity_observations": [],\n  "unsupported_claim_observations": [],\n  "undefined_jargon_observations": []\n}',
-    r121jun3_2216:
-      '{\n  "contradictions": [\n    {\n      "newClaimText": "This will ship in Q3.",\n      "existingClaimId": 0,\n      "message": "The Q3 shipping date directly contradicts the Q2 launch commitment."\n    }\n  ],\n  "tensions": []\n}',
+    "r1ws2acb_4432": "{\n  \"summary\": \"The project is scheduled for release during the second quarter.\",\n  \"claims\": [\n    {\n      \"text\": \"We'll launch this in Q2.\",\n      \"kind\": \"commitment\"\n    }\n  ],\n  \"clarity_observations\": [\n    {\n      \"text\": \"The specific year for the Q2 launch is not specified.\",\n      \"substring\": \"Q2\"\n    }\n  ],\n  \"unsupported_claim_observations\": [],\n  \"undefined_jargon_observations\": []\n}",
+    "r1ldqllq_4429": "{\n  \"summary\": \"The project is scheduled for release in the third quarter.\",\n  \"claims\": [\n    {\n      \"text\": \"This will ship in Q3.\",\n      \"kind\": \"commitment\"\n    }\n  ],\n  \"clarity_observations\": [\n    {\n      \"text\": \"The scope of the project being shipped is not defined.\",\n      \"substring\": \"This\"\n    }\n  ],\n  \"unsupported_claim_observations\": [],\n  \"undefined_jargon_observations\": []\n}",
+    "r121jun3_2216": "{\n  \"contradictions\": [\n    {\n      \"newClaimText\": \"This will ship in Q3.\",\n      \"existingClaimId\": 0,\n      \"message\": \"The Q3 shipping date directly contradicts the Q2 launch commitment.\"\n    }\n  ],\n  \"tensions\": []\n}"
   },
   expected: [
     {
@@ -34,7 +31,13 @@ const fixture: EvalFixture = {
     {
       type: "clarity",
       sectionId: "block-q2",
-      note: "'this' is unspecified in the Q2 block",
+      note: "Year for Q2 launch is unspecified",
+    },
+    {
+      type: "clarity",
+      sectionId: "block-q3",
+      substring: "This",
+      note: "Pronoun 'This' has no defined scope",
     },
   ],
 };

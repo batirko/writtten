@@ -21,8 +21,7 @@ const fixture: EvalFixture = {
     },
   ],
   recordings: {
-    r1kp5pd_3121:
-      '{\n  "summary": "The team will execute a 10% soft launch using the GQRS protocol for transaction validation prior to general availability.",\n  "claims": [\n    {\n      "text": "We plan a soft launch to a 10% rollout cohort before GA.",\n      "kind": "commitment"\n    },\n    {\n      "text": "The payment flow will use the GQRS protocol for all transaction validation.",\n      "kind": "constraint"\n    }\n  ],\n  "clarity_observations": [\n    {\n      "text": "The term GA is used without explicit definition or context regarding the timeline or scope.",\n      "substring": "GA"\n    }\n  ],\n  "unsupported_claim_observations": [],\n  "undefined_jargon_observations": [\n    {\n      "text": "GQRS is an acronym used without definition.",\n      "substring": "GQRS"\n    }\n  ]\n}',
+    "ro079ts_4540": "{\n  \"summary\": \"The team will execute a 10% rollout of the payment flow using the GQRS protocol prior to general availability.\",\n  \"claims\": [\n    {\n      \"text\": \"We plan a soft launch to a 10% rollout cohort before GA.\",\n      \"kind\": \"commitment\"\n    },\n    {\n      \"text\": \"The payment flow will use the GQRS protocol for all transaction validation.\",\n      \"kind\": \"commitment\"\n    }\n  ],\n  \"clarity_observations\": [],\n  \"unsupported_claim_observations\": [],\n  \"undefined_jargon_observations\": [\n    {\n      \"text\": \"GQRS\",\n      \"substring\": \"GQRS\"\n    }\n  ]\n}"
   },
   expected: [
     {
@@ -31,26 +30,7 @@ const fixture: EvalFixture = {
       substring: "GQRS",
       note: "GQRS is a made-up term — should be flagged as undefined jargon",
     },
-    {
-      type: "clarity",
-      sectionId: "sec1",
-      substring: "GA",
-      note: "'GA' is used without definition — reasonable clarity flag",
-    },
-  ],
-  knownGaps: [
-    {
-      type: "undefined_jargon",
-      sectionId: "sec1",
-      substring: "soft launch",
-      note: "OBS-005: 'soft launch' is in JARGON_PRESET; should NOT fire but may until allow-list is checked",
-    },
-    {
-      type: "undefined_jargon",
-      sectionId: "sec1",
-      substring: "rollout cohort",
-      note: "OBS-005: 'rollout cohort' — preset terms; should NOT fire",
-    },
+    // GA, soft launch, rollout cohort are in JARGON_PRESET — must NOT fire (OBS-003/005 resolved)
   ],
 };
 

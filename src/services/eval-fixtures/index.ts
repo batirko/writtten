@@ -20,6 +20,8 @@ import jargonAllowlist from "./jargon-allowlist";
 import cleanDoc from "./clean-doc";
 import antiTaxonomy from "./anti-taxonomy";
 import noDisguisedFix from "./no-disguised-fix";
+import clarityDiscrimination from "./clarity-discrimination";
+import unsupportedSuccessMetric from "./unsupported-success-metric";
 import type { EvalFixture } from "./types";
 
 export const corpus: EvalFixture[] = [
@@ -31,6 +33,8 @@ export const corpus: EvalFixture[] = [
   cleanDoc,
   antiTaxonomy,
   noDisguisedFix,
+  clarityDiscrimination,
+  unsupportedSuccessMetric,
 ];
 
 export { type EvalFixture } from "./types";

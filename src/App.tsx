@@ -301,8 +301,6 @@ export default function App() {
         onKeyTierChange={setKeyTier}
         stage={stage}
         onStageChange={setStage}
-        jargonAllowlist={jargonAllowlist}
-        onJargonAllowlistChange={setJargonAllowlist}
         hoveredObservationId={hoveredObservationId}
         onHoverObservation={setHoveredObservationId}
         onDismissObservation={handleDismissObservation}
