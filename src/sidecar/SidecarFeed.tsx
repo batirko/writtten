@@ -186,9 +186,6 @@ interface Props {
   stageSuggestion?: string | null;
   onAcceptStageSuggestion?: (s: string) => void;
   onDismissStageSuggestion?: () => void;
-  /** Raw textarea value — one term per line. Persisted in App, passed down. */
-  jargonAllowlist?: string;
-  onJargonAllowlistChange?: (val: string) => void;
   onExportMarkdown?: () => void;
   onExportPdf?: () => void;
   onCopyMarkdown?: () => void;
@@ -218,8 +215,6 @@ export function SidecarFeed({
   stageSuggestion,
   onAcceptStageSuggestion,
   onDismissStageSuggestion,
-  jargonAllowlist = "",
-  onJargonAllowlistChange,
   onExportMarkdown,
   onExportPdf,
   onCopyMarkdown,
