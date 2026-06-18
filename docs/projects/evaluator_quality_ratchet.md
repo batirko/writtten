@@ -69,14 +69,25 @@ summary: Labeled fixture corpus + two-tier scorer (deterministic replay + opt-in
 - [ ] `docs/plan.md` — tick **Evaluator quality ratchet** milestone; check Phase 4 complete
 - [ ] `docs/projects/ai_tooling_integration.md` — check off "labeled eval test set" + "wire into Vitest" Phase 4 todos; note SkillOpt now unblocked
 
-### Phase 6 — tighten the bar (2026-06-10 due-diligence audit #7) — 🟡 Med · 🧠
+### Phase 6 — tighten the bar (2026-06-10 due-diligence audit #7) — 🟢 Med · 🧠 (design settled 2026-06-18)
 
 The machinery shipped, but the _floor it guards_ is below the prose bar: R4.4 implies an effective precision near 1.0 for high-severity types ("one 'contradiction' that isn't one and the user discounts the entire feed"), while the live floor is one aggregate `precision ≥ 0.7` over ~6–8 fixtures — which permits the feed to be 30% wrong and still pass, and gives n≈7 no statistical meaning (a single flaky fixture swings it ~14 points).
 
-- [ ] **Per-type precision floors** in `evalRatchet.live.test.ts`: `contradiction` ≥ 0.95 (the trust-asymmetry tier), span nits looser. Replace the single aggregate assert.
-- [ ] **Second-rater labels** on at least part of the corpus, so `expected` ground truth isn't solely the prompt author's.
-- [ ] **Grow the corpus toward 20–40 docs** (overlaps with `field_validation.md` V1, which produces real-PRD material and per-type wild-precision numbers — reuse that corpus where licensing allows).
-- [ ] Note: this work is gated by — and feeds — `field_validation.md` V1/V3; the corpus study supplies the documents and the recall measurement this tightening needs.
+**Decision (2026-06-18, interactive):** replace the single aggregate assert with a **four-tier per-type floor table** keyed to trust cost (a false `contradiction` discounts the whole feed; a false soft-opportunity is mild). Floors are **provisional** — calibrated against the real-PRD per-type precision numbers V1 produces — but the _tiering and the code shape_ are build-ready now. Second-rating and corpus growth are explicitly **folded into the V1 session** (which produces reconciled labels and real-PRD material anyway), so this milestone's design is complete and its data-dependent steps have a defined source rather than being open.
+
+**Per-type precision floors** (in `evalRatchet.live.test.ts` — replace the lone aggregate assert):
+
+| Tier  | Floor (provisional) | Types                                                                        | Why                                                                                                                                                                                    |
+| ----- | ------------------- | ---------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **A** | **≥ 0.95**          | `contradiction`                                                              | The hero capability; one false positive discounts the entire feed (R4.4). Highest trust cost.                                                                                          |
+| **B** | **≥ 0.85**          | `unsupported_claim`, `audience_mismatch`                                     | Assertive `problem`-kind claims _about the user's content_; a false one is costly but not feed-discrediting.                                                                           |
+| **C** | **≥ 0.80**          | `clarity`, `undefined_jargon`                                                | Span nits; false positives are mild and easily ignored. `clarity` held at the higher end of this tier because it's the G2 "laundering slot" the anti-taxonomy doesn't otherwise cover. |
+| **D** | **≥ 0.70**          | `missing_topic`, `underexposed_topic`, `structure_flow`, `strategic_tension` | Soft `opportunity`-kind suggestions in a gentle, "never cried wolf" register; tolerating more false positives is acceptable.                                                           |
+
+- [ ] **Implement the tiered floors** in `evalRatchet.live.test.ts`: assert each type's precision against its tier floor (skip a type's assert when n=0 for it in the current corpus; log it). Keep an aggregate `recall ≥ 0.8` soft-assert. Calibrate the numbers up/down once V1 lands real per-type precision (the table is the policy; the constants are tunable).
+- [ ] **Second-rater labels — via V1.** Do **not** run a separate label pass here; consume the **reconciled ground-truth labels V1 produces** on its corpus (`field_validation.md` V1), so `expected` isn't solely the prompt author's. This milestone depends on V1 for that independence.
+- [ ] **Grow the corpus toward 20–40 docs — via V1.** Reuse V1's real-PRD corpus where licensing allows; the ratchet consumes it. (n≈7 → 20–40 is what gives the per-type floors statistical meaning.)
+- [ ] Note: the **design** above is complete and build-ready; the two data-dependent steps (independent labels, larger corpus) are **scheduled through `field_validation.md` V1**, not left open. V3 supplies the complementary recall measurement.
 
 ---
 

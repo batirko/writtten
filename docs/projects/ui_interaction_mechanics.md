@@ -83,7 +83,7 @@ The inconsistencies this pass resolves: dismiss has no recovery path; click does
 
 #### C4 — Card anatomy & ordering
 
-Ordering is fixed by `visual_style § Observation card` (left-border impact = kind×severity; header = impact dot + type tag + dismiss; body; "also noticed"). This pass only enforces that the DOM matches that order and that the impact dot's tooltip (severity/confidence) is reachable. The **quoted-text subtitle** (show the anchored text on the card, UX-008) is **R7b** — not added here; when added it slots between tag and body.
+Ordering is fixed by `visual_style § Observation card` (left-border impact = kind×severity; header = impact label + type tag + dismiss; body; "also noticed"). This pass only enforces that the DOM matches that order and that the impact label's tooltip (severity/confidence, R7a) is reachable. The **quoted-text subtitle** (show the anchored text on the card, UX-008) is **R7b** — not added here; when added it slots between tag and body.
 
 #### C5 — The two drawers
 
@@ -112,15 +112,15 @@ The decision (unresolved — settle in this pass):
 
 ### Scope boundaries (what this pass does NOT own)
 
-| Concern                                                    | Owner                                    |
-| ---------------------------------------------------------- | ---------------------------------------- |
-| Reverse hover (text → card) / UX-006                       | R7b (`quality_remediation_synthesis.md`) |
-| Quoted-text subtitle on cards / UX-008                     | R7b                                      |
-| Distant-contradiction split-context / auto-scroll / UX-009 | R7b                                      |
-| Feed enter/exit animation + "new/updated" badge / UX-007   | R3c                                      |
-| Keyboard path, ARIA roles/labels, contrast floors          | `accessibility.md` (shipped)             |
-| Visual tokens (colour, motion, elevation, type)            | `visual_style.md`                        |
-| Manual filter/sort/"top 5" controls / UX-010               | R2c smart-feed design project            |
+| Concern                                                    | Owner                         |
+| ---------------------------------------------------------- | ----------------------------- |
+| Reverse hover (text → card) / UX-006                       | R7b (§ R7b, this doc)         |
+| Quoted-text subtitle on cards / UX-008                     | R7b (§ R7b, this doc)         |
+| Distant-contradiction split-context / auto-scroll / UX-009 | R7b (§ R7b, this doc)         |
+| Feed enter/exit animation + "new/updated" badge / UX-007   | R3c                           |
+| Keyboard path, ARIA roles/labels, contrast floors          | `accessibility.md` (shipped)  |
+| Visual tokens (colour, motion, elevation, type)            | `visual_style.md`             |
+| Manual filter/sort/"top 5" controls / UX-010               | R2c smart-feed design project |
 
 This pass is the **contract layer**: it defines how these interactions must behave and reuses one motion/highlight language, so that when R7b and R3c build their pieces they snap into a coherent whole instead of inventing parallel hover/scroll/animation behaviours.
 
@@ -130,3 +130,66 @@ This pass is the **contract layer**: it defines how these interactions must beha
 - Every transient (pulse, toast, drawer reveal, card exit) honors `prefers-reduced-motion` — spatial motion collapses to a ≤150ms opacity change or instant.
 - Hover and keyboard focus are always equivalent — no interaction is mouse-only (the accessibility invariant).
 - No interaction introduces a fix-application affordance, and none lets the AI's commentary act on the user's text (Hard Invariant 1).
+
+### R3c — Feed enter/exit choreography (spec, settled 2026-06-18)
+
+Owns UX-007 (feed change-blindness). Build-ready spec; lands as its own milestone, satisfying the contracts above. Depends on R3 reconciliation being stable (it is — `docs/plan.md` Phase 4, done). This is the home `visual_style.md` § Motion points to for R3c.
+
+**The problem.** After an eval the feed updates instantly. The user can't tell what is new, what was archived, or what changed — and **pure motion doesn't fix it**, because the animation has finished by the time the user looks back. So the signal must _linger_.
+
+**Design decisions (2026-06-18, interactive):**
+
+1. **Motion + a lingering "New" marker, cleared on acknowledgement.** Not motion-alone (misses a user who glanced away), not an auto-fade timer (same gap). The marker persists until acknowledged.
+2. **One marker for new-_or_-changed.** A card that is brand-new and a card whose observation text/severity was refined by re-eval both carry the same quiet **"New"** marker — no separate "Updated" state. (Simpler; the reconciliation diff R3 already computes tells us _whether_ a card is new-or-changed; we don't need to fork the label.)
+
+**Enter (new-or-changed cards):**
+
+- A new card animates in with the standard reveal — fade + small `translateY` — using `--dur-base`/`--ease-out`, `transform`/`opacity` only. The existing batched-arrival path (`SidecarFeed.tsx:238`, "+N new" when ≥3 land at once) is **kept and generalised**: single/few arrivals get the same per-card enter, not just batches of 3+.
+- The card carries a quiet **"New" marker** (a small `--text-label` tag or a brand-accent dot — `visual_style.md` brand, not semantic, since it's meta not a defect) that **persists until acknowledged**. Acknowledged = the card is hovered/focused **or** scrolled into view **or** a subsequent eval runs (whichever first). On acknowledgement the marker fades out (`--dur-fast`, opacity).
+- "Changed" cards (persisted across the eval but text/severity refined) get the same enter-less in-place treatment: they do **not** re-animate position, but they **do** gain the "New" marker so the eye is drawn to re-read them.
+
+**Exit (archived / resolved / removed cards):**
+
+- A card leaving the active feed (reconciliation marked it resolved/superseded/removed, or the user dismissed it — C3) animates out via **collapse + fade** (`--dur-base`/`--ease-in-out`, height/opacity) rather than vanishing, so the user perceives the removal. C3's dismiss already calls for this; R3c provides the shared exit so eval-driven removals and user dismissals look identical.
+- Exit completes before the layout below settles (no instantaneous reflow jump).
+
+**Movement (deliberately minimal).** The feed renders in **document order, not priority order** (`feedBudget.ts` — display order is stable; priority governs only membership). So a card does **not** re-rank mid-session from a priority change — it only moves if the _document_ reorders. UX-007's "moved due to priority" is therefore largely a non-event by design; we do **not** add FLIP move-animation in v1. If a card does shift because the doc changed, the standard enter/exit covers the add/remove; genuine positional reflow is left to a later refinement (don't pre-build).
+
+**Reduced motion + a11y:** every enter/exit collapses to a ≤150ms opacity change or instant under `prefers-reduced-motion` (Consistency rules). The "New" marker is **not** motion-dependent — it's a static visible tag — so reduced-motion users still get the change signal (it just doesn't animate in/out). The marker is conveyed by text/shape, not colour alone.
+
+**Testids:** keep `arrival-indicator` (the "+N new" batch element); add `obs-new-marker` on the per-card marker so acceptance tests can assert it appears on new-or-changed cards and clears on acknowledgement.
+
+### R7b — Scanning & interaction affordances (spec, settled 2026-06-18)
+
+Owns UX-008 (quoted-text subtitle), UX-006 (reverse hover text→card), UX-009 (distant-contradiction split-context). Build-ready spec; lands as its own milestone on the contracts above. The basic auto-scroll for UX-009 is already the **C2** contract; R7b adds the _new_ affordances. Decisions settled 2026-06-18 (interactive).
+
+#### UX-008 — Quoted-text subtitle on cards
+
+- **What:** a small quote of the referenced span renders on the card as a subtitle, so the user knows what the observation is about **without** hovering and looking at the editor (reduces eye-travel).
+- **Source (settled):** the **stored `anchorText` snapshot** already on the Observation (`db.ts:78`) — the same field the archive ghost-anchor uses. No live span re-resolution; consistent with the archive, zero new resolution logic. It can go mildly stale between evals, but reconciliation supersedes/refreshes the card when the span changes, so the snapshot tracks closely enough.
+- **Placement & style:** slots **between the type tag and the body** (the C4 anatomy reserves this slot). Render as the user's own words quoted back — `--font-serif` italic, muted (`--color-ink-2`), the same typographic treatment as the archive ghost-anchor quote (`visual_style.md` § Supporting surfaces). Truncate to ~one line (~80–100 chars) with an ellipsis; the full span is reachable by hover/click (C1/C2).
+- **Doc-scope cards** (`missing_topic`, `structure_flow`, `audience_mismatch`, doc-scope `underexposed_topic`) have no `anchorText` → **no quote**; show the quiet **"Whole document"** label instead (consistent with the C6 doc-scope affordance).
+- **Contradiction cards** show the **primary** span's `anchorText` as the subtitle; the _conflicting_ span is reached via UX-009 below, not a second subtitle.
+
+#### UX-006 — Reverse hover (text → feed "focus mode")
+
+Bidirectional completion of C1: hovering/focusing a highlighted **span in the editor** surfaces its observation(s) in the feed. The behaviour is a transient **focus mode**, not just a card highlight:
+
+- **On hover/focus of a span decoration:** resolve every observation anchored to that span — the aggregated group card, plus (for a `contradiction`/`strategic_tension`) the card whose _conflicting_ span is the hovered one. Then:
+  - The **related card(s) rise to the top of the feed** and stay fully opaque / emphasised (the C1 active treatment — `--elev-active` + `--color-border-strong`).
+  - **All unrelated cards fade to translucent** (reduced opacity), receding so the related card is the clear focus — a spotlight.
+- **On hover/focus end:** everything **restores** — cards return to their document-order positions and full opacity. The whole effect is interaction-scoped and reversible.
+- **Channel (C1 invariant):** this **reuses and extends `hoveredObservationId`** — introduce a `focusedSpanKey` (or a derived set of related observation ids) so the two hover directions (card→span and span→card) drive one shared state and can never disagree. The reverse direction sets the same active card(s) the forward direction would.
+- **Why a transient reorder is allowed** despite "feed stability is sacred" (`message_generation_workflow.md` §8): stability forbids _persistent_ reshuffling between evals. This reorder is **ephemeral, user-initiated, and fully restores on release** — it's a lens, not a re-rank. Document the distinction so the build doesn't mistake it for a budget/priority change.
+- **Reduced motion / a11y:** under `prefers-reduced-motion`, skip the animated rise/reflow — apply the opacity emphasis (related opaque, others translucent) **instantly** without animating position, or omit the reflow entirely and rely on opacity alone. Keyboard focus on a span triggers the same focus mode (hover and focus equivalent). Translucency is never the _only_ signal — the related card also takes the active border/elevation.
+
+#### UX-009 — Distant-contradiction floating peek
+
+C2 already scrolls to a card's span and pulses it. The gap is **comparing two distant conflicting spans at once**. Settled v1: a **floating peek of the other span** (not a full split-view).
+
+- **Trigger:** activating a `contradiction` card (click/Enter, C2) whose two spans **cannot both fit in the viewport**. (If both already fit, C2's scroll+dual-pulse suffices — no peek.)
+- **Behaviour:** scroll to span A (C2) and render span B's text in a small **floating peek/portal** anchored near span A, so the user reads both without losing place. The peek shows the stored **`conflictingAnchorText`** (no live resolution) plus a quiet **"jump to this passage"** control that scrolls span B into the main view (and would then peek span A).
+- **Dismissal:** on `Escape`, blur, or scrolling away. One peek at a time.
+- **Positioning:** float near the active span with flip-on-overflow (same rule as the R7a tooltip); never covers span A's own text.
+- **Reduced motion:** the peek appears instantly (no slide); the C2 scroll honours reduced-motion (instant).
+- **Deferred:** a true side-by-side **split editor view** is explicitly **not** v1 (heaviest build, most intrusive to the single-canvas model) — revisit post-traction if the peek proves insufficient.

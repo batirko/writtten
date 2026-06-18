@@ -86,11 +86,34 @@ First-run asks for nothing:
 
 - **No stage form.** The stage is _inferred_ once enough content exists and shown back for one-click confirm (features.md → stage inference). A blank-field setup step would starve exactly the checks that need it and contradict the calm posture.
 
-  > **Open: discoverability of the stage field (flagged 2026-06-17).** "No first-run form" must not mean "permanently hidden." Today the combined **Document Context / Stage** field (it's already _one_ input, not two — `SidecarFeed.tsx`) lives only behind the settings gear, so a user who wants to set context — or who got a wrong/empty inference — may never find it. The decision (own it here or on the plan's _Document Context / Stage discoverability_ milestone): make the field **reachable and legible without a setup gate** — e.g. surface it when inference is low-confidence/absent, or via a quiet always-available affordance — while preserving the no-upfront-setup posture. The inferred-context chip already handles the happy path; this is the fallback when inference isn't enough.
+  > **Resolved 2026-06-18 — the always-visible context chip.** "No first-run form" must not mean "permanently hidden." Today the combined **Document Context / Stage** field (it's already _one_ input, not two — `SidecarFeed.tsx:643`) lives only behind the settings gear, and the inferred-context suggestion is a _separate_ transient chip (`stage-suggestion`, `SidecarFeed.tsx:675`). The decision: replace both with **one quiet, persistent context affordance** at the top of the feed panel — never a setup gate, always legible. See § The context chip (stage discoverability) below for the full spec.
 
 - **No API-key gate.** The free tier runs keyless. BYO-key lives in settings; any nudge toward it is quiet and surfaces only _after_ the user has seen value, never as a first-run blocker.
 
 > **Open dependency (not resolved here):** whether the free tier is a _real tier_ or a _demo_ is a strategic open question (`docs/plan.md`; `field_validation.md` V1 measures the free-vs-paid delta). If evidence later shows BYO-key is effectively required to meet the fidelity bar, the first-run posture above (keyless, no nudge) is the thing that changes — the welcome/example/empty-state design holds either way. Flagged so the build doesn't hard-code an assumption that a later decision may overturn.
+
+### The context chip (stage discoverability) — settled 2026-06-18
+
+Resolves the plan's _Document Context / Stage discoverability_ milestone. **One** quiet, persistent affordance at the **top of the feed panel** carries the document's context in every state — replacing both the gear-buried textarea as the _primary_ surface and the separate transient inferred-suggestion chip. It is a **chip, never a form or a gate**; ignoring it costs nothing. Treated as a **brand** moment, not a semantic one (`visual_style.md` § Stage chip: `--color-accent-tint` bg, `--color-accent` text — "the tool understanding you," not flagging a defect).
+
+**The three states it cycles through:**
+
+| State         | When                                                                      | What the chip shows                                                                                                                                                                                 |
+| ------------- | ------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Suggested** | Inference has produced a stage and the user hasn't confirmed/dismissed it | `Inferred context: <stage>` with **Use this** / **Edit** / **Dismiss**. (This is today's `stage-suggestion` chip, now living _in_ the persistent slot rather than as a separate transient element.) |
+| **Set**       | A stage is active (inferred-accepted **or** typed manually)               | `Context: <stage, truncated>` + a quiet inline **edit** affordance (click/pencil) that expands the existing stage textarea in place.                                                                |
+| **Empty**     | No stage set **and** inference is absent or low-confidence                | A calm `Add context` link that expands the field inline. This is the fallback the milestone exists for — the field is now reachable without hunting for the gear.                                   |
+
+**Rules that keep it faithful to the no-upfront-setup posture:**
+
+- **First run shows the _Empty_ state at most** — a single muted `Add context` link, not an expanded field, not a focused input. It reads as optional, because it is. It must not compete with the welcome card / quiet empty state for first attention (co-owned with § Welcome and § Quiet empty states).
+- **Inference still drives the happy path** — when content crosses the inference threshold, the chip flips Empty → Suggested on its own; the user never had to go looking.
+- **Editing is inline, from the chip** — expanding to edit reuses the existing `stage-input` textarea (same value, same `onStageChange`); no separate editor. The settings-gear field **remains** as a secondary path (power users / parity), but is no longer the _only_ way in.
+- **Truncation + full view** — long context truncates in the chip with the full text on hover/expand; the chip stays one line tall at rest so it doesn't bloat the feed header.
+
+**Harness / testids:** preserve `stage-suggestion`, `stage-suggestion-accept`, `stage-suggestion-dismiss` (now rendered inside the chip) so existing selectors hold; add `stage-chip` (the persistent container) and `stage-chip-edit` (the inline-edit trigger). The gear-panel `stage-input` testid is unchanged.
+
+**Scope note.** This is a feed-header affordance + state machine over the _existing_ stage value and inference suggestion — no new stage-inference logic, no schema change. Visual treatment is owned by `visual_style.md` § Stage chip (extend it to the three states above).
 
 ### Scope boundaries
 

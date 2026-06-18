@@ -11,7 +11,11 @@ summary: Decide and bound which rich-content types the writing canvas accepts (o
 
 ## Status
 
-**Idea — Phase 6/7.** The editor runs `@tiptap/starter-kit` only (`src/editor/Editor.tsx` extensions list). StarterKit covers paragraphs, headings, lists, blockquote, code block, horizontal rule, hard break, and the basic inline marks — but **not tables, images, or task/check lists**. So:
+**Idea — Phase 6/7. Design settled 2026-06-18 (readiness 🟢, ready to build).** The Phase 6 supported-set decision, the degradation mechanism, and the eval-model interaction are all locked below; what remains is the build, not further design.
+
+**Decision (2026-06-18):** the Phase 6 floor is **degradation + editable tables + links** (the option the table below recommends) — add `@tiptap/extension-table` (with cell/row/header) and `@tiptap/extension-link`, plus a predictable-degradation transform for every still-unsupported node (images, task lists). Images and task lists stay Phase 7.
+
+The editor runs `@tiptap/starter-kit` only (`src/editor/Editor.tsx` extensions list). StarterKit covers paragraphs, headings, lists, blockquote, code block, horizontal rule, hard break, and the basic inline marks — but **not tables, images, or task/check lists**. So:
 
 - **Pasting a table** (from Google Docs, Word, Confluence, a spreadsheet) → the table structure is dropped; cells flatten into paragraphs or are lost. Observed live.
 - **Pasting an image** → dropped silently.
@@ -35,19 +39,26 @@ Read alongside:
 
 ## Todo
 
-- [ ] **Inventory the loss.** Confirm exactly what StarterKit drops on paste for each source (Google Docs / Word / Confluence / Notion / raw HTML / a spreadsheet range). Capture as fixtures.
-- [ ] **Decide the supported set** (§ The decision). Recommended Phase 6 floor: **tables** (`@tiptap/extension-table` + cell/row/header) and **links** (if not already covered), with predictable degradation for everything else.
-- [ ] **Predictable degradation for the unsupported.** A paste that contains an unsupported node must not vanish — convert to a visible representation (plaintext/Markdown fence) so the user sees their content and can decide. Never silent drop.
-- [ ] **Eval-model interaction** (§) — define how a table/image is treated by the section resolver and claim ledger. Default: a table is **inert** for span checks (no claims extracted from cells in v1), but its surrounding section still evaluates; an image is fully inert. Decide whether table _text_ feeds doc-level context.
-- [ ] **Round-trip with egress.** Whatever is added must serialize through `export.ts` `toMarkdown`/`toHtml` and survive copy→paste into a rich target. Add to `export.test.ts`.
-- [ ] **Local-first check for images.** If images are accepted, decide storage (base64-in-IndexedDB vs object URL vs reject external `<img src>` to avoid silent egress). Do **not** introduce an upload server (invariant 5).
-- [ ] **`data-testid` / harness** — if the supported set grows, ensure `loadDoc` fixtures and the dev harness can seed a doc containing the new node types.
+_Decisions are settled (2026-06-18); the list below is now a **build** checklist, not open design._
+
+- [x] **Decide the supported set** (§ The decision). **Settled:** editable **tables** (`@tiptap/extension-table` + `table-row`/`table-header`/`table-cell`) and **links** (`@tiptap/extension-link`), with predictable degradation for everything else.
+- [ ] **Inventory the loss.** Confirm exactly what StarterKit drops on paste for each source (Google Docs / Word / Confluence / Notion / raw HTML / a spreadsheet range). Capture as fixtures. _(Build prep — informs the degradation transform's match list; not a design blocker.)_
+- [ ] **Add the table + link extensions** and confirm the BlockId extension applies a `blockId` attr to the top-level `table` node (so `topLevelBlocks` includes it and section resolution doesn't drop the surrounding heading/body — see § Eval-model interaction).
+- [ ] **Predictable degradation for the unsupported** (§ Degradation contract). Extend `SemanticPaste.transformPastedHTML` (`src/editor/extensions/SemanticPaste.ts`) to convert still-unsupported nodes (images, task lists, anything table-extension can't claim) into a visible, editable fenced/plaintext representation. Never silent drop.
+- [ ] **Eval-model interaction** (§). **Settled v1:** a table is **inert** — it carries a `blockId` so section resolution is intact, but its cell text is **excluded from `combinedText`** (the section resolver skips table nodes' `textContent`), so no claims are extracted and span checks never fire inside cells. Whether table cell text should feed _doc-level_ context (a metric in a table vs. prose contradiction) is **deferred to Phase 7**, gated on corpus evidence.
+- [ ] **Offset-mapping safety.** Verify `charOffsetToPmPos` / `reanchorOffset` (the highlighter path) don't drift when a section contains a table node — add a fixture with a span highlight in a paragraph that follows a table.
+- [ ] **Round-trip with egress.** Tables + links must serialize through `export.ts` `toMarkdown` (GFM table syntax) / `toHtml` and survive copy→paste into a rich target. Add to `export.test.ts`.
+- [ ] **`data-testid` / harness** — ensure `loadDoc` fixtures and the dev harness can seed a doc containing a table node.
+
+_Phase 7 (not in this scope):_
+
+- [ ] **Local-first check for images.** If images are accepted later, decide storage (base64-in-IndexedDB vs object URL vs reject external `<img src>` to avoid silent egress). Do **not** introduce an upload server (invariant 5). Until then, pasted images degrade per the contract above.
 
 ## Design
 
 ### The decision: which types?
 
-Bias toward **the PM persona's real documents**, not editor completeness. A PRD/spec/decision-doc routinely contains:
+**Settled 2026-06-18.** Bias toward **the PM persona's real documents**, not editor completeness. Phase 6 adds **tables + links** as real editable nodes and degrades everything else; images + task lists are Phase 7. A PRD/spec/decision-doc routinely contains:
 
 | Type                   | Persona need                                                  | Cost                                                             | Recommendation                                                                    |
 | ---------------------- | ------------------------------------------------------------- | ---------------------------------------------------------------- | --------------------------------------------------------------------------------- |
@@ -59,15 +70,24 @@ Bias toward **the PM persona's real documents**, not editor completeness. A PRD/
 
 ### Eval-model interaction (the reason this isn't just "add extensions")
 
-The pipeline's atomic eval unit is a **section** = heading + body text (`section_as_eval_unit.md`), and the claim ledger extracts claims from **text**. Non-text and structured nodes don't fit:
+The pipeline's atomic eval unit is a **section** = heading + body text (`section_as_eval_unit.md`), and the claim ledger extracts claims from **text**. Non-text and structured nodes don't fit. The mechanics that pin the v1 decision:
 
-- A **table** has no obvious "section text." v1 stance: a table is **inert** for span checks (clarity/jargon/unsupported*claim don't fire inside cells) and produces **no ledger claims** — but it must not break section resolution (`resolveSections` must skip or contain it gracefully, not crash or mis-group the surrounding heading/body). Open question: should table cell text feed \_doc-level* context (a metric in a table is exactly the kind of thing a `contradiction` should catch against prose)? Powerful but harder; defer to a Phase 7 decision with corpus evidence.
-- An **image** is fully inert (no text). Its only pipeline concern is not breaking anchoring/offset math in its section.
-- The highlighter's `charOffsetToPmPos` / `reanchorOffset` assume text nodes; new node types must be verified against the offset-mapping path so highlights in a section containing a table don't drift.
+- `resolveSections` → `topLevelBlocks` (`src/editor/section.ts`) walks top-level nodes, **skips any node without a `blockId` attr**, and reads `node.textContent`. A table's `textContent` is the concatenation of all cell text. So there are two failure modes to avoid: (a) if the table has _no_ `blockId`, it's silently dropped and — worse — it can no longer separate the heading/body around it, mis-grouping the section; (b) if it _does_ carry a `blockId`, its flattened cell text lands in `combinedText` as an unstructured blob and pollutes the LLM's view of the section.
+- **v1 decision (settled 2026-06-18):** the **table carries a `blockId`** (failure mode (a) avoided — section boundaries stay correct) but the section resolver is taught to **exclude table-node `textContent` from `combinedText`** (failure mode (b) avoided). Net: a table is **inert** — no claims extracted, no span checks inside cells, and the surrounding section still evaluates on its prose. Concretely, `topLevelBlocks` records `isTable` (e.g. `node.type.name === "table"`) and `buildCombined` skips table members' text while keeping the block in the members list for anchoring continuity.
+- **Open question, deferred to Phase 7:** should table cell text feed _doc-level_ context (a metric in a table is exactly the kind of thing a `contradiction` should catch against prose)? Powerful but harder (needs structured extraction, not a flat blob); revisit with corpus evidence (`field_validation.md`).
+- An **image** (Phase 7) is fully inert (no text). Until then images degrade per the contract below.
+- The highlighter's `charOffsetToPmPos` / `reanchorOffset` assume text nodes; the table node must be verified against the offset-mapping path so highlights in a section that _contains_ a table don't drift (covered by the offset-mapping safety todo).
 
-### Degradation contract (the Phase 6 floor, even if we add nothing)
+### Degradation contract (mechanism)
 
-The non-negotiable: **paste never silently loses content.** If a node type isn't in the schema, the pasted content degrades to something _visible and editable_ (plaintext, or a Markdown fence), so the user can see what arrived and fix it. This alone fixes the trust bug for the common case while the richer support lands incrementally.
+The non-negotiable: **paste never silently loses content.** If a node type isn't in the schema, the pasted content degrades to something _visible and editable_ (plaintext, or a Markdown fence), so the user can see what arrived and fix it.
+
+**Where it lives:** the existing `SemanticPaste` extension (`src/editor/extensions/SemanticPaste.ts`) already owns `transformPastedHTML` (today it promotes faux-headings). Extend that same transform: after the table + link extensions claim what they can, walk the remaining DOM for nodes the schema still can't represent (`<img>`, task-list checkboxes, anything exotic) and rewrite each into a visible, editable representation rather than letting ProseMirror's schema-strip drop it:
+
+- An `<img>` → a fenced/inline placeholder carrying the source URL or alt text (`![alt](src)` as literal text inside a code/paragraph node) so the reference survives and the user can act on it. (No bytes are stored — invariant 5 — until the Phase 7 image decision.)
+- A structure the table extension can't parse → a fenced plaintext block of its text content.
+
+Because tables and links are now first-class, the _common_ silent-loss cases (a pasted comparison table, a hyperlink) are fixed by real support; the degradation transform is the safety net for the long tail. This keeps the Phase 6 floor — **nothing the user pastes ever just vanishes** — while richer support lands incrementally.
 
 ### Out of scope
 

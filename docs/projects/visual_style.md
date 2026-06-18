@@ -177,7 +177,7 @@ One easing language; durations short. (Reduced-motion already collapses these in
 | `--ease-out`    | `cubic-bezier(0.22, 1, 0.36, 1)` |
 | `--ease-in-out` | `cubic-bezier(0.65, 0, 0.35, 1)` |
 
-Animate **only** `transform` and `opacity`. No bounce/overshoot on UI state. The default browser `ease` is banned (use the named tokens). Feed enter/exit choreography (R3c) is specified in `quality_remediation_synthesis.md` and must use these tokens.
+Animate **only** `transform` and `opacity`. No bounce/overshoot on UI state. The default browser `ease` is banned (use the named tokens). Feed enter/exit choreography (R3c) is specified in `ui_interaction_mechanics.md` § R3c and must use these tokens.
 
 ---
 
@@ -203,12 +203,33 @@ How each existing surface looks under the token system. (Interaction _behaviour_
 The product's most-seen component. Anatomy, top to bottom:
 
 1. **Left border** (4px) — the kind×severity matrix from § Semantic colour. This is the at-a-glance impact signal; a high-severity contradiction (red/orange) visibly outranks a low clarity nit (gray).
-2. **Header row** — left: a small **impact dot** (6px, same semantic colour, `cursor: help` for the severity/confidence tooltip) + the **type tag**. Right: the **dismiss** ghost button (appears/strengthens on hover).
+2. **Header row** — left: the **impact label** (R7a) + the **type tag**. Right: the **dismiss** ghost button (appears/strengthens on hover). See § Impact label (R7a) for the cue's form and tooltip — it **replaces** the old near-invisible 6px impact dot.
 3. **Tag** — `--text-label`, uppercase, `--radius-sm`, a 12%-opacity wash of the type's semantic hue with a darker-hue text colour (existing pattern). Low-confidence observations append a hedging `~` (existing `[data-confidence="low"]` rule).
 4. **Body** — sans, `--text-ui`, `--color-ink-2`. Terse (the voice guide in `emotional_register.md` governs the words; this governs the type).
 5. **"Also noticed" drawer** — hairline top divider, a muted toggle ("N more on this passage"), dashed sub-dividers between collapsed items.
 
 Card surface `--color-surface`, `--radius-lg`, `--elev-rest`, hairline border. Hover: `--elev-hover` + 1px lift (`translateY(-1px)`). The card whose span is being hovered in the editor gets `--elev-active` + `--color-border-strong` border (the bidirectional highlight contract — behaviour owned by mechanics).
+
+#### Impact label (R7a) — settled 2026-06-18
+
+**Why this section exists.** The shipped first-glance impact cue is a 6px `impact-cue` dot at 0.75 opacity (`src/styles.css:322`) with a native `title` tooltip (`SidecarFeed.tsx:114`). Two defects: the dot is **too subtle to be a first layer** of impact (the eye doesn't catch it), and the **native `title` is unreliable** (cursor shows `help` but no tooltip renders in practice). R7a fixes both. Decisions (2026-06-18, interactive):
+
+**The cue → a small text severity label.** Replace the dot with a tiny uppercase severity word — **`HIGH` / `MED` / `LOW`** — set in the same semantic colour the dot used (the `impact-kind-* impact-sev-*` palette in `src/styles.css`), at `--text-label` scale. Rationale:
+
+- **Legible as a first layer** — a word is caught at a glance where a 6px dot is not.
+- **Colour-blind safe** — it satisfies the accessibility floor ("semantic colour is never the only signal") _by itself_: severity now reads from text, not only the left-border position.
+- **Calm, not loud** — a small uppercase label in `--text-label` is quieter than a filled badge/pill, so it doesn't fight the editorial register. It rides _beside_ the type tag, not as a competing chip.
+- **Confidence stays a hedge, not a second label** — low-confidence observations keep the existing `~` qualifier on the tag (`[data-confidence="low"]`); the impact label carries **severity only**, so the header doesn't sprout two metadata words. The full severity-×-confidence sentence lives in the tooltip.
+- **Slot-aware copy is unchanged** — the "shown below budget" vs "surfaced in main feed" nuance moves entirely into the tooltip (it was always tooltip-only); the visible label is identical in both slots.
+
+**The tooltip → a real lightweight popover.** Replace the native `title` with a small custom tooltip:
+
+- Hover **and** keyboard-focus triggered (the cue is already in the card's focus path); dismiss on blur/mouseleave/`Escape`.
+- `--color-ink`-on-`--color-surface` (or an inverted ink chip), `--radius-sm`, `--elev-hover`, `--text-ui`; positioned above/below the label with simple flip-on-overflow. No animation under `prefers-reduced-motion`.
+- Content is the existing `impactTooltip(severity, confidence, slot)` string (`SidecarFeed.tsx:49`) — e.g. _"High severity · medium confidence — surfaced in main feed"_ — now actually rendered reliably.
+- Accessibility: the label is focusable with `aria-describedby` pointing at the tooltip; the tooltip is `role="tooltip"`. Keep the `data-testid="impact-badge"` hook on the label element so existing harness selectors don't break.
+
+**Scope note.** This is a card-anatomy change (label form + a tiny tooltip component); the semantic colour tokens are **not** re-tuned (§ Semantic colour says don't). Co-owned with `emotional_register.md` only for the _words_ in the tooltip sentence (which already exist); G-register rules don't change.
 
 ### Highlights (in-editor spans)
 
@@ -235,7 +256,7 @@ Re-skin the existing `.obs-highlight-*` rules to the semantic ramps:
 
 - All body text ≥ 4.5:1 against its background; large text/labels ≥ 3:1. The muted/help text on `--color-sidecar` is the tightest pair — verify and darken `--color-muted` if needed.
 - Focus ring: `--color-accent-strong`, ≥ 3:1 against adjacent colours, **shown instantly** (never animated in), `:focus-visible` only.
-- Semantic colour is never the _only_ signal: the type tag's text and the left-border are redundant with the impact dot, so colour-blind users still get kind/severity from text + position.
+- Semantic colour is never the _only_ signal: severity reads from the **impact label** text (`HIGH`/`MED`/`LOW`, R7a), the type tag's text, and the left-border position — so colour-blind users get kind/severity from text + position without relying on hue.
 - `prefers-reduced-motion` collapses all transitions (existing rule — keep).
 
 ## Dark mode (deferred slice)
