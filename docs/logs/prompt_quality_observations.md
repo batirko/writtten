@@ -348,3 +348,37 @@ Each entry follows the format:
 **Actual:** The model flagged the statement as a generalization lacking supporting data.\
 **Failure mode:** false-positive / pedantry\
 **Notes:** The user explicitly attempted to soften a previously flagged absolute claim ("everyone knows") into a more rhetorical/narrative statement. The LLM still applied strict PRD-level factual standards to the phrase. Crucially, the prompt explicitly included `Document context: a public communication about a product`. The model failed to use this provided artifact context to adjust its strictness, treating a public narrative piece with the exact same rigidity as a technical PRD. This highlights that the model struggles to differentiate between rigorous claims (which need evidence) and narrative preamble (where demanding citations is pedantic). We need to steer the LLM to better differentiate these contexts, perhaps by explicitly telling it to ignore colloquialisms and use the `Document context` to calibrate its expectations.
+
+---
+
+### OBS-025 — Duplicate strategic tensions from semantically equivalent claims
+
+**Date:** 2026-06-18\
+**Prompt tier:** strong (gemini-2.5-pro, contradiction-sweep)\
+**Type flag:** strategic_tension\
+**Input excerpt:** Claims list includes both: `[Claim #3]` _"Reduce false-positive friction for legitimate transactions"_ (from "Goal" section) and `[Claim #6]` _"This initiative gives users a path to unblock themselves without contacting support."_ (from "Background" section). Both express the same intent; both are paired with `[Claim #7]` _"Zero increase in confirmed fraud loss rate."_\
+**Expected:** One tension observation: "reducing user friction / self-unblocking is in tension with the zero-fraud-loss constraint."\
+**Actual:** Two distinct tension observations surfaced:
+- `[Claim #3]` × `[Claim #7]`: _"A zero-increase fraud target is in tension with the goal of reducing friction for legitimate users."_
+- `[Claim #6]` × `[Claim #7]`: _"This zero-increase fraud target creates tension with the initiative to let users unblock themselves."_
+
+Both end up as visible cards in the feed, saying essentially the same thing.\
+**Failure mode:** duplicate / semantic near-match\
+**Notes:** The root cause is that the same strategic intent ("reduce friction / let users self-unblock") is stated in two separate sections and is therefore extracted as two distinct claim entries. The contradiction-sweep model reports each pair separately because it sees them as distinct inputs, not as restatements of the same thing. Two fix paths: (1) **prompt-level** — instruct the model to collapse tensions where claim A and claim B are semantically equivalent restatements, reporting only one; (2) **post-processing** — apply the same Jaccard/semantic dedup already used for doc-level observations to tension outputs before surfacing them. The prompt-level fix is simpler; the post-processing fix is more robust against other near-duplicates. Clusters with the dedup work from OBS-012 (R3).
+
+---
+
+### OBS-024 — `clarity_observations.text` copies source text verbatim instead of stating the insight
+
+**Date:** 2026-06-18\
+**Prompt tier:** fast (gemini-3.1-flash-lite)\
+**Type flag:** clarity\
+**Input excerpt:** Section "Success metrics" — _"Support ticket volume for declined transactions decreases by 20%. Zero increase in confirmed fraud loss rate."_\
+**Expected:** The `text` field of each `clarity_observations` entry should state _what is unclear_, not quote the document. `substring` already points to the offending text; `text` is the observation. Expected something like: _"No timeframe or baseline is specified for the 20% support ticket reduction."_ / _"No measurement period is specified for the fraud loss rate constraint."_\
+**Actual:** Both `text` fields are verbatim copies of the respective document sentences:
+- `text`: `"Support ticket volume for declined transactions decreases by 20."` / `substring`: `"decreases by 20%"`
+- `text`: `"Zero increase in confirmed fraud loss rate."` / `substring`: `"Zero increase"`
+
+The observation card therefore shows only the quoted metric with no insight — identical to what the user already wrote. Zero value added.\
+**Failure mode:** format-misuse / copy-paste output\
+**Notes:** The two fields have opposite roles: `substring` = the excerpt that is unclear (already in the document); `text` = the observation explaining _why_ it is unclear (the value the model adds). When the model fills `text` with the same sentence it put in `substring`, the card degenerates to a plain quote. The prompt defines the schema correctly (_"text"_ describes the clarity issue; _"substring"_ is the exact literal text) but provides no explicit instruction that the two fields must differ and that `text` must not simply restate the source. A one-line reinforcement in the schema description — e.g. _"text: a sentence explaining what is vague or missing (must NOT repeat the source text verbatim)"_ — would likely prevent this. Also note: at least one of these clarity flags may itself be a false positive — "Zero increase in confirmed fraud loss rate" is a constraint with a clearly-specified target (zero); the claimed clarity gap exists only if no measurement period is stated.

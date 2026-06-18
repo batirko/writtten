@@ -92,7 +92,7 @@ Five milestones with a strict dependency spine, now split across Phase 4 (A·B·
   - [x] `contradiction` observations always surface regardless of N (floor = show even if outside top-N, unless dismissed). _(Open: the floor has no **ceiling** — a doc with many contradictions surfaces them all, which the **discomfort budget** (R6.3) warns is demoralizing. Whether to cap floored items is owned by `docs/projects/philosophy_guardrails.md` (G4), not here.)_
   - [x] `reflection` observations are never shown in the main feed count — they live in the reflections panel (Milestone D). They do not consume budget slots.
   - [ ] `opportunity` observations can be toggled off without affecting `problem` observations. _(Part of noisiness control — deferred.)_
-- [ ] Add a **noisiness control** — a discrete three-step switch (not a slider). _(Was deferred to dogfood the default N=7 first; now build-ready and scheduled as a Phase 7 backlog item in `docs/plan.md`. Spec below is executable as-is.)_
+- [ ] Add a **noisiness control** — a discrete three-step switch (not a slider). _(Was deferred to dogfood the default N=7 first; now build-ready and **pulled into Phase 6** as the single conceded control of the Smart-feed-vs-manual-control milestone — see `docs/projects/smart_feed_curation.md` (R2c). Spec below is executable as-is.)_
 
   **Build spec (🟢 ready):**
   - [ ] Define the mode → partition-config map next to `partitionFeed` in `src/sidecar/feedBudget.ts`:
