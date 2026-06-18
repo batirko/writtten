@@ -351,6 +351,23 @@ Each entry follows the format:
 
 ---
 
+### OBS-025 — Duplicate strategic tensions from semantically equivalent claims
+
+**Date:** 2026-06-18\
+**Prompt tier:** strong (gemini-2.5-pro, contradiction-sweep)\
+**Type flag:** strategic_tension\
+**Input excerpt:** Claims list includes both: `[Claim #3]` _"Reduce false-positive friction for legitimate transactions"_ (from "Goal" section) and `[Claim #6]` _"This initiative gives users a path to unblock themselves without contacting support."_ (from "Background" section). Both express the same intent; both are paired with `[Claim #7]` _"Zero increase in confirmed fraud loss rate."_\
+**Expected:** One tension observation: "reducing user friction / self-unblocking is in tension with the zero-fraud-loss constraint."\
+**Actual:** Two distinct tension observations surfaced:
+- `[Claim #3]` × `[Claim #7]`: _"A zero-increase fraud target is in tension with the goal of reducing friction for legitimate users."_
+- `[Claim #6]` × `[Claim #7]`: _"This zero-increase fraud target creates tension with the initiative to let users unblock themselves."_
+
+Both end up as visible cards in the feed, saying essentially the same thing.\
+**Failure mode:** duplicate / semantic near-match\
+**Notes:** The root cause is that the same strategic intent ("reduce friction / let users self-unblock") is stated in two separate sections and is therefore extracted as two distinct claim entries. The contradiction-sweep model reports each pair separately because it sees them as distinct inputs, not as restatements of the same thing. Two fix paths: (1) **prompt-level** — instruct the model to collapse tensions where claim A and claim B are semantically equivalent restatements, reporting only one; (2) **post-processing** — apply the same Jaccard/semantic dedup already used for doc-level observations to tension outputs before surfacing them. The prompt-level fix is simpler; the post-processing fix is more robust against other near-duplicates. Clusters with the dedup work from OBS-012 (R3).
+
+---
+
 ### OBS-024 — `clarity_observations.text` copies source text verbatim instead of stating the insight
 
 **Date:** 2026-06-18\
