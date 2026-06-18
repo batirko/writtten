@@ -47,13 +47,13 @@ Each entry follows the format:
 
 ```
 ### OBS-NNN — <short title>
-**Date:** YYYY-MM-DD  
-**Prompt tier:** fast | strong | doc-level  
-**Type flag:** clarity | contradiction | unsupported_claim | undefined_jargon | ...  
-**Input excerpt:** (the text that triggered the issue)  
-**Expected:** (what should have happened)  
-**Actual:** (what happened)  
-**Failure mode:** false-positive | false-negative | misclassification | wrong-severity | ...  
+**Date:** YYYY-MM-DD
+**Prompt tier:** fast | strong | doc-level
+**Type flag:** clarity | contradiction | unsupported_claim | undefined_jargon | ...
+**Input excerpt:** (the text that triggered the issue)
+**Expected:** (what should have happened)
+**Actual:** (what happened)
+**Failure mode:** false-positive | false-negative | misclassification | wrong-severity | ...
 **Notes:** (any context; escalation rule impact if relevant)
 ```
 
@@ -63,10 +63,10 @@ Each entry follows the format:
 
 **Date:** 2026-06-04\
 **Prompt tier:** fast (gemini-3.1-flash-lite)\
-**Type flag:** unsupported_claim\
-**Input excerpt:** _"The root cause, per the fraud team's analysis, is that legitimate users are being blocked by overly aggressive rules with no way to dispute in real time."_\
+**Type flag:** unsupported*claim\
+**Input excerpt:** *"The root cause, per the fraud team's analysis, is that legitimate users are being blocked by overly aggressive rules with no way to dispute in real time."_\
 **Expected:** No flag — the claim is explicitly attributed to the fraud team's analysis. Attribution IS the support.\
-**Actual:** Flagged as unsupported: _"The assertion that the root cause of the decline rate increase is specifically due to overly aggressive rules lacks supporting data."_\
+**Actual:** Flagged as unsupported: _"The assertion that the root cause of the decline rate increase is specifically due to overly aggressive rules lacks supporting data."\_\
 **Failure mode:** false-positive\
 **Notes:** The fast-call prompt already carves out success targets ("Do NOT flag opinions, plans, goals, or success targets"). It needs a second carve-out: claims attributed to a named source/team. Pattern: "per X's analysis", "according to X", "X's research shows", "the data shows". This is the most trust-damaging false-positive class — the author explicitly cited evidence and the tool ignores it.
 
@@ -94,10 +94,10 @@ Each entry follows the format:
 
 **Date:** 2026-06-04\
 **Prompt tier:** fast (gemini-3.1-flash-lite)\
-**Type flag:** undefined_jargon\
-**Input excerpt:** _"Reduce false-positive friction for legitimate transactions"_\
+**Type flag:** undefined*jargon\
+**Input excerpt:** *"Reduce false-positive friction for legitimate transactions"_\
 **Expected:** No jargon flag — "false-positive" is standard payments/fraud vocabulary.\
-**Actual:** Flagged: _"The term 'false-positive' is used without defining the specific criteria for what constitutes a false positive in this transaction system."_\
+**Actual:** Flagged: _"The term 'false-positive' is used without defining the specific criteria for what constitutes a false positive in this transaction system."\_\
 **Failure mode:** false-positive\
 **Notes:** This is the driving motivating example for the jargon allow-list (Phase 4 milestone). Other terms from the same doc that should be in a payments/fraud domain preset: "dispute rate", "fraud block rate", "declined transactions", "false-positive friction". The allow-list needs both a user-configurable layer and sensible domain presets seeded from real PM sub-domains. Until the allow-list ships, this will keep producing noise on any payment-domain document.
 
@@ -120,12 +120,12 @@ Each entry follows the format:
 
 **Date:** 2026-06-03\
 **Prompt tier:** fast\
-**Type flag:** undefined_jargon\
-**Input excerpt:** _"soft launch"_, _"rollout cohort"_ (standard product-rollout vocabulary in a PRD).\
+**Type flag:** undefined*jargon\
+**Input excerpt:** *"soft launch"_, _"rollout cohort"_ (standard product-rollout vocabulary in a PRD).\
 **Expected:** No jargon flag — these are foundational product/release-process terms, not undefined domain jargon.\
 **Actual:** Both flagged as undefined jargon.\
 **Failure mode:** false-positive\
-**Notes:** Captured from the 2026-06-03 evaluation signal-quality review. **Clusters with OBS-003** into a single Failure Pattern: the fast `undefined_jargon` check has no notion of "foundational vocabulary the target persona already shares." OBS-003 is payments/fraud domain terms; OBS-005 is general product/release-process terms. Both resolve via the jargon allow-list (Phase 4 milestone) — but they argue for _two_ preset layers: (1) a general PM/product-process preset ("soft launch", "rollout cohort", "cohort", "GA", "MVP") that ships on by default, and (2) per-sub-domain presets (payments/fraud, etc.) plus the user dictionary. The general preset is the higher-leverage fix since process terms appear in nearly every PRD.
+**Notes:** Captured from the 2026-06-03 evaluation signal-quality review. **Clusters with OBS-003** into a single Failure Pattern: the fast `undefined_jargon` check has no notion of "foundational vocabulary the target persona already shares." OBS-003 is payments/fraud domain terms; OBS-005 is general product/release-process terms. Both resolve via the jargon allow-list (Phase 4 milestone) — but they argue for \_two_ preset layers: (1) a general PM/product-process preset ("soft launch", "rollout cohort", "cohort", "GA", "MVP") that ships on by default, and (2) per-sub-domain presets (payments/fraud, etc.) plus the user dictionary. The general preset is the higher-leverage fix since process terms appear in nearly every PRD.
 
 ---
 
@@ -133,12 +133,12 @@ Each entry follows the format:
 
 **Date:** 2026-06-04\
 **Prompt tier:** fast (gemini-3.1-flash-lite)\
-**Type flag:** unsupported_claim, clarity\
-**Input excerpt:** _"Background... Our transaction decline rate has been climbing..."_ (first section of a new document)\
+**Type flag:** unsupported*claim, clarity\
+**Input excerpt:** *"Background... Our transaction decline rate has been climbing..."_ (first section of a new document)\
 **Expected:** The system should wait until the document is more fully formed before surfacing missing support/clarity as hard warnings, OR surface them as softer "opportunities".\
 **Actual:** Surfaced immediately as in-your-face warnings right after the first section was pasted.\
 **Failure mode:** wrong-severity / premature-flagging\
-**Notes:** While the logic is technically correct, the _timing_ violates the spirit of Invariant #4 ("Quiet while generating, opinionated while revising"). A user just starting a document shouldn't immediately be hit with "unsupported claim" warnings before they've had a chance to write the supporting sections. We likely need to differentiate behavior between opportunities and warnings based on document length, or defer expectations (like missing evidence) until a later state. This touches on broader product philosophy (`docs/product-requirements.md` and `docs/features.md`) and should be evaluated as a systemic timing/severity issue, not just a prompt tweak.
+**Notes:** While the logic is technically correct, the \_timing_ violates the spirit of Invariant #4 ("Quiet while generating, opinionated while revising"). A user just starting a document shouldn't immediately be hit with "unsupported claim" warnings before they've had a chance to write the supporting sections. We likely need to differentiate behavior between opportunities and warnings based on document length, or defer expectations (like missing evidence) until a later state. This touches on broader product philosophy (`docs/product-requirements.md` and `docs/features.md`) and should be evaluated as a systemic timing/severity issue, not just a prompt tweak.
 
 ---
 
@@ -179,8 +179,8 @@ Each entry follows the format:
 
 **Date:** 2026-06-04\
 **Prompt tier:** doc-level / strong (gemini-2.5-pro)\
-**Type flag:** missing_topic\
-**Input excerpt:** _"Potential risks, such as new fraud vectors or technical hurdles, are not identified or mitigated."_\
+**Type flag:** missing*topic\
+**Input excerpt:** *"Potential risks, such as new fraud vectors or technical hurdles, are not identified or mitigated."\_\
 **Expected (by user):** A softer suggestion to "think about adding a section about potential risks."\
 **Actual:** A blunt, factual statement that the structural gap exists.\
 **Failure mode:** philosophy-tension / register-discipline\
@@ -235,12 +235,12 @@ Each entry follows the format:
 
 **Date:** 2026-06-04\
 **Prompt tier:** doc-level / strong (gemini-2.5-pro)\
-**Type flag:** structure_flow (also affects underexposed_topic)\
-**Input excerpt:** _"The project's objective is stated redundantly across different sections."_\
+**Type flag:** structure*flow (also affects underexposed_topic)\
+**Input excerpt:** *"The project's objective is stated redundantly across different sections."_\
 **Expected:** The observation should highlight the redundant sections when hovered, just like standard fast-tier observations do.\
 **Actual:** No highlight appears on hover because the doc-level JSON schema only returns a text string, without any substring or block references.\
 **Failure mode:** schema-limitation / missing-context\
-**Notes:** Unlike `missing_topic` (which can't be anchored because the text isn't there), `structure_flow` and `underexposed_topic` critiques almost always refer to text that _does_ exist in the document. However, the doc-level prompt schema only asks the model to return `{"text": "..."}`. Because the model isn't asked to provide anchoring data (e.g., block IDs or substrings), the UI has no idea what to highlight. The doc-level JSON schema needs to be updated to optionally return anchoring targets so these observations don't feel disconnected.
+**Notes:** Unlike `missing_topic` (which can't be anchored because the text isn't there), `structure_flow` and `underexposed_topic` critiques almost always refer to text that \_does_ exist in the document. However, the doc-level prompt schema only asks the model to return `{"text": "..."}`. Because the model isn't asked to provide anchoring data (e.g., block IDs or substrings), the UI has no idea what to highlight. The doc-level JSON schema needs to be updated to optionally return anchoring targets so these observations don't feel disconnected.
 
 ---
 
@@ -248,9 +248,9 @@ Each entry follows the format:
 
 **Date:** 2026-06-04\
 **Prompt tier:** doc-level / strong (gemini-2.5-pro)\
-**Type flag:** structure_flow\
-**Input excerpt:** _"The document opens with solution specifics before fully defining the problem it addresses."_\
-**Expected:** The message should clearly distinguish whether the issue is strictly about _structural ordering_ (e.g., "The solution is presented before the problem") or about _topic depth_ (e.g., "The problem is not fully defined").\
+**Type flag:** structure*flow\
+**Input excerpt:** *"The document opens with solution specifics before fully defining the problem it addresses."_\
+**Expected:** The message should clearly distinguish whether the issue is strictly about \_structural ordering_ (e.g., "The solution is presented before the problem") or about _topic depth_ (e.g., "The problem is not fully defined").\
 **Actual:** The phrasing blurred the lines between categories. The user interpreted the feedback as an `underexposed_topic` ("I need to explain the problem better"), while the model was primarily flagging that the blocks were out of logical order.\
 **Failure mode:** phrasing-ambiguity / category-blurring\
 **Notes:** Looking at the earlier logs, block [1] was indeed the "Proposed solution" and block [2] was the "objective." The model was technically correct that they were out of order. However, the phrase "before _fully defining_ the problem" introduced ambiguity, making it sound like a critique on depth rather than structure. The prompt should instruct the model to keep `structure_flow` feedback strictly focused on the _ordering_ and _flow_ of information to prevent users from misinterpreting the core issue.
@@ -275,12 +275,12 @@ Each entry follows the format:
 
 **Date:** 2026-06-04\
 **Prompt tier:** doc-level / strong (gemini-2.5-pro)\
-**Type flag:** audience_mismatch\
-**Input excerpt:** _"The justification for excluding web flows is an unsupported technical assertion."_\
+**Type flag:** audience*mismatch\
+**Input excerpt:** *"The justification for excluding web flows is an unsupported technical assertion."_\
 **Expected:** First, unsupported claims should be handled by the fast tier (`unsupported_claim`), not stuffed into `audience_mismatch`. Second, if an observation critiques specific text, it needs a hover highlight.\
 **Actual:** The model flagged an unsupported technical claim under `audience_mismatch`. Because it's a doc-level check, it has no highlight anchoring.\
 **Failure mode:** category-blurring / schema-limitation\
-**Notes:** This is a compound failure. First, it perfectly reinforces **OBS-015**: all doc-level observations (`structure_flow`, `underexposed_topic`, `audience_mismatch`) lack the JSON schema fields to return a highlight substring, rendering them disconnected. Second, the model is using `audience_mismatch` (which is meant for jargon/tone) as a catch-all to complain about a technical claim (Claim [17]: _"Browser does not support this... reliably"_). The fast-tier is responsible for evaluating unsupported claims; the strong-tier doc prompt needs to be tightened to explicitly forbid evaluating claim evidence under the guise of "audience assumptions."
+**Notes:** This is a compound failure. First, it perfectly reinforces **OBS-015**: all doc-level observations (`structure_flow`, `underexposed_topic`, `audience_mismatch`) lack the JSON schema fields to return a highlight substring, rendering them disconnected. Second, the model is using `audience_mismatch` (which is meant for jargon/tone) as a catch-all to complain about a technical claim (Claim [17]: _"Browser does not support this... reliably"\_). The fast-tier is responsible for evaluating unsupported claims; the strong-tier doc prompt needs to be tightened to explicitly forbid evaluating claim evidence under the guise of "audience assumptions."
 
 ---
 
@@ -288,12 +288,12 @@ Each entry follows the format:
 
 **Date:** 2026-06-04\
 **Prompt tier:** fast (gemini-3.1-flash-lite)\
-**Type flag:** unsupported_claim\
-**Input excerpt:** _"30% of blocks that are false positives..."_ (User confirms this was part of the success metric: _"False-positive dispute rate drops by at least 30%..."_)\
+**Type flag:** unsupported*claim\
+**Input excerpt:** *"30% of blocks that are false positives..."_ (User confirms this was part of the success metric: _"False-positive dispute rate drops by at least 30%..."_)\
 **Expected:** The model should ignore success metrics and forward-looking goals, as explicitly instructed in the prompt.\
 **Actual:** The model flagged a forward-looking success metric as an unsupported statement of fact.\
 **Failure mode:** false-positive / instruction-ignore\
-**Notes:** The fast-tier prompt explicitly contains this exact negative constraint: _"Do NOT flag... success targets and measurable objectives (e.g. 'false positives drop by ≥30%')"_. Despite having a literal example of this exact metric in the negative constraint, the `flash-lite` model still got confused by the phrasing and flagged it. This proves that the fast-tier model struggles to distinguish between a prescriptive goal and a descriptive fact when the sentence structure varies slightly, even with direct prompt instructions. We may need to provide few-shot examples rather than just a zero-shot instruction, or simplify the negative constraint.
+**Notes:** The fast-tier prompt explicitly contains this exact negative constraint: _"Do NOT flag... success targets and measurable objectives (e.g. 'false positives drop by ≥30%')"\_. Despite having a literal example of this exact metric in the negative constraint, the `flash-lite` model still got confused by the phrasing and flagged it. This proves that the fast-tier model struggles to distinguish between a prescriptive goal and a descriptive fact when the sentence structure varies slightly, even with direct prompt instructions. We may need to provide few-shot examples rather than just a zero-shot instruction, or simplify the negative constraint.
 
 ---
 
@@ -329,8 +329,8 @@ Each entry follows the format:
 
 **Date:** 2026-06-06\
 **Prompt tier:** fast (gemini-3.1-flash-lite)\
-**Type flag:** undefined_jargon\
-**Input excerpt:** _"Being a Product Manager, I am not sure..."_ (Edited from "Being a PM...")\
+**Type flag:** undefined*jargon\
+**Input excerpt:** *"Being a Product Manager, I am not sure..."\_ (Edited from "Being a PM...")\
 **Expected:** The model correctly resolves the prior observation for `PM` and accepts the expanded form "Product Manager" without flagging it.\
 **Actual:** The model correctly added the prior observation to `resolved_prior`, but redundantly flagged the newly expanded term "Product Manager" as `undefined_jargon`.\
 **Failure mode:** false-positive\
@@ -342,8 +342,8 @@ Each entry follows the format:
 
 **Date:** 2026-06-06\
 **Prompt tier:** fast (gemini-3.1-flash-lite)\
-**Type flag:** unsupported_claim\
-**Input excerpt:** _"everyone seems to know something about it, used it or at least heard that 'this is happening'"_\
+**Type flag:** unsupported*claim\
+**Input excerpt:** *"everyone seems to know something about it, used it or at least heard that 'this is happening'"\_\
 **Expected:** The model should recognize this as a colloquial narrative device establishing context, rather than a rigorous factual assertion requiring citation or data.\
 **Actual:** The model flagged the statement as a generalization lacking supporting data.\
 **Failure mode:** false-positive / pedantry\
@@ -355,16 +355,18 @@ Each entry follows the format:
 
 **Date:** 2026-06-18\
 **Prompt tier:** strong (gemini-2.5-pro, contradiction-sweep)\
-**Type flag:** strategic_tension\
-**Input excerpt:** Claims list includes both: `[Claim #3]` _"Reduce false-positive friction for legitimate transactions"_ (from "Goal" section) and `[Claim #6]` _"This initiative gives users a path to unblock themselves without contacting support."_ (from "Background" section). Both express the same intent; both are paired with `[Claim #7]` _"Zero increase in confirmed fraud loss rate."_\
+**Type flag:** strategic*tension\
+**Input excerpt:** Claims list includes both: `[Claim #3]` *"Reduce false-positive friction for legitimate transactions"_ (from "Goal" section) and `[Claim #6]` _"This initiative gives users a path to unblock themselves without contacting support."_ (from "Background" section). Both express the same intent; both are paired with `[Claim #7]` _"Zero increase in confirmed fraud loss rate."\_\
 **Expected:** One tension observation: "reducing user friction / self-unblocking is in tension with the zero-fraud-loss constraint."\
 **Actual:** Two distinct tension observations surfaced:
+
 - `[Claim #3]` × `[Claim #7]`: _"A zero-increase fraud target is in tension with the goal of reducing friction for legitimate users."_
 - `[Claim #6]` × `[Claim #7]`: _"This zero-increase fraud target creates tension with the initiative to let users unblock themselves."_
 
 Both end up as visible cards in the feed, saying essentially the same thing.\
 **Failure mode:** duplicate / semantic near-match\
-**Notes:** The root cause is that the same strategic intent ("reduce friction / let users self-unblock") is stated in two separate sections and is therefore extracted as two distinct claim entries. The contradiction-sweep model reports each pair separately because it sees them as distinct inputs, not as restatements of the same thing. Two fix paths: (1) **prompt-level** — instruct the model to collapse tensions where claim A and claim B are semantically equivalent restatements, reporting only one; (2) **post-processing** — apply the same Jaccard/semantic dedup already used for doc-level observations to tension outputs before surfacing them. The prompt-level fix is simpler; the post-processing fix is more robust against other near-duplicates. Clusters with the dedup work from OBS-012 (R3).
+**Notes:** The root cause is that the same strategic intent ("reduce friction / let users self-unblock") is stated in two separate sections and is therefore extracted as two distinct claim entries. The contradiction-sweep model reports each pair separately because it sees them as distinct inputs, not as restatements of the same thing. Two fix paths: (1) **prompt-level** — instruct the model to collapse tensions where claim A and claim B are semantically equivalent restatements, reporting only one; (2) **post-processing** — apply the same Jaccard/semantic dedup already used for doc-level observations to tension outputs before surfacing them. The prompt-level fix is simpler; the post-processing fix is more robust against other near-duplicates. Clusters with the dedup work from OBS-012 (R3).\
+**Scheduled (2026-06-18):** `docs/plan.md` Phase 6 → Signal quality → **Strategic-tension dedup (OBS-025)**, 🟢. Decision: **post-processing dedup** (route `strategic_tension` outputs through the existing `planDocReconciliation` Jaccard machinery), per the more-robust path above.
 
 ---
 
@@ -376,9 +378,11 @@ Both end up as visible cards in the feed, saying essentially the same thing.\
 **Input excerpt:** Section "Success metrics" — _"Support ticket volume for declined transactions decreases by 20%. Zero increase in confirmed fraud loss rate."_\
 **Expected:** The `text` field of each `clarity_observations` entry should state _what is unclear_, not quote the document. `substring` already points to the offending text; `text` is the observation. Expected something like: _"No timeframe or baseline is specified for the 20% support ticket reduction."_ / _"No measurement period is specified for the fraud loss rate constraint."_\
 **Actual:** Both `text` fields are verbatim copies of the respective document sentences:
+
 - `text`: `"Support ticket volume for declined transactions decreases by 20."` / `substring`: `"decreases by 20%"`
 - `text`: `"Zero increase in confirmed fraud loss rate."` / `substring`: `"Zero increase"`
 
 The observation card therefore shows only the quoted metric with no insight — identical to what the user already wrote. Zero value added.\
 **Failure mode:** format-misuse / copy-paste output\
-**Notes:** The two fields have opposite roles: `substring` = the excerpt that is unclear (already in the document); `text` = the observation explaining _why_ it is unclear (the value the model adds). When the model fills `text` with the same sentence it put in `substring`, the card degenerates to a plain quote. The prompt defines the schema correctly (_"text"_ describes the clarity issue; _"substring"_ is the exact literal text) but provides no explicit instruction that the two fields must differ and that `text` must not simply restate the source. A one-line reinforcement in the schema description — e.g. _"text: a sentence explaining what is vague or missing (must NOT repeat the source text verbatim)"_ — would likely prevent this. Also note: at least one of these clarity flags may itself be a false positive — "Zero increase in confirmed fraud loss rate" is a constraint with a clearly-specified target (zero); the claimed clarity gap exists only if no measurement period is stated.
+**Notes:** The two fields have opposite roles: `substring` = the excerpt that is unclear (already in the document); `text` = the observation explaining _why_ it is unclear (the value the model adds). When the model fills `text` with the same sentence it put in `substring`, the card degenerates to a plain quote. The prompt defines the schema correctly (_"text"_ describes the clarity issue; _"substring"_ is the exact literal text) but provides no explicit instruction that the two fields must differ and that `text` must not simply restate the source. A one-line reinforcement in the schema description — e.g. _"text: a sentence explaining what is vague or missing (must NOT repeat the source text verbatim)"_ — would likely prevent this. Also note: at least one of these clarity flags may itself be a false positive — "Zero increase in confirmed fraud loss rate" is a constraint with a clearly-specified target (zero); the claimed clarity gap exists only if no measurement period is stated.\
+**Scheduled (2026-06-18):** folded into `docs/plan.md` Phase 6 → Signal quality → **Fast-tier precision hardening (R6)** as the `clarity` schema-field reinforcement (`text` must state the issue, not restate `substring`).
