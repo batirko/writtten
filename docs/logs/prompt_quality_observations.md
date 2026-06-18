@@ -348,3 +348,20 @@ Each entry follows the format:
 **Actual:** The model flagged the statement as a generalization lacking supporting data.\
 **Failure mode:** false-positive / pedantry\
 **Notes:** The user explicitly attempted to soften a previously flagged absolute claim ("everyone knows") into a more rhetorical/narrative statement. The LLM still applied strict PRD-level factual standards to the phrase. Crucially, the prompt explicitly included `Document context: a public communication about a product`. The model failed to use this provided artifact context to adjust its strictness, treating a public narrative piece with the exact same rigidity as a technical PRD. This highlights that the model struggles to differentiate between rigorous claims (which need evidence) and narrative preamble (where demanding citations is pedantic). We need to steer the LLM to better differentiate these contexts, perhaps by explicitly telling it to ignore colloquialisms and use the `Document context` to calibrate its expectations.
+
+---
+
+### OBS-024 — `clarity_observations.text` copies source text verbatim instead of stating the insight
+
+**Date:** 2026-06-18\
+**Prompt tier:** fast (gemini-3.1-flash-lite)\
+**Type flag:** clarity\
+**Input excerpt:** Section "Success metrics" — _"Support ticket volume for declined transactions decreases by 20%. Zero increase in confirmed fraud loss rate."_\
+**Expected:** The `text` field of each `clarity_observations` entry should state _what is unclear_, not quote the document. `substring` already points to the offending text; `text` is the observation. Expected something like: _"No timeframe or baseline is specified for the 20% support ticket reduction."_ / _"No measurement period is specified for the fraud loss rate constraint."_\
+**Actual:** Both `text` fields are verbatim copies of the respective document sentences:
+- `text`: `"Support ticket volume for declined transactions decreases by 20."` / `substring`: `"decreases by 20%"`
+- `text`: `"Zero increase in confirmed fraud loss rate."` / `substring`: `"Zero increase"`
+
+The observation card therefore shows only the quoted metric with no insight — identical to what the user already wrote. Zero value added.\
+**Failure mode:** format-misuse / copy-paste output\
+**Notes:** The two fields have opposite roles: `substring` = the excerpt that is unclear (already in the document); `text` = the observation explaining _why_ it is unclear (the value the model adds). When the model fills `text` with the same sentence it put in `substring`, the card degenerates to a plain quote. The prompt defines the schema correctly (_"text"_ describes the clarity issue; _"substring"_ is the exact literal text) but provides no explicit instruction that the two fields must differ and that `text` must not simply restate the source. A one-line reinforcement in the schema description — e.g. _"text: a sentence explaining what is vague or missing (must NOT repeat the source text verbatim)"_ — would likely prevent this. Also note: at least one of these clarity flags may itself be a false positive — "Zero increase in confirmed fraud loss rate" is a constraint with a clearly-specified target (zero); the claimed clarity gap exists only if no measurement period is stated.
