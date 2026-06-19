@@ -23,6 +23,9 @@ export type { GroupedObservation };
 
 export const DEFAULT_FEED_BUDGET = 7;
 
+/** Maximum number of contradiction groups shown in the visible feed at once (G4). */
+export const CONTRADICTION_CEILING = 3;
+
 export interface FeedPartitionOptions {
   /** Maximum number of groups in the visible set. */
   budget: number;
@@ -47,9 +50,11 @@ export interface FeedPartition {
  * Rules:
  * 1. `kind === "reflection"` — excluded (Milestone D; not yet produced).
  * 2. Aggregation — observations sharing the same exact span collapse into one group.
- * 3. Budget selection — sort groups by priority desc; top `budget` groups are visible.
- * 4. Discomfort-budget ceiling — contradictions natively sort to the top
- *    but are strictly capped by the budget to prevent overwhelming feeds.
+ * 3 & 4. Floor + ceiling for contradictions (G4): the top CONTRADICTION_CEILING contradiction
+ *    groups are guaranteed visible (floor — nits can never displace them); no more than
+ *    CONTRADICTION_CEILING contradictions are visible at once (ceiling — prevents wall-of-red).
+ *    strategic_tension is excluded (kind="opportunity", hasContradiction=false — competes
+ *    normally). Remaining budget slots filled by top non-contradiction groups by priority.
  * 5. Display order — each set sorted by document position (blockId index → startOffset).
  *    Document-scoped groups sort to the bottom.
  */
@@ -63,25 +68,23 @@ export function partitionFeed(
   // 2. Group by span.
   const groups = groupObservations(eligible);
 
-  // 3. Sort by priority descending to determine budget membership.
-  const byPriority = [...groups].sort((a, b) => b.priority - a.priority);
+  // 3 & 4. Floor + ceiling for contradictions (G4).
+  const sortByPriority = (arr: GroupedObservation[]) =>
+    [...arr].sort((a, b) => b.priority - a.priority);
 
-  // 4. Select by budget (includes G4 discomfort ceiling).
-  // Contradictions natively sort to the top via priority, but are capped
-  // by the budget to prevent overwhelming the user with a wall of red.
-  const visibleIds = new Set<string>();
-  let budgetUsed = 0;
-  for (const g of byPriority) {
-    if (budgetUsed < budget) {
-      visibleIds.add(g.id);
-      budgetUsed++;
-    } else {
-      break;
-    }
-  }
+  const contradictionGroups = sortByPriority(groups.filter((g) => g.hasContradiction));
+  const otherGroups = sortByPriority(groups.filter((g) => !g.hasContradiction));
 
-  const visibleSet = groups.filter((g) => visibleIds.has(g.id));
-  const alsoNoticedSet = groups.filter((g) => !visibleIds.has(g.id));
+  const visibleContraCount = Math.min(CONTRADICTION_CEILING, budget, contradictionGroups.length);
+  const visibleContradictions = contradictionGroups.slice(0, visibleContraCount);
+  const overflowContradictions = contradictionGroups.slice(visibleContraCount);
+
+  const remainingBudget = budget - visibleContraCount;
+  const visibleOthers = otherGroups.slice(0, remainingBudget);
+  const overflowOthers = otherGroups.slice(remainingBudget);
+
+  const visibleSet = [...visibleContradictions, ...visibleOthers];
+  const alsoNoticedSet = [...overflowContradictions, ...overflowOthers];
 
   // 5. Sort each set into document order.
   const blockIndexMap = new Map(blockOrder.map((id, i) => [id, i]));

@@ -10,7 +10,7 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { partitionFeed, DEFAULT_FEED_BUDGET } from "./feedBudget";
+import { partitionFeed, DEFAULT_FEED_BUDGET, CONTRADICTION_CEILING } from "./feedBudget";
 import type { Observation } from "../store/db";
 
 // ---------------------------------------------------------------------------
@@ -158,7 +158,7 @@ describe("partitionFeed — same-span aggregation", () => {
     expect(visible[0].others[0].id).toBe(lo.id);
   });
 
-  it("group with hasContradiction is capped by budget like anything else", () => {
+  it("contradiction group is floored — stays visible even when lower priority than nits", () => {
     // contradiction is low priority but grouped with clarity on same span
     const con = obs({
       type: "contradiction",
@@ -183,10 +183,12 @@ describe("partitionFeed — same-span aggregation", () => {
     });
 
     // Groups: [con+cla] on b3, high1 on b1, high2 on b2 → 3 groups
-    // Budget=2 picks high1, high2; [con+cla] group is outside budget
+    // Floor: [con+cla] group gets the 1 contradiction slot; remaining budget=1 → high1 visible.
+    // high2 goes to alsoNoticed (budget exhausted).
     const visibleIds = visible.map((g) => g.id);
-    expect(visibleIds).not.toContain(con.id);
-    expect(alsoNoticed.map((g) => g.id)).toContain(con.id);
+    expect(visibleIds).toContain(con.id);
+    expect(alsoNoticed.map((g) => g.id)).not.toContain(con.id);
+    expect(visible.length).toBe(2);
   });
 });
 
@@ -195,20 +197,20 @@ describe("partitionFeed — same-span aggregation", () => {
 // ---------------------------------------------------------------------------
 
 describe("partitionFeed — discomfort budget ceiling", () => {
-  it("low-priority contradiction is pushed to alsoNoticed if it misses the budget cut", () => {
+  it("low-priority contradiction stays visible (floor) — nit goes to alsoNoticed instead", () => {
+    // Pre-G4: the low-priority contradiction would have been displaced by two higher-priority nits.
+    // Post-G4: floor guarantees the contradiction is visible; one nit overflows instead.
     const contradiction = obs({ type: "contradiction", priority: 0.5, blockId: "b3" });
-    const observations = [
-      obs({ type: "missing_topic", priority: 1.5, blockId: "b1" }),
-      obs({ type: "unsupported_claim", priority: 1.5, blockId: "b2" }),
-      contradiction,
-    ];
-    const { visible, alsoNoticed } = partitionFeed(observations, {
+    const hi1 = obs({ type: "missing_topic", priority: 1.5, blockId: "b1" });
+    const hi2 = obs({ type: "unsupported_claim", priority: 1.5, blockId: "b2" });
+    const { visible, alsoNoticed } = partitionFeed([hi1, hi2, contradiction], {
       budget: 2,
       blockOrder: ["b1", "b2", "b3"],
     });
-    const visibleIds = visible.map((g) => g.id);
-    expect(visibleIds).not.toContain(contradiction.id);
-    expect(alsoNoticed.map((g) => g.id)).toContain(contradiction.id);
+    // Floor seats the contradiction; remaining budget=1 → one nit visible, one in alsoNoticed.
+    expect(visible.map((g) => g.id)).toContain(contradiction.id);
+    expect(alsoNoticed.length).toBe(1);
+    expect(alsoNoticed[0].primary.type).not.toBe("contradiction");
   });
 
   it("multiple high-priority contradictions are capped by budget", () => {
@@ -222,6 +224,57 @@ describe("partitionFeed — discomfort budget ceiling", () => {
     });
     expect(visible.length).toBe(2);
     expect(alsoNoticed.length).toBe(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// G4 — floor + ceiling hybrid (philosophy_guardrails.md § G4)
+// ---------------------------------------------------------------------------
+
+describe("partitionFeed — G4 floor + ceiling", () => {
+  it("(a) floor: ≤CEILING contradictions all stay visible even against many higher-priority nits", () => {
+    // 2 contradictions (≤3) + 5 high-priority nits, budget=4
+    const c1 = obs({ type: "contradiction", priority: 1.0, blockId: "b1" });
+    const c2 = obs({ type: "contradiction", priority: 1.0, blockId: "b2" });
+    const nits = ["b3", "b4", "b5", "b6", "b7"].map((id) =>
+      obs({ type: "clarity", priority: 3.0, blockId: id })
+    );
+    const { visible, alsoNoticed } = partitionFeed([c1, c2, ...nits], {
+      budget: 4,
+      blockOrder: ["b1", "b2", "b3", "b4", "b5", "b6", "b7"],
+    });
+    // Both contradictions must be visible (floor). Remaining 2 budget slots → 2 top nits.
+    const visibleIds = visible.map((g) => g.id);
+    expect(visibleIds).toContain(c1.id);
+    expect(visibleIds).toContain(c2.id);
+    expect(visible.length).toBe(4);
+    expect(alsoNoticed.length).toBe(3); // 3 nits overflow
+  });
+
+  it("(b) ceiling: >CEILING contradictions → exactly CEILING visible, rest in alsoNoticed", () => {
+    const contradictions = ["b1", "b2", "b3", "b4", "b5"].map((id) =>
+      obs({ type: "contradiction", priority: 3.0, blockId: id })
+    );
+    const { visible, alsoNoticed } = partitionFeed(contradictions, {
+      budget: DEFAULT_FEED_BUDGET,
+      blockOrder: ["b1", "b2", "b3", "b4", "b5"],
+    });
+    expect(visible.length).toBe(CONTRADICTION_CEILING);
+    expect(alsoNoticed.length).toBe(contradictions.length - CONTRADICTION_CEILING);
+    expect(alsoNoticed.every((g) => g.hasContradiction)).toBe(true);
+  });
+
+  it("(c) strategic_tension is not floored — competes for budget like any non-contradiction group", () => {
+    const tension = obs({ type: "strategic_tension", kind: "opportunity", priority: 0.5, blockId: "b3" });
+    const hi1 = obs({ type: "missing_topic", priority: 1.5, blockId: "b1" });
+    const hi2 = obs({ type: "unsupported_claim", priority: 1.5, blockId: "b2" });
+    const { visible, alsoNoticed } = partitionFeed([hi1, hi2, tension], {
+      budget: 2,
+      blockOrder: ["b1", "b2", "b3"],
+    });
+    // No contradictions → no floor slots consumed; budget=2 picks the two high-priority nits.
+    expect(visible.map((g) => g.id)).not.toContain(tension.id);
+    expect(alsoNoticed.map((g) => g.id)).toContain(tension.id);
   });
 });
 
