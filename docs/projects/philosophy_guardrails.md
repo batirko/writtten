@@ -54,11 +54,7 @@ Read alongside:
   - [ ] Prompt rule across all observation prompts: messages locate, never prescribe; no leading/Socratic questions; no replacement text. (Partly present — make it explicit and uniform.)
   - [ ] Message lint / fixture: assert no generated message contains an imperative-prescription pattern ("you need…", "add…", "change…") or a `?`-terminated leading clause.
   - [ ] Hand the felt-tone half to `emotional_register.md`.
-- [ ] **G4 — Discomfort-budget ceiling (R6.3).** _Decision settled 2026-06-17: **floor + ceiling hybrid** (§ G4)._
-  - [ ] Add a contradiction floor+ceiling to `partitionFeed` (`src/sidecar/feedBudget.ts`): reserve up to `CONTRADICTION_CEILING` (default **3**) visible slots for the top-priority `contradiction` groups so a nit can never displace a contradiction (floor); cap visible contradictions at the same number so extras overflow even if priority would otherwise seat them (ceiling). Fill the remaining budget with the top non-contradiction groups by priority. Use the existing `hasContradiction` flag on `GroupedObservation` (`obsAggregation.ts:20`).
-  - [ ] Signpost the overflow: when contradictions overflow into "also noticed", surface them under an explicit **"N more contradictions"** label (not buried among nits) so the user knows hard items await. (SidecarFeed "also noticed" drawer.)
-  - [ ] Correct the now-misleading `feedBudget.ts` comments (L51, L69 claim a "discomfort-budget ceiling" that is actually a uniform cap with no contradiction floor/ceiling) to describe the implemented floor+ceiling.
-  - [ ] Unit-test the partition: (a) ≤3 contradictions all stay visible even against many higher-count nits (floor holds); (b) >3 contradictions → exactly 3 visible, rest in "also noticed" under the signpost (ceiling holds); (c) `strategic_tension` is **not** floored (opportunity, never cried-wolf — features.md).
+- [x] **G4 — Discomfort-budget ceiling (R6.3).** _Decision settled 2026-06-17: **floor + ceiling hybrid** (§ G4). Shipped 2026-06-19: `CONTRADICTION_CEILING=3` in `feedBudget.ts`, floor+ceiling partition logic, "N more contradictions" signpost in `SidecarFeed.tsx`, 3 new unit tests (a/b/c per spec)._
 
 ## Design
 
