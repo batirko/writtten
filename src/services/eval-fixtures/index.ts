@@ -24,6 +24,8 @@ import clarityDiscrimination from "./clarity-discrimination";
 import unsupportedSuccessMetric from "./unsupported-success-metric";
 import clarityWordySpecified from "./clarity-wordy-specified";
 import clarityConditionalSpecified from "./clarity-conditional-specified";
+import claimKindDiscrimination from "./claim-kind-discrimination";
+import clarityTextInsight from "./clarity-text-insight";
 import type { EvalFixture } from "./types";
 
 export const corpus: EvalFixture[] = [
@@ -39,6 +41,8 @@ export const corpus: EvalFixture[] = [
   unsupportedSuccessMetric,
   clarityWordySpecified,
   clarityConditionalSpecified,
+  claimKindDiscrimination,
+  clarityTextInsight,
 ];
 
 export { type EvalFixture } from "./types";

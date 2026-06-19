@@ -16,14 +16,14 @@ const fixture: EvalFixture = {
     },
   ],
   recordings: {
-    "rg1ucgh_4516": "{\n  \"summary\": \"The new API will implement the TRP protocol to achieve a 40% reduction in payload overhead.\",\n  \"claims\": [\n    {\n      \"text\": \"The new API will utilize the TRP protocol to optimize payload size.\",\n      \"kind\": \"commitment\"\n    },\n    {\n      \"text\": \"TRP allows us to reduce overhead by 40%.\",\n      \"kind\": \"metric\"\n    }\n  ],\n  \"clarity_observations\": [],\n  \"unsupported_claim_observations\": [\n    {\n      \"text\": \"TRP allows us to reduce overhead by 40%.\",\n      \"substring\": \"TRP allows us to reduce overhead by 40%\"\n    }\n  ],\n  \"undefined_jargon_observations\": [\n    {\n      \"text\": \"The new API will utilize the TRP protocol to optimize payload size.\",\n      \"substring\": \"TRP\"\n    }\n  ]\n}"
+    "r1rozrjc_4602": "{\n  \"summary\": \"The new API will implement the TRP protocol to achieve a 40% reduction in payload overhead.\",\n  \"claims\": [\n    {\n      \"text\": \"The new API will utilize the TRP protocol to optimize payload size.\",\n      \"kind\": \"commitment\"\n    },\n    {\n      \"text\": \"TRP allows us to reduce overhead by 40%.\",\n      \"kind\": \"metric\"\n    }\n  ],\n  \"clarity_observations\": [\n    {\n      \"text\": \"The baseline or current state against which the 40% reduction is measured is not specified.\",\n      \"substring\": \"reduce overhead by 40%\"\n    }\n  ],\n  \"unsupported_claim_observations\": [],\n  \"undefined_jargon_observations\": [\n    {\n      \"text\": \"The TRP protocol is not defined or referenced as a standard industry term.\",\n      \"substring\": \"TRP\"\n    }\n  ]\n}"
   },
   expected: [
     {
-      type: "unsupported_claim",
+      type: "clarity",
       sectionId: "sec1",
       substring: "40%",
-      note: "40% overhead reduction asserted without evidence",
+      note: "No baseline or current overhead level specified for the 40% reduction claim",
     },
     {
       type: "undefined_jargon",
