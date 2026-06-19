@@ -295,6 +295,7 @@ export function SidecarFeed({
     budget: DEFAULT_FEED_BUDGET,
     blockOrder,
   });
+  const overflowContradictionCount = alsoNoticedObs.filter((g) => g.hasContradiction).length;
 
   return (
     <aside className="sidecar-panel" aria-label="Observations">
@@ -783,6 +784,19 @@ export function SidecarFeed({
                       {alsoNoticedObs.length === 1 ? "issue" : "issues"})
                     </span>
                   </button>
+                  {overflowContradictionCount > 0 && (
+                    <div
+                      style={{
+                        fontSize: "0.75rem",
+                        color: "#dc2626",
+                        paddingLeft: "16px",
+                        paddingBottom: "2px",
+                      }}
+                    >
+                      {overflowContradictionCount} more{" "}
+                      {overflowContradictionCount === 1 ? "contradiction" : "contradictions"}
+                    </div>
+                  )}
                   {showAlsoNoticed && (
                     <div
                       id="also-noticed-list"
