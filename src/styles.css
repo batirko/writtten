@@ -235,13 +235,13 @@ body,
 }
 
 .obs-new-badge {
-  font-size: 0.55rem;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  color: #0ea5e9;
-  background: rgba(14, 165, 233, 0.1);
-  padding: 1px 4px;
-  border-radius: 3px;
+  font-size: 0.6rem;
+  font-weight: 500;
+  letter-spacing: 0.03em;
+  color: #6b7280;
+  border: 1px solid #d1d5db;
+  padding: 0px 4px;
+  border-radius: 10px;
   text-transform: uppercase;
   flex-shrink: 0;
 }

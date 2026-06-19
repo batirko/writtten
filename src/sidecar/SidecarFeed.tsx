@@ -271,7 +271,7 @@ export function SidecarFeed({
     const timer = setTimeout(() => {
       setArrivingIds(new Set());
       setArrivalBatchCount(0);
-    }, 600);
+    }, 2000);
 
     return () => clearTimeout(timer);
   }, [observations]);
