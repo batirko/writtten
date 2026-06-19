@@ -193,6 +193,59 @@ body,
   }
 }
 
+/* Feed choreography (R3c) */
+@keyframes cardEnter {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes cardExit {
+  from {
+    opacity: 1;
+    transform: none;
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.observation-card-arriving {
+  animation: cardEnter 200ms ease-out;
+}
+
+.observation-card-exiting {
+  animation: cardExit 200ms ease-in forwards;
+  pointer-events: none;
+}
+
+.obs-new-badge {
+  font-size: 0.55rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: #0ea5e9;
+  background: rgba(14, 165, 233, 0.1);
+  padding: 1px 4px;
+  border-radius: 3px;
+  text-transform: uppercase;
+  flex-shrink: 0;
+}
+
 .setting-group {
   display: flex;
   flex-direction: column;
