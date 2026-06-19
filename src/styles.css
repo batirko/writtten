@@ -318,35 +318,69 @@ body,
   gap: 5px;
 }
 
-/* Severity/confidence transparency dot — same colour palette as the border-left matrix */
-.impact-cue {
+/* Severity text label — replaces the 6px dot (R7a) */
+.impact-label {
+  position: relative;
   display: inline-block;
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  line-height: 1;
+  padding: 2px 4px;
+  border-radius: 3px;
   flex-shrink: 0;
   cursor: help;
-  opacity: 0.75;
 }
 
-.impact-cue.impact-kind-problem.impact-sev-low {
-  background-color: #8e8e93;
+.impact-label.impact-kind-problem.impact-sev-low {
+  color: #8e8e93;
+  background-color: rgba(142, 142, 147, 0.1);
 }
-.impact-cue.impact-kind-problem.impact-sev-medium {
-  background-color: #f59e0b;
+.impact-label.impact-kind-problem.impact-sev-medium {
+  color: #d97706;
+  background-color: rgba(245, 158, 11, 0.1);
 }
-.impact-cue.impact-kind-problem.impact-sev-high {
-  background-color: #ef4444;
+.impact-label.impact-kind-problem.impact-sev-high {
+  color: #ef4444;
+  background-color: rgba(239, 68, 68, 0.1);
+}
+.impact-label.impact-kind-opportunity.impact-sev-low {
+  color: #64a4ae;
+  background-color: rgba(153, 197, 208, 0.12);
+}
+.impact-label.impact-kind-opportunity.impact-sev-medium {
+  color: #0ea5e9;
+  background-color: rgba(14, 165, 233, 0.1);
+}
+.impact-label.impact-kind-opportunity.impact-sev-high {
+  color: #0369a1;
+  background-color: rgba(3, 105, 161, 0.1);
 }
 
-.impact-cue.impact-kind-opportunity.impact-sev-low {
-  background-color: #99c5d0;
+/* Popover: hidden by default, revealed on hover/focus of parent label */
+.impact-popover {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 10;
+  white-space: nowrap;
+  background: #1c1c1e;
+  color: #f5f5f7;
+  font-size: 0.7rem;
+  font-weight: 400;
+  letter-spacing: 0;
+  text-transform: none;
+  padding: 5px 8px;
+  border-radius: 5px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.12s ease;
 }
-.impact-cue.impact-kind-opportunity.impact-sev-medium {
-  background-color: #0ea5e9;
-}
-.impact-cue.impact-kind-opportunity.impact-sev-high {
-  background-color: #0369a1;
+
+.impact-label:hover .impact-popover,
+.impact-label:focus-within .impact-popover {
+  opacity: 1;
 }
 
 .tag {
