@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import type { Observation } from "../store/db";
 import { llmLogger, type LLMLogEntry, type SessionStats } from "../model/logger";
 import type { ModelTier } from "../model/capability";
@@ -40,6 +40,7 @@ interface GroupedObsCardProps {
   group: GroupedObservation;
   isActive: boolean;
   isArriving: boolean;
+  isExiting: boolean;
   onHover: (id: string | null) => void;
   onDismiss: (id: string) => void;
   /** Whether this card is in the "also noticed" overflow drawer vs. the main feed. */
@@ -51,6 +52,7 @@ function GroupedObsCard({
   group,
   isActive,
   isArriving,
+  isExiting,
   onHover,
   onDismiss,
   slot = "primary",
@@ -65,7 +67,7 @@ function GroupedObsCard({
 
   return (
     <div
-      className={`observation-card observation-${primary.type} ${isActive ? "observation-card-active" : ""} ${isArriving ? "observation-card-arriving" : ""}`}
+      className={`observation-card observation-${primary.type}${isActive ? " observation-card-active" : ""}${isArriving ? " observation-card-arriving" : ""}${isExiting ? " observation-card-exiting" : ""}`}
       data-testid="obs-card"
       role="listitem"
       tabIndex={0}
@@ -112,6 +114,7 @@ function GroupedObsCard({
               {slot === "also-noticed" ? " — below budget" : ""}
             </span>
           </span>
+          {isArriving && <span className="obs-new-badge">new</span>}
         </div>
         <button
           className="dismiss-btn"
@@ -241,6 +244,7 @@ export function SidecarFeed({
   const prevObsIdsRef = useRef<Set<string>>(new Set());
   const [arrivingIds, setArrivingIds] = useState<Set<string>>(new Set());
   const [arrivalBatchCount, setArrivalBatchCount] = useState(0);
+  const [exitingIds, setExitingIds] = useState<Set<string>>(new Set());
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const handleImportClick = () => {
@@ -271,6 +275,22 @@ export function SidecarFeed({
 
     return () => clearTimeout(timer);
   }, [observations]);
+
+  const handleDismiss = useCallback(
+    (id: string) => {
+      if (exitingIds.has(id)) return;
+      setExitingIds((prev) => new Set([...prev, id]));
+      setTimeout(() => {
+        setExitingIds((prev) => {
+          const next = new Set(prev);
+          next.delete(id);
+          return next;
+        });
+        onDismissObservation(id);
+      }, 200);
+    },
+    [exitingIds, onDismissObservation]
+  );
 
   const handleCopyLogs = async () => {
     try {
@@ -747,8 +767,12 @@ export function SidecarFeed({
                     arrivingIds.has(group.primary.id) ||
                     group.others.some((o) => arrivingIds.has(o.id))
                   }
+                  isExiting={
+                    exitingIds.has(group.primary.id) ||
+                    group.others.some((o) => exitingIds.has(o.id))
+                  }
                   onHover={onHoverObservation}
-                  onDismiss={onDismissObservation}
+                  onDismiss={handleDismiss}
                 />
               ))}
 
@@ -810,8 +834,12 @@ export function SidecarFeed({
                             arrivingIds.has(group.primary.id) ||
                             group.others.some((o) => arrivingIds.has(o.id))
                           }
+                          isExiting={
+                            exitingIds.has(group.primary.id) ||
+                            group.others.some((o) => exitingIds.has(o.id))
+                          }
                           onHover={onHoverObservation}
-                          onDismiss={onDismissObservation}
+                          onDismiss={handleDismiss}
                           slot="also-noticed"
                         />
                       ))}
