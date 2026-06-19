@@ -17,9 +17,9 @@ const fixture: EvalFixture = {
     { id: "block-q3", text: "This will ship in Q3." },
   ],
   recordings: {
-    "r1ws2acb_4432": "{\n  \"summary\": \"The project is scheduled for release during the second quarter.\",\n  \"claims\": [\n    {\n      \"text\": \"We'll launch this in Q2.\",\n      \"kind\": \"commitment\"\n    }\n  ],\n  \"clarity_observations\": [\n    {\n      \"text\": \"The specific year for the Q2 launch is not specified.\",\n      \"substring\": \"Q2\"\n    }\n  ],\n  \"unsupported_claim_observations\": [],\n  \"undefined_jargon_observations\": []\n}",
-    "r1ldqllq_4429": "{\n  \"summary\": \"The project is scheduled for release in the third quarter.\",\n  \"claims\": [\n    {\n      \"text\": \"This will ship in Q3.\",\n      \"kind\": \"commitment\"\n    }\n  ],\n  \"clarity_observations\": [\n    {\n      \"text\": \"The scope of the project being shipped is not defined.\",\n      \"substring\": \"This\"\n    }\n  ],\n  \"unsupported_claim_observations\": [],\n  \"undefined_jargon_observations\": []\n}",
-    "r121jun3_2216": "{\n  \"contradictions\": [\n    {\n      \"newClaimText\": \"This will ship in Q3.\",\n      \"existingClaimId\": 0,\n      \"message\": \"The Q3 shipping date directly contradicts the Q2 launch commitment.\"\n    }\n  ],\n  \"tensions\": []\n}"
+    "rl1ip6a_4518": "{\n  \"summary\": \"The project is scheduled for release during the second quarter.\",\n  \"claims\": [\n    {\n      \"text\": \"We'll launch this in Q2.\",\n      \"kind\": \"commitment\"\n    }\n  ],\n  \"clarity_observations\": [\n    {\n      \"text\": \"The specific year for the Q2 launch is not specified.\",\n      \"substring\": \"Q2\"\n    }\n  ],\n  \"unsupported_claim_observations\": [],\n  \"undefined_jargon_observations\": []\n}",
+    "r1n5yzaf_4515": "{\n  \"summary\": \"The feature is scheduled for release in the third quarter.\",\n  \"claims\": [\n    {\n      \"text\": \"This will ship in Q3.\",\n      \"kind\": \"commitment\"\n    }\n  ],\n  \"clarity_observations\": [\n    {\n      \"text\": \"The specific product or feature being referred to is not identified.\",\n      \"substring\": \"This\"\n    }\n  ],\n  \"unsupported_claim_observations\": [],\n  \"undefined_jargon_observations\": []\n}",
+    "r121jun3_2216": "{\n  \"contradictions\": [\n    {\n      \"newClaimText\": \"This will ship in Q3.\",\n      \"existingClaimId\": 0,\n      \"message\": \"The Q3 shipping date appears to contradict the Q2 launch timeline.\"\n    }\n  ],\n  \"tensions\": []\n}"
   },
   expected: [
     {

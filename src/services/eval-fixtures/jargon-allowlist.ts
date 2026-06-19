@@ -21,7 +21,7 @@ const fixture: EvalFixture = {
     },
   ],
   recordings: {
-    "ro079ts_4540": "{\n  \"summary\": \"The team will execute a 10% rollout of the payment flow using the GQRS protocol prior to general availability.\",\n  \"claims\": [\n    {\n      \"text\": \"We plan a soft launch to a 10% rollout cohort before GA.\",\n      \"kind\": \"commitment\"\n    },\n    {\n      \"text\": \"The payment flow will use the GQRS protocol for all transaction validation.\",\n      \"kind\": \"commitment\"\n    }\n  ],\n  \"clarity_observations\": [],\n  \"unsupported_claim_observations\": [],\n  \"undefined_jargon_observations\": [\n    {\n      \"text\": \"GQRS\",\n      \"substring\": \"GQRS\"\n    }\n  ]\n}"
+    "rcfinmf_4626": "{\n  \"summary\": \"The team will execute a 10% soft launch using the GQRS protocol for transaction validation prior to general availability.\",\n  \"claims\": [\n    {\n      \"text\": \"We plan a soft launch to a 10% rollout cohort before GA.\",\n      \"kind\": \"commitment\"\n    },\n    {\n      \"text\": \"The payment flow will use the GQRS protocol for all transaction validation.\",\n      \"kind\": \"commitment\"\n    }\n  ],\n  \"clarity_observations\": [],\n  \"unsupported_claim_observations\": [],\n  \"undefined_jargon_observations\": [\n    {\n      \"text\": \"The GQRS protocol is not defined in the provided glossary or the text.\",\n      \"substring\": \"GQRS\"\n    }\n  ]\n}"
   },
   expected: [
     {
