@@ -22,6 +22,8 @@ import antiTaxonomy from "./anti-taxonomy";
 import noDisguisedFix from "./no-disguised-fix";
 import clarityDiscrimination from "./clarity-discrimination";
 import unsupportedSuccessMetric from "./unsupported-success-metric";
+import clarityWordySpecified from "./clarity-wordy-specified";
+import clarityConditionalSpecified from "./clarity-conditional-specified";
 import type { EvalFixture } from "./types";
 
 export const corpus: EvalFixture[] = [
@@ -35,6 +37,8 @@ export const corpus: EvalFixture[] = [
   noDisguisedFix,
   clarityDiscrimination,
   unsupportedSuccessMetric,
+  clarityWordySpecified,
+  clarityConditionalSpecified,
 ];
 
 export { type EvalFixture } from "./types";
