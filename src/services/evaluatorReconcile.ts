@@ -412,6 +412,26 @@ export async function reconcileSweepContradictions(
     (o) => o.type === "contradiction" || o.type === "strategic_tension"
   );
 
+  // OBS-025: collapse near-identical strategic_tension observations via text similarity.
+  // Two sections can express the same intent, producing near-duplicate tensions with
+  // different conflictPairKeys that the key-based check below would miss.
+  const existingTensions = existingConflicts.filter((o) => o.type === "strategic_tension");
+  const incomingTensions = newObs.filter((o) => o.type === "strategic_tension");
+  const tensionPlan = planDocReconciliation(
+    existingTensions,
+    incomingTensions,
+    textSimilarity,
+    DOC_DEDUPE_FLOOR
+  );
+  // Existing tensions matched by text similarity are "virtually re-emitted" so they
+  // stay alive without accumulating grace misses.
+  const virtuallyReemittedIds = new Set(tensionPlan.dedupes.map((d) => d.existingId));
+  // Only genuinely novel tensions proceed to the insert loop.
+  const dedupedNewObs: NewObservation[] = [
+    ...newObs.filter((o) => o.type !== "strategic_tension"),
+    ...(tensionPlan.inserts as NewObservation[]),
+  ];
+
   if (capability.driveResolution) {
     // Authoritative-with-grace: sweep output is the source of truth.
     const now = Date.now();
@@ -420,7 +440,7 @@ export async function reconcileSweepContradictions(
 
     for (const ex of existingConflicts) {
       const key = conflictPairKey(ex);
-      if (newKeys.has(key)) {
+      if (newKeys.has(key) || virtuallyReemittedIds.has(ex.id)) {
         // Re-emitted → still active; reset absence counter.
         await saveObservation({ ...ex, missCount: 0, lastSeenAt: now });
         insertedKeys.add(key); // suppress re-insert below
@@ -437,7 +457,7 @@ export async function reconcileSweepContradictions(
     }
 
     // Insert genuinely new conflict-pairs (not already present, not suppressed).
-    for (const newO of newObs) {
+    for (const newO of dedupedNewObs) {
       const key = conflictPairKey(newO);
       if (insertedKeys.has(key)) continue;
       if (isSpanSuppressed(newO, suppressions)) continue;
@@ -457,7 +477,7 @@ export async function reconcileSweepContradictions(
   } else {
     // Weak model: additive only (original behavior).
     const existingKeys = new Set(existingConflicts.map(conflictPairKey));
-    for (const newO of newObs) {
+    for (const newO of dedupedNewObs) {
       const key = conflictPairKey(newO);
       if (existingKeys.has(key)) continue;
       if (isSpanSuppressed(newO, suppressions)) continue;
