@@ -46,23 +46,6 @@ interface GroupedObsCardProps {
   slot?: "primary" | "also-noticed";
 }
 
-function impactTooltip(
-  severity: string,
-  confidence: string,
-  slot: "primary" | "also-noticed"
-): string {
-  const sevLabel = severity === "high" ? "High" : severity === "medium" ? "Medium" : "Low";
-  const confLabel =
-    confidence === "high"
-      ? "high confidence"
-      : confidence === "medium"
-        ? "medium confidence"
-        : "low confidence";
-  if (slot === "also-noticed") {
-    return `${sevLabel} severity · ${confLabel} — lower priority, shown below budget`;
-  }
-  return `${sevLabel} severity · ${confLabel} — surfaced in main feed`;
-}
 
 function GroupedObsCard({
   group,
@@ -109,10 +92,26 @@ function GroupedObsCard({
         <div className="card-header-left">
           <span className={`tag tag-${primary.type}`}>{primary.type.replace(/_/g, " ")}</span>
           <span
-            className={`impact-cue impact-kind-${primary.kind} impact-sev-${primary.severity}`}
+            className={`impact-label impact-kind-${primary.kind} impact-sev-${primary.severity}`}
             data-testid="impact-badge"
-            title={impactTooltip(primary.severity, primary.confidence, slot)}
-          />
+          >
+            {primary.severity === "high" ? "HIGH" : primary.severity === "medium" ? "MED" : "LOW"}
+            <span className="impact-popover" role="tooltip">
+              {primary.severity === "high"
+                ? "High"
+                : primary.severity === "medium"
+                  ? "Medium"
+                  : "Low"}{" "}
+              severity
+              {" · "}
+              {primary.confidence === "high"
+                ? "high confidence"
+                : primary.confidence === "medium"
+                  ? "medium confidence"
+                  : "low confidence"}
+              {slot === "also-noticed" ? " — below budget" : ""}
+            </span>
+          </span>
         </div>
         <button
           className="dismiss-btn"
