@@ -262,19 +262,19 @@ export function SidecarFeed({
     const currentIds = new Set(observations.map((o) => o.id));
     const newIds = [...currentIds].filter((id) => !prevObsIdsRef.current.has(id));
     prevObsIdsRef.current = currentIds;
-
     if (newIds.length === 0) return;
-
-    setArrivingIds(new Set(newIds));
+    setArrivingIds((prev) => new Set([...prev, ...newIds]));
     setArrivalBatchCount(newIds.length);
+  }, [observations]);
 
+  useEffect(() => {
+    if (arrivingIds.size === 0) return;
     const timer = setTimeout(() => {
       setArrivingIds(new Set());
       setArrivalBatchCount(0);
     }, 2000);
-
     return () => clearTimeout(timer);
-  }, [observations]);
+  }, [arrivingIds]);
 
   const handleDismiss = useCallback(
     (id: string) => {
