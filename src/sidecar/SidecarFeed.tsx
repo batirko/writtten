@@ -105,13 +105,19 @@ function GroupedObsCard({
                   ? "Medium"
                   : "Low"}{" "}
               severity
-              {" · "}
+              <br />
               {primary.confidence === "high"
-                ? "high confidence"
+                ? "High"
                 : primary.confidence === "medium"
-                  ? "medium confidence"
-                  : "low confidence"}
-              {slot === "also-noticed" ? " — below budget" : ""}
+                  ? "Medium"
+                  : "Low"}{" "}
+              confidence
+              {slot === "also-noticed" ? (
+                <>
+                  <br />
+                  Below budget
+                </>
+              ) : ""}
             </span>
           </span>
           {isArriving && <span className="obs-new-badge">new</span>}

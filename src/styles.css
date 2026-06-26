@@ -416,7 +416,9 @@ body,
   top: calc(100% + 4px);
   left: 0;
   z-index: 10;
-  white-space: nowrap;
+  white-space: normal;
+  width: max-content;
+  line-height: 1.5;
   background: #1c1c1e;
   color: #f5f5f7;
   font-size: 0.7rem;
