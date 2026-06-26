@@ -242,7 +242,7 @@ export function SidecarFeed({
   // When 3+ observations arrive within 600 ms, they animate in as a group
   // with a "+N new" indicator rather than a stutter of individual fades.
   // See docs/projects/message_generation_workflow.md §8 (arrival animation).
-  const prevObsIdsRef = useRef<Set<string>>(new Set());
+  const prevObsIdsRef = useRef<Set<string>>(new Set(observations.map((o) => o.id)));
   const [arrivingIds, setArrivingIds] = useState<Set<string>>(new Set());
   const [arrivalBatchCount, setArrivalBatchCount] = useState(0);
   const [exitingIds, setExitingIds] = useState<Set<string>>(new Set());
