@@ -164,6 +164,12 @@ When a matched note's text drifts but it is "the same note," do we keep the id a
 
 Wherever the "close enough to be the same note" floor sits, it dials stability ↔ staleness by hand. No objectively correct value; tune by watching real sessions. Too sticky → keeps notes whose wording no longer fits; too fresh → flicker.
 
+## Known gap — the `stage-changed` path was never reconciled (UX-012)
+
+This work repaired the **`doc-idle`** reconcile path. The **`stage-changed`** path was out of scope and still runs the original Phase-2 mechanism: `handleStageChanged` (`src/services/orchestrator.ts:381`) blanket-marks every `scope: "document"` observation `superseded` and re-runs doc-quality blind — no priors injected, no best-match, no grace, no resolution-awareness. So everything Tier 1/2 fixed for `doc-idle` (no false `superseded`, keep-by-id, honest labels) is undone the moment the stage changes.
+
+Surfaced 2026-06-25 (live `gemini-2.5-pro [paid]` session, 21 triggers / 23 calls / 13 archives): the **first** `doc-idle` graded the doc with no stage and returned a `suggested_stage`; the user accepted it; the resulting `stage-changed` immediately superseded all 10 freshly-created doc-scope notes and regenerated near-identical ones as new ids. The wipe is defensible when the user *meaningfully re-scopes the audience*, but not for the none→suggested transition where content is unchanged. Tracked as **UX-012** (`docs/logs/ux_quality_observations.md`) and a Phase-6 Signal-quality milestone in `docs/plan.md`. Fix = either route `stage-changed` through this doc's reconciler, or skip the wipe on auto-applied (non-hand-edited) stage transitions.
+
 ## Open questions
 
 - ~~Should `strategic_tension` / `contradiction` notes follow the doc-scope reconciler or get their own treatment?~~ **Resolved 2026-06-06: in scope for Tier 2.** They get resolution-awareness via the ledger sweep. Open sub-question for the plan: the sweep currently reconciles _additively and never auto-closes_ — resolution must key off whether the conflicting **claim pair** still exists/conflicts, not text similarity, since these notes are claim-anchored, not prose-anchored.

@@ -117,6 +117,12 @@ For acceptance tests that need to assert "this section evaluated as one unit," t
 
 ---
 
+## Known gap — span checks lack cross-section context (OBS-027)
+
+The section is the atomic eval unit, and the LLM's view is one section's `combinedText` + stage + glossary (see _Eval payload_). That is correct for **extraction** (claims, summary) but lossy for **reference-resolving span checks** — `clarity`, `undefined_jargon`, `unsupported_claim` — which need to know what the *rest of the document* has already defined or asserted. Surfaced 2026-06-25: the "Out of scope" section was flagged for an undefined "this notification pattern" (defined two sections up in §Solution) and for an ambiguous "Multiple retries" (which sits under the section's own "Out of scope" header). Both are false positives caused by the section being judged alone.
+
+Fix reuses artifacts that already exist: inject the other sections' **block summaries** (already computed for the doc-quality call) and/or the **active claim ledger** into the section-eval prompt as "context the document has already established — do not flag these as undefined/unsupported"; secondarily, instruct the model to treat the section heading as governing intent. Tracked as **OBS-027** (`docs/logs/prompt_quality_observations.md`) and a Phase-6 Signal-quality milestone in `docs/plan.md`. Distinct from OBS-026 (cross-*block* contradiction anchoring drop).
+
 ## Open questions & decisions
 
 ### Semantic paste (Markdown and Rich-text) is a correctness requirement
