@@ -43,8 +43,6 @@ interface GroupedObsCardProps {
   isExiting: boolean;
   onHover: (id: string | null) => void;
   onDismiss: (id: string) => void;
-  /** Whether this card is in the "also noticed" overflow drawer vs. the main feed. */
-  slot?: "primary" | "also-noticed";
 }
 
 
@@ -55,7 +53,6 @@ function GroupedObsCard({
   isExiting,
   onHover,
   onDismiss,
-  slot = "primary",
 }: GroupedObsCardProps) {
   const [expanded, setExpanded] = useState(false);
   const { primary, others } = group;
@@ -105,13 +102,14 @@ function GroupedObsCard({
                   ? "Medium"
                   : "Low"}{" "}
               severity
-              {" · "}
+              <br />
               {primary.confidence === "high"
-                ? "high confidence"
+                ? "High"
                 : primary.confidence === "medium"
-                  ? "medium confidence"
-                  : "low confidence"}
-              {slot === "also-noticed" ? " — below budget" : ""}
+                  ? "Medium"
+                  : "Low"}{" "}
+              confidence
+              {""}
             </span>
           </span>
           {isArriving && <span className="obs-new-badge">new</span>}
@@ -241,7 +239,7 @@ export function SidecarFeed({
   // When 3+ observations arrive within 600 ms, they animate in as a group
   // with a "+N new" indicator rather than a stutter of individual fades.
   // See docs/projects/message_generation_workflow.md §8 (arrival animation).
-  const prevObsIdsRef = useRef<Set<string>>(new Set());
+  const prevObsIdsRef = useRef<Set<string>>(new Set(observations.map((o) => o.id)));
   const [arrivingIds, setArrivingIds] = useState<Set<string>>(new Set());
   const [arrivalBatchCount, setArrivalBatchCount] = useState(0);
   const [exitingIds, setExitingIds] = useState<Set<string>>(new Set());
@@ -840,7 +838,6 @@ export function SidecarFeed({
                           }
                           onHover={onHoverObservation}
                           onDismiss={handleDismiss}
-                          slot="also-noticed"
                         />
                       ))}
                     </div>
