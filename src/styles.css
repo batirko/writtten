@@ -413,7 +413,7 @@ body,
 /* Popover: hidden by default, revealed on hover/focus of parent label */
 .impact-popover {
   position: absolute;
-  top: calc(100% + 6px);
+  top: calc(100% + 4px);
   left: 0;
   z-index: 10;
   white-space: nowrap;
