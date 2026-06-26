@@ -112,12 +112,7 @@ function GroupedObsCard({
                   ? "Medium"
                   : "Low"}{" "}
               confidence
-              {slot === "also-noticed" ? (
-                <>
-                  <br />
-                  Below budget
-                </>
-              ) : ""}
+              {""}
             </span>
           </span>
           {isArriving && <span className="obs-new-badge">new</span>}
