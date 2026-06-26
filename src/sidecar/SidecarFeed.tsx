@@ -43,8 +43,6 @@ interface GroupedObsCardProps {
   isExiting: boolean;
   onHover: (id: string | null) => void;
   onDismiss: (id: string) => void;
-  /** Whether this card is in the "also noticed" overflow drawer vs. the main feed. */
-  slot?: "primary" | "also-noticed";
 }
 
 
@@ -55,7 +53,6 @@ function GroupedObsCard({
   isExiting,
   onHover,
   onDismiss,
-  slot = "primary",
 }: GroupedObsCardProps) {
   const [expanded, setExpanded] = useState(false);
   const { primary, others } = group;
@@ -841,7 +838,6 @@ export function SidecarFeed({
                           }
                           onHover={onHoverObservation}
                           onDismiss={handleDismiss}
-                          slot="also-noticed"
                         />
                       ))}
                     </div>
