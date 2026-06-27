@@ -11,10 +11,11 @@ summary: Resolve the zero-config "smart feed" philosophy against the user desire
 
 ## Status
 
-**Idea — Phase 6 (design settled 2026-06-18, ready to build).** The decision is made; the only build is wiring the already-specced noisiness control (Milestone E) into the feed and pulling it from the Phase 7 backlog into Phase 6.
+**Idea — Phase 6 (design settled 2026-06-18; sequencing updated 2026-06-27).** The decision (the _line_: maturity-aware curation + one noisiness switch, refuse the rest) is made. **Two updates 2026-06-27:** (1) the maturity-aware-curation half is now its own tracked milestone, `maturity_aware_severity.md` (R2), which this design depends on — it is no longer an ambient principle; (2) the one conceded control (the noisiness switch) is **build-held until R2 ships + V2** confirms maturity-curation isn't already sufficient, rather than wired immediately. If V2 shows the maturity split dissolves the UX-010 friction, we may never need to add the control surface — which is the more zero-config outcome.
 
 Read alongside:
 
+- `docs/projects/maturity_aware_severity.md` (R2) — the **load-bearing dependency**: the mechanism that makes "maturity-aware curation does most of the work" real. R2c's whole concession rests on it.
 - `docs/projects/quality_remediation_synthesis.md` (R2 · UX-010) — the root-cause synthesis that frames timing/maturity, not manual filters, as the principled answer.
 - `docs/projects/observation_taxonomy_and_priority.md` (Milestone E) — the **executable** noisiness-control spec (`Noisiness = "key" | "balanced" | "everything"`, the `NOISINESS` map, persistence, testids). This doc decides _that we ship it_; that doc says _how_.
 - `docs/projects/philosophy_guardrails.md` (G4) — the discomfort-budget ceiling; G4 caps emotional load, the noisiness switch caps volume. Distinct levers, must compose.
@@ -30,7 +31,7 @@ Read alongside:
 ## Todo
 
 - [x] **Decide the line** (§ The decision) — maturity-aware curation + one noisiness switch; refuse per-type filters / sorting / manual "top N". _Settled 2026-06-18._
-- [ ] **Ship the noisiness control** per `observation_taxonomy_and_priority.md` Milestone E build spec (the `NOISINESS` map, `FeedPartitionOptions.noisiness`, `localStorage["writtten_noisiness"]`, the three-segment settings control, `feedBudget.test.ts` cases). No new design needed — execute that spec.
+- [ ] **Ship the noisiness control** per `observation_taxonomy_and_priority.md` Milestone E build spec (the `NOISINESS` map, `FeedPartitionOptions.noisiness`, `localStorage["writtten_noisiness"]`, the three-segment settings control, `feedBudget.test.ts` cases). **Held until R2 (`maturity_aware_severity.md`) ships + V2** — execute only if V2 shows maturity-aware curation alone doesn't resolve UX-010. No new design needed when it does proceed. _(The underlying kind-keyed budget machinery still lands with R2, which needs it to compose; this item is specifically the user-facing three-step **switch**.)_
 - [ ] **Confirm composition with G4** — the contradiction floor/ceiling (G4) and the noisiness budget must both apply without one silently overriding the other (e.g. "Key issues" must still honour the G4 ceiling, not dump all contradictions). Add a `feedBudget.test.ts` case crossing a noisiness mode with >`CONTRADICTION_CEILING` contradictions.
 - [ ] **Copy + placement** — the control reads as a calm "how much do you want to see," not a filter panel (§ How it must read).
 
