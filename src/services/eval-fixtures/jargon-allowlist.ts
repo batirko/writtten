@@ -21,7 +21,7 @@ const fixture: EvalFixture = {
     },
   ],
   recordings: {
-    "rcfinmf_4626": "{\n  \"summary\": \"The team will execute a 10% soft launch using the GQRS protocol for transaction validation prior to general availability.\",\n  \"claims\": [\n    {\n      \"text\": \"We plan a soft launch to a 10% rollout cohort before GA.\",\n      \"kind\": \"commitment\"\n    },\n    {\n      \"text\": \"The payment flow will use the GQRS protocol for all transaction validation.\",\n      \"kind\": \"commitment\"\n    }\n  ],\n  \"clarity_observations\": [],\n  \"unsupported_claim_observations\": [],\n  \"undefined_jargon_observations\": [\n    {\n      \"text\": \"The GQRS protocol is not defined in the provided glossary or the text.\",\n      \"substring\": \"GQRS\"\n    }\n  ]\n}"
+    "r1dt3xql_5868": "{\n  \"summary\": \"The document outlines a phased release strategy utilizing a specific validation protocol for payments.\",\n  \"claims\": [\n    {\n      \"text\": \"We plan a soft launch to a 10% rollout cohort before GA.\",\n      \"kind\": \"commitment\"\n    },\n    {\n      \"text\": \"The payment flow will use the GQRS protocol for all transaction validation.\",\n      \"kind\": \"constraint\"\n    }\n  ],\n  \"clarity_observations\": [\n    {\n      \"text\": \"The 10% rollout cohort lacks a defined duration or success criteria for the soft launch phase.\",\n      \"substring\": \"10% rollout cohort\"\n    }\n  ],\n  \"unsupported_claim_observations\": [],\n  \"undefined_jargon_observations\": [\n    {\n      \"text\": \"GQRS is not a standard industry protocol and lacks a definition or reference.\",\n      \"substring\": \"GQRS\"\n    }\n  ]\n}"
   },
   expected: [
     {
@@ -30,7 +30,13 @@ const fixture: EvalFixture = {
       substring: "GQRS",
       note: "GQRS is a made-up term — should be flagged as undefined jargon",
     },
-    // GA, soft launch, rollout cohort are in JARGON_PRESET — must NOT fire (OBS-003/005 resolved)
+    {
+      type: "clarity",
+      sectionId: "sec1",
+      substring: "10% rollout cohort",
+      note: "Rollout cohort lacks a defined duration or success criteria — legitimate clarity flag",
+    },
+    // GA, soft launch, rollout cohort (jargon) are in JARGON_PRESET — must NOT fire as jargon (OBS-003/005 resolved)
   ],
 };
 

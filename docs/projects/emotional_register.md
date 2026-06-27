@@ -1,5 +1,5 @@
 ---
-status: idea
+status: in-progress
 kind: quality
 phases: [6]
 summary: Make the feed's voice intentional — a persona spec (trusted senior colleague), the wrong-persona anti-patterns, a message voice/copy guide, and tone as a labeled eval dimension — so the emotional register that determines whether critique-without-a-fix is bearable is designed, not incidental.

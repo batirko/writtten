@@ -27,23 +27,21 @@ const fixture: EvalFixture = {
     },
   ],
   recordings: {
-    "r4ct8uv_4620": "{\n  \"summary\": \"The section outlines success metrics for a product launch, focusing on reducing support tickets and maintaining fraud loss rates.\",\n  \"claims\": [\n    {\n      \"text\": \"Support ticket volume for declined transactions decreases by 20%.\",\n      \"kind\": \"metric\"\n    },\n    {\n      \"text\": \"Zero increase in confirmed fraud loss rate.\",\n      \"kind\": \"metric\"\n    }\n  ],\n  \"clarity_observations\": [],\n  \"unsupported_claim_observations\": [],\n  \"undefined_jargon_observations\": []\n}"
+    "rgiov7x_5862": "{\n  \"summary\": \"The project aims to reduce support tickets related to declined transactions by 20% while maintaining current fraud loss levels.\",\n  \"claims\": [\n    {\n      \"text\": \"Support ticket volume for declined transactions decreases by 20%.\",\n      \"kind\": \"metric\"\n    },\n    {\n      \"text\": \"Zero increase in confirmed fraud loss rate.\",\n      \"kind\": \"constraint\"\n    }\n  ],\n  \"clarity_observations\": [\n    {\n      \"text\": \"The 20% reduction target lacks a baseline measurement or timeframe for achievement.\",\n      \"substring\": \"decreases by 20%\"\n    },\n    {\n      \"text\": \"The zero increase constraint lacks a defined baseline or measurement period.\",\n      \"substring\": \"Zero increase in confirmed fraud loss rate\"\n    }\n  ],\n  \"unsupported_claim_observations\": [],\n  \"undefined_jargon_observations\": []\n}"
   },
   expected: [
     // unsupported_claim must NOT appear — these are forward-looking success targets (OBS-019)
-  ],
-  knownGaps: [
     {
       type: "clarity",
       sectionId: "sec1",
       substring: "decreases by 20%",
-      note: "Model does not flag the missing timeframe/baseline for the 20% support-ticket reduction.",
+      note: "20% reduction target lacks a baseline measurement or timeframe — insightful clarity (not source echo).",
     },
     {
       type: "clarity",
       sectionId: "sec1",
       substring: "Zero increase",
-      note: "Model does not flag the missing measurement period/baseline for the fraud loss rate constraint. Tracked until prompt fix lands.",
+      note: "Zero-increase constraint lacks a defined baseline or measurement period.",
     },
   ],
 };
