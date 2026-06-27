@@ -42,7 +42,7 @@ Fixing the trigger model — decouple focus from completeness, require genuine i
 
 The only observations that touch the product's soul are **OBS-010** and **UX-010**, and OBS-010's own note nails it: _"provoke, don't prescribe" feels abrasive primarily because of <!---->_**_when_**_<!----> it fires, not <!---->_**_what_**_<!----> it says._ Blunt structural feedback is fine on a finished draft and hostile on a first paragraph.
 
-So timing (Invariant #4) isn't politeness — it's the pressure valve that lets us **hold the register line** (no prescriptive "think about adding a risks section," no therapist hedging) **without** users defecting to Grammarly-style hand-holding. The fix is to make severity a function of document maturity: surface structural gaps as soft _opportunities_ early, promote them to _warnings_ only as the doc matures. This is also the principled answer to **UX-010** (users asking for manual filters / "top 5" / warnings-vs-suggestions): give maturity-aware curation, not a settings dashboard. The smart-feed-vs-manual-control tension deserves its own design spec before we concede any manual controls.
+So timing (Invariant #4) isn't politeness — it's the pressure valve that lets us **hold the register line** (no prescriptive "think about adding a risks section," no therapist hedging) **without** users defecting to Grammarly-style hand-holding. The fix is to make severity a function of document maturity: surface structural gaps as soft _opportunities_ early, promote them to _warnings_ only as the doc matures. This is also the principled answer to **UX-010** (users asking for manual filters / "top 5" / warnings-vs-suggestions): give maturity-aware curation, not a settings dashboard. The smart-feed-vs-manual-control tension deserves its own design spec before we concede any manual controls. **Graduated into its own tracked milestone + spec (2026-06-27): `docs/projects/maturity_aware_severity.md`** — a deterministic structural-maturity proxy; gap-types promote opportunity→warning (kind + severity + message voice) as the doc matures; defects always surface. `smart_feed_curation.md` (R2c) depends on it, and its conceded noisiness switch is build-held until R2 + V2.
 
 ### R3 — The reconciliation / lifecycle engine is structurally broken
 
@@ -92,7 +92,7 @@ The dependency order, not the phase labels:
 6. **R6** (fast-tier precision).
 7. **R7b / R3b / R3c / R2c** (UX polish) — choreography, archive context, quotes, reverse-hover — on foundations that are finally stable.
 
-**R2** is the principle threaded through 1–7, not a discrete step.
+**R2** was the principle threaded through 1–7; as of 2026-06-27 its mechanism is a discrete tracked milestone (`maturity_aware_severity.md`), because R2c depends on it as load-bearing and an ambient principle gave it no buildable home.
 
 ## Meta-observations
 
