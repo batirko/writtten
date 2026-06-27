@@ -1,5 +1,5 @@
 ---
-status: idea
+status: in-progress
 kind: spec
 phases: [6]
 summary: Discoverable formatting for the writing canvas — a selection bubble menu (inline marks + links) and a slash menu (block types), both appear-on-demand with zero standing chrome, plus a Link extension. Closes UX-004: rich-text/markdown formatting already works but is invisible to a user without markdown muscle-memory.
