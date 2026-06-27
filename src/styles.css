@@ -644,3 +644,326 @@ body,
     scroll-behavior: auto !important;
   }
 }
+
+/* ── Editor links ─────────────────────────────────────────────────────────── */
+
+.tiptap a {
+  color: #5457ac;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.tiptap a:hover {
+  color: #454393;
+}
+
+/* ── Bubble menu ──────────────────────────────────────────────────────────── */
+
+.bubble-menu {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  position: relative;
+}
+
+.bubble-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  cursor: pointer;
+  color: var(--text-muted);
+  font-size: 13px;
+  line-height: 1;
+  transition: background 120ms, color 120ms;
+}
+
+.bubble-btn:hover {
+  background: var(--sidecar-bg);
+  color: var(--text);
+}
+
+.bubble-btn.is-active {
+  background: #ececf7;
+  color: #5457ac;
+}
+
+.bubble-btn:focus-visible {
+  outline: 2px solid #5457ac;
+  outline-offset: 1px;
+}
+
+.bubble-divider {
+  width: 1px;
+  height: 18px;
+  background: var(--border);
+  margin: 0 2px;
+  flex-shrink: 0;
+}
+
+/* ── Link popover ─────────────────────────────────────────────────────────── */
+
+.link-popover {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  padding: 6px 8px;
+  white-space: nowrap;
+  z-index: 100;
+  min-width: 280px;
+}
+
+.link-popover-input {
+  flex: 1;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 4px 8px;
+  font-size: 13px;
+  color: var(--text);
+  background: var(--bg);
+  outline: none;
+  min-width: 0;
+}
+
+.link-popover-input:focus {
+  border-color: #5457ac;
+  box-shadow: 0 0 0 2px rgba(84, 87, 172, 0.2);
+}
+
+.link-popover-btn {
+  padding: 4px 10px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--surface);
+  font-size: 12px;
+  cursor: pointer;
+  color: var(--text);
+  white-space: nowrap;
+  transition: background 120ms;
+}
+
+.link-popover-btn:hover {
+  background: var(--sidecar-bg);
+}
+
+.link-popover-btn--remove {
+  color: #ef4444;
+  border-color: rgba(239, 68, 68, 0.3);
+}
+
+.link-popover-btn--remove:hover {
+  background: rgba(239, 68, 68, 0.06);
+}
+
+/* ── Slash menu ───────────────────────────────────────────────────────────── */
+
+.slash-menu {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  padding: 4px;
+  min-width: 210px;
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.slash-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  color: var(--text);
+  transition: background 80ms;
+}
+
+.slash-item:hover,
+.slash-item.is-active {
+  background: #ececf7;
+}
+
+.slash-item-label {
+  flex: 1;
+}
+
+.slash-item-hint {
+  font-family: "SF Mono", "Fira Code", monospace;
+  font-size: 11px;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.slash-item--empty {
+  color: var(--text-muted);
+  cursor: default;
+  font-size: 13px;
+  justify-content: center;
+}
+
+.slash-item--empty:hover {
+  background: transparent;
+}
+
+/* ── Context chip (stage discoverability) — Phase 6 ──────────────────────── */
+/* Spec: docs/projects/onboarding_first_run.md § The context chip             */
+/* Always-visible feed-header affordance; three states:                       */
+/*   suggested → inferred context awaiting user decision                      */
+/*   set       → stage active, truncated with inline edit trigger             */
+/*   empty     → muted "Add context" link                                     */
+
+.stage-chip {
+  padding: 6px 10px;
+  border-bottom: 1px solid #e5e7eb;
+  font-size: 0.8rem;
+  background: #f8f9fa;
+  min-height: 32px;
+  display: flex;
+  align-items: flex-start;
+}
+
+.stage-chip-suggested {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+}
+
+.stage-chip-label {
+  color: #374151;
+  line-height: 1.4;
+}
+
+.stage-chip-label em {
+  font-style: normal;
+  color: #0369a1;
+}
+
+.stage-chip-set {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+}
+
+.stage-chip-value {
+  font-style: normal;
+  color: #0369a1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 220px;
+  display: inline-block;
+  vertical-align: bottom;
+}
+
+.stage-chip-actions {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.stage-chip-btn {
+  font-size: 0.75rem;
+  padding: 2px 8px;
+  cursor: pointer;
+  border: 1px solid #d1d5db;
+  border-radius: 4px;
+  background: #fff;
+  color: #374151;
+  line-height: 1.5;
+}
+
+.stage-chip-btn-primary {
+  background: #0ea5e9;
+  color: #fff;
+  border-color: transparent;
+}
+
+.stage-chip-btn-primary:hover {
+  background: #0284c7;
+}
+
+.stage-chip-dismiss {
+  margin-left: auto;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #9ca3af;
+  font-size: 1rem;
+  line-height: 1;
+  padding: 0 2px;
+}
+
+.stage-chip-dismiss:hover,
+.stage-chip-edit-btn:hover {
+  color: #6b7280;
+}
+
+.stage-chip-edit-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #9ca3af;
+  font-size: 0.85rem;
+  padding: 0 2px;
+  flex-shrink: 0;
+}
+
+.stage-chip-add-link {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #9ca3af;
+  font-size: 0.8rem;
+  padding: 0;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.stage-chip-add-link:hover {
+  color: #6b7280;
+}
+
+.stage-chip-inline-edit {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+}
+
+.stage-chip-textarea {
+  width: 100%;
+  font-size: 0.8rem;
+  padding: 4px 6px;
+  border: 1px solid #d1d5db;
+  border-radius: 4px;
+  resize: vertical;
+  font-family: inherit;
+  box-sizing: border-box;
+}
+
+.stage-chip-textarea:focus {
+  outline: 2px solid #0ea5e9;
+  outline-offset: 1px;
+}
