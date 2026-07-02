@@ -195,7 +195,7 @@ export const ObservationHighlighter = Extension.create<ObservationHighlighterOpt
                       // For cross-claim observations (contradiction,
                       // strategic_tension), also highlight the conflicting
                       // block's span so hovering the card lights up both sides.
-                      if (obs.conflictingBlockId) {
+                      if (obs.conflictingBlockId && obs.conflictingBlockId !== obs.blockId) {
                         const conflictPos = blockPositions.get(obs.conflictingBlockId);
                         if (conflictPos !== undefined) {
                           const conflictNode = doc.nodeAt(conflictPos);

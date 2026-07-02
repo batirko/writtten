@@ -731,7 +731,7 @@ export async function evaluateLedgerContradictions(
     const emit = (con: SweepConflict, obsType: "contradiction" | "strategic_tension") => {
       const a = sorted[Number(con.claimAId)];
       const b = sorted[Number(con.claimBId)];
-      if (!a || !b || a.sourceBlockId === b.sourceBlockId) return;
+      if (!a || !b) return;
 
       const { severity, confidence, priority } =
         obsType === "contradiction"
