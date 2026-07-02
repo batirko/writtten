@@ -261,3 +261,73 @@ describe("highlight re-anchoring on rebuild (L5)", () => {
     }
   });
 });
+
+describe("intra-block conflict decoration (OBS-026)", () => {
+  const crossBlockObs: Observation = {
+    id: "obs-cross",
+    docId: "doc-1",
+    type: "contradiction",
+    scope: "span",
+    kind: "problem",
+    severity: "high",
+    confidence: "high",
+    priority: 0.95,
+    text: "Conflict",
+    status: "active",
+    blockId: "b1",
+    startOffset: 0,
+    endOffset: 9999,
+    conflictingBlockId: "b2",
+    conflictingStartOffset: 0,
+    conflictingEndOffset: 9999,
+  };
+
+  const sameBlockObs: Observation = {
+    ...crossBlockObs,
+    id: "obs-same",
+    conflictingBlockId: "b1",
+  };
+
+  function makeEditor() {
+    return new Editor({
+      extensions: [StarterKit, BlockId, ObservationHighlighter],
+      content: {
+        type: "doc",
+        content: [
+          {
+            type: "paragraph",
+            attrs: { blockId: "b1" },
+            content: [{ type: "text", text: "Paragraph 1" }],
+          },
+          {
+            type: "paragraph",
+            attrs: { blockId: "b2" },
+            content: [{ type: "text", text: "Paragraph 2" }],
+          },
+        ],
+      },
+    });
+  }
+
+  it("renders two decorations for a cross-block conflict", () => {
+    const editor = makeEditor();
+    try {
+      editor.view.dispatch(editor.state.tr.setMeta("setObservations", [crossBlockObs]));
+      const decos = editor.view.dom.querySelectorAll(".obs-highlight");
+      expect(decos.length).toBe(2);
+    } finally {
+      editor.destroy();
+    }
+  });
+
+  it("renders a single decoration for a same-block conflict to prevent stacking", () => {
+    const editor = makeEditor();
+    try {
+      editor.view.dispatch(editor.state.tr.setMeta("setObservations", [sameBlockObs]));
+      const decos = editor.view.dom.querySelectorAll(".obs-highlight");
+      expect(decos.length).toBe(1);
+    } finally {
+      editor.destroy();
+    }
+  });
+});

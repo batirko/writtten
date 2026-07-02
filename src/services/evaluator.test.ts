@@ -448,6 +448,31 @@ describe("evaluator - evaluateLedgerContradictions (bootstrap sweep)", () => {
     expect(db.saveObservation).not.toHaveBeenCalled();
   });
 
+  it("emits one contradiction for a same-block conflict (OBS-026)", async () => {
+    const claimC = { ...claimA, id: 3, sourceBlockId: "blockC", text: "Win." };
+    const claimD = { ...claimB, id: 4, sourceBlockId: "blockC", text: "Lose." };
+    vi.mocked(db.loadActiveClaimsForDocument).mockResolvedValue([claimC, claimD]);
+    vi.mocked(db.loadActiveObservationsForDocument).mockResolvedValueOnce([]);
+    mockStrong.mockResolvedValueOnce({
+      text: JSON.stringify({
+        contradictions: [{ claimAId: 1, claimBId: 0, message: "Same block conflict." }],
+        tensions: [],
+      }),
+    });
+
+    await evaluateLedgerContradictions(docId, "Stage", apiKey);
+
+    expect(mockStrong).toHaveBeenCalledTimes(1);
+    expect(db.saveObservation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: "contradiction",
+        blockId: "blockC",
+        conflictingBlockId: "blockC",
+        status: "active",
+      })
+    );
+  });
+
   it("is a no-op when the ledger is unchanged since the last sweep (dirty-check)", async () => {
     vi.mocked(db.loadActiveClaimsForDocument).mockResolvedValue([claimA, claimB]);
     vi.mocked(db.loadActiveObservationsForDocument).mockResolvedValue([]);
