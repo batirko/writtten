@@ -253,14 +253,14 @@ Milestones:
 | **Lifecycle** _(caveat)_| `orchestrator.ts`, `docReconcile.ts`, `priority.ts` + new maturity proxy    | UX-012 · Maturity-aware severity (R2) · Revert-aware (cache half)         |
 | **Visual** _(solo)_     | `src/styles.css` + component markup everywhere                              | Visual style                                                             |
 
-**Rules of the road:**
-
-- The four cleanly-concurrent lanes are **Editor · Feed UI · Prompt/signal · Validation** — one item from each = 4 parallel sessions with no shared hub.
-- **Lifecycle shares `evaluator.ts` with Prompt/signal** — parallel-safe only if edits stay in different functions (Lifecycle → `orchestrator.ts` + the emit/cache paths; Prompt/signal → `evaluateSection` + prompt text). Coordinate if both are active at once.
-- **Visual runs solo.** It rewrites `styles.css` wholesale and touches class names across the feed and editor, so it collides with any UI lane — sequence it before or after UI work, never alongside.
-- **Maturity proxy (R2)** starts as a _new pure module_ + `priority.ts`; that first slice is parallel-safe with almost anything and only enters the Lifecycle/Feed hubs once it wires severity/voice into the pipeline.
-- **Shared low-churn files** — `src/services/types.ts` (append-only-ish), `src/styles.css`, and any `db.ts` schema-version bump are touched by several lanes; keep edits minimal and let only **one lane bump the DB version** at a time.
-- **Serialize _within_ a lane:** items sharing a hub file (all Feed-UI items on `SidecarFeed.tsx`, all Prompt items on `evaluatorPrompts.ts`) cannot run concurrently with each other.
+> **Rules of the road** (in a blockquote so the routing-annotation test doesn't read these as milestones):
+>
+> - The four cleanly-concurrent lanes are **Editor · Feed UI · Prompt/signal · Validation** — one item from each = 4 parallel sessions with no shared hub.
+> - **Lifecycle shares `evaluator.ts` with Prompt/signal** — parallel-safe only if edits stay in different functions (Lifecycle → `orchestrator.ts` + the emit/cache paths; Prompt/signal → `evaluateSection` + prompt text). Coordinate if both are active at once.
+> - **Visual runs solo.** It rewrites `styles.css` wholesale and touches class names across the feed and editor, so it collides with any UI lane — sequence it before or after UI work, never alongside.
+> - **Maturity proxy (R2)** starts as a _new pure module_ + `priority.ts`; that first slice is parallel-safe with almost anything and only enters the Lifecycle/Feed hubs once it wires severity/voice into the pipeline.
+> - **Shared low-churn files** — `src/services/types.ts` (append-only-ish), `src/styles.css`, and any `db.ts` schema-version bump are touched by several lanes; keep edits minimal and let only **one lane bump the DB version** at a time.
+> - **Serialize _within_ a lane:** items sharing a hub file (all Feed-UI items on `SidecarFeed.tsx`, all Prompt items on `evaluatorPrompts.ts`) cannot run concurrently with each other.
 
 ### Product experience & feel
 
