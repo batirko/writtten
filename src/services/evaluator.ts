@@ -120,10 +120,17 @@ export async function evaluateSection(
     return;
   }
 
-  // 2. If section is now empty / too short, retire its data and close its
-  //    observations. Hash written last (same atomicity rule as the main path):
-  //    if reconcile throws, the section stays dirty and retries. (L3)
-  if (cleanText.length < 10) {
+  // 2. If section is now empty / too short, or is a bodyless heading, retire its
+  //    data and close its observations. A heading with no body text must never
+  //    reach the model — a long-enough heading clears the length guard, and the
+  //    model then fabricates a whole section (invented claims that pollute the
+  //    ledger and drive a paid contradiction call). See OBS-029 /
+  //    docs/projects/section_eval_precision.md. `isHeading` is set by
+  //    resolveSections; an unmarked member falls back to "body" so hand-built
+  //    fixtures still evaluate. Hash written last (same atomicity rule as the
+  //    main path): if reconcile throws, the section stays dirty and retries. (L3)
+  const hasBody = members.some((m) => !m.isHeading && m.text.trim().length > 0);
+  if (cleanText.length < 10 || !hasBody) {
     // If the section was removed concurrently, handleBlockRemoved already did
     // this cleanup — don't recreate an (empty) summary for a deleted block (L4).
     if (!isLive()) return;

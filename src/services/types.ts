@@ -5,6 +5,10 @@ import type { ModelCapability } from "../model/capability";
 export interface SectionMember {
   blockId: string;
   text: string;
+  /** True if this member is a heading node. Absent on hand-built fixtures; the
+   *  evaluator falls back to treating an unmarked member as body. Lets the
+   *  bodyless-heading guard fire (OBS-029). */
+  isHeading?: boolean;
 }
 
 /**

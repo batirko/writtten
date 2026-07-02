@@ -81,6 +81,20 @@ describe("resolveSections", () => {
     expect(sections[1].combinedText).toBe("Open questions");
   });
 
+  it("marks isHeading per member so the evaluator can spot a bodyless heading (OBS-029)", () => {
+    const d = doc(heading("h", "Scope"), para("p", "We will build the alerts."));
+    const [section] = resolveSections(d);
+
+    expect(section.members).toEqual([
+      { blockId: "h", text: "Scope", isHeading: true },
+      { blockId: "p", text: "We will build the alerts.", isHeading: false },
+    ]);
+    // A trailing heading section has no non-heading member with text.
+    const bodyless = doc(para("a", "Intro."), heading("h", "Open questions"));
+    const trailing = resolveSections(bodyless)[1];
+    expect(trailing.members.some((m) => !m.isHeading && m.text.trim().length > 0)).toBe(false);
+  });
+
   it("truncates combined text beyond MAX_SECTION_CHARS", () => {
     const huge = "x".repeat(MAX_SECTION_CHARS + 500);
     const d = doc(heading("h", "Big"), para("p", huge));
