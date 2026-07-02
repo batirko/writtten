@@ -453,11 +453,15 @@ export function scheduleEval(
     return;
   }
 
-  // block-settle-pause | block-settle-blur (section-keyed)
+  // block-settle-pause | block-settle-completion | block-settle-blur (section-keyed)
   if (!text) return;
   const { sectionId, members } = trigger;
   const triggerKind =
-    trigger.kind === "block-settle-pause" ? "settle-pause" : `settle-blur:${trigger.reason}`;
+    trigger.kind === "block-settle-pause"
+      ? "settle-pause"
+      : trigger.kind === "block-settle-completion"
+        ? "settle-completion"
+        : `settle-blur:${trigger.reason}`;
 
   // Collapse into the coalesce window
   const existing = coalesceTimers.get(sectionId);

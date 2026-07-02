@@ -21,7 +21,20 @@ After **3 s** (`EVAL_DEBOUNCE_MS`) of no typing in the cursor's current section,
 
 The timer is per-section and reset on every keystroke.
 
-### 2. Cursor-departure settle (`block-settle-blur`, reason `cursor-departed`)
+### 2. Block-completion settle (`block-settle-completion`)
+
+Source: `onUpdate` in `src/editor/Editor.tsx` (step 3a)
+
+Fires the instant a paragraph is **completed** — pressing Enter after a settled block — rather than waiting out the 3 s pause. Detection: `onUpdate` sees a net gain in top-level block ids (`currentBlockIds.size > prevBlockIds.size`), the signature of an Enter/split (the bulk-paste path returns earlier, so it's excluded). Because pressing Enter keeps the cursor *inside the same section*, the §3 cursor-departure trigger never sees this — this closes that latency gap so a single-heading draft doesn't feel unresponsive (UX-013).
+
+Same two gates as the pause timer, applied to the current section's live `combinedText`, so Invariant #4 still holds (a mid-sentence Enter fails the terminal-punctuation gate and stays silent):
+
+- terminal punctuation: `/[.!?"]\s*$/`
+- combined section text ≥ **15 chars**
+
+Dispatched **in parallel** with the pause timer (which is still reset on the same keystroke). The two collapse cheaply: the orchestrator's 250 ms coalesce window merges them into one dispatch when they land close together, and `evaluateSection`'s hash short-circuit no-ops the redundant one otherwise. Pressing Enter on an empty line re-fires the trigger but the section text is unchanged, so the hash short-circuit makes it free.
+
+### 3. Cursor-departure settle (`block-settle-blur`, reason `cursor-departed`)
 
 Source: `onSelectionUpdate` in `src/editor/Editor.tsx`
 
@@ -29,13 +42,13 @@ Fires when the cursor crosses from one section into a different one. Evaluates t
 
 > Window-blur (alt-tab) was deliberately removed as a settle trigger — it caused premature evals and 4–6 paid calls per paste (OBS-014, OBS-020).
 
-### 3. Dev harness `loadDoc` seed (`block-settle-pause`, one per section)
+### 4. Dev harness `loadDoc` seed (`block-settle-pause`, one per section)
 
 Source: `src/editor/Editor.tsx` harness doc-writer
 
 `window.__sidecar__.loadDoc(...)` fires one `block-settle-pause` per resolved section (≥ 10 chars), exercising the same pipeline as typing. Also explicitly arms the doc-idle timer (see §B2 below).
 
-### 4. Content import (`block-settle-pause`, one per section)
+### 5. Content import (`block-settle-pause`, one per section)
 
 Source: `importContent` effect in `src/editor/Editor.tsx`
 

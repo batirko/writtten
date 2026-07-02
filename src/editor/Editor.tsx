@@ -209,6 +209,11 @@ export function Editor({
 
       // --- 2. Detect removed blocks and fire block-removed triggers ---
       const currentBlockIds = getBlockIds(editor);
+      // A net gain in top-level blocks means a block was just added — the
+      // signature of pressing Enter to complete a paragraph. Captured before
+      // prevBlockIds is overwritten below; used by the block-completion trigger
+      // in step 3 (UX-013).
+      const blockAdded = currentBlockIds.size > prevBlockIds.current.size;
       for (const id of prevBlockIds.current) {
         if (!currentBlockIds.has(id)) {
           const ctx: EvalContext = {
@@ -297,6 +302,40 @@ export function Editor({
       const activeSection = blockId ? resolveSection(editor.state.doc, blockId) : null;
       if (activeSection) {
         const sectionId = activeSection.sectionId;
+
+        // --- 3a. Parallel block-completion trigger (UX-013) ---
+        // Pressing Enter to finish a paragraph adds a block but keeps the cursor
+        // inside the *same* section, so the cursor-departure trigger never fires
+        // and only the 3s pause would eventually pick it up — the feed feels
+        // unresponsive while drafting a single-heading doc. When a block was just
+        // added (Enter/split, not the bulk-paste path, which returned above) and
+        // the section reads as settled — terminal punctuation + min length, the
+        // same gates the pause timer applies so Invariant #4 (quiet while
+        // generating) still holds — dispatch the section eval immediately, in
+        // parallel with the pause timer below. Coalescing (250 ms window) + the
+        // evaluateSection hash short-circuit collapse the double-fire into a
+        // single dispatch with no redundant model call.
+        if (blockAdded) {
+          const hasTerminalPunc = /[.!?"]\s*$/.test(activeSection.combinedText);
+          const hasMinLength = activeSection.combinedText.trim().length >= 15;
+          if (hasTerminalPunc && hasMinLength) {
+            const ctx: EvalContext = {
+              docId: DOC_ID,
+              apiKey: apiKeyRef.current ?? "",
+              paidKey: paidKeyRef.current,
+              capability: capabilityRef.current,
+              stage: stageRef.current,
+              jargonAllowlist: jargonAllowlistRef.current,
+              onStageSuggestion: onStageSuggestionRef.current,
+            };
+            scheduleEval(
+              { kind: "block-settle-completion", sectionId, members: activeSection.members },
+              activeSection.combinedText,
+              ctx,
+              () => onEvaluationCompleteRef.current()
+            );
+          }
+        }
 
         // Reset the settle-pause timer for this section
         const existing = evalTimers.current.get(sectionId);
