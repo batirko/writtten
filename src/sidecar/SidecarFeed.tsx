@@ -716,8 +716,8 @@ export function SidecarFeed({
             <button
               className="settings-toggle-btn"
               onClick={() => setShowSettings(!showSettings)}
-              title="Configure API Key and Document Stage"
-              aria-label="Configure API Key and Document Stage"
+              title="Configure API Key"
+              aria-label="Configure API Key"
               aria-expanded={showSettings}
               aria-controls="settings-panel"
             >
@@ -782,17 +782,6 @@ export function SidecarFeed({
                 </label>
               )}
             </div>
-            <div className="setting-group">
-              <label htmlFor="stage-input">Document Context / Stage</label>
-              <textarea
-                id="stage-input"
-                data-testid="stage-input"
-                rows={3}
-                placeholder="e.g., PRD for payments team, audience is engineers and designers."
-                value={stage}
-                onChange={(e) => onStageChange(e.target.value)}
-              />
-            </div>
             {import.meta.env.DEV && (
               <div className="setting-group">
                 <label
@@ -811,13 +800,15 @@ export function SidecarFeed({
         )}
       </div>
 
-      <ContextChip
-        stage={stage}
-        onStageChange={onStageChange}
-        stageSuggestion={stageSuggestion}
-        onAcceptStageSuggestion={onAcceptStageSuggestion}
-        onDismissStageSuggestion={onDismissStageSuggestion}
-      />
+      {!showSettings && (
+        <ContextChip
+          stage={stage}
+          onStageChange={onStageChange}
+          stageSuggestion={stageSuggestion}
+          onAcceptStageSuggestion={onAcceptStageSuggestion}
+          onDismissStageSuggestion={onDismissStageSuggestion}
+        />
+      )}
 
       <div
         className="feed-container"
