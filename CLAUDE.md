@@ -38,6 +38,8 @@ The principle has a finer edge than "no apply button," and three failure modes t
 
 **Plan items carry required routing metadata.** Every open milestone in `docs/plan.md` ends with a `— <readiness> <complexity> · <agent>` annotation (see the Routing legend at the top of that file). When you **add** a milestone, annotate it; when you **work on** one, re-assess and update the annotation in the same change (readiness shifts most often). Drop the annotation when the item is completed (`[x]`).
 
+> **After ANY edit to `docs/plan.md`, run the full `npm test` — not a single test file.** `docs/plan.annotations.test.ts` is **dynamic**: it generates one test per open milestone it finds (every `- [ ]` checkbox, and every top-level `- ` bullet in the "Phase 6" / "Discovered" sections) and asserts each carries a routing annotation, while `[x]` items must have dropped it. Because the cases don't exist until your edit creates them, running a scoped test (e.g. just `projects.index.test.ts`) will pass locally and then CI goes red. Two gotchas this catches: (1) a new open milestone with no annotation; (2) **any non-milestone top-level `- ` bullet you add inside Phase 6** (prose lists, notes) is misread as an un-annotated milestone — put such lists in a **blockquote** (`>`-prefixed lines are exempt) or nest them so they don't start at column 0.
+
 ### `docs/projects/` conventions
 
 **Filenames are stable and status-free.** A project file is named for what it _is_ (`message_generation_workflow.md`), never for its status. Status is mutable metadata — encoding it in the filename breaks every reference the moment work progresses. So status lives in two places only:
