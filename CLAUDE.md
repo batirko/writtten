@@ -231,6 +231,16 @@ For any new UI component, new screen/panel, or substantive layout change, invoke
 - Prefer small, single-purpose modules. The eval checks, the model providers, and the export formats are each pluggable — keep those seams clean.
 - _Setup/build/test commands are a Phase 0 deliverable._ Once scaffolding exists, record the real commands here (install / dev / build / test / lint) so future sessions don't guess.
 
+## Working alongside parallel sessions
+
+**Assume another agent may be editing this repo right now.** Work is often split into parallel [lanes](docs/plan.md#parallel-work-lanes) run in separate sessions. Never assume you're the only writer.
+
+- **Always work on a dedicated feature branch, never directly on `main`.** Branch at the start of a task; open a PR when done. (One feature per PR — see the plan's lane map for what's safe to run concurrently.)
+- **Stay inside your lane's files.** Each Phase-6 milestone carries a `Lane` tag (see `docs/plan.md` → _Parallel work lanes_). The lanes are drawn so their **hub files don't overlap** — the big single-writer bottlenecks are `src/sidecar/SidecarFeed.tsx`, `src/styles.css`, `src/services/evaluator.ts`, `src/services/evaluatorPrompts.ts`, `src/editor/Editor.tsx`, `src/services/orchestrator.ts`. If your task needs to edit a hub file owned by a different lane, that's a signal the work isn't actually parallel-safe — flag it rather than plough in.
+- **Coordinate on the shared low-churn files.** `src/services/types.ts` (append-only-ish), `src/styles.css`, and any `db.ts` schema-version bump are touched by multiple lanes. Keep edits there minimal and localized; only one lane should bump the DB version at a time.
+- **Rebase before you finalize.** `main` may have moved under you. Rebase (or merge `main`) and re-run `npm test && npm run lint && npm run build` before opening/merging the PR.
+- **The dev server on `:5173` is shared.** Another session may already have `npm run dev` running (the preview MCP can't take over that port). Don't assume you own it; the harness state (`window.__sidecar__`) is global — `clear()` after seeding fixtures so you don't leave state for a concurrent session.
+
 ## Commands
 
 ```
