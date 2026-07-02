@@ -1,5 +1,5 @@
 ---
-status: in-progress
+status: done
 kind: spec
 phases: [6]
 summary: Discoverable formatting for the writing canvas — a selection bubble menu (inline marks + links) and a slash menu (block types), both appear-on-demand with zero standing chrome, plus a Link extension. Closes UX-004: rich-text/markdown formatting already works but is invisible to a user without markdown muscle-memory.
@@ -11,7 +11,14 @@ summary: Discoverable formatting for the writing canvas — a selection bubble m
 
 > Canonical status lives in the frontmatter above and is mirrored in the Projects Index in `docs/plan.md`. This block carries the human-readable scope only.
 
-**Idea — Phase 6 (design fully written, ready to build).** Promoted out of the R7b "scanning affordances" grab-bag because discoverable formatting is core to a _writing_ tool, not a feed affordance. The capability already exists — TipTap StarterKit + `tiptap-markdown` input rules + keyboard shortcuts (`src/editor/Editor.tsx:160`) — but it's **invisible**: there is no toolbar or menu, so a user without markdown muscle-memory has no discoverable way to make a heading, list, or emphasis. This spec adds the _control surface_; the _styling_ of formatted elements is already specced in `visual_style.md` § Editor canvas.
+**Done — Phase 6.** Promoted out of the R7b "scanning affordances" grab-bag because discoverable formatting is core to a _writing_ tool, not a feed affordance. The underlying capability already existed — TipTap StarterKit + `tiptap-markdown` input rules + keyboard shortcuts — but was **invisible**: no toolbar or menu, so a user without markdown muscle-memory had no discoverable way to make a heading, list, or emphasis. This spec's _control surface_ is now shipped on top of those (untouched) markdown/keyboard paths; the _styling_ of formatted elements is specced in `visual_style.md` § Editor canvas.
+
+**Shipped surface (all appear-on-demand, zero standing chrome):**
+
+- **Bubble menu** — `src/editor/menus/BubbleMenu.tsx`: bold · italic · strike · inline-code · link on a non-empty text selection, each with an `is-active` state; suppressed in code blocks and on node selections; `aria-label`/`aria-pressed` + `data-testid` on every button.
+- **Slash menu** — `src/editor/extensions/SlashMenu.ts` + `menus/SlashMenuRenderer.tsx`: `@tiptap/suggestion`-driven, triggered by `/` at the start of an empty paragraph; Heading 1–3 · Bulleted/Numbered list · Quote · Code block · Divider; live query filter, full keyboard nav (↑/↓/Enter/Esc), `role="listbox"`/`role="option"` + `aria-activedescendant`, "No matches" row.
+- **Link** — `@tiptap/extension-link` registered in `Editor.tsx` (`openOnClick:false`, `autolink:false`, `protocols:[http,https,mailto]`, `rel="noopener nofollow"`); the bubble-menu link button opens `menus/LinkPopover.tsx` (set/edit/remove, unsafe-scheme sanitization). Markdown round-trip `[text](url)` verified in `src/services/export.test.ts`.
+- Reduced-motion is honoured through the global `prefers-reduced-motion` guard in `src/styles.css`; the markdown input rules and keyboard shortcuts are unchanged (power-user path).
 
 Read alongside:
 
