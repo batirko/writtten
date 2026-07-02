@@ -157,6 +157,131 @@ function GroupedObsCard({
 }
 
 // ---------------------------------------------------------------------------
+// ContextChip — always-visible Document Context / Stage affordance
+//
+// Three states derived from props:
+//   suggested — stageSuggestion is set (inference produced a value, not yet accepted)
+//   set       — stage has a value (inferred-accepted or hand-typed)
+//   empty     — no stage, no suggestion
+//
+// Spec: docs/projects/onboarding_first_run.md § The context chip
+// Testids preserved: stage-suggestion, stage-suggestion-accept, stage-suggestion-dismiss
+// New testids: stage-chip (container), stage-chip-edit (inline-edit trigger)
+// ---------------------------------------------------------------------------
+
+interface ContextChipProps {
+  stage: string;
+  onStageChange: (s: string) => void;
+  stageSuggestion?: string | null;
+  onAcceptStageSuggestion?: (s: string) => void;
+  onDismissStageSuggestion?: () => void;
+}
+
+function ContextChip({
+  stage,
+  onStageChange,
+  stageSuggestion,
+  onAcceptStageSuggestion,
+  onDismissStageSuggestion,
+}: ContextChipProps) {
+  const [editing, setEditing] = useState(false);
+
+  const chipState: "suggested" | "set" | "empty" = stageSuggestion
+    ? "suggested"
+    : stage
+      ? "set"
+      : "empty";
+
+  const handleAcceptAndEdit = () => {
+    if (stageSuggestion) onAcceptStageSuggestion?.(stageSuggestion);
+    setEditing(true);
+  };
+
+  return (
+    <div className="stage-chip" data-testid="stage-chip" data-chip-state={chipState}>
+      {chipState === "suggested" && !editing && (
+        <div className="stage-chip-suggested" data-testid="stage-suggestion">
+          <span className="stage-chip-label">
+            Inferred context: <em>{stageSuggestion}</em>
+          </span>
+          <div className="stage-chip-actions">
+            <button
+              className="stage-chip-btn stage-chip-btn-primary"
+              data-testid="stage-suggestion-accept"
+              onClick={() => onAcceptStageSuggestion?.(stageSuggestion!)}
+            >
+              Use this
+            </button>
+            <button
+              className="stage-chip-btn"
+              data-testid="stage-chip-edit"
+              onClick={handleAcceptAndEdit}
+            >
+              Edit
+            </button>
+            <button
+              className="stage-chip-dismiss"
+              data-testid="stage-suggestion-dismiss"
+              aria-label="Dismiss context suggestion"
+              onClick={() => onDismissStageSuggestion?.()}
+            >
+              ×
+            </button>
+          </div>
+        </div>
+      )}
+
+      {chipState === "set" && !editing && (
+        <div className="stage-chip-set">
+          <span className="stage-chip-label" title={stage}>
+            Context:{" "}
+            <em className="stage-chip-value">
+              {stage.length > 48 ? stage.slice(0, 48) + "…" : stage}
+            </em>
+          </span>
+          <button
+            className="stage-chip-edit-btn"
+            data-testid="stage-chip-edit"
+            aria-label="Edit document context"
+            onClick={() => setEditing(true)}
+          >
+            ✎
+          </button>
+        </div>
+      )}
+
+      {chipState === "empty" && !editing && (
+        <button
+          className="stage-chip-add-link"
+          onClick={() => setEditing(true)}
+        >
+          Add context
+        </button>
+      )}
+
+      {editing && (
+        <div className="stage-chip-inline-edit">
+          <textarea
+            className="stage-chip-textarea"
+            rows={2}
+            placeholder="e.g., PRD for payments team, audience is engineers and designers."
+            value={stage}
+            onChange={(e) => onStageChange(e.target.value)}
+            autoFocus
+          />
+          <button
+            className="stage-chip-btn stage-chip-btn-primary"
+            onClick={() => setEditing(false)}
+          >
+            Done
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // SidecarFeed
 // ---------------------------------------------------------------------------
 
@@ -686,52 +811,18 @@ export function SidecarFeed({
         )}
       </div>
 
+      <ContextChip
+        stage={stage}
+        onStageChange={onStageChange}
+        stageSuggestion={stageSuggestion}
+        onAcceptStageSuggestion={onAcceptStageSuggestion}
+        onDismissStageSuggestion={onDismissStageSuggestion}
+      />
+
       <div
         className="feed-container"
         style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column" }}
       >
-        {stageSuggestion && (
-          <div
-            data-testid="stage-suggestion"
-            style={{
-              margin: "8px",
-              padding: "10px 12px",
-              background: "#f0f9ff",
-              border: "1px solid #bae6fd",
-              borderRadius: "6px",
-              fontSize: "0.85rem",
-            }}
-          >
-            <p style={{ margin: "0 0 8px", color: "#0c4a6e" }}>
-              Inferred context: <em>{stageSuggestion}</em>
-            </p>
-            <div style={{ display: "flex", gap: "8px" }}>
-              <button
-                data-testid="stage-suggestion-accept"
-                onClick={() => onAcceptStageSuggestion?.(stageSuggestion)}
-                style={{
-                  fontSize: "0.8rem",
-                  padding: "3px 10px",
-                  cursor: "pointer",
-                  background: "#0ea5e9",
-                  color: "#fff",
-                  border: "none",
-                  borderRadius: "4px",
-                }}
-              >
-                Use this
-              </button>
-              <button
-                data-testid="stage-suggestion-dismiss"
-                onClick={() => onDismissStageSuggestion?.()}
-                style={{ fontSize: "0.8rem", padding: "3px 10px", cursor: "pointer" }}
-              >
-                No thanks
-              </button>
-            </div>
-          </div>
-        )}
-
         <div style={{ flex: 1 }}>
           {observations.length === 0 ? (
             <div className="sidecar-empty">

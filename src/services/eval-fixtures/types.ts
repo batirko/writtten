@@ -27,6 +27,13 @@ export interface ExpectedObservation {
   substring?: string;
   /** Human note explaining why this is ground truth. Not used in matching. */
   note?: string;
+  /**
+   * Expected tone for the produced observation's message text.
+   * `colleague` is the only passing value; the rest label negative fixtures.
+   * Used by the Tier-2 manual scorer (opt-in, live) — ignored by Tier-1 CI.
+   * See docs/projects/emotional_register.md § Tone as an eval dimension.
+   */
+  tone?: "colleague" | "pedant" | "cold" | "condescending";
 }
 
 export interface EvalFixture {

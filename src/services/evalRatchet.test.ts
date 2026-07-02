@@ -77,7 +77,9 @@ describe("Evaluator quality ratchet — Tier 1 (deterministic replay)", () => {
 
       const sectionTexts = new Map(fixture.sections.map((s) => [s.id, s.text]));
 
-      // G3 Message Lint: assert no generated message violates the no-disguised-fix rule
+      // G3 + Emotional Register Lint: assert no generated message violates register rules.
+      // Extends the Phase-4 G3 structural lint with the Phase-6 voice/copy guide
+      // mechanical rules from docs/projects/emotional_register.md § Voice & copy guide.
       for (const o of produced) {
         const textLow = o.text.toLowerCase();
 
@@ -104,6 +106,46 @@ describe("Evaluator quality ratchet — Tier 1 (deterministic replay)", () => {
             textLow.includes(pattern),
             `G3 violation: message contains prescriptive pattern "${pattern}". Must locate, not prescribe.\n  Message: "${o.text}"`
           ).toBe(false);
+        }
+
+        // 3. No hedge words (emotional register rule 4 — colleague voice is confident)
+        const hedgeWords = [
+          "perhaps",
+          "you may want to",
+          "feels like",
+          "i'd suggest",
+          "i would suggest",
+        ];
+        for (const hedge of hedgeWords) {
+          expect(
+            textLow.includes(hedge),
+            `Register violation: message contains hedge word "${hedge}". Confident colleagues don't hedge.\n  Message: "${o.text}"`
+          ).toBe(false);
+        }
+
+        // 4. No evaluative adjectives (emotional register rule 5 — name structural facts, not quality)
+        const evaluativePatterns = [
+          "is weak",
+          "is bad",
+          "is poor",
+          "is insufficient",
+          "won't convince",
+          "will not convince",
+        ];
+        for (const adj of evaluativePatterns) {
+          expect(
+            textLow.includes(adj),
+            `Register violation: message contains evaluative judgment "${adj}". State structural facts, not quality verdicts.\n  Message: "${o.text}"`
+          ).toBe(false);
+        }
+
+        // 5. Length soft cap: ≤ 240 chars, ≤ 2 sentences.
+        // Warns but does not fail — a 250-char contradiction that names both anchors
+        // is better than a truncated one (emotional_register.md § Voice & copy guide).
+        if (o.text.length > 240) {
+          console.warn(
+            `[register-soft] message exceeds 240-char soft cap (${o.text.length} chars) in fixture ${fixture.id}:\n  "${o.text}"`
+          );
         }
       }
 

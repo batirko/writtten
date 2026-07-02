@@ -46,3 +46,8 @@ export const corpus: EvalFixture[] = [
 ];
 
 export { type EvalFixture } from "./types";
+
+// Tone reference corpus — labeled pairs for the Tier-2 manual scorer.
+// Not in the Tier-1 `corpus` array (no pipeline to run against).
+export { toneCorpus } from "./tone-corpus";
+export type { TonePair, ToneLabel } from "./tone-corpus";
