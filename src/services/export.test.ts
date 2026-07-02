@@ -17,6 +17,7 @@ import Heading from "@tiptap/extension-heading";
 import BulletList from "@tiptap/extension-bullet-list";
 import ListItem from "@tiptap/extension-list-item";
 import { Markdown } from "tiptap-markdown";
+import Link from "@tiptap/extension-link";
 
 describe("export service", () => {
   let editor: Editor;
@@ -58,6 +59,36 @@ describe("export service", () => {
     expect(md).toContain("This is a paragraph.");
     expect(md).toContain("- Bullet 1");
     expect(md).toContain("- Bullet 2");
+  });
+
+  it("toMarkdown round-trips links as [text](url)", () => {
+    const linkEditor = new Editor({
+      extensions: [
+        Document,
+        Paragraph,
+        Text,
+        Link.configure({ openOnClick: false, autolink: false }),
+        Markdown,
+      ],
+      content: {
+        type: "doc",
+        content: [
+          {
+            type: "paragraph",
+            content: [
+              {
+                type: "text",
+                text: "Click here",
+                marks: [{ type: "link", attrs: { href: "https://example.com" } }],
+              },
+            ],
+          },
+        ],
+      },
+    });
+    const md = toMarkdown(linkEditor as any);
+    expect(md).toContain("[Click here](https://example.com)");
+    linkEditor.destroy();
   });
 
   it("toHtml converts editor content to html", () => {
