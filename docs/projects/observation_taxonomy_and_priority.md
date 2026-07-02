@@ -86,7 +86,7 @@ Five milestones with a strict dependency spine, now split across Phase 4 (A·B·
 
 ### Milestone E — Feed: budget model + noisiness
 
-- [x] In `src/sidecar/SidecarFeed.tsx`: sort active observations by `priority` (descending) instead of arrival order. _(Budget-select by priority; display in document-order — see `src/sidecar/feedBudget.ts`.)_
+- [x] In `src/sidecar/SidecarFeed.tsx`: sort active observations by `priority` (descending) instead of arrival order. _(Budget-select by priority; display in document-order — see `src/sidecar/feedBudget.ts`.)_ **Revised 2026-07-02 (UX-015):** pure document-order display buried high-priority doc-scoped observations at the bottom; display is moving to a priority _blend_ (priority bands, document-order within each band). → see `docs/logs/ux_quality_observations.md` (UX-015), `docs/projects/message_generation_workflow.md` §8, `docs/plan.md` Phase 6.
 - [x] Implement a **budget model** (not a threshold): show the top-N observations by priority; the rest move into an "also noticed" drawer (collapsed by default). Initial N = 7 (tune after dogfooding). The drawer keeps everything visible on demand without the feed becoming a wall.
 - [x] Kind floors and ceilings on the budget:
   - [x] `contradiction` observations always surface regardless of N (floor = show even if outside top-N, unless dismissed). _(Open: the floor has no **ceiling** — a doc with many contradictions surfaces them all, which the **discomfort budget** (R6.3) warns is demoralizing. Whether to cap floored items is owned by `docs/projects/philosophy_guardrails.md` (G4), not here.)_

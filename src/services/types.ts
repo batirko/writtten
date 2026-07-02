@@ -5,6 +5,10 @@ import type { ModelCapability } from "../model/capability";
 export interface SectionMember {
   blockId: string;
   text: string;
+  /** True if this member is a heading node. Absent on hand-built fixtures; the
+   *  evaluator falls back to treating an unmarked member as body. Lets the
+   *  bodyless-heading guard fire (OBS-029). */
+  isHeading?: boolean;
 }
 
 /**
@@ -19,6 +23,13 @@ export interface SectionMember {
  */
 export type EvalTrigger =
   | { kind: "block-settle-pause"; sectionId: string; members: SectionMember[] }
+  // Fires the instant a paragraph is completed (Enter after a settled block)
+  // rather than waiting out the typing-pause debounce. Pressing Enter stays
+  // inside the same section, so the cursor-departure trigger never sees it —
+  // this closes that latency gap. Same section-keyed coalesce/dispatch path as
+  // the pause trigger; the eval hash short-circuit makes the double-fire cheap.
+  // See docs/projects/... UX-013 / docs/mechanics/evaluation-triggers.md.
+  | { kind: "block-settle-completion"; sectionId: string; members: SectionMember[] }
   | {
       kind: "block-settle-blur";
       sectionId: string;

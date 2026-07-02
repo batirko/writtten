@@ -104,3 +104,49 @@ describe("orchestrator - block-removal liveness guard (L4)", () => {
     await vi.runAllTimersAsync();
   });
 });
+
+describe("orchestrator - block-completion trigger (UX-013)", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.clearAllMocks();
+    vi.mocked(evaluateSection).mockResolvedValue(undefined);
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("dispatches a section eval for a block-settle-completion trigger", async () => {
+    const id = "secC";
+    scheduleEval(
+      { kind: "block-settle-completion", sectionId: id, members: memberFor(id) },
+      "Some text long enough to evaluate.",
+      ctx
+    );
+    await vi.advanceTimersByTimeAsync(300); // past the 250ms coalesce window
+
+    expect(evaluateSection).toHaveBeenCalledTimes(1);
+    // evaluateSection(docId, sectionId, ...) — sectionId is the 2nd positional arg.
+    expect(vi.mocked(evaluateSection).mock.calls[0][1]).toBe(id);
+  });
+
+  it("coalesces a completion + pause for the same section into one dispatch", async () => {
+    const id = "secD";
+    // Enter completes a paragraph → completion trigger, then the pause timer
+    // fires for the same section within the coalesce window (the real editor
+    // arms both in parallel). They must not double-dispatch.
+    scheduleEval(
+      { kind: "block-settle-completion", sectionId: id, members: memberFor(id) },
+      "Some text long enough to evaluate.",
+      ctx
+    );
+    scheduleEval(
+      { kind: "block-settle-pause", sectionId: id, members: memberFor(id) },
+      "Some text long enough to evaluate.",
+      ctx
+    );
+    await vi.advanceTimersByTimeAsync(300);
+
+    expect(evaluateSection).toHaveBeenCalledTimes(1);
+  });
+});

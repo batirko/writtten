@@ -21,7 +21,20 @@ After **3 s** (`EVAL_DEBOUNCE_MS`) of no typing in the cursor's current section,
 
 The timer is per-section and reset on every keystroke.
 
-### 2. Cursor-departure settle (`block-settle-blur`, reason `cursor-departed`)
+### 2. Block-completion settle (`block-settle-completion`)
+
+Source: `onUpdate` in `src/editor/Editor.tsx` (step 3a)
+
+Fires the instant a paragraph is **completed** — pressing Enter after a settled block — rather than waiting out the 3 s pause. Detection: `onUpdate` sees a net gain in top-level block ids (`currentBlockIds.size > prevBlockIds.size`), the signature of an Enter/split (the bulk-paste path returns earlier, so it's excluded). Because pressing Enter keeps the cursor *inside the same section*, the §3 cursor-departure trigger never sees this — this closes that latency gap so a single-heading draft doesn't feel unresponsive (UX-013).
+
+Same two gates as the pause timer, applied to the current section's live `combinedText`, so Invariant #4 still holds (a mid-sentence Enter fails the terminal-punctuation gate and stays silent):
+
+- terminal punctuation: `/[.!?"]\s*$/`
+- combined section text ≥ **15 chars**
+
+Dispatched **in parallel** with the pause timer (which is still reset on the same keystroke). The two collapse cheaply: the orchestrator's 250 ms coalesce window merges them into one dispatch when they land close together, and `evaluateSection`'s hash short-circuit no-ops the redundant one otherwise. Pressing Enter on an empty line re-fires the trigger but the section text is unchanged, so the hash short-circuit makes it free.
+
+### 3. Cursor-departure settle (`block-settle-blur`, reason `cursor-departed`)
 
 Source: `onSelectionUpdate` in `src/editor/Editor.tsx`
 
@@ -29,13 +42,13 @@ Fires when the cursor crosses from one section into a different one. Evaluates t
 
 > Window-blur (alt-tab) was deliberately removed as a settle trigger — it caused premature evals and 4–6 paid calls per paste (OBS-014, OBS-020).
 
-### 3. Dev harness `loadDoc` seed (`block-settle-pause`, one per section)
+### 4. Dev harness `loadDoc` seed (`block-settle-pause`, one per section)
 
 Source: `src/editor/Editor.tsx` harness doc-writer
 
 `window.__sidecar__.loadDoc(...)` fires one `block-settle-pause` per resolved section (≥ 10 chars), exercising the same pipeline as typing. Also explicitly arms the doc-idle timer (see §B2 below).
 
-### 4. Content import (`block-settle-pause`, one per section)
+### 5. Content import (`block-settle-pause`, one per section)
 
 Source: `importContent` effect in `src/editor/Editor.tsx`
 
@@ -122,7 +135,7 @@ Even after a trigger fires, the orchestrator reshapes *when* the actual eval run
 ### `evaluateSection` (`src/services/evaluator.ts`)
 
 1. **Hash check** — if section text hash matches the stored summary, skip entirely (idempotent). The hash is the dirty-check key; see step 6 for when it is committed.
-2. **Short-circuit** — if text < 10 chars, retire claims/observations and return (no model call). Same write-order as step 6: claims + reconcile first, hash last.
+2. **Short-circuit (inert section)** — if the section text is < 10 chars **or the section is a bodyless heading** (no non-heading member carries non-empty text — `isHeading` is set per member by `resolveSections`), retire claims/observations and return with an empty summary (no model call). A heading long enough to clear the 10-char guard is still inert: without this, a title-only section (a block-type toggle, a heading typed before its body, a body deleted under a heading) is handed to the model with nothing but a title, and the model **fabricates a whole section** — invented claims that pollute the ledger and drive a paid contradiction call surfacing a garbage tension. This is the OBS-029 fix (a regression of the exact hallucination class `section_as_eval_unit` targeted). Same write-order as step 6: claims + reconcile first, hash last. → see `docs/projects/section_eval_precision.md` (OBS-029).
 3. **Merged fast call** — one round-trip: summary + claim extraction + span checks (`clarity`, `unsupported_claim`, `undefined_jargon`). Injects the existing glossary of defined terms and prior active observations so the model can confirm resolutions. Claims are persisted here (the contradiction call reads the ledger); the summary + hash are **not** — they wait for step 6.
 4. **Strong contradiction call** — only when there are both new claims *and* existing other-block claims, **and `skipContradiction` is not set** (it is, for bulk paste / import). Prefiltered to the top-10 most semantically relevant ledger claims. Uses a hedged prompt for a weak-capability model, confident prompt for a strong-capability one (`capability.adjudicateConfidently` — see _Model capability_ below).
 5. **Reconcile** — `reconcileObservations` writes the new span + contradiction observations and auto-closes unmatched existing ones for the section's member blocks. **Conflict types** (`contradiction`/`strategic_tension`) are deduped by their order-independent `conflictPairKey` — the same identity the ledger sweep uses — so a per-section emission and the sweep's re-emission of the same block pair coalesce into one card (a reworded re-emission keeps the existing record, freezing id + wording and preserving sweep grace state); all other types use the `contentSig`/`spanSig`/overlap path. Before inserting, each candidate is checked against the document's dismissal suppressions (`isSpanSuppressed`): a span observation is suppressed when a prior dismissal shares its `(blockId + normalized anchorText)`; a `contradiction`/`strategic_tension` is suppressed when it shares the dismissed pair's `conflictPairKey`. Both fall back to the offset `spanSignature` for legacy suppressions. Matching by anchor identity (not offsets) means a dismissal **holds across edits that shift offsets**, and a dismissed per-section conflict also suppresses the ledger sweep's whole-block re-emission of the same pair. The G1 gate still applies first: high-severity / `contradiction` / `unsupported_claim` dismissals are span-scoped; lower-severity ones are category-wide. (`lifecycle_integrity` L5a.)

@@ -287,11 +287,13 @@ The behavior described in [§4](#4-the-user-perceptible-behavior-model) imposes 
 
 2. **Display (document-order):** within each group (visible or also-noticed), observations are sorted by the document position of their anchor block (top-of-doc first), then by `startOffset`. Document-scoped observations (no `blockId`) sort to the bottom of their group. A newly-arriving observation slots into its natural document position — **the rest of the feed does not shuffle** (feed stability preserved).
 
+   > **⚠️ Revised 2026-07-02 (UX-015) — display order is moving from pure document-order to a priority _blend_.** Pure document-order display was found to **bury the highest-priority observations**: in the 2026-07-02 session the top-priority `missing_topic` notes rendered last because doc-scoped observations pin to the bottom, beneath low-priority `clarity` nits. **Decision:** blend priority into display so high-priority items (incl. unanchored doc-scoped ones) rise toward the top. **To preserve the stability this original rule protected**, the blend is realized as **priority _bands_, with document-order _within_ each band** (a "Key issues" band the high-priority notes rise into; within-band order stays stable document-order), re-ranked **only on eval-settle** (not per keystroke) with move-animation — so cards never shuffle under the reader's eye. Composes with the "Key issues" band in `smart_feed_curation.md` (R2c) + `maturity_aware_severity.md` (R2); R4 (`doc_level_anchoring`) independently un-buries `structure_flow`/`underexposed_topic` by giving them real anchors. The document-order rule below is retained as the **within-band** ordering and the stability contract; only the **cross-band** placement now follows priority. → see `docs/plan.md` Phase 6 (UX-015), `docs/logs/ux_quality_observations.md` (UX-015).
+
 3. **Contradiction floor:** every active `type === "contradiction"` observation is always in the visible set regardless of the budget. The user may dismiss it; dismissed observations leave the budget calculation.
 
 4. **"Also noticed" drawer:** overflow observations below the budget live in a collapsed drawer (`data-testid="also-noticed-drawer"`) below the main list. These are real active observations with full hover/dismiss behaviour — they are never dropped, just deprioritised.
 
-Open-Q#1 (_"doc-order or recency?"_) is **resolved**: document-order. Open-Q#2 (pinned "About this document" group for doc-scoped observations) remains a styling refinement for a later phase.
+Open-Q#1 (_"doc-order or recency?"_) is **resolved**: document-order — **but see the 2026-07-02 revision above (UX-015): cross-band placement now follows priority; document-order is retained within each band.** Open-Q#2 (pinned "About this document" group for doc-scoped observations) is effectively answered by the same revision — doc-scoped observations rise by priority into a band rather than being pinned to the bottom.
 
 ### Arrival animation
 
@@ -309,7 +311,7 @@ Already exists (SidecarFeed.tsx:54-58). Promote it: when the active provider cha
 ### What never happens in the feed
 
 - No "Apply" / "Fix" / "Rewrite" / "Accept suggestion" button. Ever. (`CLAUDE.md`, the hard invariant.)
-- No priority-shuffle on update — existing cards don't move when a new observation arrives or an old one closes. Observations slot into document position; the rest hold their place.
+- No priority-shuffle on update — existing cards don't move when a new observation arrives or an old one closes. Observations slot into document position; the rest hold their place. _(Revised 2026-07-02 / UX-015: still true **within** a priority band; cross-band re-ranking happens **only on eval-settle** with a move-animation, never per keystroke — so the reader never sees cards jump mid-read.)_
 - No global spinner during evaluation.
 - No "Re-scan document" button.
 - No toast popups for new observations — they live in the feed only.

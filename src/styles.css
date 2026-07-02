@@ -861,15 +861,21 @@ body,
   align-items: center;
   justify-content: space-between;
   gap: 8px;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.stage-chip-set .stage-chip-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .stage-chip-value {
   color: #374151;
   font-style: italic;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 160px;
 }
 
 .stage-chip-actions {

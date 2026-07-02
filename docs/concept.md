@@ -29,13 +29,17 @@ This is not just noise-reduction UX. The warm-up curve _is_ the philosophy expre
 
 ## First persona and use case
 
-**Product Managers** (and adjacent roles) writing:
+**Product Managers** (and adjacent roles) — the first persona and the design's centre of gravity.
 
-- PRDs and specs
-- Stakeholder communication and announcements
-- Decision docs, positioning statements, strategy memos
+The scope is best read as **documents people write for work**, with the PRD as the _primary, most-common_ case rather than the tight definition (scope decision, 2026-07-02 — narrowed the risk of building for one genre while the same machinery serves several). Concretely:
+
+- PRDs and specs — the anchor case.
+- Stakeholder communication and announcements; product/feature blog posts and external comms.
+- Decision docs, positioning statements, strategy memos; substantial document-like work emails to colleagues.
 
 These documents live or die on clarity, internal consistency, and completeness — exactly the properties an observer can check without writing the prose. The felt experience is a merge of _Grammarly's ambient presence_ with _a chatbot's understanding_, minus the part where either one writes for you.
+
+**This breadth is a calibration problem, not a taxonomy explosion.** The core checks (contradiction, unclear meaning, unsupported claim, missing/underexposed topic) generalise across these genres; what must vary is _strictness and which checks apply_ — PRD-grade citation and structure expectations should not fire on a personal essay or a blog post (the field failure that surfaced this — an "I fear…" opinion flagged as an unsupported claim — is OBS-028 / OBS-023). The lever is the existing **Document Context / Stage** field, promoted to a first-class calibrator of the eval; see `docs/projects/document_type_calibration.md`. We stay lean: broaden the _framing_ and the _calibration_, not the machinery, and keep the fixed-taxonomy invariant intact.
 
 ## What it is not
 

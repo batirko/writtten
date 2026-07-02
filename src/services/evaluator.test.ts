@@ -1122,6 +1122,106 @@ describe("evaluator - block-removal race / liveness guard (L4)", () => {
   });
 });
 
+describe("evaluator - bodyless-heading section is inert (OBS-029)", () => {
+  const docId = "docOBS029";
+  const sectionId = "hHeading";
+  const apiKey = "mock-key";
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(db.loadBlockSummary).mockResolvedValue(undefined);
+    vi.mocked(db.loadActiveObservationsForDocument).mockResolvedValue([]);
+    vi.mocked(db.loadActiveClaimsForDocument).mockResolvedValue([]);
+  });
+
+  it("makes no model call and retires data for a heading with no body (even when the heading clears the 10-char guard)", async () => {
+    const headingText = "Writing in the age of AI"; // 24 chars — passes the length guard
+    await evaluateSection(
+      docId,
+      sectionId,
+      headingText,
+      [{ blockId: sectionId, text: headingText, isHeading: true }],
+      undefined,
+      apiKey,
+      undefined,
+      undefined,
+      false,
+      undefined,
+      STRONG
+    );
+
+    // No fabrication: the model is never asked to evaluate a title-only section.
+    expect(mockFast).not.toHaveBeenCalled();
+    expect(mockStrong).not.toHaveBeenCalled();
+    // Section is retired to the inert state (same path as the too-short guard).
+    expect(db.saveClaimsForBlock).toHaveBeenCalledWith(docId, sectionId, []);
+    expect(db.saveBlockSummary).toHaveBeenCalledWith({
+      blockId: sectionId,
+      docId,
+      summary: "",
+      hash: expect.any(String),
+    });
+    expect(db.saveObservation).not.toHaveBeenCalled();
+  });
+
+  it("treats a heading + empty-paragraph body as bodyless", async () => {
+    const headingText = "Open questions and considerations";
+    await evaluateSection(
+      docId,
+      sectionId,
+      headingText,
+      [
+        { blockId: sectionId, text: headingText, isHeading: true },
+        { blockId: "p1", text: "   ", isHeading: false },
+      ],
+      undefined,
+      apiKey,
+      undefined,
+      undefined,
+      false,
+      undefined,
+      STRONG
+    );
+
+    expect(mockFast).not.toHaveBeenCalled();
+    expect(db.saveClaimsForBlock).toHaveBeenCalledWith(docId, sectionId, []);
+  });
+
+  it("evaluates normally once the heading gains real body text", async () => {
+    mockFast.mockResolvedValueOnce({
+      text: JSON.stringify({
+        summary: "The section argues AI erodes writing skill.",
+        claims: [{ text: "AI use erodes writing skill.", kind: "fact" }],
+        clarity_observations: [],
+      }),
+    });
+
+    const headingText = "Writing in the age of AI";
+    const bodyText = "Overreliance on generation may let a writer's own skill atrophy.";
+    await evaluateSection(
+      docId,
+      sectionId,
+      `${headingText}\n\n${bodyText}`,
+      [
+        { blockId: sectionId, text: headingText, isHeading: true },
+        { blockId: "p1", text: bodyText, isHeading: false },
+      ],
+      undefined,
+      apiKey,
+      undefined,
+      undefined,
+      true, // skipContradiction — keep it to the fast call
+      undefined,
+      STRONG
+    );
+
+    expect(mockFast).toHaveBeenCalledTimes(1);
+    expect(db.saveClaimsForBlock).toHaveBeenCalledWith(docId, sectionId, [
+      { text: "AI use erodes writing skill.", kind: "fact" },
+    ]);
+  });
+});
+
 describe("evaluator - suppression matching by anchor text (L5a)", () => {
   const docId = "doc1";
   const apiKey = "mock-key";

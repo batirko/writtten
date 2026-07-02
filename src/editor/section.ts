@@ -20,6 +20,9 @@ import { type Node as PMNode } from "@tiptap/pm/model";
 export interface SectionMember {
   blockId: string;
   text: string;
+  /** True if this member is a heading node. Lets the evaluator tell a section
+   *  with real body text from a bodyless heading (OBS-029). */
+  isHeading: boolean;
 }
 
 export interface Section {
@@ -104,13 +107,13 @@ export function resolveSections(doc: PMNode): Section[] {
       current = {
         sectionId: b.blockId,
         headingText: b.text,
-        members: [{ blockId: b.blockId, text: b.text }],
+        members: [{ blockId: b.blockId, text: b.text, isHeading: b.isHeading }],
       };
     } else {
       if (!current) {
         current = { sectionId: b.blockId, headingText: "", members: [] };
       }
-      current.members.push({ blockId: b.blockId, text: b.text });
+      current.members.push({ blockId: b.blockId, text: b.text, isHeading: b.isHeading });
     }
   }
   flush();
