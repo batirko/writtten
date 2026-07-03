@@ -279,12 +279,13 @@ describe("partitionFeed — G4 floor + ceiling", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Document-order display (the key assertion: display ≠ priority order)
+// Priority-banded display (UX-015): a high-priority "Key issues" band renders
+// above the low-severity band; document-order is preserved WITHIN each band.
 // ---------------------------------------------------------------------------
 
-describe("partitionFeed — display is document-order, NOT priority-order", () => {
-  it("a high-priority obs anchored late renders BELOW a low-priority obs anchored early", () => {
-    // priority-3.0 is late; priority-0.75 is early
+describe("partitionFeed — display is priority-banded, document-order within each band", () => {
+  it("high-priority items rise into the Key band above low-priority nits, regardless of doc position", () => {
+    // Key band: mid (b2) + lateHigh (b3), in document order. Rest band: earlyLow (b1).
     const earlyLow = obs({ type: "clarity", priority: 0.75, blockId: "b1", startOffset: 0 });
     const lateHigh = obs({ type: "contradiction", priority: 3.0, blockId: "b3", startOffset: 0 });
     const mid = obs({ type: "missing_topic", priority: 1.5, blockId: "b2", startOffset: 0 });
@@ -294,7 +295,21 @@ describe("partitionFeed — display is document-order, NOT priority-order", () =
       blockOrder: ["b1", "b2", "b3"],
     });
 
-    expect(visible.map((g) => g.blockId)).toEqual(["b1", "b2", "b3"]);
+    // Key band (>=1.0) first, in doc-order: b2, b3 — then the Rest band nit: b1.
+    expect(visible.map((g) => g.blockId)).toEqual(["b2", "b3", "b1"]);
+  });
+
+  it("within a band, sorts by document position", () => {
+    // Two Key-band items, out of doc order on input → sorted to doc order within the band.
+    const late = obs({ type: "missing_topic", priority: 1.5, blockId: "b3", startOffset: 0 });
+    const early = obs({ type: "unsupported_claim", priority: 1.5, blockId: "b1", startOffset: 0 });
+
+    const { visible } = partitionFeed([late, early], {
+      budget: 5,
+      blockOrder: ["b1", "b2", "b3"],
+    });
+
+    expect(visible.map((g) => g.blockId)).toEqual(["b1", "b3"]);
   });
 
   it("within the same block, sorts by startOffset", () => {
@@ -361,7 +376,7 @@ describe("partitionFeed — reflection kind excluded", () => {
 // ---------------------------------------------------------------------------
 
 describe("partitionFeed — doc-scoped observations", () => {
-  it("doc-scoped observations (no blockId) sort to bottom of their group", () => {
+  it("a high-priority doc-scoped observation rises above a low-priority span nit (UX-015)", () => {
     const spanObs = obs({ type: "clarity", priority: 0.75, blockId: "b1", scope: "span" });
     const docObs = obs({
       type: "missing_topic",
@@ -375,9 +390,29 @@ describe("partitionFeed — doc-scoped observations", () => {
       blockOrder: ["b1"],
     });
 
-    // span anchored at b1 (idx=0) sorts above doc-scoped (Infinity)
-    expect(visible[0].id).toBe(spanObs.id);
-    expect(visible[1].id).toBe(docObs.id);
+    // docObs (1.5) is in the Key band; spanObs (0.75) is in the Rest band below it.
+    // The old contract pinned the doc-scoped note to the very bottom — UX-015 reverses that.
+    expect(visible[0].id).toBe(docObs.id);
+    expect(visible[1].id).toBe(spanObs.id);
+  });
+
+  it("within the Key band, a doc-scoped obs sorts below anchored ones — but still above the Rest band", () => {
+    const anchoredKey = obs({ type: "contradiction", priority: 3.0, blockId: "b1", scope: "span" });
+    const docKey = obs({
+      type: "missing_topic",
+      priority: 1.5,
+      blockId: undefined,
+      scope: "document",
+    });
+    const restNit = obs({ type: "clarity", priority: 0.75, blockId: "b1", startOffset: 40, scope: "span" });
+
+    const { visible } = partitionFeed([restNit, docKey, anchoredKey], {
+      budget: DEFAULT_FEED_BUDGET,
+      blockOrder: ["b1"],
+    });
+
+    // Key band: anchoredKey (b1) then docKey (Infinity); Rest band: restNit.
+    expect(visible.map((g) => g.id)).toEqual([anchoredKey.id, docKey.id, restNit.id]);
   });
 
   it("multiple doc-scoped obs maintain stable relative order", () => {
