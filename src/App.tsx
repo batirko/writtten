@@ -106,6 +106,7 @@ export default function App() {
   // Tracks the last stage value we've seen so we don't fire on initial mount
   // (also handles React StrictMode double-invoke cleanly).
   const prevStageValueRef = useRef(stage);
+  const lastSettledStageRef = useRef(stage);
 
   useEffect(() => {
     const unsubscribe = llmLogger.subscribe((newLogs, provider) => {
@@ -247,6 +248,9 @@ export default function App() {
 
     if (stageSettleTimer.current) clearTimeout(stageSettleTimer.current);
     stageSettleTimer.current = setTimeout(() => {
+      const previousStage = lastSettledStageRef.current;
+      lastSettledStageRef.current = stage;
+
       const ctx: EvalContext = {
         docId: DOC_ID,
         apiKey: apiKeyRef.current ?? "",
@@ -255,7 +259,7 @@ export default function App() {
         stage: stageRef.current,
         onStageSuggestion: setStageSuggestion,
       };
-      scheduleEval({ kind: "stage-changed" }, null, ctx, refreshObservations);
+      scheduleEval({ kind: "stage-changed", previousStage }, null, ctx, refreshObservations);
     }, 3000);
   }, [stage]); // eslint-disable-line react-hooks/exhaustive-deps
 

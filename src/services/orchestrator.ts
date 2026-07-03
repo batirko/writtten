@@ -378,36 +378,29 @@ async function handleBootstrapSweep(ctx: EvalContext, onComplete?: () => void): 
   }
 }
 
-async function handleStageChanged(ctx: EvalContext, onComplete?: () => void): Promise<void> {
+async function handleStageChanged(
+  previousStage: string,
+  ctx: EvalContext,
+  onComplete?: () => void
+): Promise<void> {
   const evalId = logTrigger("stage-changed", "");
   if (import.meta.env.DEV) harness.emit("settle", { trigger: "stage-changed" });
 
-  // Supersede all active doc-level observations (they were graded against the old stage)
-  const active = await loadActiveObservationsForDocument(ctx.docId);
-  const docLevel = active.filter((o) => o.scope === "document");
-  await Promise.all(
-    docLevel.map(async (o) => {
-      await updateObservationStatus(o.id, "superseded", "superseded");
-      if (import.meta.env.DEV) {
-        harness.archive(
-          {
-            observationId: o.id,
-            obsType: o.type,
-            kind: o.kind,
-            severity: o.severity,
-            scope: o.scope,
-            blockId: o.blockId,
-            text: o.text,
-            reason: "superseded",
-            actor: "system",
-          },
-          evalId
-        );
-      }
-    })
-  );
+  const isNoneToSuggested = previousStage.trim() === "";
 
-  // Re-run doc-level checks with the new stage
+  if (isNoneToSuggested) {
+    // Case 1: Auto-applied none -> suggested transition.
+    // The content hasn't changed. We skip the wipe entirely, and do not immediately re-run
+    // because the existing observations were just graded against this content. The next
+    // natural doc-idle will reconcile them resolution-aware.
+    onComplete?.();
+    return;
+  }
+
+  // Case 2: Genuine hand-edited stage change.
+  // Instead of superseding everything blindly, we run handleDocIdle. The underlying
+  // evaluateDocument call will load the existing active doc-scope notes as priors,
+  // and run resolution-aware reconciliation (keeping still-true critiques by id, closing resolved).
   await handleDocIdle(ctx, onComplete);
 }
 
@@ -441,7 +434,7 @@ export function scheduleEval(
   }
 
   if (trigger.kind === "stage-changed") {
-    handleStageChanged(ctx, onComplete);
+    handleStageChanged(trigger.previousStage, ctx, onComplete);
     return;
   }
 
