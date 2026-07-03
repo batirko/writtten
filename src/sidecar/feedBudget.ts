@@ -1,18 +1,27 @@
 /**
  * Feed budget model — Phase 4 Milestone E + Aggregation.
  *
- * Pure, synchronous, zero side-effects. Two concerns:
+ * Pure, synchronous, zero side-effects. Three concerns:
  *   - Aggregation: observations on the same span collapse into GroupedObservations.
  *   - Selection by priority: which groups are in the visible top-N budget?
- *   - Display by document order: in what order do they render?
+ *   - Display by priority band, then document order within each band.
  *
  * This resolves the tension between the taxonomy doc ("sort by priority") and the
  * feed-contract doc §8 ("feed stability is sacred / nothing shuffles"):
  *   priority governs MEMBERSHIP in the visible set;
- *   document-order governs DISPLAY within each group.
+ *   priority BANDS govern cross-band display placement;
+ *   document-order governs DISPLAY within each band.
+ *
+ * UX-015 (2026-07-02): pure document-order display buried the highest-priority
+ * observations — doc-scoped notes (no anchor) pinned to the bottom, so a
+ * priority-1.5 missing_topic rendered beneath priority-0.75 clarity nits. The blend
+ * lifts high-priority items (incl. unanchored doc-scoped ones) into a "Key issues"
+ * band above the low-severity nits, while document-order stays stable WITHIN each
+ * band. Band membership is derived from `priority`, which is set at observation
+ * creation and only changes on eval-settle — so nothing reshuffles per keystroke.
  *
  * Design: docs/projects/observation_taxonomy_and_priority.md → Milestone E
- * Feed contract: docs/projects/message_generation_workflow.md → §8
+ * Feed contract: docs/projects/message_generation_workflow.md → §8 (UX-015 revision)
  */
 
 import type { Observation } from "../store/db";
@@ -25,6 +34,20 @@ export const DEFAULT_FEED_BUDGET = 7;
 
 /** Maximum number of contradiction groups shown in the visible feed at once (G4). */
 export const CONTRADICTION_CEILING = 3;
+
+/**
+ * Priority at/above which a group rises into the "Key issues" band (UX-015).
+ *
+ * On the priority scale (`src/services/priority.ts`) every medium+ item —
+ * contradiction, strategic_tension, unsupported_claim, missing_topic — computes
+ * to >= 1.0, while the low-severity nits (clarity, undefined_jargon,
+ * underexposed_topic, audience_mismatch, structure_flow) are all exactly 0.75.
+ * Banding on the existing `priority` float (not a fresh severity read) keeps the
+ * blend to one transform AND composes with maturity-aware severity (R2): promoting
+ * a structural gap low→medium raises its priority 0.75→>=1.0, so it lifts into the
+ * Key band automatically.
+ */
+export const KEY_BAND_MIN_PRIORITY = 1.0;
 
 export interface FeedPartitionOptions {
   /** Maximum number of groups in the visible set. */
@@ -55,8 +78,12 @@ export interface FeedPartition {
  *    CONTRADICTION_CEILING contradictions are visible at once (ceiling — prevents wall-of-red).
  *    strategic_tension is excluded (kind="opportunity", hasContradiction=false — competes
  *    normally). Remaining budget slots filled by top non-contradiction groups by priority.
- * 5. Display order — each set sorted by document position (blockId index → startOffset).
- *    Document-scoped groups sort to the bottom.
+ * 5. Display order (UX-015) — each set is split into two priority bands and each
+ *    band is sorted by document position (blockId index → startOffset), with
+ *    document-scoped groups at the bottom OF THEIR BAND. The high-priority "Key
+ *    issues" band (priority >= KEY_BAND_MIN_PRIORITY) renders above the low-severity
+ *    band, so contradictions / missing_topic rise above clarity nits while reading
+ *    order is preserved within each band.
  */
 export function partitionFeed(
   observations: Observation[],
@@ -86,7 +113,7 @@ export function partitionFeed(
   const visibleSet = [...visibleContradictions, ...visibleOthers];
   const alsoNoticedSet = [...overflowContradictions, ...overflowOthers];
 
-  // 5. Sort each set into document order.
+  // 5. Order each set by priority band, then document position within each band.
   const blockIndexMap = new Map(blockOrder.map((id, i) => [id, i]));
 
   const docOrder = (g: GroupedObservation): number => {
@@ -94,8 +121,15 @@ export function partitionFeed(
     return idx * 1e6 + (g.startOffset ?? 0);
   };
 
-  visibleSet.sort((a, b) => docOrder(a) - docOrder(b));
-  alsoNoticedSet.sort((a, b) => docOrder(a) - docOrder(b));
+  // "Key issues" band (priority >= threshold) renders above the low-severity band;
+  // within each band, document order is preserved (feed stays stable per keystroke).
+  const orderByBand = (groups: GroupedObservation[]): GroupedObservation[] => {
+    const keyBand = groups.filter((g) => g.priority >= KEY_BAND_MIN_PRIORITY);
+    const restBand = groups.filter((g) => g.priority < KEY_BAND_MIN_PRIORITY);
+    keyBand.sort((a, b) => docOrder(a) - docOrder(b));
+    restBand.sort((a, b) => docOrder(a) - docOrder(b));
+    return [...keyBand, ...restBand];
+  };
 
-  return { visible: visibleSet, alsoNoticed: alsoNoticedSet };
+  return { visible: orderByBand(visibleSet), alsoNoticed: orderByBand(alsoNoticedSet) };
 }
