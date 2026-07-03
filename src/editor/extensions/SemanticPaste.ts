@@ -52,6 +52,25 @@ export const SemanticPaste = Extension.create({
                 }
               });
 
+              // Predictable degradation for unsupported content — never let a
+              // paste silently lose material (canvas_content_types.md §
+              // Degradation contract). Tables and links are real nodes now; the
+              // common remaining silent-loss case is images, which the schema
+              // has no node for and which ProseMirror would drop outright.
+              // Rewrite each <img> into visible, editable Markdown text so the
+              // reference survives and the user can act on it. No bytes are
+              // stored (invariant 5) — a data: URI is collapsed to a short
+              // marker rather than dumping base64 into the doc.
+              const imgs = doc.querySelectorAll("img");
+              imgs.forEach((img) => {
+                const alt = img.getAttribute("alt")?.trim() || "";
+                const rawSrc = img.getAttribute("src")?.trim() || "";
+                const src = rawSrc.startsWith("data:") ? "embedded-image" : rawSrc;
+                const marker = doc.createTextNode(`![${alt}](${src})`);
+                img.replaceWith(marker);
+                modified = true;
+              });
+
               if (modified) {
                 return doc.body.innerHTML;
               }

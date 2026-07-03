@@ -38,6 +38,17 @@ function transformPastedHTML(html: string): string {
       }
     });
 
+    // Mirror of the image-degradation pass in SemanticPaste.ts.
+    const imgs = doc.querySelectorAll("img");
+    imgs.forEach((img) => {
+      const alt = img.getAttribute("alt")?.trim() || "";
+      const rawSrc = img.getAttribute("src")?.trim() || "";
+      const src = rawSrc.startsWith("data:") ? "embedded-image" : rawSrc;
+      const marker = doc.createTextNode(`![${alt}](${src})`);
+      img.replaceWith(marker);
+      modified = true;
+    });
+
     return modified ? doc.body.innerHTML : html;
   } catch {
     return html;
@@ -92,5 +103,22 @@ describe("SemanticPaste transformPastedHTML", () => {
     const input = `<p>Normal paragraph.</p><p>Another one.</p>`;
     const output = transformPastedHTML(input);
     expect(output).toBe(input);
+  });
+
+  it("degrades a pasted image to visible ![alt](src) text instead of silently dropping it", () => {
+    const input = `<p>Before</p><img src="https://cdn.example.com/chart.png" alt="Q3 chart"><p>After</p>`;
+    const output = transformPastedHTML(input);
+    expect(output).not.toContain("<img");
+    expect(output).toContain("![Q3 chart](https://cdn.example.com/chart.png)");
+    expect(output).toContain("Before");
+    expect(output).toContain("After");
+  });
+
+  it("collapses a base64 data: image to a short marker (no bytes stored — invariant 5)", () => {
+    const input = `<img src="data:image/png;base64,AAAABBBBCCCCDDDD" alt="diagram">`;
+    const output = transformPastedHTML(input);
+    expect(output).not.toContain("<img");
+    expect(output).not.toContain("base64");
+    expect(output).toContain("![diagram](embedded-image)");
   });
 });

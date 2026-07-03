@@ -107,6 +107,34 @@ body,
   padding: 0;
 }
 
+/* Tables — editable but eval-inert (canvas_content_types.md). Quiet, editorial:
+   hairline borders, a lightly tinted header row, no heavy chrome. */
+.tiptap table {
+  border-collapse: collapse;
+  width: 100%;
+  margin-bottom: 0.75em;
+  table-layout: fixed;
+  overflow: hidden;
+}
+
+.tiptap th,
+.tiptap td {
+  border: 1px solid var(--border);
+  padding: 0.4em 0.6em;
+  vertical-align: top;
+  text-align: left;
+}
+
+.tiptap th {
+  background: var(--bg);
+  font-weight: 600;
+}
+
+/* The cell the caret/selection is in, so table editing is legible. */
+.tiptap .selectedCell {
+  background: var(--border);
+}
+
 .tiptap p.is-editor-empty:first-child::before {
   color: #adb5bd;
   content: attr(data-placeholder);

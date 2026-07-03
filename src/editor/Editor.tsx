@@ -3,6 +3,10 @@ import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Placeholder from "@tiptap/extension-placeholder";
 import Link from "@tiptap/extension-link";
+import Table from "@tiptap/extension-table";
+import TableRow from "@tiptap/extension-table-row";
+import TableHeader from "@tiptap/extension-table-header";
+import TableCell from "@tiptap/extension-table-cell";
 import { BlockId } from "./extensions/BlockId";
 import { ObservationHighlighter } from "./extensions/ObservationHighlighter";
 import { SlashMenu } from "./extensions/SlashMenu";
@@ -182,6 +186,14 @@ export function Editor({
         protocols: ["http", "https", "mailto"],
         HTMLAttributes: { rel: "noopener nofollow" },
       }),
+      // Tables are editable but eval-inert: the top-level `table` node carries a
+      // blockId (BlockId whitelist) so section boundaries stay correct, while
+      // section.ts excludes its cell text from the eval input. resizable:false
+      // keeps v1 simple. See docs/projects/canvas_content_types.md.
+      Table.configure({ resizable: false }),
+      TableRow,
+      TableHeader,
+      TableCell,
       SlashMenu,
     ],
     content: "",
