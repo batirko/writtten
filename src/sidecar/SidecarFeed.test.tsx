@@ -17,6 +17,7 @@ import { createElement } from "react";
 import { createRoot } from "react-dom/client";
 import { act } from "react";
 import { SidecarFeed } from "./SidecarFeed";
+import type { Observation } from "../store/db";
 
 const minProps = {
   observations: [] as never[],
@@ -58,5 +59,89 @@ describe("SidecarFeed debug panel (L7 — prod prompt-leak)", () => {
     // The debug panel renders with className="debug-panel" only when debugMode=true.
     // Regression: if this fails, someone set useState(true) again.
     expect(div.querySelector(".debug-panel")).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// UX-015 — the rendered feed shows the priority-banded order end-to-end.
+//
+// Unit tests cover partitionFeed in isolation; this renders the real SidecarFeed
+// and asserts the DOM card order, proving the renderer maps `visible` (already
+// band-then-doc ordered) unchanged. The scenario is the exact 2026-07-02 bug: a
+// doc-scoped missing_topic (priority 1.5) that pure document-order pinned BELOW
+// low-priority clarity nits (0.75) now renders ABOVE them (Key band first).
+// ---------------------------------------------------------------------------
+
+function obs(over: Partial<Observation> & { id: string }): Observation {
+  return {
+    docId: "default",
+    type: "clarity",
+    scope: "span",
+    kind: "problem",
+    severity: "low",
+    confidence: "medium",
+    priority: 0.75,
+    text: "",
+    status: "active",
+    ...over,
+  };
+}
+
+describe("SidecarFeed — priority-banded render order (UX-015)", () => {
+  const containers: HTMLDivElement[] = [];
+
+  function renderWith(observations: Observation[]): HTMLDivElement {
+    const div = document.createElement("div");
+    document.body.appendChild(div);
+    containers.push(div);
+    act(() => {
+      createRoot(div).render(createElement(SidecarFeed, { ...minProps, observations }));
+    });
+    return div;
+  }
+
+  afterEach(() => {
+    for (const c of containers) act(() => c.remove());
+    containers.length = 0;
+  });
+
+  it("a doc-scoped missing_topic (1.5) renders above low-priority clarity nits (0.75)", () => {
+    const clarityEarly = obs({
+      id: "c1",
+      type: "clarity",
+      priority: 0.75,
+      blockId: "b1",
+      startOffset: 0,
+      endOffset: 10,
+      text: "'non-invasive way' is vague.",
+    });
+    const clarityLate = obs({
+      id: "c2",
+      type: "clarity",
+      priority: 0.75,
+      blockId: "b2",
+      startOffset: 0,
+      endOffset: 10,
+      text: "'native way' is vague.",
+    });
+    const missingTopic = obs({
+      id: "m1",
+      type: "missing_topic",
+      scope: "document",
+      severity: "medium",
+      priority: 1.5,
+      blockId: undefined,
+      text: "No competitor positioning.",
+    });
+
+    // Input order deliberately puts the doc-scoped note last (its DB/insertion
+    // position) — the OLD pure-document-order path would keep it at the bottom.
+    const div = renderWith([clarityEarly, clarityLate, missingTopic]);
+
+    const types = Array.from(div.querySelectorAll('[data-testid="obs-card"]')).map((el) =>
+      el.getAttribute("data-obs-type")
+    );
+
+    expect(types).toEqual(["missing_topic", "clarity", "clarity"]);
   });
 });
