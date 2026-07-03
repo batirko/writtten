@@ -150,3 +150,39 @@ describe("orchestrator - block-completion trigger (UX-013)", () => {
     expect(evaluateSection).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("orchestrator - stage-changed trigger (UX-012)", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("skips doc-idle and wipe if the previous stage was empty (auto-applied suggestion)", async () => {
+    scheduleEval({ kind: "stage-changed", previousStage: "" }, null, ctx);
+    
+    // Wait for the async logic in orchestrator to settle
+    await Promise.resolve();
+
+    const { evaluateDocument } = await import("./evaluator");
+    expect(evaluateDocument).not.toHaveBeenCalled();
+    const db = await import("../store/db");
+    expect(db.updateObservationStatus).not.toHaveBeenCalled();
+  });
+
+  it("routes a genuine stage change through evaluateDocument without wiping active observations", async () => {
+    scheduleEval({ kind: "stage-changed", previousStage: "Draft PRD" }, null, ctx);
+    
+    await Promise.resolve();
+
+    const { evaluateDocument } = await import("./evaluator");
+    expect(evaluateDocument).toHaveBeenCalledTimes(1);
+    
+    // Crucially, it must NOT have superseded existing observations
+    const db = await import("../store/db");
+    expect(db.updateObservationStatus).not.toHaveBeenCalled();
+  });
+});

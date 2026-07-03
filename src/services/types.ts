@@ -43,7 +43,7 @@ export type EvalTrigger =
   // docs/projects/bulk_paste_evaluation.md.
   | { kind: "block-paste"; blockIds: string[] }
   | { kind: "doc-idle" }
-  | { kind: "stage-changed" };
+  | { kind: "stage-changed"; previousStage: string };
 
 /**
  * Ambient context that every eval call needs but that doesn't change per-block.
