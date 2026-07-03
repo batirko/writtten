@@ -115,6 +115,8 @@ Configured globally in `~/Library/Application Support/Claude/claude_desktop_conf
 
 The dev server runs at **`http://localhost:5173`** (`npm run dev`). Acceptance tests live in `docs/acceptance-testing/` — each file defines the automated/human split.
 
+> **Testing a feature branch in-product → serve it on a dedicated port.** Whenever you (agent-decided) or the user want to see a feature branch running in the browser — for the user to click through, or for you to drive/observe via the browser tools — **do not** reuse the shared `:5173` (a concurrent session likely owns it, and it may be running a different branch). Instead check that branch out in its **own git worktree** (see _Working alongside parallel sessions_) and start its dev server on a **distinct port**: `npm run dev -- --port <NNNN> --strictPort`. Then hand the user the exact URL Vite prints, or point the browser tools at it. This keeps each branch's app (and its per-origin IndexedDB / `window.__sidecar__` state) isolated from other sessions. Tear the server + worktree down when done.
+
 ## Dev harness (`window.__sidecar__`)
 
 A dev-only observability + control surface, live whenever `npm run dev` is running. See `docs/projects/agent_acceptance_harness.md` for the full spec. (Intended to be stripped from production builds — but the 2026-06-10 code audit found this only half-true: call sites are dead-code-eliminated, yet the harness module has a top-level side effect and a circular import with `db.ts`, so the module itself still ships. Tracked by `lifecycle_integrity` L7; unverifiable in `dist/` until the build is repaired — L1.)
