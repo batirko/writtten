@@ -383,7 +383,7 @@ async function handleStageChanged(
   ctx: EvalContext,
   onComplete?: () => void
 ): Promise<void> {
-  const evalId = logTrigger("stage-changed", "");
+  logTrigger("stage-changed", "");
   if (import.meta.env.DEV) harness.emit("settle", { trigger: "stage-changed" });
 
   const isNoneToSuggested = previousStage.trim() === "";
