@@ -100,7 +100,12 @@ Because `setContent` doesn't reliably fire `onUpdate`, when a seeded doc crosses
 
 Source: `src/App.tsx`
 
-When the user edits the stage/context field and it re-settles (**3 s** debounce), all active document-scoped observations are superseded (graded against the old stage) and doc-level checks re-run. Guarded with a ref so it doesn't fire on mount.
+When the user edits the stage/context field and it re-settles (**3 s** debounce), the trigger carries the `previousStage` (the last settled value) and branches (UX-012):
+
+- **None → suggested (`previousStage` empty):** the transition is auto-applied (accepting the model's own first stage suggestion) and the content is unchanged, so the wipe is **skipped entirely** and no re-run fires — the existing observations were just graded against this content, and the next natural `doc-idle` reconciles them resolution-aware. No churn.
+- **Genuine hand-edited change (`previousStage` non-empty):** routed through `handleDocIdle` (the resolution-aware doc reconciler) rather than a blind supersede — priors injected, still-true critiques kept by id, resolved ones closed, grace period applied.
+
+Guarded with a ref so it doesn't fire on mount. The old behavior (blanket-supersede **every** doc-scope note against the old stage, then regenerate blind) was replaced by UX-012 — see `docs/projects/doc_scope_reconciliation.md` § Decision (UX-012).
 
 ---
 
@@ -158,7 +163,7 @@ Runs over the remaining unmatched existing notes vs the `newObs` that had no `pr
 
 **Honest labels.** Doc-scope never emits a positional `superseded`; closures are `auto_closed` (grace-expired staleness) or `resolved_prior` (model-confirmed addressed). `supersededBy` never carries false cross-note links. State: `missCount` / `lastSeenAt` on `Observation` (DB v7).
 
-This is doc-scope only. Block-scope `reconcileObservations` (span + text + `resolved_prior`) and the `stage-changed` wholesale supersede are unchanged. See `docs/projects/doc_scope_reconciliation.md`.
+This is doc-scope only. Block-scope `reconcileObservations` (span + text + `resolved_prior`) is unchanged. Since UX-012 the `stage-changed` path also uses this resolution-aware reconciler for genuine stage changes (and skips the wipe on the none→suggested transition) rather than the old wholesale supersede. See `docs/projects/doc_scope_reconciliation.md`.
 
 ### `evaluateLedgerContradictions` (`src/services/evaluator.ts`)
 

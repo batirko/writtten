@@ -731,7 +731,11 @@ export async function evaluateLedgerContradictions(
     const emit = (con: SweepConflict, obsType: "contradiction" | "strategic_tension") => {
       const a = sorted[Number(con.claimAId)];
       const b = sorted[Number(con.claimBId)];
-      if (!a || !b) return;
+      // OBS-026 dropped the same-block guard so intra-block conflicts surface,
+      // but a claim can't contradict itself: reject a self-pair (same claim
+      // index returned twice) — it would render a card claiming a text
+      // conflicts with itself. Same-block *distinct* claims (a !== b) still pass.
+      if (!a || !b || a === b) return;
 
       const { severity, confidence, priority } =
         obsType === "contradiction"
