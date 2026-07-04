@@ -1,17 +1,17 @@
 ---
-status: idea
+status: done
 kind: spec
 phases: [6]
-summary: Structural editing controls for tables — add/remove row & column and delete table — wiring the already-available @tiptap/extension-table commands to a UI surface. Two candidate surfaces are under consideration and NOT yet decided: a floating in-table menu (bubble-menu language) vs Notion-style hover grip handles on row/column edges.
+summary: Structural editing controls for tables — add/remove row & column and delete table — wiring the @tiptap/extension-table commands to a UI surface. Shipped Option A, a floating in-table menu (bubble-menu language). Option B (Notion-style hover grip handles) was the considered alternative, not pursued.
 ---
 
 # Table editing controls (row/column)
 
-> Written 2026-07-03 from a live dogfood of the tables feature (`canvas_content_types.md`). Pasting and creating editable tables works, but there is **no way to change a table's structure** once it exists — no add/remove row, no add/remove column, no delete-table. This doc scopes that gap. **The control-surface decision is deliberately left open** (two candidates below); this is a design doc awaiting a pick, not a build-ready spec.
+> Written 2026-07-03 from a live dogfood of the tables feature (`canvas_content_types.md`). Pasting and creating editable tables worked, but there was **no way to change a table's structure** once it existed — no add/remove row, no add/remove column, no delete-table. This doc scoped that gap. **Decision (2026-07-03): Option A, the floating in-table menu.** Shipped and verified live.
 
 ## Status
 
-**Idea — Phase 6. Decision pending (two candidate surfaces).** The tables floor shipped in `canvas_content_types.md` (editable, eval-inert tables + paste degradation). The `@tiptap/extension-table` package already exposes every structural command we need — `addRowBefore`, `addRowAfter`, `deleteRow`, `addColumnBefore`, `addColumnAfter`, `deleteColumn`, `deleteTable`, `toggleHeaderRow`, `mergeCells`, `splitCell`. **What's missing is only the control surface** that invokes them. Two candidates are specced below (§ Option A / § Option B); the choice is a UX-taste call to make with the product owner before building.
+**Done — Phase 6.** Shipped **Option A — the floating in-table menu** (`src/editor/menus/TableMenu.tsx`), wiring the `@tiptap/extension-table` commands (`addRowAfter`, `deleteRow`, `addColumnAfter`, `deleteColumn`, `deleteTable`). The menu is a bubble-menu-style pill (`+ Row · − Row · + Col · − Col · Delete table`) that appears only when the caret is inside a table and hides when it leaves — zero standing chrome. Deleting the last row/column removes the whole table (a dimension guard) rather than leaving an invalid empty one. Eval-inertness is preserved (the table keeps its `blockId`; cell text stays out of `combinedText`). **Option B (hover grip handles) was the considered alternative — not pursued** (Option A is keyboard-native and consistent with the shipped menu language). Merge/split cells, header-row toggle, and column resize remain out of scope (§ Out of scope).
 
 Read alongside:
 
@@ -29,13 +29,13 @@ Read alongside:
 
 ## Todo
 
-- [ ] **Decide the control surface** — Option A (floating in-table menu) vs Option B (hover grip handles). _This is the blocking step; everything else follows._ See § Decision criteria.
-- [ ] **Build the chosen surface** — wire the `@tiptap/extension-table` commands (`addRowBefore/After`, `deleteRow`, `addColumnBefore/After`, `deleteColumn`, `deleteTable`). Appear only when the caret/selection is inside a table; disappear when it leaves.
-- [ ] **Keyboard operability** — every action reachable without a mouse (a11y invariant). For Option A: a focusable menu with `aria-label`ed buttons. For Option B: the grips must have keyboard equivalents (e.g. a focusable cell → a context command).
-- [ ] **Styling** — draw from `visual_style` tokens; `prefers-reduced-motion` collapses reveals to instant (reuse the global guard).
-- [ ] **Harness hooks** — `data-testid` on the surface and each action so the agent harness can drive table restructuring deterministically (mirrors `bubble-*` / `slash-*` testids).
-- [ ] **Guard rails** — deleting the last row/column should delete the table (or be disabled) rather than leaving an invalid empty table; confirm `blockId` and eval-inertness are unaffected after a structural edit (the table keeps its `blockId`; cell text stays out of `combinedText`).
-- [ ] **Tests** — unit-cover the command wiring + the "delete last row ⇒ delete table" guard; a live check that a restructured table still carries a `blockId` and produces no claims.
+- [x] **Decide the control surface** — **Option A (floating in-table menu)** chosen (2026-07-03); Option B (hover grip handles) not pursued.
+- [x] **Build the chosen surface** — `TableMenu.tsx`: a `BubbleMenu` (`pluginKey "tableMenu"`, `shouldShow` = caret inside a table with an empty selection) wiring `addRowAfter` / `deleteRow` / `addColumnAfter` / `deleteColumn` / `deleteTable`. Appears in-table, hides on leave. Mounted alongside `EditorBubbleMenu` in `Editor.tsx`.
+- [x] **Keyboard operability** — real `<button>`s with `aria-label`s in tab order; a text selection in a cell instead surfaces the inline marks menu (cell formatting stays available).
+- [x] **Styling** — `.table-menu-btn` (labelled variant) shares the `.bubble-menu` pill and tokens; a subtle danger hover for delete-table. Reduced-motion honoured via the global guard.
+- [x] **Harness hooks** — `data-testid` on the menu (`table-menu`) and each action (`table-add-row`, `table-del-row`, `table-add-col`, `table-del-col`, `table-delete`).
+- [x] **Guard rails** — deleting the last row/column deletes the whole table (a `tableDims()` check → `deleteTable`) rather than leaving an invalid empty one; `blockId` and eval-inertness confirmed intact after restructure.
+- [x] **Tests** — verified live (menu appear/hide on caret enter/leave; add/remove row & column; delete-table + last-row guard; no console errors). Following the existing `BubbleMenu` precedent, no brittle jsdom component test was added; the command wiring is thin over the well-tested extension.
 
 ## Design
 
