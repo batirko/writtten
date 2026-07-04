@@ -11,6 +11,7 @@ import { BlockId } from "./extensions/BlockId";
 import { ObservationHighlighter } from "./extensions/ObservationHighlighter";
 import { SlashMenu } from "./extensions/SlashMenu";
 import { EditorBubbleMenu } from "./menus/BubbleMenu";
+import { TableMenu } from "./menus/TableMenu";
 import { resolveSection, resolveSections } from "./section";
 import { saveDocument, loadDocument, type Observation } from "../store/db";
 import { scheduleEval } from "../services/orchestrator";
@@ -691,6 +692,7 @@ export function Editor({
   return (
     <div className="editor-wrap">
       {editor && <EditorBubbleMenu editor={editor} />}
+      {editor && <TableMenu editor={editor} />}
       <EditorContent editor={editor} />
     </div>
   );

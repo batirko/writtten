@@ -739,6 +739,41 @@ body,
   flex-shrink: 0;
 }
 
+/* Table structural controls — labelled variant of the bubble button, sharing
+   the `.bubble-menu` pill. See src/editor/menus/TableMenu.tsx. */
+.table-menu-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 28px;
+  padding: 0 8px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  cursor: pointer;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1;
+  white-space: nowrap;
+  transition: background 120ms, color 120ms;
+}
+
+.table-menu-btn:hover {
+  background: var(--sidecar-bg);
+  color: var(--text);
+}
+
+.table-menu-btn:focus-visible {
+  outline: 2px solid #5457ac;
+  outline-offset: 1px;
+}
+
+.table-menu-btn--danger:hover {
+  background: #fbeaea;
+  color: #b4453a;
+}
+
 /* ── Link popover ─────────────────────────────────────────────────────────── */
 
 .link-popover {
