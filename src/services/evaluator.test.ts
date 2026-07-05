@@ -542,6 +542,23 @@ describe("evaluator - evaluateLedgerContradictions (bootstrap sweep)", () => {
     );
   });
 
+  it("drops a self-pair (a claim cannot contradict itself) (OBS-026)", async () => {
+    vi.mocked(db.loadActiveClaimsForDocument).mockResolvedValue([claimA, claimB]);
+    vi.mocked(db.loadActiveObservationsForDocument).mockResolvedValueOnce([]);
+    mockStrong.mockResolvedValueOnce({
+      text: JSON.stringify({
+        // Same claim index on both sides — a degenerate self-conflict.
+        contradictions: [{ claimAId: 0, claimBId: 0, message: "Self conflict." }],
+        tensions: [],
+      }),
+    });
+
+    await evaluateLedgerContradictions(docId, "Stage", apiKey);
+
+    expect(mockStrong).toHaveBeenCalledTimes(1);
+    expect(db.saveObservation).not.toHaveBeenCalled();
+  });
+
   it("is a no-op when the ledger is unchanged since the last sweep (dirty-check)", async () => {
     vi.mocked(db.loadActiveClaimsForDocument).mockResolvedValue([claimA, claimB]);
     vi.mocked(db.loadActiveObservationsForDocument).mockResolvedValue([]);
