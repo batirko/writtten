@@ -121,7 +121,7 @@ Configuration moves out of the feed. A centered floating modal (reusing the clea
 
 The Document Context / Stage field currently lives as a chip at the top of the feed panel (`ContextChip`). Two problems in the new model: (a) if it lives in the feed, it vanishes when the feed is collapsed — yet context **calibrates evaluation** (`document_type_calibration.md`, OBS-028) and should stay reachable; (b) its current three-state inline-textarea execution "reads old."
 
-**Direction (fork — prototype first):** relocate context to a **document-attached metadata affordance** — a quiet line near the document top that reads as the doc's own metadata (e.g. _"PRD · payments team · audience: eng + design"_), editable in place, present regardless of feed state. It reads as _describing the document_, not _configuring the tool_. Keeps the Suggested / Set / Empty states and the inferred-suggestion accept/dismiss (testids preserved), restyled. This **revises** `onboarding_first_run.md` § The context chip (feed-panel-top → document-attached); reconcile there when built. See § Open forks.
+**Decided 2026-07-05 (prototype-reviewed): document-attached.** Relocate context to a **document-attached metadata affordance** — a quiet line near the document top that reads as the doc's own metadata (e.g. _"PRD · payments team · audience: eng + design"_), editable in place, present regardless of feed state. It reads as _describing the document_, not _configuring the tool_. Keeps the Suggested / Set / Empty states and the inferred-suggestion accept/dismiss (testids preserved), restyled. Chosen over feed-column-top (vanishes on collapse; reads as chrome) and control-center (too hidden for something that calibrates eval). This **revises** `onboarding_first_run.md` § The context chip (feed-panel-top → document-attached); reconcile there when built.
 
 ### 5. The activity / model indicator
 
@@ -236,9 +236,13 @@ Per the user's standing preference (2026-07-05): **every surface in this project
 
 ---
 
-## Open forks (prototype + confirm before locking)
+## Resolved forks
 
-1. **Default feed state** — ambient (feed present, collapse is the deliberate gesture) vs. collapsed-first. Leaning **ambient**, per the interactive choice; confirm against the "quiet while drafting" instinct (a collapsed-first default would make the first observation a summon prompt).
-2. **Context affordance placement** — document-attached (leaning, § 4) vs. keep at the feed-column top vs. inside the control center. The calibration-reachability argument favours document-attached; prototype all three quickly.
-3. **Card severity execution fallback** — if tag-carries-colour prototypes too subtle for the at-a-glance ranking the product needs, the recorded fallbacks are (a) whole-card tonal wash, (b) severity glyph on a mono card. Decide on the prototype, not in the abstract.
-4. **Collapse handle form** — edge hairline+chevron vs. a dedicated control-center toggle vs. both. Minor; settle at prototype.
+1. **Default feed state — RESOLVED: ambient, collapsible** (2026-07-05). Feed present by default; collapse is the deliberate focus gesture. (The "quiet while drafting" instinct is served by the empty/quiet state inside the present feed, not by hiding the feed.)
+2. **Context affordance placement — RESOLVED: document-attached** (2026-07-05, prototype-reviewed). See § 4.
+3. **Card severity execution — RESOLVED: tag-carries-colour** (2026-07-05, prototype-approved). Fallbacks (whole-card tonal wash; severity glyph on mono card) recorded only if the built version reads too subtle in practice.
+
+## Minor, settle at build
+
+- **Collapse handle form** — edge hairline+chevron vs. a dedicated control-center toggle vs. both. Cosmetic; settle when building the layout (task).
+- **Control-center at-rest vs. expanded states** — direction approved (at-rest = dot only; ← actions / ↑ process on interaction); exact expansion motion/arc settled at build.
