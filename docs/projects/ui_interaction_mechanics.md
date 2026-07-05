@@ -167,12 +167,12 @@ Owns UX-008 (quoted-text subtitle), UX-006 (reverse hover text→card), UX-009 (
 
 #### UX-008 — Quoted-text subtitle on cards
 
-**Shipped.** `.card-anchor` renders between the type tag and the body: span cards quote the stored `anchorText` (`--font-serif` italic, `--color-ink-2`, one-line ellipsis, full text on `title` hover); doc-scope cards show the quiet sans "Whole document" label instead. Tested in `src/sidecar/SidecarFeed.test.tsx` (UX-008).
+**Shipped.** `.card-anchor` renders between the type tag and the body: span cards quote the stored `anchorText` (`--font-serif` italic, `--color-ink-2`, one-line ellipsis, full text on `title` hover). When there is no `anchorText` to quote, the subtitle is simply **absent** — only the message shows (the earlier "Whole document" doc-scope label was dropped 2026-07-05 as redundant chrome; the type tag already signals doc scope). Tested in `src/sidecar/SidecarFeed.test.tsx` (UX-008).
 
 - **What:** a small quote of the referenced span renders on the card as a subtitle, so the user knows what the observation is about **without** hovering and looking at the editor (reduces eye-travel).
 - **Source (settled):** the **stored `anchorText` snapshot** already on the Observation (`db.ts:78`) — the same field the archive ghost-anchor uses. No live span re-resolution; consistent with the archive, zero new resolution logic. It can go mildly stale between evals, but reconciliation supersedes/refreshes the card when the span changes, so the snapshot tracks closely enough.
 - **Placement & style:** slots **between the type tag and the body** (the C4 anatomy reserves this slot). Render as the user's own words quoted back — `--font-serif` italic, muted (`--color-ink-2`), the same typographic treatment as the archive ghost-anchor quote (`visual_style.md` § Supporting surfaces). Truncate to ~one line (~80–100 chars) with an ellipsis; the full span is reachable by hover/click (C1/C2).
-- **Doc-scope cards** (`missing_topic`, `structure_flow`, `audience_mismatch`, doc-scope `underexposed_topic`) have no `anchorText` → **no quote**; show the quiet **"Whole document"** label instead (consistent with the C6 doc-scope affordance).
+- **Doc-scope cards** (`missing_topic`, `structure_flow`, `audience_mismatch`, doc-scope `underexposed_topic`) have no `anchorText` → **no subtitle at all**; the card shows just its message. (The type tag already carries the doc-scope signal, so a separate "Whole document" label was redundant.)
 - **Contradiction cards** show the **primary** span's `anchorText` as the subtitle; the _conflicting_ span is reached via UX-009 below, not a second subtitle.
 
 #### UX-006 — Reverse hover (text → feed "focus mode")

@@ -154,8 +154,9 @@ describe("SidecarFeed — priority-banded render order (UX-015)", () => {
 //
 // A span observation quotes its stored `anchorText` back at the user between the
 // type tag and the body (serif-italic, muted) so the passage is legible without
-// eye-travel to the editor. Doc-scope cards have no anchorText → the quiet
-// "Whole document" label instead. Span cards missing anchorText render neither.
+// eye-travel to the editor. When there is no anchorText to quote (doc-scope
+// observations, or span cards missing anchorText) the subtitle is simply absent
+// — only the message shows.
 // ---------------------------------------------------------------------------
 
 describe("SidecarFeed — quoted-text subtitle (UX-008)", () => {
@@ -197,7 +198,7 @@ describe("SidecarFeed — quoted-text subtitle (UX-008)", () => {
     expect(div.querySelector('[data-testid="obs-anchor-doc"]')).toBeNull();
   });
 
-  it('shows "Whole document" for a doc-scope observation with no anchorText', () => {
+  it("renders no subtitle for a doc-scope observation with no anchorText", () => {
     const div = renderWith([
       obs({
         id: "m1",
@@ -207,9 +208,8 @@ describe("SidecarFeed — quoted-text subtitle (UX-008)", () => {
         text: "No competitor positioning.",
       }),
     ]);
-    const docLabel = div.querySelector('[data-testid="obs-anchor-doc"]');
-    expect(docLabel).not.toBeNull();
-    expect(docLabel?.textContent).toBe("Whole document");
+    // No quote to show → no subtitle at all, just the message.
+    expect(div.querySelector('[data-testid="obs-anchor-doc"]')).toBeNull();
     expect(div.querySelector('[data-testid="obs-anchor"]')).toBeNull();
   });
 
