@@ -54,16 +54,20 @@ export function charOffsetToPmPos(
  *
  * Rules:
  *  - Empty/whitespace `anchorText` (pre-v8 records) → stored offsets.
- *  - Whole-block sentinel (`storedStart === 0 && storedEnd >= 9999`, used by the
- *    contradiction conflicting-side and the ledger sweep) → unchanged; these are
- *    intentionally whole-block and the caller's clamp turns 9999 into the real
- *    text length.
  *  - Otherwise locate `anchorText` in `blockText`: no match → stored offsets
  *    (text was edited away; the obs will auto-close on the next eval); one match
  *    → that occurrence; multiple → the occurrence whose start is nearest the
  *    stored start (the user most likely edited near, not at, the anchor).
  * Matching is exact (no case-folding) because `anchorText` was captured from the
  * same flattened block text and we need precise character positions.
+ *
+ * The **whole-block sentinel** (`storedStart === 0 && storedEnd >= 9999`, used by
+ * the ledger sweep and contradiction conflicting-side, whose claims carry text
+ * but no offsets) is *not* special-cased: it falls through to the substring
+ * locate below, so a verbatim claim resolves to its exact clause instead of
+ * lighting the whole block. When the claim text isn't a verbatim substring (the
+ * LLM reworded it) the no-match branch returns the stored `{0, 9999}`, and the
+ * caller clamps 9999 to the real text length — i.e. whole-block, as before.
  */
 export function reanchorOffset(
   blockText: string,
@@ -73,7 +77,6 @@ export function reanchorOffset(
 ): { start: number; end: number } {
   const anchor = anchorText.trim();
   if (anchor === "") return { start: storedStart, end: storedEnd };
-  if (storedStart === 0 && storedEnd >= 9999) return { start: storedStart, end: storedEnd };
 
   let bestIdx = -1;
   let idx = blockText.indexOf(anchorText);

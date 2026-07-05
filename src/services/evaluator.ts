@@ -41,6 +41,7 @@ import {
 import {
   hashCode,
   anchorSubstring,
+  normalizeText,
   type NewObservation,
 } from "./evaluatorAnchoring";
 import {
@@ -900,6 +901,12 @@ export async function evaluateLedgerContradictions(
       // index returned twice) — it would render a card claiming a text
       // conflicts with itself. Same-block *distinct* claims (a !== b) still pass.
       if (!a || !b || a === b) return;
+      // …and reject two *distinct* claim entries that are the same text in the
+      // same block (a near-duplicate the extractor emitted twice): whole-block
+      // anchoring makes both spans identical, so the card reads as a passage
+      // conflicting with itself.
+      if (a.sourceBlockId === b.sourceBlockId && normalizeText(a.text) === normalizeText(b.text))
+        return;
 
       const { severity, confidence, priority } =
         obsType === "contradiction"

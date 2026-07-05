@@ -127,3 +127,49 @@ describe("reconcileSweepContradictions — OBS-025 strategic_tension dedup", () 
     expect(savedTensions).toHaveLength(2);
   });
 });
+
+describe("reconcileSweepContradictions — cross-type precedence", () => {
+  const contradiction = (o: Partial<NewObservation> = {}): NewObservation =>
+    tension({ type: "contradiction", kind: "problem", text: "Q3 vs Q2 ship date", ...o });
+
+  it("drops an incoming tension when a contradiction covers the same block pair", async () => {
+    // Same pair {b1,b2}, different types → the contradiction wins.
+    const c = contradiction({ blockId: "b1", conflictingBlockId: "b2" });
+    const t = tension({ blockId: "b1", conflictingBlockId: "b2" });
+
+    await reconcileSweepContradictions("doc1", [c, t], STRONG);
+
+    const saved = vi.mocked(db.saveObservation).mock.calls.map(([o]) => (o as Observation).type);
+    expect(saved).toContain("contradiction");
+    expect(saved).not.toContain("strategic_tension");
+  });
+
+  it("supersedes an existing tension when a contradiction lands on the same pair", async () => {
+    const existing = existingTension("e1", "Fast iteration conflicts with quality bar");
+    vi.mocked(db.loadActiveObservationsForDocument).mockResolvedValue([existing]);
+
+    await reconcileSweepContradictions(
+      "doc1",
+      [contradiction({ blockId: "b1", conflictingBlockId: "b2" })],
+      STRONG
+    );
+
+    // The stale tension is superseded, and it is NOT kept alive as a re-emission.
+    expect(vi.mocked(db.updateObservationStatus)).toHaveBeenCalledWith("e1", "superseded", "superseded");
+    const keptAlive = vi
+      .mocked(db.saveObservation)
+      .mock.calls.find(([o]) => (o as Observation).id === "e1");
+    expect(keptAlive).toBeUndefined();
+  });
+
+  it("keeps a tension on a different pair than the contradiction", async () => {
+    const c = contradiction({ blockId: "b1", conflictingBlockId: "b2" });
+    const t = tension({ blockId: "b1", conflictingBlockId: "b3" }); // different partner
+
+    await reconcileSweepContradictions("doc1", [c, t], STRONG);
+
+    const saved = vi.mocked(db.saveObservation).mock.calls.map(([o]) => (o as Observation).type);
+    expect(saved).toContain("contradiction");
+    expect(saved).toContain("strategic_tension");
+  });
+});

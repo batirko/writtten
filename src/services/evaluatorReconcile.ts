@@ -30,6 +30,7 @@ import {
   textSimilarity,
   spansOverlap,
   conflictPairKey,
+  blockPairKey,
   type NewObservation,
 } from "./evaluatorAnchoring";
 
@@ -157,6 +158,12 @@ export async function reconcileObservations(
   // L5c: conflict types are deduped by their (offset-free) block-pair key, so
   // they coalesce across the per-section and ledger-sweep paths.
   const seenPairKeys = new Set<string>();
+  // Cross-type precedence: a strategic_tension yields to a contradiction on the
+  // same block pair (existing or incoming this batch). The sweep reconciler does
+  // the symmetric superseding of existing tensions.
+  const contraPairs = new Set<string>();
+  for (const e of existing) if (e.type === "contradiction") contraPairs.add(blockPairKey(e));
+  for (const o of newObs) if (o.type === "contradiction") contraPairs.add(blockPairKey(o));
 
   // 0-pre. Force-close any observation the model explicitly confirmed resolved.
   // This happens before the normal loop so the force-closed obs are already
@@ -183,6 +190,8 @@ export async function reconcileObservations(
     if (newO.type === "contradiction" || newO.type === "strategic_tension") {
       const pk = conflictPairKey(newO);
       if (seenPairKeys.has(pk)) continue; // in-batch dupe
+      // A contradiction outranks a tension on the same block pair — drop the tension.
+      if (newO.type === "strategic_tension" && contraPairs.has(blockPairKey(newO))) continue;
       const pairMatch = existing.find(
         (e) =>
           (e.type === "contradiction" || e.type === "strategic_tension") &&
@@ -435,13 +444,37 @@ export async function reconcileSweepContradictions(
     ...(tensionPlan.inserts as NewObservation[]),
   ];
 
+  // Cross-type precedence: a contradiction outranks a strategic_tension on the
+  // same block pair (the same conflict, more sharply stated). Drop incoming
+  // tensions whose pair carries a contradiction (incoming or existing), and
+  // supersede any existing tension a contradiction now covers so it doesn't
+  // linger as a duplicate card.
+  const contraPairs = new Set<string>();
+  for (const o of dedupedNewObs) if (o.type === "contradiction") contraPairs.add(blockPairKey(o));
+  for (const o of existingConflicts)
+    if (o.type === "contradiction") contraPairs.add(blockPairKey(o));
+
+  const supersededByContra = new Set<string>();
+  for (const ex of existingConflicts) {
+    if (ex.type === "strategic_tension" && contraPairs.has(blockPairKey(ex))) {
+      await updateObservationStatus(ex.id, "superseded", "superseded");
+      archiveObs(ex, "superseded", evalId);
+      supersededByContra.add(ex.id);
+    }
+  }
+
+  const rankedNewObs = dedupedNewObs.filter(
+    (o) => !(o.type === "strategic_tension" && contraPairs.has(blockPairKey(o)))
+  );
+  const rankedExisting = existingConflicts.filter((o) => !supersededByContra.has(o.id));
+
   if (capability.driveResolution) {
     // Authoritative-with-grace: sweep output is the source of truth.
     const now = Date.now();
-    const newKeys = new Set(newObs.map(conflictPairKey));
+    const newKeys = new Set(rankedNewObs.map(conflictPairKey));
     const insertedKeys = new Set<string>();
 
-    for (const ex of existingConflicts) {
+    for (const ex of rankedExisting) {
       const key = conflictPairKey(ex);
       if (newKeys.has(key) || virtuallyReemittedIds.has(ex.id)) {
         // Re-emitted → still active; reset absence counter.
@@ -460,7 +493,7 @@ export async function reconcileSweepContradictions(
     }
 
     // Insert genuinely new conflict-pairs (not already present, not suppressed).
-    for (const newO of dedupedNewObs) {
+    for (const newO of rankedNewObs) {
       const key = conflictPairKey(newO);
       if (insertedKeys.has(key)) continue;
       if (isSpanSuppressed(newO, suppressions)) continue;
@@ -479,8 +512,8 @@ export async function reconcileSweepContradictions(
     }
   } else {
     // Weak model: additive only (original behavior).
-    const existingKeys = new Set(existingConflicts.map(conflictPairKey));
-    for (const newO of dedupedNewObs) {
+    const existingKeys = new Set(rankedExisting.map(conflictPairKey));
+    for (const newO of rankedNewObs) {
       const key = conflictPairKey(newO);
       if (existingKeys.has(key)) continue;
       if (isSpanSuppressed(newO, suppressions)) continue;
