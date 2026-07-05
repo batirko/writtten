@@ -1,5 +1,5 @@
 ---
-status: idea
+status: in-progress
 kind: spec
 phases: [6, 7]
 summary: Decide and bound which rich-content types the writing canvas accepts (on paste) and lets the user create — tables, images, task lists, code blocks, links — and how each interacts with the section/eval model and Markdown round-trip. Today the canvas is StarterKit-only, so pasting a table or image silently loses content; this is a current trust bug with no design owner.
@@ -11,7 +11,7 @@ summary: Decide and bound which rich-content types the writing canvas accepts (o
 
 ## Status
 
-**Idea — Phase 6/7. Design settled 2026-06-18 (readiness 🟢, ready to build).** The Phase 6 supported-set decision, the degradation mechanism, and the eval-model interaction are all locked below; what remains is the build, not further design.
+**In progress — Phase 6 floor shipped; Phase 7 (images/task-lists as real nodes) remains.** The Phase 6 supported-set decision, the degradation mechanism, and the eval-model interaction were locked 2026-06-18 and are now built: editable tables (eval-inert), a slash-menu "Table" insert, and image paste-degradation. What remains (Phase 7) is richer authoring — images and task lists as real nodes, gated on the local-first storage story.
 
 **Decision (2026-06-18):** the Phase 6 floor is **degradation + editable tables + links** (the option the table below recommends) — add `@tiptap/extension-table` (with cell/row/header) and `@tiptap/extension-link`, plus a predictable-degradation transform for every still-unsupported node (images, task lists). Images and task lists stay Phase 7.
 
@@ -42,13 +42,13 @@ Read alongside:
 _Decisions are settled (2026-06-18); the list below is now a **build** checklist, not open design._
 
 - [x] **Decide the supported set** (§ The decision). **Settled:** editable **tables** (`@tiptap/extension-table` + `table-row`/`table-header`/`table-cell`) and **links** (`@tiptap/extension-link`), with predictable degradation for everything else.
-- [ ] **Inventory the loss.** Confirm exactly what StarterKit drops on paste for each source (Google Docs / Word / Confluence / Notion / raw HTML / a spreadsheet range). Capture as fixtures. _(Build prep — informs the degradation transform's match list; not a design blocker.)_
-- [ ] **Add the table + link extensions** and confirm the BlockId extension applies a `blockId` attr to the top-level `table` node (so `topLevelBlocks` includes it and section resolution doesn't drop the surrounding heading/body — see § Eval-model interaction).
-- [ ] **Predictable degradation for the unsupported** (§ Degradation contract). Extend `SemanticPaste.transformPastedHTML` (`src/editor/extensions/SemanticPaste.ts`) to convert still-unsupported nodes (images, task lists, anything table-extension can't claim) into a visible, editable fenced/plaintext representation. Never silent drop.
-- [ ] **Eval-model interaction** (§). **Settled v1:** a table is **inert** — it carries a `blockId` so section resolution is intact, but its cell text is **excluded from `combinedText`** (the section resolver skips table nodes' `textContent`), so no claims are extracted and span checks never fire inside cells. Whether table cell text should feed _doc-level_ context (a metric in a table vs. prose contradiction) is **deferred to Phase 7**, gated on corpus evidence.
-- [ ] **Offset-mapping safety.** Verify `charOffsetToPmPos` / `reanchorOffset` (the highlighter path) don't drift when a section contains a table node — add a fixture with a span highlight in a paragraph that follows a table.
-- [ ] **Round-trip with egress.** Tables + links must serialize through `export.ts` `toMarkdown` (GFM table syntax) / `toHtml` and survive copy→paste into a rich target. Add to `export.test.ts`.
-- [ ] **`data-testid` / harness** — ensure `loadDoc` fixtures and the dev harness can seed a doc containing a table node.
+- [ ] **Inventory the loss.** Confirm exactly what StarterKit drops on paste for each source (Google Docs / Word / Confluence / Notion / raw HTML / a spreadsheet range). Capture as fixtures. _(Build prep — informs the degradation transform's match list; not a design blocker. Images are handled; the wider long-tail inventory is deferred.)_
+- [x] **Add the table + link extensions** and confirm the BlockId extension applies a `blockId` attr to the top-level `table` node. Done: `@tiptap/extension-table` + row/header/cell registered in `Editor.tsx`; `table` added to the `BlockId` global-attribute whitelist (`BlockId.ts`); a "Table" slash-menu insert added (`SlashMenu.ts`). Links were already covered by UX-004.
+- [x] **Predictable degradation for the unsupported** (§ Degradation contract). `SemanticPaste.transformPastedHTML` (`src/editor/extensions/SemanticPaste.ts`) now rewrites a pasted `<img>` → visible, editable `![alt](src)` text (base64 data-URIs collapsed to `embedded-image`, no bytes stored — invariant 5) instead of a silent drop. Tables are real nodes now, so the common table-loss case is fixed by support; this is the safety net for the long tail.
+- [x] **Eval-model interaction** (§). A table is **inert** — it carries a `blockId` (section resolution intact) but its cell text is **excluded from `combinedText`** (`section.ts` `buildCombined` skips `isTable` members) **and from the body check** (`evaluator.ts` `hasBody` excludes `isTable`, so a heading+table-only section stays bodyless and doesn't hallucinate). No claims from cells, no span checks inside cells. Doc-level table→prose context deferred to Phase 7.
+- [x] **Offset-mapping safety.** Added a fixture (`ObservationHighlighter.test.ts`) proving `charOffsetToPmPos` maps a highlight in a paragraph that _follows_ a table to the correct chars — the mapping is block-relative, so a preceding table (which only shifts the block's absolute pos) doesn't drift it.
+- [x] **Round-trip with egress.** `export.test.ts` asserts a table serializes to GFM pipe-table syntax via `toMarkdown` (header row + delimiter row + body row). `tiptap-markdown` handles this out of the box.
+- [ ] **`data-testid` / harness** — the dev harness `loadDoc` seeds text blocks; seeding a full table node isn't wired yet. Deferred (live paste covers table verification for now); a small follow-up if fixture-driven table tests are needed.
 
 _Phase 7 (not in this scope):_
 

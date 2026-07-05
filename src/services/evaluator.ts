@@ -216,7 +216,13 @@ export async function evaluateSection(
   //    resolveSections; an unmarked member falls back to "body" so hand-built
   //    fixtures still evaluate. Hash written last (same atomicity rule as the
   //    main path): if reconcile throws, the section stays dirty and retries. (L3)
-  const hasBody = members.some((m) => !m.isHeading && m.text.trim().length > 0);
+  // A table is eval-inert (canvas_content_types.md): its cell text is already
+  // excluded from combinedText, so it must not count as body here either — a
+  // heading + table (no prose) section stays bodyless and skips the model,
+  // rather than sending a body-less heading and re-triggering the OBS-029
+  // hallucination. `isTable` may be undefined on hand-built fixtures → treated
+  // as not-a-table.
+  const hasBody = members.some((m) => !m.isHeading && !m.isTable && m.text.trim().length > 0);
   if (cleanText.length < 10 || !hasBody) {
     // If the section was removed concurrently, handleBlockRemoved already did
     // this cleanup — don't recreate an (empty) summary for a deleted block (L4).

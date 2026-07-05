@@ -2,11 +2,15 @@
 import { describe, it, expect, vi } from "vitest";
 import { Editor, getSchema } from "@tiptap/core";
 import StarterKit from "@tiptap/starter-kit";
+import Table from "@tiptap/extension-table";
+import TableRow from "@tiptap/extension-table-row";
+import TableHeader from "@tiptap/extension-table-header";
+import TableCell from "@tiptap/extension-table-cell";
 import { BlockId } from "./BlockId";
 import { ObservationHighlighter, charOffsetToPmPos, reanchorOffset } from "./ObservationHighlighter";
 import type { Observation } from "../../store/db";
 
-const schema = getSchema([StarterKit, BlockId]);
+const schema = getSchema([StarterKit, BlockId, Table, TableRow, TableHeader, TableCell]);
 
 const para = (id: string, text: string) =>
   schema.node("paragraph", { blockId: id }, text ? schema.text(text) : undefined);
@@ -17,6 +21,15 @@ const bullets = (id: string, items: string[]) =>
     { blockId: id },
     items.map((t) => schema.node("listItem", null, schema.node("paragraph", null, schema.text(t))))
   );
+
+const table = (id: string, cells: string[]) =>
+  schema.node("table", { blockId: id }, [
+    schema.node(
+      "tableRow",
+      null,
+      cells.map((t) => schema.node("tableHeader", null, schema.node("paragraph", null, schema.text(t))))
+    ),
+  ]);
 
 function blockPosOf(docNode: ReturnType<typeof schema.node>, blockId: string): number {
   let found = -1;
@@ -47,6 +60,20 @@ describe("charOffsetToPmPos", () => {
       const d = schema.node("doc", null, [para("p", "Hello")]);
       const bp = blockPosOf(d, "p");
       expect(charOffsetToPmPos(d.nodeAt(bp)!, bp, 5, true)).toBe(bp + 1 + 5);
+    });
+
+    it("stays anchored in a paragraph that follows a table (offset mapping is block-relative)", () => {
+      // A table before the paragraph shifts the paragraph's absolute position;
+      // charOffsetToPmPos must map relative to the resolved block pos, so the
+      // highlight lands on the intended word regardless of the preceding table.
+      const d = schema.node("doc", null, [
+        table("t", ["Option", "Cost"]),
+        para("p", "We recommend Option A."),
+      ]);
+      const bp = blockPosOf(d, "p");
+      // "We recommend " is 13 chars; offset 13 → start of "Option".
+      const pos = charOffsetToPmPos(d.nodeAt(bp)!, bp, 13, false);
+      expect(d.textBetween(pos, pos + 6)).toBe("Option");
     });
   });
 

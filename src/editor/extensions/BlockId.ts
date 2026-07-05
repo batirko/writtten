@@ -54,7 +54,20 @@ export const BlockId = Extension.create({
   addGlobalAttributes() {
     return [
       {
-        types: ["paragraph", "heading", "bulletList", "orderedList", "blockquote", "codeBlock"],
+        types: [
+          "paragraph",
+          "heading",
+          "bulletList",
+          "orderedList",
+          "blockquote",
+          "codeBlock",
+          // A top-level table must carry a blockId so the section resolver keeps
+          // it as a section member (preserving heading/body boundaries around
+          // it) rather than silently dropping it. Its cell text is still
+          // excluded from the eval input — see section.ts (isTable). A table is
+          // eval-inert, not eval-invisible. (canvas_content_types.md)
+          "table",
+        ],
         attributes: {
           blockId: {
             default: null,

@@ -18,6 +18,10 @@ import BulletList from "@tiptap/extension-bullet-list";
 import ListItem from "@tiptap/extension-list-item";
 import { Markdown } from "tiptap-markdown";
 import Link from "@tiptap/extension-link";
+import Table from "@tiptap/extension-table";
+import TableRow from "@tiptap/extension-table-row";
+import TableHeader from "@tiptap/extension-table-header";
+import TableCell from "@tiptap/extension-table-cell";
 
 describe("export service", () => {
   let editor: Editor;
@@ -89,6 +93,54 @@ describe("export service", () => {
     const md = toMarkdown(linkEditor as any);
     expect(md).toContain("[Click here](https://example.com)");
     linkEditor.destroy();
+  });
+
+  it("serializes a table to GFM markdown (round-trip)", () => {
+    const tableEditor = new Editor({
+      extensions: [Document, Paragraph, Text, Table, TableRow, TableHeader, TableCell, Markdown],
+      content: {
+        type: "doc",
+        content: [
+          {
+            type: "table",
+            content: [
+              {
+                type: "tableRow",
+                content: [
+                  {
+                    type: "tableHeader",
+                    content: [{ type: "paragraph", content: [{ type: "text", text: "Option" }] }],
+                  },
+                  {
+                    type: "tableHeader",
+                    content: [{ type: "paragraph", content: [{ type: "text", text: "Cost" }] }],
+                  },
+                ],
+              },
+              {
+                type: "tableRow",
+                content: [
+                  {
+                    type: "tableCell",
+                    content: [{ type: "paragraph", content: [{ type: "text", text: "A" }] }],
+                  },
+                  {
+                    type: "tableCell",
+                    content: [{ type: "paragraph", content: [{ type: "text", text: "Low" }] }],
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+    });
+    const md = toMarkdown(tableEditor as any);
+    // GFM pipe-table syntax: a header row, a delimiter row, and the body row.
+    expect(md).toContain("| Option | Cost |");
+    expect(md).toMatch(/\| ?-+ ?\| ?-+ ?\|/);
+    expect(md).toContain("| A | Low |");
+    tableEditor.destroy();
   });
 
   it("toHtml converts editor content to html", () => {

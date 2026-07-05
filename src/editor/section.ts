@@ -23,6 +23,11 @@ export interface SectionMember {
   /** True if this member is a heading node. Lets the evaluator tell a section
    *  with real body text from a bodyless heading (OBS-029). */
   isHeading: boolean;
+  /** True if this member is a table node. A table carries a blockId (so section
+   *  boundaries stay correct) but its cell text is excluded from `combinedText`
+   *  and from the evaluator's body check — the table is eval-inert. See
+   *  docs/projects/canvas_content_types.md § Eval-model interaction. */
+  isTable: boolean;
 }
 
 export interface Section {
@@ -49,6 +54,7 @@ interface TopBlock {
   blockId: string;
   text: string;
   isHeading: boolean;
+  isTable: boolean;
 }
 
 function topLevelBlocks(doc: PMNode): TopBlock[] {
@@ -60,6 +66,7 @@ function topLevelBlocks(doc: PMNode): TopBlock[] {
       blockId,
       text: node.textContent,
       isHeading: node.type.name === "heading",
+      isTable: node.type.name === "table",
     });
   });
   return out;
@@ -67,6 +74,11 @@ function topLevelBlocks(doc: PMNode): TopBlock[] {
 
 function buildCombined(members: SectionMember[]): string {
   const combined = members
+    // A table is eval-inert: keep it as a section member (for anchoring
+    // continuity) but exclude its flattened cell text from the LLM's view of
+    // the section, so no claims are extracted and span checks never fire inside
+    // cells. See docs/projects/canvas_content_types.md § Eval-model interaction.
+    .filter((m) => !m.isTable)
     .map((m) => m.text)
     .filter((t) => t.trim().length > 0)
     .join("\n\n");
@@ -107,13 +119,18 @@ export function resolveSections(doc: PMNode): Section[] {
       current = {
         sectionId: b.blockId,
         headingText: b.text,
-        members: [{ blockId: b.blockId, text: b.text, isHeading: b.isHeading }],
+        members: [{ blockId: b.blockId, text: b.text, isHeading: b.isHeading, isTable: b.isTable }],
       };
     } else {
       if (!current) {
         current = { sectionId: b.blockId, headingText: "", members: [] };
       }
-      current.members.push({ blockId: b.blockId, text: b.text, isHeading: b.isHeading });
+      current.members.push({
+        blockId: b.blockId,
+        text: b.text,
+        isHeading: b.isHeading,
+        isTable: b.isTable,
+      });
     }
   }
   flush();

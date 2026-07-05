@@ -9,6 +9,11 @@ export interface SectionMember {
    *  evaluator falls back to treating an unmarked member as body. Lets the
    *  bodyless-heading guard fire (OBS-029). */
   isHeading?: boolean;
+  /** True if this member is a table node. A table is eval-inert: its cell text
+   *  is excluded from `combinedText` and from the body check, so a heading +
+   *  table (no prose) section stays bodyless. Absent on hand-built fixtures →
+   *  treated as not-a-table. See docs/projects/canvas_content_types.md. */
+  isTable?: boolean;
 }
 
 /**

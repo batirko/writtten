@@ -60,6 +60,17 @@ const ITEMS: SlashItem[] = [
     command: ({ editor, range }) =>
       editor.chain().focus().deleteRange(range).setHorizontalRule().run(),
   },
+  {
+    label: "Table",
+    hint: "▦",
+    command: ({ editor, range }) =>
+      editor
+        .chain()
+        .focus()
+        .deleteRange(range)
+        .insertTable({ rows: 3, cols: 3, withHeaderRow: true })
+        .run(),
+  },
 ];
 
 export const SlashMenu = Extension.create({
