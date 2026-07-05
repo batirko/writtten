@@ -1168,11 +1168,6 @@ body,
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.card-anchor-doc {
-  font-family: var(--font-sans);
-  font-style: normal;
-  color: var(--color-muted);
-}
 
 /* Debug panel (dev only) */
 .debug-panel {

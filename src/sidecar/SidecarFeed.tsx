@@ -127,16 +127,10 @@ export function GroupedObsCard({
           <DismissIcon />
         </button>
       </div>
-      {primary.anchorText ? (
+      {primary.anchorText && (
         <p className="card-anchor" data-testid="obs-anchor" title={primary.anchorText}>
           “{primary.anchorText}”
         </p>
-      ) : (
-        primary.scope === "document" && (
-          <p className="card-anchor card-anchor-doc" data-testid="obs-anchor-doc">
-            Whole document
-          </p>
-        )
       )}
       <div className="card-body">
         <p>{primary.text}</p>
