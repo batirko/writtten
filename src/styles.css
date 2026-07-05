@@ -78,7 +78,14 @@
 
   /* Layout */
   --sidecar-width: 320px;
+  --gutter-width: 320px; /* the companion-surface feed column (feed_surface.md) */
   --editor-measure: 66ch;
+
+  /* Companion-surface tokens (docs/projects/feed_surface.md § New tokens) */
+  --color-scrim: oklch(0% 0 0 / 0.38); /* modal backdrop */
+  --elev-float: 0 8px 24px oklch(0% 0 0 / 0.12); /* control center + modal */
+  --dur-pulse: 1.6s; /* activity-dot working pulse */
+  --control-anchor-size: 40px;
 
   /* Compat aliases — un-migrated rules still reference these; removed once
      PR B (feed/cards/highlights/supporting surfaces) re-points them. */
@@ -200,16 +207,17 @@ body,
 }
 
 /* Sidecar panel */
+/* Companion surface — the feed is a floating column on paper, not a panel wall.
+   No background fill; a single hairline marks the gutter (feed_surface.md § Layout). */
 .sidecar-panel {
-  width: var(--sidecar-width);
+  width: var(--gutter-width);
   flex-shrink: 0;
-  border-left: 1px solid var(--border);
-  background: var(--sidecar-bg);
+  background: var(--color-paper);
   overflow-y: auto;
-  padding: 24px 16px;
+  padding: var(--space-lg) var(--space-md);
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: var(--space-sm);
 }
 
 .sidecar-header {
@@ -397,50 +405,32 @@ body,
   gap: 12px;
 }
 
+/* Floating card — borderless surface on paper, shallow elevation. The
+   kind×severity signal lives in the type tag (below), not a left-border stripe
+   (feed_surface.md § Card execution). */
 .observation-card {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 12px;
+  background: var(--color-surface);
+  border: 0.5px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-sm);
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--space-xs);
   transition:
-    transform 0.2s ease,
-    box-shadow 0.2s ease,
-    border-color 0.2s ease;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+    transform var(--dur-base) var(--ease-out),
+    box-shadow var(--dur-base) var(--ease-out),
+    border-color var(--dur-base) var(--ease-out);
+  box-shadow: var(--elev-rest);
 }
 
 .observation-card:hover {
   transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+  box-shadow: var(--elev-hover);
 }
 
 .observation-card-active {
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
-  border-color: #aaa !important;
-}
-
-/* Border accent: kind × severity → colour gradient */
-.observation-card[data-kind="problem"][data-severity="low"] {
-  border-left: 4px solid #8e8e93;
-}
-.observation-card[data-kind="problem"][data-severity="medium"] {
-  border-left: 4px solid #f59e0b;
-}
-.observation-card[data-kind="problem"][data-severity="high"] {
-  border-left: 4px solid #ef4444;
-}
-
-.observation-card[data-kind="opportunity"][data-severity="low"] {
-  border-left: 4px solid #99c5d0;
-}
-.observation-card[data-kind="opportunity"][data-severity="medium"] {
-  border-left: 4px solid #0ea5e9;
-}
-.observation-card[data-kind="opportunity"][data-severity="high"] {
-  border-left: 4px solid #0369a1;
+  box-shadow: var(--elev-active);
+  border-color: var(--color-border-strong);
 }
 
 .card-header {
@@ -522,55 +512,72 @@ body,
   opacity: 1;
 }
 
+/* The type tag carries the kind×severity colour (feed_surface.md § Card execution).
+   Base = a quiet outline chip (also the archive's past-tense treatment); active
+   cards escalate it by severity below. */
 .tag {
-  font-size: 0.6875rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  padding: 2px 6px;
-  border-radius: 4px;
-  letter-spacing: 0.02em;
+  font-size: var(--text-label);
+  font-weight: 600;
+  text-transform: lowercase;
+  letter-spacing: 0.01em;
+  padding: 2px 8px;
+  border-radius: var(--radius-sm);
+  border: 0.5px solid var(--color-border);
+  background: transparent;
+  color: var(--color-muted);
+  white-space: nowrap;
+  align-self: flex-start;
 }
 
-/* Tag colours by type */
-.tag-clarity {
-  background-color: rgba(142, 142, 147, 0.12);
-  color: #555;
+/* LOW → quiet outline (any kind) */
+.observation-card[data-severity="low"] .tag {
+  background: transparent;
+  color: var(--color-muted);
+  border-color: var(--color-border);
 }
 
-.tag-contradiction {
-  background-color: rgba(255, 149, 0, 0.12);
-  color: #c97500;
+/* MEDIUM → soft tint */
+.observation-card[data-severity="medium"][data-kind="problem"] .tag {
+  background: color-mix(in oklch, var(--sem-problem-med) 16%, transparent);
+  color: color-mix(in oklch, var(--sem-problem-med) 48%, var(--color-ink));
+  border-color: color-mix(in oklch, var(--sem-problem-med) 40%, transparent);
+}
+.observation-card[data-severity="medium"][data-kind="opportunity"] .tag {
+  background: color-mix(in oklch, var(--sem-opp-med) 15%, transparent);
+  color: var(--sem-opp-high);
+  border-color: color-mix(in oklch, var(--sem-opp-med) 40%, transparent);
 }
 
-/* Strategic tension — softer teal register (opportunity, not alarm) */
-.tag-strategic_tension {
-  background-color: rgba(14, 165, 233, 0.12);
-  color: #0369a1;
+/* HIGH → solid fill, light text */
+.observation-card[data-severity="high"][data-kind="problem"] .tag {
+  background: var(--sem-problem-high);
+  color: var(--color-surface);
+  border-color: transparent;
+}
+.observation-card[data-severity="high"][data-kind="opportunity"] .tag {
+  background: var(--sem-opp-high);
+  color: var(--color-surface);
+  border-color: transparent;
 }
 
-/* Problem types — gray tier (low severity) */
-.tag-undefined_jargon,
-.tag-audience_mismatch,
-.tag-structure_flow {
-  background-color: rgba(142, 142, 147, 0.12);
-  color: #555;
+/* Contradiction keeps its warm-orange identity across severities (kind=problem) */
+.observation-card[data-obs-type="contradiction"][data-severity="high"] .tag {
+  background: var(--sem-contradiction);
+  color: var(--color-surface);
+  border-color: transparent;
+}
+.observation-card[data-obs-type="contradiction"][data-severity="medium"] .tag,
+.observation-card[data-obs-type="contradiction"][data-severity="low"] .tag {
+  background: color-mix(in oklch, var(--sem-contradiction) 16%, transparent);
+  color: color-mix(in oklch, var(--sem-contradiction) 52%, var(--color-ink));
+  border-color: color-mix(in oklch, var(--sem-contradiction) 42%, transparent);
 }
 
-/* Problem type — amber tier (medium severity) */
-.tag-unsupported_claim {
-  background-color: rgba(245, 158, 11, 0.12);
-  color: #b45309;
-}
-
-/* Opportunity types — teal tier */
-.tag-missing_topic {
-  background-color: rgba(14, 165, 233, 0.12);
-  color: #0369a1;
-}
-
-.tag-underexposed_topic {
-  background-color: rgba(14, 165, 233, 0.1);
-  color: #4a8fa8;
+/* Strategic tension — always the calm teal register, never alarm (kind=opportunity) */
+.observation-card[data-obs-type="strategic_tension"][data-kind="opportunity"] .tag {
+  background: color-mix(in oklch, var(--sem-tension) 15%, transparent);
+  color: var(--sem-opp-high);
+  border-color: color-mix(in oklch, var(--sem-tension) 38%, transparent);
 }
 
 /* Confidence indicator: low-confidence observations show a hedging ~ after the tag text */
@@ -637,6 +644,437 @@ body,
   margin-top: 6px;
   padding-top: 5px;
   border-top: 1px dashed rgba(0, 0, 0, 0.07);
+}
+
+/* ============================================================
+   Companion-surface chrome (feed_surface.md § 2/§ 3/§ 5)
+   ============================================================ */
+
+/* Collapse handle at the canvas↔gutter boundary */
+.feed-handle {
+  align-self: stretch;
+  width: 16px;
+  flex-shrink: 0;
+  border: none;
+  border-left: 0.5px solid var(--color-border);
+  background: transparent;
+  color: var(--color-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition:
+    color var(--dur-fast) var(--ease-out),
+    background-color var(--dur-fast) var(--ease-out);
+}
+.feed-handle:hover {
+  color: var(--color-ink);
+  background: color-mix(in oklch, var(--color-ink) 4%, transparent);
+}
+.feed-handle:focus-visible {
+  outline: 2px solid var(--color-accent-strong);
+  outline-offset: -2px;
+}
+
+/* Control center — docked at the bottom of the feed column, under the cards */
+.control-center {
+  margin-top: auto;
+  padding-top: var(--space-sm);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--space-xs);
+}
+.control-process {
+  align-self: stretch;
+  background: var(--color-surface);
+  border: 0.5px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 7px 10px;
+  font-size: var(--text-ui-sm);
+  color: var(--color-muted);
+  line-height: 1.55;
+  box-shadow: var(--elev-rest);
+}
+.control-process-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+.control-process-row .paid,
+.control-process-row .working {
+  color: #b06000;
+  font-weight: 500;
+}
+.control-process-label {
+  font-size: var(--text-label);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-muted);
+  margin-bottom: 3px;
+}
+.control-actions-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.control-btn {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  border: none;
+  background: transparent;
+  color: var(--color-ink-2);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition:
+    background-color var(--dur-fast) var(--ease-out),
+    color var(--dur-fast) var(--ease-out);
+}
+.control-btn:hover {
+  background: color-mix(in oklch, var(--color-ink) 6%, transparent);
+  color: var(--color-ink);
+}
+.control-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.control-btn:focus-visible {
+  outline: 2px solid var(--color-accent-strong);
+  outline-offset: 1px;
+}
+.control-export-wrap {
+  position: relative;
+  display: flex;
+}
+
+/* Activity / model anchor dot */
+.control-anchor {
+  width: var(--control-anchor-size);
+  height: var(--control-anchor-size);
+  border-radius: 50%;
+  background: var(--color-surface);
+  border: 0.5px solid var(--color-border);
+  box-shadow: var(--elev-hover);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: default;
+  margin-left: 2px;
+  position: relative;
+}
+.control-anchor:focus-visible {
+  outline: 2px solid var(--color-accent-strong);
+  outline-offset: 2px;
+}
+.control-dot {
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  background: color-mix(in oklch, var(--color-muted) 55%, var(--color-border));
+}
+.control-anchor[data-state="working"] .control-dot {
+  background: var(--sem-contradiction);
+  animation: dotPulse var(--dur-pulse) var(--ease-in-out) infinite;
+}
+.control-anchor[data-state="stalled"] .control-dot {
+  background: var(--sem-problem-high);
+}
+.control-anchor[data-paid="true"] {
+  border-color: color-mix(in oklch, var(--color-accent) 45%, var(--color-border));
+}
+@keyframes dotPulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+.control-anchor-tip {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  right: 0;
+  background: var(--color-ink);
+  color: var(--color-paper);
+  font-size: var(--text-ui-sm);
+  white-space: nowrap;
+  padding: 5px 9px;
+  border-radius: var(--radius-sm);
+  box-shadow: var(--elev-float);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--dur-fast) var(--ease-out);
+}
+.control-anchor:hover .control-anchor-tip,
+.control-anchor:focus-visible .control-anchor-tip {
+  opacity: 1;
+}
+
+/* Export menu popover (anchored above the export control) */
+.export-menu {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  right: 0;
+  min-width: 184px;
+  background: var(--color-surface);
+  border: 0.5px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--elev-float);
+  overflow: hidden;
+  z-index: 50;
+}
+.export-menu button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 9px 12px;
+  background: transparent;
+  border: none;
+  font-size: var(--text-ui);
+  color: var(--color-ink-2);
+  cursor: pointer;
+}
+.export-menu button:hover {
+  background: color-mix(in oklch, var(--color-ink) 5%, transparent);
+}
+.export-menu button + button {
+  border-top: 0.5px solid var(--color-border);
+}
+
+/* Floating modal (settings, clear-confirm) */
+.modal-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-scrim);
+  animation: fadeIn var(--dur-fast) var(--ease-out);
+}
+.modal-card {
+  width: 340px;
+  max-width: 88vw;
+  background: var(--color-surface);
+  border: 0.5px solid var(--color-border);
+  border-radius: 12px;
+  box-shadow: var(--elev-float);
+  padding: var(--space-lg);
+}
+.modal-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-md);
+}
+.modal-title {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--color-ink);
+}
+.modal-danger-btn {
+  padding: 7px 14px;
+  cursor: pointer;
+  background: var(--sem-problem-high);
+  color: var(--color-surface);
+  border: none;
+  border-radius: var(--radius-sm);
+  font-size: var(--text-ui);
+}
+.modal-ghost-btn {
+  padding: 7px 14px;
+  cursor: pointer;
+  background: transparent;
+  color: var(--color-ink-2);
+  border: 0.5px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  font-size: var(--text-ui);
+}
+
+/* Feed container + drawers */
+.feed-container {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+.arrival-indicator {
+  padding: 4px 8px;
+  font-size: var(--text-ui-sm);
+  color: var(--color-muted);
+  text-align: center;
+  animation: fadeIn var(--dur-fast) var(--ease-out);
+}
+.drawer-toggle {
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: var(--text-ui-sm);
+  color: var(--color-muted);
+  padding: 4px 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.drawer-toggle:hover {
+  color: var(--color-ink);
+}
+.also-noticed-drawer {
+  border-top: 0.5px solid var(--color-border);
+  margin-top: 4px;
+  padding-top: var(--space-xs);
+}
+.drawer-contra-note {
+  font-size: var(--text-ui-sm);
+  color: var(--sem-problem-high);
+  padding-left: 16px;
+  padding-bottom: 2px;
+}
+
+/* Archive — quiet, past-tense (feed_surface.md § Archive) */
+.archive-section {
+  border-top: 0.5px solid var(--color-border);
+  padding-top: var(--space-xs);
+}
+.archive-list {
+  margin-top: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+.archive-card {
+  padding: 11px 12px;
+  background: color-mix(in oklch, var(--color-surface) 55%, var(--color-paper));
+  border: 0.5px solid var(--color-border);
+  border-radius: var(--radius-lg);
+}
+.archive-card .tag {
+  opacity: 0.85;
+}
+.archive-card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+}
+.archive-reason {
+  font-size: var(--text-label);
+  color: var(--color-muted);
+}
+.archive-card-text {
+  margin: 0;
+  font-size: var(--text-ui-sm);
+  color: var(--color-ink-2);
+  line-height: 1.45;
+}
+.archive-anchor {
+  margin-top: 6px;
+  font-size: var(--text-ui-sm);
+  color: var(--color-muted);
+  font-family: var(--font-serif);
+  font-style: italic;
+  border-left: 2px solid var(--color-border);
+  padding-left: 8px;
+  line-height: 1.5;
+}
+.archive-anchor-vs {
+  display: inline-block;
+  margin-top: 4px;
+}
+.card-also-item-text {
+  margin: 4px 0 0;
+  font-size: var(--text-ui-sm);
+  color: var(--color-ink-2);
+  line-height: 1.4;
+}
+
+/* Debug panel (dev only) */
+.debug-panel {
+  border-top: 0.5px solid var(--color-border);
+  padding: 8px;
+  max-height: 300px;
+  overflow-y: auto;
+  background: color-mix(in oklch, var(--color-surface) 55%, var(--color-paper));
+  font-size: 0.8rem;
+}
+.debug-panel-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+.debug-session-stats {
+  margin-bottom: 8px;
+  padding: 4px 6px;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  border-radius: 4px;
+  font-size: 0.7rem;
+  color: #166534;
+  font-family: var(--font-mono);
+}
+.debug-entry {
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  padding: 4px;
+}
+.debug-entry-trigger {
+  background: #eef2ff;
+  border-color: #c7d2fe;
+  color: #4338ca;
+  display: flex;
+  justify-content: space-between;
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  padding: 3px 6px;
+}
+.debug-entry-archive {
+  background: #fdf4ff;
+  border-color: #f0abfc;
+  color: #6b7280;
+  display: flex;
+  justify-content: space-between;
+  gap: 6px;
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  padding: 3px 6px;
+}
+.debug-entry-ellipsis {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.debug-entry-response {
+  background: #e8f5e9;
+}
+.debug-entry-error {
+  background: #ffebee;
+}
+.debug-entry-retry {
+  background: #fff8e1;
+}
+.debug-entry-head {
+  display: flex;
+  justify-content: space-between;
+  cursor: pointer;
+  font-weight: bold;
+}
+.debug-entry-detail {
+  margin-top: 8px;
+  border-top: 1px dashed #ccc;
+  padding-top: 4px;
+}
+.debug-entry-detail pre {
+  white-space: pre-wrap;
+  margin: 4px 0;
+  font-size: 0.7rem;
 }
 
 /* Observation Highlights */

@@ -69,6 +69,25 @@ export default function App() {
   const [stageSuggestion, setStageSuggestion] = useState<string | null>(null);
   const [importContent, setImportContent] = useState<{ content: string; timestamp: number }>();
 
+  // Companion surface: the feed column reflows the canvas (never overlays it).
+  // Collapsed → canvas reclaims full editorial measure. Persisted per session.
+  const [feedCollapsed, setFeedCollapsed] = useState<boolean>(
+    () => localStorage.getItem("writtten_feed_collapsed") === "1"
+  );
+  useEffect(() => {
+    localStorage.setItem("writtten_feed_collapsed", feedCollapsed ? "1" : "0");
+  }, [feedCollapsed]);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "\\") {
+        e.preventDefault();
+        setFeedCollapsed((c) => !c);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
   const [logs, setLogs] = useState<LLMLogEntry[]>([]);
   const [activeProvider, setActiveProvider] = useState<string>("gemini-2.0-flash");
   const [sessionStats, setSessionStats] = useState<SessionStats>({
@@ -295,34 +314,58 @@ export default function App() {
           onReady={(e) => (editorRef.current = e)}
         />
       </main>
-      <SidecarFeed
-        observations={observations}
-        archivedObservations={archivedObservations}
-        blockOrder={blockOrder}
-        apiKey={apiKey}
-        onApiKeyChange={setApiKey}
-        keyTier={keyTier}
-        onKeyTierChange={setKeyTier}
-        stage={stage}
-        onStageChange={setStage}
-        hoveredObservationId={hoveredObservationId}
-        onHoverObservation={setHoveredObservationId}
-        onDismissObservation={handleDismissObservation}
-        onClearWorkspace={handleClearWorkspace}
-        onImportFile={handleImportFile}
-        logs={logs}
-        activeProvider={activeProvider}
-        pending={pending}
-        sessionStats={sessionStats}
-        stageSuggestion={stageSuggestion}
-        onAcceptStageSuggestion={handleAcceptStageSuggestion}
-        onDismissStageSuggestion={handleDismissStageSuggestion}
-        onExportMarkdown={handleExportMarkdown}
-        onExportPdf={handleExportPdf}
-        onCopyMarkdown={handleCopyMarkdown}
-        onCopyRichText={handleCopyRichText}
-        documentIsEmpty={blockOrder.length === 0}
-      />
+      <button
+        className="feed-handle"
+        data-testid="feed-handle"
+        onClick={() => setFeedCollapsed((c) => !c)}
+        aria-label={feedCollapsed ? "Show observations" : "Hide observations"}
+        aria-expanded={!feedCollapsed}
+        title={feedCollapsed ? "Show observations (⌘\\)" : "Hide observations (⌘\\)"}
+      >
+        <svg
+          width="12"
+          height="12"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          style={{ transform: feedCollapsed ? "rotate(180deg)" : "none" }}
+        >
+          <polyline points="9 18 15 12 9 6" />
+        </svg>
+      </button>
+      {!feedCollapsed && (
+        <SidecarFeed
+          observations={observations}
+          archivedObservations={archivedObservations}
+          blockOrder={blockOrder}
+          apiKey={apiKey}
+          onApiKeyChange={setApiKey}
+          keyTier={keyTier}
+          onKeyTierChange={setKeyTier}
+          stage={stage}
+          onStageChange={setStage}
+          hoveredObservationId={hoveredObservationId}
+          onHoverObservation={setHoveredObservationId}
+          onDismissObservation={handleDismissObservation}
+          onClearWorkspace={handleClearWorkspace}
+          onImportFile={handleImportFile}
+          logs={logs}
+          activeProvider={activeProvider}
+          pending={pending}
+          sessionStats={sessionStats}
+          stageSuggestion={stageSuggestion}
+          onAcceptStageSuggestion={handleAcceptStageSuggestion}
+          onDismissStageSuggestion={handleDismissStageSuggestion}
+          onExportMarkdown={handleExportMarkdown}
+          onExportPdf={handleExportPdf}
+          onCopyMarkdown={handleCopyMarkdown}
+          onCopyRichText={handleCopyRichText}
+          documentIsEmpty={blockOrder.length === 0}
+        />
+      )}
     </div>
   );
 }

@@ -9,7 +9,7 @@ import { partitionFeed, DEFAULT_FEED_BUDGET } from "./feedBudget";
 import type { GroupedObservation } from "./feedBudget";
 
 // ---------------------------------------------------------------------------
-// DismissIcon — shared svg
+// Icons — shared inline svgs
 // ---------------------------------------------------------------------------
 
 function DismissIcon() {
@@ -30,10 +30,60 @@ function DismissIcon() {
   );
 }
 
+const ICON_PROPS = {
+  width: 16,
+  height: 16,
+  viewBox: "0 0 24 24",
+  fill: "none",
+  stroke: "currentColor",
+  strokeWidth: 2,
+  strokeLinecap: "round" as const,
+  strokeLinejoin: "round" as const,
+};
+
+// Export = out of the tray (up-and-out); Import = into the tray (down-and-in).
+function ExportIcon() {
+  return (
+    <svg {...ICON_PROPS}>
+      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+      <polyline points="17 8 12 3 7 8"></polyline>
+      <line x1="12" y1="3" x2="12" y2="15"></line>
+    </svg>
+  );
+}
+function ImportIcon() {
+  return (
+    <svg {...ICON_PROPS}>
+      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+      <polyline points="7 10 12 15 17 10"></polyline>
+      <line x1="12" y1="15" x2="12" y2="3"></line>
+    </svg>
+  );
+}
+function GearIcon() {
+  return (
+    <svg {...ICON_PROPS}>
+      <circle cx="12" cy="12" r="3"></circle>
+      <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+    </svg>
+  );
+}
+function TrashIcon() {
+  return (
+    <svg {...ICON_PROPS}>
+      <polyline points="3 6 5 6 21 6"></polyline>
+      <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path>
+      <path d="M10 11v6"></path>
+      <path d="M14 11v6"></path>
+      <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"></path>
+    </svg>
+  );
+}
+
 // ---------------------------------------------------------------------------
 // GroupedObsCard — renders a single group (one or more observations on the
-// same span). When `others` is empty it looks identical to the old ObsCard.
-// When grouped, a collapsed "N more on this passage" section appears below.
+// same span). Severity is carried by the type tag (feed_surface.md § Card
+// execution), driven by the card's data-kind / data-severity / data-obs-type.
 // ---------------------------------------------------------------------------
 
 interface GroupedObsCardProps {
@@ -44,7 +94,6 @@ interface GroupedObsCardProps {
   onHover: (id: string | null) => void;
   onDismiss: (id: string) => void;
 }
-
 
 function GroupedObsCard({
   group,
@@ -109,7 +158,6 @@ function GroupedObsCard({
                   ? "Medium"
                   : "Low"}{" "}
               confidence
-              {""}
             </span>
           </span>
           {isArriving && <span className="obs-new-badge">new</span>}
@@ -140,14 +188,8 @@ function GroupedObsCard({
           {expanded &&
             others.map((o) => (
               <div key={o.id} className="card-also-item" data-testid="obs-group-item">
-                <span className={`tag tag-${o.type}`} style={{ fontSize: "0.625rem" }}>
-                  {o.type.replace(/_/g, " ")}
-                </span>
-                <p
-                  style={{ margin: "4px 0 0", fontSize: "0.75rem", color: "#555", lineHeight: 1.4 }}
-                >
-                  {o.text}
-                </p>
+                <span className={`tag tag-${o.type}`}>{o.type.replace(/_/g, " ")}</span>
+                <p className="card-also-item-text">{o.text}</p>
               </div>
             ))}
         </div>
@@ -157,16 +199,9 @@ function GroupedObsCard({
 }
 
 // ---------------------------------------------------------------------------
-// ContextChip — always-visible Document Context / Stage affordance
-//
-// Three states derived from props:
-//   suggested — stageSuggestion is set (inference produced a value, not yet accepted)
-//   set       — stage has a value (inferred-accepted or hand-typed)
-//   empty     — no stage, no suggestion
-//
-// Spec: docs/projects/onboarding_first_run.md § The context chip
-// Testids preserved: stage-suggestion, stage-suggestion-accept, stage-suggestion-dismiss
-// New testids: stage-chip (container), stage-chip-edit (inline-edit trigger)
+// ContextChip — always-visible Document Context / Stage affordance.
+// (Relocation to a document-attached position is tracked separately; for now
+// it renders at the top of the feed column. Testids preserved.)
 // ---------------------------------------------------------------------------
 
 interface ContextChipProps {
@@ -251,10 +286,7 @@ function ContextChip({
       )}
 
       {chipState === "empty" && !editing && (
-        <button
-          className="stage-chip-add-link"
-          onClick={() => setEditing(true)}
-        >
+        <button className="stage-chip-add-link" onClick={() => setEditing(true)}>
           Add context
         </button>
       )}
@@ -354,16 +386,13 @@ export function SidecarFeed({
   const [debugMode, setDebugMode] = useState(false);
   const [expandedLogId, setExpandedLogId] = useState<string | null>(null);
   const [copySuccess, setCopySuccess] = useState(false);
-  // Stall state: raised when an LLM request exceeds its timeout, so the chip
+  // Stall state: raised when an LLM request exceeds its timeout, so the dot
   // shows "still working…" instead of looking frozen. Cleared by the next good
   // response. See src/model/stallSignal.ts.
   const [stalled, setStalled] = useState(false);
   useEffect(() => subscribeStall(setStalled), []);
 
   // --- Batched arrival animation ---
-  // When 3+ observations arrive within 600 ms, they animate in as a group
-  // with a "+N new" indicator rather than a stutter of individual fades.
-  // See docs/projects/message_generation_workflow.md §8 (arrival animation).
   const prevObsIdsRef = useRef<Set<string>>(new Set(observations.map((o) => o.id)));
   const [arrivingIds, setArrivingIds] = useState<Set<string>>(new Set());
   const [arrivalBatchCount, setArrivalBatchCount] = useState(0);
@@ -417,8 +446,6 @@ export function SidecarFeed({
 
   const handleCopyLogs = async () => {
     try {
-      // Self-describing, call-centric envelope (request+response merged, static
-      // prompts dereferenced, chronological). See docs/projects/debug_log.md.
       const envelope = buildEnvelope(llmLogger.getLogs(), llmLogger.getProducedByCall(), {
         llmMode: getLlmMode(),
         activeProvider: llmLogger.getActiveProvider(),
@@ -439,59 +466,43 @@ export function SidecarFeed({
   });
   const overflowContradictionCount = alsoNoticedObs.filter((g) => g.hasContradiction).length;
 
+  // --- Control-center state derivation ---
+  const isPaid = activeProvider.includes("[paid]");
+  const modelName = activeProvider.replace(" [paid]", "") || "…";
+  const anchorState = stalled ? "stalled" : pending > 0 ? "working" : "idle";
+  const statusText = stalled
+    ? "still working…"
+    : pending > 0
+      ? `evaluating · ${pending}`
+      : "idle";
+
   return (
     <aside className="sidecar-panel" aria-label="Observations">
+      {/* Clear-confirm modal */}
       {showClearConfirm && (
         <div
-          className="modal-overlay"
+          className="modal-scrim"
           data-testid="clear-modal"
-          style={{
-            position: "fixed",
-            inset: 0,
-            zIndex: 1000,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            background: "rgba(0,0,0,0.35)",
-          }}
           onClick={() => setShowClearConfirm(false)}
         >
-          <div
-            className="modal-card"
-            style={{
-              background: "#fff",
-              borderRadius: "8px",
-              padding: "16px",
-              width: "80%",
-              maxWidth: "320px",
-              boxShadow: "0 8px 24px rgba(0,0,0,0.2)",
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <p style={{ margin: "0 0 12px" }}>
+          <div className="modal-card" onClick={(e) => e.stopPropagation()}>
+            <p style={{ margin: "0 0 var(--space-md)" }}>
               Clear the workspace? This erases all text, observations, and history.
             </p>
             <div style={{ display: "flex", justifyContent: "flex-end", gap: "8px" }}>
               <button
+                className="modal-ghost-btn"
                 data-testid="clear-cancel"
                 onClick={() => setShowClearConfirm(false)}
-                style={{ padding: "6px 12px", cursor: "pointer" }}
               >
                 Cancel
               </button>
               <button
+                className="modal-danger-btn"
                 data-testid="clear-confirm"
                 onClick={() => {
                   setShowClearConfirm(false);
                   onClearWorkspace();
-                }}
-                style={{
-                  padding: "6px 12px",
-                  cursor: "pointer",
-                  background: "#d93025",
-                  color: "#fff",
-                  border: "none",
-                  borderRadius: "4px",
                 }}
               >
                 Clear
@@ -500,248 +511,27 @@ export function SidecarFeed({
           </div>
         </div>
       )}
-      <div className="sidecar-header">
-        <div
-          className="sidecar-title-bar"
-          style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}
-        >
-          <h3>Sidecar Feed</h3>
-          <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-            {(import.meta.env.DEV || stalled) && (
-              <span
-                className="sidecar-status-chip"
-                data-testid="sidecar-status"
-                role="status"
-                aria-live="polite"
-                data-pending={pending}
-                data-stalled={stalled}
-                style={{
-                  fontSize: "0.75rem",
-                  padding: "2px 6px",
-                  borderRadius: "4px",
-                  background: stalled ? "#fce8e6" : pending === 0 ? "#e6f4ea" : "#fff4e5",
-                  color: stalled ? "#b3261e" : pending === 0 ? "#137333" : "#b06000",
-                }}
-              >
-                {stalled
-                  ? "still working…"
-                  : pending === 0
-                    ? "idle"
-                    : `evaluating (${pending} pending)`}
-              </span>
-            )}
-            {activeProvider && (
-              <span
-                className="active-provider-chip"
-                data-testid="provider-chip"
-                style={{
-                  fontSize: "0.75rem",
-                  padding: "2px 6px",
-                  background: activeProvider.includes("[paid]") ? "#fef3c7" : "#e0e0e0",
-                  borderRadius: "4px",
-                  color: activeProvider.includes("[paid]") ? "#92400e" : undefined,
-                  fontWeight: activeProvider.includes("[paid]") ? 600 : undefined,
-                }}
-              >
-                ⚡️ {activeProvider.replace(" [paid]", "")}
-                {activeProvider.includes("[paid]") && (
-                  <span
-                    style={{
-                      marginLeft: 4,
-                      fontSize: "0.65rem",
-                      textTransform: "uppercase",
-                      letterSpacing: "0.05em",
-                    }}
-                  >
-                    paid
-                  </span>
-                )}
-              </span>
-            )}
-            <button
-              className="settings-toggle-btn"
-              data-testid="clear-workspace"
-              onClick={() => setShowClearConfirm(true)}
-              title="Clear workspace"
-              aria-label="Clear workspace"
-            >
-              <svg
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <polyline points="3 6 5 6 21 6"></polyline>
-                <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path>
-                <path d="M10 11v6"></path>
-                <path d="M14 11v6"></path>
-                <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"></path>
-              </svg>
-            </button>
-            <input
-              type="file"
-              accept=".md,.txt"
-              style={{ display: "none" }}
-              ref={fileInputRef}
-              onChange={handleFileChange}
-              data-testid="import-input"
-            />
-            <div style={{ position: "relative" }}>
-              <button
-                className="settings-toggle-btn"
-                data-testid="export-menu-btn"
-                onClick={() => setShowExportMenu(!showExportMenu)}
-                disabled={documentIsEmpty}
-                style={{ opacity: documentIsEmpty ? 0.5 : 1 }}
-                title="Export or Copy Document"
-                aria-label="Export or Copy Document"
-              >
-                <svg
-                  width="16"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                  <polyline points="17 8 12 3 7 8"></polyline>
-                  <line x1="12" y1="3" x2="12" y2="15"></line>
-                </svg>
-              </button>
-              {showExportMenu && (
-                <div
-                  className="settings-panel"
-                  style={{
-                    position: "absolute",
-                    top: "100%",
-                    right: 0,
-                    marginTop: "4px",
-                    zIndex: 100,
-                    minWidth: "160px",
-                  }}
-                >
-                  <div className="setting-group">
-                    <button
-                      className="dismiss-btn"
-                      style={{
-                        width: "100%",
-                        textAlign: "left",
-                        padding: "8px",
-                        borderBottom: "1px solid #eee",
-                      }}
-                      onClick={() => {
-                        onExportMarkdown?.();
-                        setShowExportMenu(false);
-                      }}
-                      data-testid="export-md"
-                    >
-                      Download Markdown
-                    </button>
-                    <button
-                      className="dismiss-btn"
-                      style={{
-                        width: "100%",
-                        textAlign: "left",
-                        padding: "8px",
-                        borderBottom: "1px solid #eee",
-                      }}
-                      onClick={() => {
-                        onExportPdf?.();
-                        setShowExportMenu(false);
-                      }}
-                      data-testid="export-pdf"
-                    >
-                      Print / Save as PDF
-                    </button>
-                    <button
-                      className="dismiss-btn"
-                      style={{
-                        width: "100%",
-                        textAlign: "left",
-                        padding: "8px",
-                        borderBottom: "1px solid #eee",
-                      }}
-                      onClick={() => {
-                        onCopyMarkdown?.();
-                        setShowExportMenu(false);
-                      }}
-                      data-testid="copy-md"
-                    >
-                      Copy Markdown
-                    </button>
-                    <button
-                      className="dismiss-btn"
-                      style={{ width: "100%", textAlign: "left", padding: "8px" }}
-                      onClick={() => {
-                        onCopyRichText?.();
-                        setShowExportMenu(false);
-                      }}
-                      data-testid="copy-rtf"
-                    >
-                      Copy Rich Text
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
-            <button
-              className="settings-toggle-btn"
-              data-testid="import-button"
-              onClick={handleImportClick}
-              title="Import Document (.md, .txt)"
-              aria-label="Import Document"
-            >
-              <svg
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                <polyline points="7 10 12 15 17 10"></polyline>
-                <line x1="12" y1="15" x2="12" y2="3"></line>
-              </svg>
-            </button>
-            <button
-              className="settings-toggle-btn"
-              onClick={() => setShowSettings(!showSettings)}
-              title="Configure API Key"
-              aria-label="Configure API Key"
-              aria-expanded={showSettings}
-              aria-controls="settings-panel"
-            >
-              <svg
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <circle cx="12" cy="12" r="3"></circle>
-                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
-              </svg>
-            </button>
-          </div>
-        </div>
 
-        {showSettings && (
-          <div className="settings-panel" data-testid="settings-panel">
+      {/* Settings modal (floating, out of the feed) */}
+      {showSettings && (
+        <div className="modal-scrim" onClick={() => setShowSettings(false)}>
+          <div
+            className="modal-card"
+            data-testid="settings-panel"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="modal-title-row">
+              <span className="modal-title">Settings</span>
+              <button
+                className="dismiss-btn"
+                aria-label="Close settings"
+                onClick={() => setShowSettings(false)}
+              >
+                <DismissIcon />
+              </button>
+            </div>
             <div className="setting-group">
-              <label htmlFor="api-key-input">Gemini API Key</label>
+              <label htmlFor="api-key-input">Gemini API key</label>
               <input
                 id="api-key-input"
                 data-testid="api-key-input"
@@ -761,7 +551,7 @@ export function SidecarFeed({
                   data-testid="key-tier-toggle"
                   style={{
                     display: "flex",
-                    alignItems: "center",
+                    alignItems: "flex-start",
                     gap: "8px",
                     cursor: "pointer",
                     marginTop: "8px",
@@ -783,7 +573,7 @@ export function SidecarFeed({
               )}
             </div>
             {import.meta.env.DEV && (
-              <div className="setting-group">
+              <div className="setting-group" style={{ marginTop: "var(--space-sm)" }}>
                 <label
                   style={{ display: "flex", alignItems: "center", gap: "8px", cursor: "pointer" }}
                 >
@@ -792,49 +582,33 @@ export function SidecarFeed({
                     checked={debugMode}
                     onChange={(e) => setDebugMode(e.target.checked)}
                   />
-                  Enable LLM Debug Mode
+                  Enable LLM debug mode
                 </label>
               </div>
             )}
           </div>
-        )}
-      </div>
-
-      {!showSettings && (
-        <ContextChip
-          stage={stage}
-          onStageChange={onStageChange}
-          stageSuggestion={stageSuggestion}
-          onAcceptStageSuggestion={onAcceptStageSuggestion}
-          onDismissStageSuggestion={onDismissStageSuggestion}
-        />
+        </div>
       )}
 
-      <div
-        className="feed-container"
-        style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column" }}
-      >
+      <ContextChip
+        stage={stage}
+        onStageChange={onStageChange}
+        stageSuggestion={stageSuggestion}
+        onAcceptStageSuggestion={onAcceptStageSuggestion}
+        onDismissStageSuggestion={onDismissStageSuggestion}
+      />
+
+      <div className="feed-container">
         <div style={{ flex: 1 }}>
           {observations.length === 0 ? (
             <div className="sidecar-empty">
-              <div className="empty-icon">✍️</div>
-              <p>Observations will appear here as you write.</p>
-              <span className="empty-subtext">Quiet for now — keep going.</span>
+              <p>Quiet while you draft — I'll speak up as you revise.</p>
+              <span className="empty-subtext">Observations appear here as the document matures.</span>
             </div>
           ) : (
             <div className="observations-list" role="list">
-              {/* Batch arrival indicator: shown briefly when 3+ land at once */}
               {arrivalBatchCount >= 3 && (
-                <div
-                  data-testid="arrival-indicator"
-                  style={{
-                    padding: "4px 8px",
-                    fontSize: "0.75rem",
-                    color: "#6b7280",
-                    textAlign: "center",
-                    animation: "fadeIn 200ms ease-in",
-                  }}
-                >
+                <div data-testid="arrival-indicator" className="arrival-indicator">
                   +{arrivalBatchCount} new
                 </div>
               )}
@@ -856,30 +630,14 @@ export function SidecarFeed({
                 />
               ))}
 
-              {/* "Also noticed" drawer — overflow below the budget */}
               {alsoNoticedObs.length > 0 && (
-                <div
-                  data-testid="also-noticed-drawer"
-                  style={{ borderTop: "1px solid #e5e7eb", marginTop: "4px", paddingTop: "4px" }}
-                >
+                <div data-testid="also-noticed-drawer" className="also-noticed-drawer">
                   <button
                     data-testid="also-noticed-toggle"
+                    className="drawer-toggle"
                     aria-expanded={showAlsoNoticed}
                     aria-controls="also-noticed-list"
                     onClick={() => setShowAlsoNoticed(!showAlsoNoticed)}
-                    style={{
-                      width: "100%",
-                      textAlign: "left",
-                      background: "none",
-                      border: "none",
-                      cursor: "pointer",
-                      fontSize: "0.8rem",
-                      color: "#6b7280",
-                      padding: "4px 0",
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "6px",
-                    }}
                   >
                     <span>{showAlsoNoticed ? "▾" : "▸"}</span>
                     <span>
@@ -888,14 +646,7 @@ export function SidecarFeed({
                     </span>
                   </button>
                   {overflowContradictionCount > 0 && (
-                    <div
-                      style={{
-                        fontSize: "0.75rem",
-                        color: "#dc2626",
-                        paddingLeft: "16px",
-                        paddingBottom: "2px",
-                      }}
-                    >
+                    <div className="drawer-contra-note">
                       {overflowContradictionCount} more{" "}
                       {overflowContradictionCount === 1 ? "contradiction" : "contradictions"}
                     </div>
@@ -903,7 +654,7 @@ export function SidecarFeed({
                   {showAlsoNoticed && (
                     <div
                       id="also-noticed-list"
-                      style={{ display: "flex", flexDirection: "column", gap: "4px" }}
+                      style={{ display: "flex", flexDirection: "column", gap: "8px" }}
                     >
                       {alsoNoticedObs.map((group) => (
                         <GroupedObsCard
@@ -931,38 +682,19 @@ export function SidecarFeed({
         </div>
 
         {archivedObservations.length > 0 && (
-          <div
-            data-testid="archive-section"
-            style={{ borderTop: "1px solid #e5e7eb", padding: "8px" }}
-          >
+          <div data-testid="archive-section" className="archive-section">
             <button
               data-testid="archive-toggle"
+              className="drawer-toggle"
               aria-expanded={showArchive}
               aria-controls="archive-list"
               onClick={() => setShowArchive(!showArchive)}
-              style={{
-                width: "100%",
-                textAlign: "left",
-                background: "none",
-                border: "none",
-                cursor: "pointer",
-                fontSize: "0.8rem",
-                color: "#6b7280",
-                padding: "4px 0",
-                display: "flex",
-                alignItems: "center",
-                gap: "6px",
-              }}
             >
               <span>{showArchive ? "▾" : "▸"}</span>
               <span>Archive ({archivedObservations.length})</span>
             </button>
             {showArchive && (
-              <div
-                id="archive-list"
-                data-testid="archive-list"
-                style={{ marginTop: "4px", display: "flex", flexDirection: "column", gap: "4px" }}
-              >
+              <div id="archive-list" data-testid="archive-list" className="archive-list">
                 {archivedObservations.map((obs) => {
                   const reasonText =
                     obs.closureReason === "resolved_by_edit"
@@ -980,51 +712,24 @@ export function SidecarFeed({
                     <div
                       key={obs.id}
                       data-testid="archive-card"
+                      className="archive-card"
                       data-obs-status={obs.status}
                       data-obs-type={obs.type}
-                      style={{
-                        padding: "8px",
-                        background: "#f9fafb",
-                        border: "1px solid #e5e7eb",
-                        borderRadius: "6px",
-                        opacity: 0.75,
-                      }}
                     >
-                      <div
-                        style={{
-                          display: "flex",
-                          justifyContent: "space-between",
-                          marginBottom: "4px",
-                        }}
-                      >
-                        <span className={`tag tag-${obs.type}`} style={{ fontSize: "0.7rem" }}>
-                          {obs.type.replace(/_/g, " ")}
-                        </span>
-                        <span
-                          data-testid="archive-reason"
-                          style={{ fontSize: "0.7rem", color: "#6b7280" }}
-                        >
+                      <div className="archive-card-head">
+                        <span className={`tag tag-${obs.type}`}>{obs.type.replace(/_/g, " ")}</span>
+                        <span data-testid="archive-reason" className="archive-reason">
                           {reasonText}
                         </span>
                       </div>
-                      <p style={{ margin: 0, fontSize: "0.8rem", color: "#4b5563" }}>{obs.text}</p>
+                      <p className="archive-card-text">{obs.text}</p>
                       {obs.anchorText && (
-                        <div
-                          data-testid="archive-anchor"
-                          style={{
-                            marginTop: "6px",
-                            fontSize: "0.75rem",
-                            color: "#6b7280",
-                            fontStyle: "italic",
-                            borderLeft: "2px solid #d1d5db",
-                            paddingLeft: "6px",
-                          }}
-                        >
+                        <div data-testid="archive-anchor" className="archive-anchor">
                           “{obs.anchorText}”
                           {obs.conflictingAnchorText && (
                             <>
                               <br />
-                              <span style={{ display: "inline-block", marginTop: "4px" }}>
+                              <span className="archive-anchor-vs">
                                 vs. “{obs.conflictingAnchorText}”
                               </span>
                             </>
@@ -1040,51 +745,20 @@ export function SidecarFeed({
         )}
       </div>
 
+      {/* Debug panel (dev only) */}
       {import.meta.env.DEV && debugMode && (
-        <div
-          className="debug-panel"
-          style={{
-            borderTop: "1px solid #ddd",
-            padding: "8px",
-            maxHeight: "300px",
-            overflowY: "auto",
-            background: "#f9f9f9",
-            fontSize: "0.8rem",
-          }}
-        >
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-              marginBottom: "8px",
-            }}
-          >
+        <div className="debug-panel">
+          <div className="debug-panel-head">
             <h4 style={{ margin: 0 }}>LLM Debug Logs</h4>
             <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
               {copySuccess && <span style={{ color: "#4caf50", fontSize: "0.7rem" }}>Copied!</span>}
-              <button
-                onClick={handleCopyLogs}
-                style={{ fontSize: "0.7rem", padding: "2px 8px", cursor: "pointer" }}
-              >
+              <button onClick={handleCopyLogs} style={{ fontSize: "0.7rem", padding: "2px 8px" }}>
                 Copy All
               </button>
             </div>
           </div>
           {sessionStats && sessionStats.totalCalls > 0 && (
-            <div
-              data-testid="session-stats"
-              style={{
-                marginBottom: "8px",
-                padding: "4px 6px",
-                background: "#f0fdf4",
-                border: "1px solid #bbf7d0",
-                borderRadius: "4px",
-                fontSize: "0.7rem",
-                color: "#166534",
-                fontFamily: "monospace",
-              }}
-            >
+            <div data-testid="session-stats" className="debug-session-stats">
               Session: {sessionStats.fastCalls}f + {sessionStats.strongCalls}s calls
               {sessionStats.avgLatencyMs > 0 && ` · avg ${sessionStats.avgLatencyMs}ms`}
             </div>
@@ -1094,24 +768,13 @@ export function SidecarFeed({
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
               {logs.map((log) => {
-                // Trigger entries render as a compact one-liner audit trail
                 if (log.type === "trigger") {
                   return (
                     <div
                       key={log.id}
                       data-testid="debug-entry"
                       data-log-type="trigger"
-                      style={{
-                        background: "#eef2ff",
-                        border: "1px solid #c7d2fe",
-                        borderRadius: "4px",
-                        padding: "3px 6px",
-                        fontSize: "0.7rem",
-                        color: "#4338ca",
-                        display: "flex",
-                        justifyContent: "space-between",
-                        fontFamily: "monospace",
-                      }}
+                      className="debug-entry debug-entry-trigger"
                     >
                       <span>
                         ▶ trigger={log.triggerKind} block={log.blockId?.slice(0, 8)}
@@ -1120,12 +783,8 @@ export function SidecarFeed({
                     </div>
                   );
                 }
-
-                // Archive entries: a compact one-liner showing who closed an
-                // observation and why (the gap this redesign closes).
                 if (log.type === "archive" && log.archive) {
                   const a = log.archive;
-                  const actorColor = a.actor === "user" ? "#92400e" : "#6b7280";
                   return (
                     <div
                       key={log.id}
@@ -1133,27 +792,10 @@ export function SidecarFeed({
                       data-log-type="archive"
                       data-archive-actor={a.actor}
                       data-archive-reason={a.reason}
-                      style={{
-                        background: "#fdf4ff",
-                        border: "1px solid #f0abfc",
-                        borderRadius: "4px",
-                        padding: "3px 6px",
-                        fontSize: "0.7rem",
-                        color: actorColor,
-                        display: "flex",
-                        justifyContent: "space-between",
-                        gap: "6px",
-                        fontFamily: "monospace",
-                      }}
+                      className="debug-entry debug-entry-archive"
                       title={a.text}
                     >
-                      <span
-                        style={{
-                          overflow: "hidden",
-                          textOverflow: "ellipsis",
-                          whiteSpace: "nowrap",
-                        }}
-                      >
+                      <span className="debug-entry-ellipsis">
                         ✕ {a.actor} {a.reason} · {a.obsType}
                       </span>
                       <span style={{ opacity: 0.7, flexShrink: 0 }}>
@@ -1162,35 +804,16 @@ export function SidecarFeed({
                     </div>
                   );
                 }
-
-                const color =
-                  log.type === "error"
-                    ? "#ffebee"
-                    : log.type === "retry"
-                      ? "#fff8e1"
-                      : log.type === "response"
-                        ? "#e8f5e9"
-                        : "transparent";
                 const isExpanded = expandedLogId === log.id;
                 return (
                   <div
                     key={log.id}
                     data-testid="debug-entry"
                     data-log-type={log.type}
-                    style={{
-                      background: color,
-                      border: "1px solid #ccc",
-                      borderRadius: "4px",
-                      padding: "4px",
-                    }}
+                    className={`debug-entry debug-entry-${log.type}`}
                   >
                     <div
-                      style={{
-                        display: "flex",
-                        justifyContent: "space-between",
-                        cursor: "pointer",
-                        fontWeight: "bold",
-                      }}
+                      className="debug-entry-head"
                       onClick={() => setExpandedLogId(isExpanded ? null : log.id)}
                     >
                       <span>
@@ -1202,36 +825,17 @@ export function SidecarFeed({
                       <div style={{ color: "red", marginTop: "4px" }}>{log.errorMessage}</div>
                     )}
                     {isExpanded && (
-                      <div
-                        style={{
-                          marginTop: "8px",
-                          borderTop: "1px dashed #ccc",
-                          paddingTop: "4px",
-                        }}
-                      >
+                      <div className="debug-entry-detail">
                         <div>
                           <strong>Latency:</strong> {log.latencyMs}ms
                         </div>
                         <div>
                           <strong>Payload:</strong>{" "}
-                          <pre
-                            style={{ whiteSpace: "pre-wrap", margin: "4px 0", fontSize: "0.7rem" }}
-                          >
-                            {JSON.stringify(log.payload, null, 2)}
-                          </pre>
+                          <pre>{JSON.stringify(log.payload, null, 2)}</pre>
                         </div>
                         {log.response && (
                           <div>
-                            <strong>Response:</strong>{" "}
-                            <pre
-                              style={{
-                                whiteSpace: "pre-wrap",
-                                margin: "4px 0",
-                                fontSize: "0.7rem",
-                              }}
-                            >
-                              {log.response}
-                            </pre>
+                            <strong>Response:</strong> <pre>{log.response}</pre>
                           </div>
                         )}
                       </div>
@@ -1243,6 +847,140 @@ export function SidecarFeed({
           )}
         </div>
       )}
+
+      {/* Control center — docked under the feed column */}
+      <div className="control-center">
+        <div className="control-process">
+          <div className="control-process-label">process</div>
+          <div className="control-process-row">
+            <span data-testid="provider-chip">{modelName}</span>
+            {isPaid && <span className="paid">paid</span>}
+          </div>
+          <div className="control-process-row">
+            <span>status</span>
+            <span
+              data-testid="sidecar-status"
+              role="status"
+              aria-live="polite"
+              data-pending={pending}
+              data-stalled={stalled}
+              className={anchorState !== "idle" ? "working" : undefined}
+            >
+              {statusText}
+            </span>
+          </div>
+          {sessionStats && sessionStats.totalCalls > 0 && (
+            <div className="control-process-row">
+              <span>this session</span>
+              <span>
+                {sessionStats.fastCalls}f · {sessionStats.strongCalls}s
+              </span>
+            </div>
+          )}
+        </div>
+
+        <div className="control-actions-row">
+          <input
+            type="file"
+            accept=".md,.txt"
+            style={{ display: "none" }}
+            ref={fileInputRef}
+            onChange={handleFileChange}
+            data-testid="import-input"
+          />
+          <div className="control-export-wrap">
+            <button
+              className="control-btn"
+              data-testid="export-menu-btn"
+              onClick={() => setShowExportMenu(!showExportMenu)}
+              disabled={documentIsEmpty}
+              title="Export or copy document"
+              aria-label="Export or copy document"
+            >
+              <ExportIcon />
+            </button>
+            {showExportMenu && (
+              <div className="export-menu">
+                <button
+                  data-testid="export-md"
+                  onClick={() => {
+                    onExportMarkdown?.();
+                    setShowExportMenu(false);
+                  }}
+                >
+                  Download Markdown
+                </button>
+                <button
+                  data-testid="export-pdf"
+                  onClick={() => {
+                    onExportPdf?.();
+                    setShowExportMenu(false);
+                  }}
+                >
+                  Print / Save as PDF
+                </button>
+                <button
+                  data-testid="copy-md"
+                  onClick={() => {
+                    onCopyMarkdown?.();
+                    setShowExportMenu(false);
+                  }}
+                >
+                  Copy Markdown
+                </button>
+                <button
+                  data-testid="copy-rtf"
+                  onClick={() => {
+                    onCopyRichText?.();
+                    setShowExportMenu(false);
+                  }}
+                >
+                  Copy Rich Text
+                </button>
+              </div>
+            )}
+          </div>
+          <button
+            className="control-btn"
+            data-testid="import-button"
+            onClick={handleImportClick}
+            title="Import document (.md, .txt)"
+            aria-label="Import document"
+          >
+            <ImportIcon />
+          </button>
+          <button
+            className="control-btn"
+            onClick={() => setShowSettings(true)}
+            title="Settings"
+            aria-label="Settings"
+          >
+            <GearIcon />
+          </button>
+          <button
+            className="control-btn"
+            data-testid="clear-workspace"
+            onClick={() => setShowClearConfirm(true)}
+            title="Clear workspace"
+            aria-label="Clear workspace"
+          >
+            <TrashIcon />
+          </button>
+          <div
+            className="control-anchor"
+            data-state={anchorState}
+            data-paid={isPaid ? "true" : undefined}
+            tabIndex={0}
+            aria-label={`Model ${modelName}${isPaid ? " (paid)" : ""} — ${statusText}`}
+          >
+            <span className="control-dot" />
+            <span className="control-anchor-tip" role="tooltip">
+              {modelName}
+              {isPaid ? " · paid" : ""} — {statusText}
+            </span>
+          </div>
+        </div>
+      </div>
     </aside>
   );
 }
