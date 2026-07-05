@@ -1,5 +1,5 @@
 ---
-status: idea
+status: done
 kind: spec
 phases: [6]
 summary: The visual design system — type, colour (OKLCH tokens), spacing, elevation, motion, and per-component language — that makes the tool feel calm, editorial, and opinionated rather than a dev-tool grey box. Light-first; dark deferred. Serif writing canvas, sans observation feed, ink-indigo brand accent on warm paper.
@@ -11,7 +11,7 @@ summary: The visual design system — type, colour (OKLCH tokens), spacing, elev
 
 > Canonical status lives in the frontmatter above and is mirrored in the Projects Index in `docs/plan.md`. This block carries the human-readable scope only.
 
-**Idea — Phase 6 (design fully written, ready to build).** This is the design-system half of the Phase 6 "product feel" pass. It defines the tokens and component language; the **UI/UX mechanics pass** (interaction contracts), **emotional register** (voice/copy), and **onboarding & first-run** (the blank-canvas moment) consume it. Defining it first is deliberate — everything else references the type, colour, and spacing vocabulary set here.
+**Done — shipped & merged via #46 (2026-07-05).** The token/type/colour system, self-hosted fonts (Faustina serif canvas + Inter feed + JetBrains mono), editor canvas, token-based highlights, and the full component language are implemented and live; `src/styles.css` carries the Hallmark stamp. Residual (both explicitly deferred, not gates for green): the **dark-mode token slice** (§ Dark mode) and a **formal a11y contrast/focus re-verify** (§ Accessibility floor). This is the design-system half of the Phase 6 "product feel" pass. It defines the tokens and component language; the **UI/UX mechanics pass** (interaction contracts), **emotional register** (voice/copy), and **onboarding & first-run** (the blank-canvas moment) consume it. Defining it first is deliberate — everything else references the type, colour, and spacing vocabulary set here.
 
 The four taste decisions that set the identity were made 2026-06-17:
 
