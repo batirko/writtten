@@ -118,6 +118,22 @@ export function createFixtureRunner(): FixtureRunner {
     vi.mocked(db.saveObservation).mockImplementation(async (obsArg) => {
       savedObservations.push(obsArg as Observation);
     });
+
+    // Revert-aware evaluation (Mechanism 2): loadObservation/reactivateObservation
+    // back the same in-memory savedObservations array saveObservation writes to,
+    // so a restore-from-snapshot path (if a fixture's sections revisit an
+    // earlier (membership, text) state) behaves like the real DB would.
+    vi.mocked(db.loadObservation).mockImplementation(async (id: string) =>
+      savedObservations.find((o) => o.id === id)
+    );
+    vi.mocked(db.reactivateObservation).mockImplementation(async (id: string) => {
+      const obs = savedObservations.find((o) => o.id === id);
+      if (obs) {
+        obs.status = "active";
+        delete obs.closureReason;
+        supersededIds.delete(id);
+      }
+    });
   }
 
   function teardown(): void {

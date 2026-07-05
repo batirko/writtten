@@ -39,6 +39,7 @@ export const MERGED_SYSTEM_PROMPT = `You are an AI sidecar evaluating a section 
 4. Unsupported claims: strong assertions of *fact about the world* that would require evidence (data, studies, precedent) but provide none. Do NOT flag:
    - Success targets and forward-looking goals: e.g. "false positives drop by ≥30%", "support volume decreases by 20%", "False-positive dispute rate drops by at least 30% within 90 days of launch" — these are intended targets the team is setting, not factual claims needing citation.
    - Claims explicitly attributed to a named source, team, or study: e.g. "per the fraud team's analysis", "according to the data team", "research shows X" — attribution IS the support.
+   - First-person opinions, feelings, apprehensions, or preferences: e.g. "I fear my writing skill will atrophy", "I'm concerned this won't scale", "I worry users won't adopt it", "I think this is the right call", "we believe this matters" — these are the author's stated stance, not factual assertions about the world that need citation. Rhetorical or narrative framing in a non-PRD document (a story, an analogy, an announcement) is likewise not an unsupported claim.
    Only flag unattributed declarative assertions about the current state of the world: e.g. "Our decline rate is 30% above industry average" with no evidence cited.
 5. Undefined jargon: technical terms, acronyms, or domain-specific language used without being defined and that may be unfamiliar to the implied reader. Do not flag terms already in the provided glossary.
 

@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef } from "react";
 import { Editor } from "./editor/Editor";
 import { SidecarFeed } from "./sidecar/SidecarFeed";
+import { ControlCenter } from "./sidecar/ControlCenter";
+import { DocumentContext } from "./sidecar/DocumentContext";
 import {
   loadObservationsForDocument,
   updateObservationStatus,
@@ -10,6 +12,7 @@ import {
 } from "./store/db";
 import { scheduleEval } from "./services/orchestrator";
 import { conflictPairKey } from "./services/evaluator";
+import { clearSnapshotsForDocument } from "./services/evalSnapshot";
 import type { EvalContext } from "./services/types";
 import { capabilityForTier, type ModelTier } from "./model/capability";
 import { llmLogger, type LLMLogEntry, type SessionStats } from "./model/logger";
@@ -68,6 +71,25 @@ export default function App() {
   const [clearTrigger, setClearTrigger] = useState(0);
   const [stageSuggestion, setStageSuggestion] = useState<string | null>(null);
   const [importContent, setImportContent] = useState<{ content: string; timestamp: number }>();
+
+  // Companion surface: the feed column reflows the canvas (never overlays it).
+  // Collapsed → canvas reclaims full editorial measure. Persisted per session.
+  const [feedCollapsed, setFeedCollapsed] = useState<boolean>(
+    () => localStorage.getItem("writtten_feed_collapsed") === "1"
+  );
+  useEffect(() => {
+    localStorage.setItem("writtten_feed_collapsed", feedCollapsed ? "1" : "0");
+  }, [feedCollapsed]);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "\\") {
+        e.preventDefault();
+        setFeedCollapsed((c) => !c);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
 
   const [logs, setLogs] = useState<LLMLogEntry[]>([]);
   const [activeProvider, setActiveProvider] = useState<string>("gemini-2.0-flash");
@@ -154,6 +176,7 @@ export default function App() {
 
   const handleClearWorkspace = async () => {
     await clearDocumentData(DOC_ID);
+    clearSnapshotsForDocument(DOC_ID);
     setObservations([]);
     setArchivedObservations([]);
     setStageSuggestion(null);
@@ -167,6 +190,7 @@ export default function App() {
   const handleImportFile = async (file: File) => {
     const text = await file.text();
     await clearDocumentData(DOC_ID);
+    clearSnapshotsForDocument(DOC_ID);
     setObservations([]);
     setArchivedObservations([]);
     setStageSuggestion(null);
@@ -275,7 +299,15 @@ export default function App() {
   return (
     <div className="app">
       <main className="editor-panel">
-        <Editor
+        <div className="editor-column">
+          <DocumentContext
+            stage={stage}
+            onStageChange={setStage}
+            stageSuggestion={stageSuggestion}
+            onAcceptStageSuggestion={handleAcceptStageSuggestion}
+            onDismissStageSuggestion={handleDismissStageSuggestion}
+          />
+          <Editor
           apiKey={apiKey}
           paidKey={paidKey}
           capability={capability}
@@ -293,35 +325,63 @@ export default function App() {
           clearTrigger={clearTrigger}
           importContent={importContent}
           onReady={(e) => (editorRef.current = e)}
-        />
+          />
+        </div>
       </main>
-      <SidecarFeed
-        observations={observations}
-        archivedObservations={archivedObservations}
-        blockOrder={blockOrder}
+      <button
+        className="feed-handle"
+        data-testid="feed-handle"
+        onClick={() => setFeedCollapsed((c) => !c)}
+        aria-label={feedCollapsed ? "Show observations" : "Hide observations"}
+        aria-expanded={!feedCollapsed}
+        title={feedCollapsed ? "Show observations (⌘\\)" : "Hide observations (⌘\\)"}
+      >
+        <svg
+          width="12"
+          height="12"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          style={{ transform: feedCollapsed ? "rotate(180deg)" : "none" }}
+        >
+          <polyline points="9 18 15 12 9 6" />
+        </svg>
+      </button>
+      {/* Always mounted so the fold animates (width transition); the canvas
+          reflows around it. aria-hidden while collapsed. */}
+      <div
+        className={`feed-slot${feedCollapsed ? " is-collapsed" : ""}`}
+        aria-hidden={feedCollapsed}
+      >
+        <SidecarFeed
+          observations={observations}
+          archivedObservations={archivedObservations}
+          blockOrder={blockOrder}
+          hoveredObservationId={hoveredObservationId}
+          onHoverObservation={setHoveredObservationId}
+          onDismissObservation={handleDismissObservation}
+        />
+      </div>
+      {/* Control center is always visible — independent of feed collapse. */}
+      <ControlCenter
+        pending={pending}
+        activeProvider={activeProvider}
+        sessionStats={sessionStats}
+        documentIsEmpty={blockOrder.length === 0}
         apiKey={apiKey}
         onApiKeyChange={setApiKey}
         keyTier={keyTier}
         onKeyTierChange={setKeyTier}
-        stage={stage}
-        onStageChange={setStage}
-        hoveredObservationId={hoveredObservationId}
-        onHoverObservation={setHoveredObservationId}
-        onDismissObservation={handleDismissObservation}
-        onClearWorkspace={handleClearWorkspace}
         onImportFile={handleImportFile}
-        logs={logs}
-        activeProvider={activeProvider}
-        pending={pending}
-        sessionStats={sessionStats}
-        stageSuggestion={stageSuggestion}
-        onAcceptStageSuggestion={handleAcceptStageSuggestion}
-        onDismissStageSuggestion={handleDismissStageSuggestion}
+        onClearWorkspace={handleClearWorkspace}
         onExportMarkdown={handleExportMarkdown}
         onExportPdf={handleExportPdf}
         onCopyMarkdown={handleCopyMarkdown}
         onCopyRichText={handleCopyRichText}
-        documentIsEmpty={blockOrder.length === 0}
+        logs={logs}
       />
     </div>
   );

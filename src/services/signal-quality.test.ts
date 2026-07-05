@@ -9,6 +9,7 @@ import {
 import * as db from "../store/db";
 import type { ClaimLedgerEntry } from "../store/db";
 import { capabilityForTier } from "../model/capability";
+import { clearSnapshotsForDocument } from "./evalSnapshot";
 
 const STRONG = capabilityForTier("strong");
 
@@ -18,6 +19,8 @@ vi.mock("../store/db", () => ({
   saveClaimsForBlock: vi.fn(),
   loadActiveClaimsForDocument: vi.fn(async () => []),
   saveObservation: vi.fn(),
+  loadObservation: vi.fn(async () => undefined),
+  reactivateObservation: vi.fn(),
   loadActiveObservationsForDocument: vi.fn(async () => []),
   updateObservationStatus: vi.fn(),
   loadSuppressionsForDocument: vi.fn(async () => []),
@@ -42,6 +45,10 @@ beforeEach(() => {
   vi.mocked(db.loadBlockSummary).mockResolvedValue(undefined);
   vi.mocked(db.loadActiveObservationsForDocument).mockResolvedValue([]);
   vi.mocked(db.loadActiveClaimsForDocument).mockResolvedValue([]);
+  // The revert-aware snapshot store is a module-level cache keyed on
+  // (docId, membership, text hash); clear it so an eval in one test can't be
+  // served as a cache hit by a same-shaped fixture in another. See evalSnapshot.ts.
+  clearSnapshotsForDocument(docId);
 });
 
 describe("isDocumentMetaClaim", () => {

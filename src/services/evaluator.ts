@@ -4,6 +4,11 @@ import { prefilterClaims } from "./prefilter";
 import { computePriority } from "./priority";
 import { JARGON_PRESET } from "./jargonPreset";
 import {
+  classifyDocumentClass,
+  sectionCalibrationBlock,
+  docCalibrationBlock,
+} from "./documentClass";
+import {
   saveBlockSummary,
   loadBlockSummary,
   saveClaimsForBlock,
@@ -12,6 +17,9 @@ import {
   saveDocEvalState,
   loadDocEvalState,
   loadActiveObservationsForDocument,
+  loadObservation,
+  reactivateObservation,
+  updateObservationStatus,
   type ClaimLedgerEntry,
   type Observation,
 } from "../store/db";
@@ -39,7 +47,14 @@ import {
   reconcileObservations,
   reconcileDocumentObservations,
   reconcileSweepContradictions,
+  archiveObs,
 } from "./evaluatorReconcile";
+import {
+  snapshotKey,
+  getSectionSnapshot,
+  setSectionSnapshot,
+  type SectionSnapshot,
+} from "./evalSnapshot";
 
 // ---------------------------------------------------------------------------
 // Re-exports — preserve the public API so callers don't need to change their
@@ -61,6 +76,11 @@ export { reconcileDocumentObservations } from "./evaluatorReconcile";
 // Local types — used only inside the evaluate* functions below.
 // ---------------------------------------------------------------------------
 
+// Char budget for the OBS-027 "Established elsewhere" sibling-claim context.
+// Summaries are always included (one-liners); claim texts are truncated/capped
+// to this budget so token growth stays bounded on large documents.
+const CONTEXT_CLAIM_BUDGET_CHARS = 1200;
+
 interface SpanObservation {
   text: string;
   substring: string;
@@ -70,6 +90,57 @@ interface ContradictionObservation {
   newClaimText: string;
   existingClaimId: number | string;
   message: string;
+}
+
+// ---------------------------------------------------------------------------
+// Revert-aware evaluation — Mechanism 2 (see evalSnapshot.ts + step 1b below).
+// ---------------------------------------------------------------------------
+
+/**
+ * Restore a section to a previously-evaluated (membership, text) state:
+ * reactivate the cached cards by their original id (no new id → no feed
+ * flicker), close any stray active observation on these blocks that isn't
+ * part of the restored state (a real artifact of the transient window, not a
+ * false closure), and re-save the claims + block summary the cached state
+ * produced — all without a model call. See docs/projects/revert_aware_evaluation.md.
+ */
+async function restoreSectionFromSnapshot(
+  docId: string,
+  sectionId: string,
+  memberBlockIds: string[],
+  cleanText: string,
+  textHash: string,
+  snapshot: SectionSnapshot
+): Promise<void> {
+  const restoreIds = new Set(snapshot.observationIds);
+  const now = Date.now();
+
+  for (const id of snapshot.observationIds) {
+    const obs = await loadObservation(id);
+    if (obs && obs.status !== "active") {
+      await reactivateObservation(id, now);
+    }
+  }
+
+  const memberSet = new Set(memberBlockIds);
+  const active = await loadActiveObservationsForDocument(docId);
+  for (const o of active) {
+    if (o.blockId != null && memberSet.has(o.blockId) && !restoreIds.has(o.id)) {
+      await updateObservationStatus(o.id, "auto_closed", "resolved_by_edit");
+      archiveObs(o, "auto_closed");
+    }
+  }
+
+  await saveClaimsForBlock(docId, sectionId, snapshot.claims);
+  await saveBlockSummary({ blockId: sectionId, docId, summary: snapshot.summary, hash: textHash });
+
+  if (import.meta.env.DEV) {
+    harness.emit("restore", {
+      sectionId,
+      restored: snapshot.observationIds.length,
+      textLength: cleanText.length,
+    });
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -117,6 +188,22 @@ export async function evaluateSection(
   // 1. Skip if text hasn't changed since last eval
   const existingSummary = await loadBlockSummary(sectionId);
   if (existingSummary && existingSummary.hash === textHash) {
+    return;
+  }
+
+  // 1b. Revert-aware restore (Mechanism 2, revert_aware_evaluation.md): a
+  //     section's membership can transiently resize (a paragraph<->heading
+  //     toggle) with no debounce of its own, so the block-summary hash above
+  //     can miss even when this *exact* (membership, text) combination was
+  //     already evaluated under a different representative sectionId. Key the
+  //     snapshot on membership+text, not sectionId, so a toggle->revert (or a
+  //     Ctrl-Z back to prior text) restores the prior observations by id
+  //     instead of re-running the model and re-deriving new ones.
+  const snapKey = snapshotKey(memberBlockIds, textHash);
+  const snapshot = getSectionSnapshot(docId, snapKey);
+  if (snapshot) {
+    if (!isLive()) return;
+    await restoreSectionFromSnapshot(docId, sectionId, memberBlockIds, cleanText, textHash, snapshot);
     return;
   }
 
@@ -171,11 +258,63 @@ export async function evaluateSection(
 
     const userParts: string[] = [cleanText];
     if (stage) userParts.push(`\nDocument context: ${stage}`);
+    // Document-type calibration (OBS-023/OBS-028): on non-PRD genres, relax
+    // unsupported_claim to hard external-fact assertions only. Empty (hash-stable)
+    // for prd_spec / unknown. See documentClass.ts.
+    const sectionCalib = sectionCalibrationBlock(classifyDocumentClass(stage));
+    if (sectionCalib) userParts.push(sectionCalib);
     if (definedTerms.length > 0) {
       userParts.push(
         `\nDefined terms (do not flag as undefined jargon):\n${definedTerms.join("\n")}`
       );
     }
+
+    // OBS-027: give the model the context of what SIBLING sections already
+    // establish, so reference-resolving span checks (clarity / undefined_jargon /
+    // unsupported_claim) don't false-positive on terms, references, or claims
+    // that other sections define or assert. Reuses artifacts already in memory
+    // (block summaries + the active ledger) — no extra model call. Gated on
+    // sibling content so single-section fixtures keep stable hashes (mirrors the
+    // priorObs gate below). See docs/projects/section_eval_precision.md (OBS-027).
+    const siblingSummaries = (await loadBlockSummariesForDocument(docId))
+      .filter((s) => s.blockId !== sectionId && s.summary.trim().length > 0)
+      .map((s) => s.summary.trim());
+    // Broaden past the glossary (which uses only `definition` claims) to sibling
+    // assertions/commitments/metrics/constraints so `unsupported_claim` resolves
+    // against what other sections assert. `definition` claims are excluded here —
+    // they already surface via the "Defined terms" glossary above (dedup).
+    const siblingClaims = existingClaimsForGlossary
+      .filter((c) => !memberBlockIds.includes(c.sourceBlockId) && c.kind !== "definition")
+      .map((c) => c.text.trim())
+      .filter((t) => t.length > 0);
+    // Bound token growth on large documents: summaries are one-liners (kept whole),
+    // claim texts are truncated and capped to a char budget.
+    const cappedClaims: string[] = [];
+    let claimBudget = CONTEXT_CLAIM_BUDGET_CHARS;
+    for (const t of siblingClaims) {
+      const line = t.length > 200 ? `${t.slice(0, 197)}…` : t;
+      if (claimBudget - line.length < 0) break;
+      cappedClaims.push(line);
+      claimBudget -= line.length;
+    }
+    if (siblingSummaries.length > 0 || cappedClaims.length > 0) {
+      const contextParts: string[] = [];
+      if (siblingSummaries.length > 0) {
+        contextParts.push(`Other sections:\n${siblingSummaries.map((s) => `- ${s}`).join("\n")}`);
+      }
+      if (cappedClaims.length > 0) {
+        contextParts.push(`Established claims:\n${cappedClaims.map((c) => `- ${c}`).join("\n")}`);
+      }
+      // Instructions ride with the (gated) block rather than the static system
+      // prompt so single-section fixtures keep stable request hashes for mock
+      // replay — only sections that actually have sibling context change.
+      userParts.push(
+        `\nEstablished elsewhere in this document — CONTEXT ONLY, not part of the section under review. Other sections already define/assert the following. Do NOT flag a term, reference, or claim as undefined, unclear, or unsupported when it is resolved here; do not generate observations about this context block. Still flag a reference this block does not actually resolve — loose topical overlap is not a definition. Also treat the section heading as governing intent: items under "Out of scope"/"Non-goals"/"Future" headings are deliberate exclusions, not omissions.\n${contextParts.join(
+          "\n"
+        )}`
+      );
+    }
+
     if (priorObs.length > 0) {
       const priorLines = priorObs.map((o, i) => `[${i}]: (${o.type}) "${o.text}"`).join("\n");
       // Injected in user content only (not system prompt) so the base fixture
@@ -442,6 +581,21 @@ export async function evaluateSection(
     //    rate-limited strong call), the hash stays unsaved and the next trigger
     //    re-runs the whole eval instead of short-circuiting on a stale match.
     await saveBlockSummary({ blockId: sectionId, docId, summary: summaryText, hash: textHash });
+
+    // 9. Snapshot this (membership, text) state so a later return to it — a
+    //    toggle reverted, a Ctrl-Z, deleting and retyping the same sentence —
+    //    can restore rather than re-evaluate. See step 1b / Mechanism 2.
+    const settledActive = await loadActiveObservationsForDocument(docId);
+    const memberSet = new Set(memberBlockIds);
+    const observationIds = settledActive
+      .filter((o) => o.blockId != null && memberSet.has(o.blockId))
+      .map((o) => o.id);
+    setSectionSnapshot(docId, snapKey, {
+      sectionId,
+      summary: summaryText,
+      claims: extractedClaims,
+      observationIds,
+    });
   } catch (error) {
     console.error("Evaluation error for section", sectionId, error);
   }
@@ -529,6 +683,10 @@ export async function evaluateDocument(
 
   const parts: string[] = [];
   parts.push(stage ? `Stage/Context: ${stage}` : "Stage/Context: (none set)");
+  // Document-type calibration: on non-PRD genres, don't demand PRD structure
+  // (missing_topic / structure_flow). Empty (hash-stable) for prd_spec / unknown.
+  const docCalib = docCalibrationBlock(classifyDocumentClass(stage));
+  if (docCalib) parts.push(docCalib);
   parts.push(
     `\nBlock Summaries:\n${meaningful.map((s, i) => `[${i + 1}] ${s.summary}`).join("\n")}`
   );
@@ -737,7 +895,11 @@ export async function evaluateLedgerContradictions(
     const emit = (con: SweepConflict, obsType: "contradiction" | "strategic_tension") => {
       const a = sorted[Number(con.claimAId)];
       const b = sorted[Number(con.claimBId)];
-      if (!a || !b) return;
+      // OBS-026 dropped the same-block guard so intra-block conflicts surface,
+      // but a claim can't contradict itself: reject a self-pair (same claim
+      // index returned twice) — it would render a card claiming a text
+      // conflicts with itself. Same-block *distinct* claims (a !== b) still pass.
+      if (!a || !b || a === b) return;
 
       const { severity, confidence, priority } =
         obsType === "contradiction"
