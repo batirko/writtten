@@ -94,7 +94,9 @@ First-run asks for nothing:
 
 ### The context chip (stage discoverability) — settled 2026-06-18
 
-Resolves the plan's _Document Context / Stage discoverability_ milestone. **One** quiet, persistent affordance at the **top of the feed panel** carries the document's context in every state — replacing both the gear-buried textarea as the _primary_ surface and the separate transient inferred-suggestion chip. It is a **chip, never a form or a gate**; ignoring it costs nothing. Treated as a **brand** moment, not a semantic one (`visual_style.md` § Stage chip: `--color-accent-tint` bg, `--color-accent` text — "the tool understanding you," not flagging a defect).
+> **Relocated 2026-07-05 (built): document-attached, not feed-top.** The companion-surface redesign moved this affordance out of the feed to a **quiet metadata line at the top of the writing column** (the `DocumentContext` component in the editor column) — so it survives feed-collapse and reads as _the document's own metadata_ rather than feed chrome. The three states, the accept/dismiss suggestion flow, and all `stage-*` testids below are unchanged; only the **location and skin** changed (it is no longer a feed-panel chip). See `docs/projects/feed_surface.md` § 4.
+
+Resolves the plan's _Document Context / Stage discoverability_ milestone. **One** quiet, persistent affordance ~~at the **top of the feed panel**~~ (now **document-attached**, at the top of the writing column) carries the document's context in every state — replacing both the gear-buried textarea as the _primary_ surface and the separate transient inferred-suggestion chip. It is a **chip, never a form or a gate**; ignoring it costs nothing. Treated as a **brand** moment, not a semantic one (`visual_style.md` § Stage chip: `--color-accent-tint` bg, `--color-accent` text — "the tool understanding you," not flagging a defect).
 
 **The three states it cycles through:**
 

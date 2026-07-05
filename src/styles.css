@@ -1,3 +1,7 @@
+/* Hallmark · macrostructure: Long Document (app shell) · tone: editorial · anchor hue: ink-indigo 274 */
+/* Companion surface (docs/projects/feed_surface.md): serif Faustina writing canvas +
+   sans feed on warm paper; reflow-column feed; tag-carries-colour severity; docked
+   control center. Colour/font/space by token; transform/opacity motion; reduced-motion honoured. */
 *,
 *::before,
 *::after {
@@ -7,19 +11,101 @@
 }
 
 :root {
-  --bg: #fafaf8;
-  --surface: #ffffff;
-  --border: #e5e5e0;
-  --text: #1a1a18;
-  --text-muted: #888880;
-  --sidecar-bg: #f5f5f2;
+  /* Neutrals — warm paper ramp (docs/projects/visual_style.md § Tokens) */
+  --color-paper: oklch(98.4% 0.004 95); /* #fafaf8 */
+  --color-surface: oklch(100% 0 0); /* #ffffff */
+  --color-sidecar: oklch(97% 0.004 95); /* #f5f5f2 */
+  --color-border: oklch(91% 0.004 95); /* #e5e5e0 */
+  --color-border-strong: oklch(78% 0.005 95); /* ~#bdbdb8 */
+  --color-ink: oklch(22% 0.004 95); /* #1a1a18 */
+  --color-ink-2: oklch(40% 0.005 95); /* ~#4d4d49 */
+  --color-muted: oklch(62% 0.006 95); /* #888880 */
+
+  /* Brand accent — ink-indigo (274°), distinct from the semantic hues */
+  --color-accent: oklch(50% 0.12 274); /* ~#5457ac */
+  --color-accent-strong: oklch(44% 0.14 274); /* ~#454393 */
+  --color-accent-tint: oklch(95% 0.02 274); /* ~#ececf7 */
+
+  /* Semantic — kind × severity matrix, unchanged hues, named per-token */
+  --sem-problem-low: oklch(64% 0.006 286); /* #8e8e93 */
+  --sem-problem-med: oklch(76% 0.16 70); /* #f59e0b */
+  --sem-problem-high: oklch(64% 0.22 25); /* #ef4444 */
+  --sem-opp-low: oklch(80% 0.04 230); /* #99c5d0 */
+  --sem-opp-med: oklch(70% 0.13 235); /* #0ea5e9 */
+  --sem-opp-high: oklch(48% 0.1 240); /* #0369a1 */
+  --sem-contradiction: oklch(72% 0.17 60); /* #ff9500 */
+  --sem-tension: oklch(70% 0.13 235); /* #0ea5e9 */
+
+  /* Typography — dual voice: serif writing-canvas / sans feed+chrome, mono for code
+     (docs/projects/visual_style.md § Typography). The serif is *your* prose; the
+     sans is the machine's commentary — the visual spine of "provoke, don't prescribe".
+     Serif face decided 2026-07-05: Faustina — a soft-contrast humanist serif that
+     reads light/easy on screen (Newsreader, tried earlier, read too heavy; the
+     interim sans-only detour is superseded). */
+  --font-serif: "Faustina Variable", "Faustina", Georgia, Cambria, "Times New Roman", serif;
+  --font-sans: "Inter Variable", "Inter", -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono: "JetBrains Mono", "SF Mono", "Fira Code", monospace;
+
+  --text-display: 1.875rem; /* 30px — editor h1 */
+  --text-h2: 1.375rem; /* 22px */
+  --text-h3: 1.125rem; /* 18px */
+  --text-body: 1.125rem; /* 18px — editor body, reading size */
+  --text-ui: 0.875rem; /* 14px — feed card body */
+  --text-ui-sm: 0.8125rem; /* 13px */
+  --text-label: 0.6875rem; /* 11px — tags, eyebrow labels */
+
+  /* Spacing — 4pt scale */
+  --space-2xs: 4px;
+  --space-xs: 8px;
+  --space-sm: 12px;
+  --space-md: 16px;
+  --space-lg: 24px;
+  --space-xl: 32px;
+  --space-2xl: 48px;
+  --space-3xl: 64px;
+
+  /* Radius */
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+
+  /* Elevation — shallow, paper-like */
+  --elev-rest: 0 1px 3px oklch(0% 0 0 / 0.02);
+  --elev-hover: 0 4px 12px oklch(0% 0 0 / 0.05);
+  --elev-active: 0 4px 12px oklch(0% 0 0 / 0.08);
+
+  /* Motion — one easing language, short durations */
+  --dur-fast: 120ms;
+  --dur-base: 200ms;
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+
+  /* Layout */
   --sidecar-width: 320px;
-  --editor-max-width: 680px;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --gutter-width: 320px; /* the companion-surface feed column (feed_surface.md) */
+  --editor-measure: 66ch;
+
+  /* Companion-surface tokens (docs/projects/feed_surface.md § New tokens) */
+  --color-scrim: oklch(0% 0 0 / 0.38); /* modal backdrop */
+  --elev-float: 0 8px 24px oklch(0% 0 0 / 0.12); /* control center + modal */
+  --dur-pulse: 1.6s; /* activity-dot working pulse */
+  --control-anchor-size: 40px;
+
+  /* Compat aliases — un-migrated rules still reference these; removed once
+     PR B (feed/cards/highlights/supporting surfaces) re-points them. */
+  --bg: var(--color-paper);
+  --surface: var(--color-surface);
+  --border: var(--color-border);
+  --text: var(--color-ink);
+  --text-muted: var(--color-muted);
+  --sidecar-bg: var(--color-sidecar);
+  --editor-max-width: var(--editor-measure);
+
+  font-family: var(--font-sans);
   font-size: 16px;
   line-height: 1.6;
-  color: var(--text);
-  background: var(--bg);
+  color: var(--color-ink);
+  background: var(--color-paper);
 }
 
 html,
@@ -37,9 +123,18 @@ body,
 .editor-panel {
   flex: 1;
   overflow-y: auto;
-  padding: 48px 40px;
+  padding: var(--space-2xl) var(--space-xl);
   display: flex;
   justify-content: center;
+}
+
+/* The writing column: document context (metadata) + the editor, centered at
+   the reading measure so context reads as the document's own header. */
+.editor-column {
+  width: 100%;
+  max-width: var(--editor-measure);
+  display: flex;
+  flex-direction: column;
 }
 
 .editor-wrap {
@@ -47,10 +142,127 @@ body,
   max-width: var(--editor-max-width);
 }
 
-/* TipTap editor */
+/* Document-attached context affordance (feed_surface.md § 4) */
+.doc-context {
+  margin-bottom: var(--space-lg);
+  font-family: var(--font-sans);
+  font-size: var(--text-ui-sm);
+  color: var(--color-muted);
+}
+.doc-context-add,
+.doc-context-set {
+  background: none;
+  border: none;
+  padding: 4px 0;
+  cursor: pointer;
+  color: var(--color-muted);
+  font-family: inherit;
+  font-size: var(--text-ui-sm);
+}
+.doc-context-add:hover {
+  color: var(--color-ink-2);
+}
+.doc-context-set {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 100%;
+  text-align: left;
+}
+.doc-context-value {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  border-bottom: 1px dashed var(--color-border);
+  padding-bottom: 1px;
+}
+.doc-context-set:hover .doc-context-value {
+  color: var(--color-ink-2);
+  border-bottom-color: var(--color-border-strong);
+}
+.doc-context-pencil {
+  opacity: 0;
+  transition: opacity var(--dur-fast) var(--ease-out);
+}
+.doc-context-set:hover .doc-context-pencil {
+  opacity: 1;
+}
+.doc-context-suggested {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  background: var(--color-accent-tint);
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
+}
+.doc-context-label em {
+  font-style: normal;
+  font-weight: 500;
+  color: var(--color-accent-strong);
+}
+.doc-context-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.doc-context-btn {
+  background: none;
+  border: 0.5px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: 2px 8px;
+  font-size: var(--text-label);
+  cursor: pointer;
+  color: var(--color-ink-2);
+  font-family: inherit;
+}
+.doc-context-btn-primary {
+  background: var(--color-accent);
+  color: var(--color-surface);
+  border-color: transparent;
+}
+.doc-context-dismiss {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--color-muted);
+  font-size: 1rem;
+  line-height: 1;
+  padding: 0 2px;
+}
+.doc-context-edit {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-width: 440px;
+}
+.doc-context-edit .doc-context-btn-primary {
+  align-self: flex-start;
+}
+.doc-context-textarea {
+  width: 100%;
+  resize: vertical;
+  font-family: inherit;
+  font-size: var(--text-ui-sm);
+  padding: 8px 10px;
+  border: 0.5px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-ink);
+  outline: none;
+}
+.doc-context-textarea:focus {
+  border-color: var(--color-accent-strong);
+}
+
+/* TipTap editor — writing canvas (visual_style.md § Editor canvas) */
 .tiptap {
   outline: none;
   min-height: 60vh;
+  font-family: var(--font-serif);
+  font-size: var(--text-body);
+  line-height: 1.7;
+  color: var(--color-ink);
 }
 
 .tiptap p {
@@ -58,18 +270,21 @@ body,
 }
 
 .tiptap h1 {
-  font-size: 1.75rem;
-  font-weight: 700;
+  font-size: var(--text-display);
+  font-weight: 600;
+  line-height: 1.2;
   margin-bottom: 0.5em;
 }
 .tiptap h2 {
-  font-size: 1.375rem;
+  font-size: var(--text-h2);
   font-weight: 600;
+  line-height: 1.2;
   margin-bottom: 0.5em;
 }
 .tiptap h3 {
-  font-size: 1.125rem;
+  font-size: var(--text-h3);
   font-weight: 600;
+  line-height: 1.2;
   margin-bottom: 0.5em;
 }
 
@@ -80,24 +295,25 @@ body,
 }
 
 .tiptap blockquote {
-  border-left: 3px solid var(--border);
+  border-left: 3px solid var(--color-border);
   padding-left: 1em;
-  color: var(--text-muted);
+  color: var(--color-muted);
+  font-style: italic;
   margin-bottom: 0.75em;
 }
 
 .tiptap code {
-  font-family: "SF Mono", "Fira Code", monospace;
+  font-family: var(--font-mono);
   font-size: 0.875em;
-  background: var(--border);
+  background: var(--color-sidecar);
   padding: 0.1em 0.3em;
-  border-radius: 3px;
+  border-radius: var(--radius-sm);
 }
 
 .tiptap pre {
-  background: var(--border);
+  background: var(--color-sidecar);
   padding: 1em;
-  border-radius: 6px;
+  border-radius: var(--radius-md);
   overflow-x: auto;
   margin-bottom: 0.75em;
 }
@@ -108,7 +324,8 @@ body,
 }
 
 .tiptap p.is-editor-empty:first-child::before {
-  color: #adb5bd;
+  color: var(--color-muted);
+  font-style: italic;
   content: attr(data-placeholder);
   float: left;
   height: 0;
@@ -116,81 +333,37 @@ body,
 }
 
 /* Sidecar panel */
-.sidecar-panel {
-  width: var(--sidecar-width);
+/* Companion surface — the feed is a floating column on paper, not a panel wall.
+   No background fill; a single hairline marks the gutter (feed_surface.md § Layout). */
+
+/* The slot animates the fold: it clips a fixed-width panel from --gutter-width
+   to 0, so the canvas reflows smoothly instead of the feed snapping in/out. */
+.feed-slot {
+  display: flex;
   flex-shrink: 0;
-  border-left: 1px solid var(--border);
-  background: var(--sidecar-bg);
-  overflow-y: auto;
-  padding: 24px 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.sidecar-header {
-  border-bottom: 1px solid var(--border);
-  padding-bottom: 16px;
-  margin-bottom: 16px;
-}
-
-.sidecar-title-bar {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 12px;
-}
-
-.sidecar-title-bar h3 {
-  font-size: 0.875rem;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--text-muted);
-  font-weight: 700;
-  margin: 0;
-}
-
-.settings-toggle-btn {
-  background: none;
-  border: none;
-  cursor: pointer;
-  color: var(--text-muted);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 4px;
-  border-radius: 4px;
+  width: var(--gutter-width);
+  overflow: hidden;
   transition:
-    background-color 0.2s,
-    color 0.2s;
+    width var(--dur-base) var(--ease-in-out),
+    opacity var(--dur-base) var(--ease-out);
+}
+.feed-slot.is-collapsed {
+  width: 0;
+  opacity: 0;
+  pointer-events: none;
 }
 
-.settings-toggle-btn:hover {
-  background-color: rgba(0, 0, 0, 0.05);
-  color: var(--text);
-}
-
-.settings-panel {
+.sidecar-panel {
+  width: var(--gutter-width);
+  flex-shrink: 0;
+  background: var(--color-paper);
+  overflow-y: auto;
+  /* bottom clearance so scrolled content doesn't hide behind the fixed dot */
+  padding: var(--space-lg) var(--space-md) calc(var(--control-anchor-size) + var(--space-lg))
+    var(--space-md);
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  background: rgba(0, 0, 0, 0.02);
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  padding: 12px;
-  margin-top: 8px;
-  animation: slideDown 0.2s ease-out;
-}
-
-@keyframes slideDown {
-  from {
-    opacity: 0;
-    transform: translateY(-4px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+  gap: var(--space-sm);
 }
 
 /* Feed choreography (R3c) */
@@ -295,11 +468,6 @@ body,
   line-height: 1.7;
 }
 
-.empty-icon {
-  font-size: 1.5rem;
-  margin-bottom: 8px;
-}
-
 .empty-subtext {
   font-size: 0.75rem;
   color: var(--text-muted);
@@ -313,50 +481,32 @@ body,
   gap: 12px;
 }
 
+/* Floating card — borderless surface on paper, shallow elevation. The
+   kind×severity signal lives in the type tag (below), not a left-border stripe
+   (feed_surface.md § Card execution). */
 .observation-card {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 12px;
+  background: var(--color-surface);
+  border: 0.5px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-sm);
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--space-xs);
   transition:
-    transform 0.2s ease,
-    box-shadow 0.2s ease,
-    border-color 0.2s ease;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+    transform var(--dur-base) var(--ease-out),
+    box-shadow var(--dur-base) var(--ease-out),
+    border-color var(--dur-base) var(--ease-out);
+  box-shadow: var(--elev-rest);
 }
 
 .observation-card:hover {
   transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+  box-shadow: var(--elev-hover);
 }
 
 .observation-card-active {
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
-  border-color: #aaa !important;
-}
-
-/* Border accent: kind × severity → colour gradient */
-.observation-card[data-kind="problem"][data-severity="low"] {
-  border-left: 4px solid #8e8e93;
-}
-.observation-card[data-kind="problem"][data-severity="medium"] {
-  border-left: 4px solid #f59e0b;
-}
-.observation-card[data-kind="problem"][data-severity="high"] {
-  border-left: 4px solid #ef4444;
-}
-
-.observation-card[data-kind="opportunity"][data-severity="low"] {
-  border-left: 4px solid #99c5d0;
-}
-.observation-card[data-kind="opportunity"][data-severity="medium"] {
-  border-left: 4px solid #0ea5e9;
-}
-.observation-card[data-kind="opportunity"][data-severity="high"] {
-  border-left: 4px solid #0369a1;
+  box-shadow: var(--elev-active);
+  border-color: var(--color-border-strong);
 }
 
 .card-header {
@@ -438,55 +588,72 @@ body,
   opacity: 1;
 }
 
+/* The type tag carries the kind×severity colour (feed_surface.md § Card execution).
+   Base = a quiet outline chip (also the archive's past-tense treatment); active
+   cards escalate it by severity below. */
 .tag {
-  font-size: 0.6875rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  padding: 2px 6px;
-  border-radius: 4px;
-  letter-spacing: 0.02em;
+  font-size: var(--text-label);
+  font-weight: 600;
+  text-transform: lowercase;
+  letter-spacing: 0.01em;
+  padding: 2px 8px;
+  border-radius: var(--radius-sm);
+  border: 0.5px solid var(--color-border);
+  background: transparent;
+  color: var(--color-muted);
+  white-space: nowrap;
+  align-self: flex-start;
 }
 
-/* Tag colours by type */
-.tag-clarity {
-  background-color: rgba(142, 142, 147, 0.12);
-  color: #555;
+/* LOW → quiet outline (any kind) */
+.observation-card[data-severity="low"] .tag {
+  background: transparent;
+  color: var(--color-muted);
+  border-color: var(--color-border);
 }
 
-.tag-contradiction {
-  background-color: rgba(255, 149, 0, 0.12);
-  color: #c97500;
+/* MEDIUM → soft tint */
+.observation-card[data-severity="medium"][data-kind="problem"] .tag {
+  background: color-mix(in oklch, var(--sem-problem-med) 16%, transparent);
+  color: color-mix(in oklch, var(--sem-problem-med) 48%, var(--color-ink));
+  border-color: color-mix(in oklch, var(--sem-problem-med) 40%, transparent);
+}
+.observation-card[data-severity="medium"][data-kind="opportunity"] .tag {
+  background: color-mix(in oklch, var(--sem-opp-med) 15%, transparent);
+  color: var(--sem-opp-high);
+  border-color: color-mix(in oklch, var(--sem-opp-med) 40%, transparent);
 }
 
-/* Strategic tension — softer teal register (opportunity, not alarm) */
-.tag-strategic_tension {
-  background-color: rgba(14, 165, 233, 0.12);
-  color: #0369a1;
+/* HIGH → solid fill, light text */
+.observation-card[data-severity="high"][data-kind="problem"] .tag {
+  background: var(--sem-problem-high);
+  color: var(--color-surface);
+  border-color: transparent;
+}
+.observation-card[data-severity="high"][data-kind="opportunity"] .tag {
+  background: var(--sem-opp-high);
+  color: var(--color-surface);
+  border-color: transparent;
 }
 
-/* Problem types — gray tier (low severity) */
-.tag-undefined_jargon,
-.tag-audience_mismatch,
-.tag-structure_flow {
-  background-color: rgba(142, 142, 147, 0.12);
-  color: #555;
+/* Contradiction keeps its warm-orange identity across severities (kind=problem) */
+.observation-card[data-obs-type="contradiction"][data-severity="high"] .tag {
+  background: var(--sem-contradiction);
+  color: var(--color-surface);
+  border-color: transparent;
+}
+.observation-card[data-obs-type="contradiction"][data-severity="medium"] .tag,
+.observation-card[data-obs-type="contradiction"][data-severity="low"] .tag {
+  background: color-mix(in oklch, var(--sem-contradiction) 16%, transparent);
+  color: color-mix(in oklch, var(--sem-contradiction) 52%, var(--color-ink));
+  border-color: color-mix(in oklch, var(--sem-contradiction) 42%, transparent);
 }
 
-/* Problem type — amber tier (medium severity) */
-.tag-unsupported_claim {
-  background-color: rgba(245, 158, 11, 0.12);
-  color: #b45309;
-}
-
-/* Opportunity types — teal tier */
-.tag-missing_topic {
-  background-color: rgba(14, 165, 233, 0.12);
-  color: #0369a1;
-}
-
-.tag-underexposed_topic {
-  background-color: rgba(14, 165, 233, 0.1);
-  color: #4a8fa8;
+/* Strategic tension — always the calm teal register, never alarm (kind=opportunity) */
+.observation-card[data-obs-type="strategic_tension"][data-kind="opportunity"] .tag {
+  background: color-mix(in oklch, var(--sem-tension) 15%, transparent);
+  color: var(--sem-opp-high);
+  border-color: color-mix(in oklch, var(--sem-tension) 38%, transparent);
 }
 
 /* Confidence indicator: low-confidence observations show a hedging ~ after the tag text */
@@ -555,43 +722,508 @@ body,
   border-top: 1px dashed rgba(0, 0, 0, 0.07);
 }
 
+/* ============================================================
+   Companion-surface chrome (feed_surface.md § 2/§ 3/§ 5)
+   ============================================================ */
+
+/* Collapse handle at the canvas↔gutter boundary */
+.feed-handle {
+  align-self: stretch;
+  width: 16px;
+  flex-shrink: 0;
+  border: none;
+  border-left: 0.5px solid var(--color-border);
+  background: transparent;
+  color: var(--color-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition:
+    color var(--dur-fast) var(--ease-out),
+    background-color var(--dur-fast) var(--ease-out);
+}
+.feed-handle:hover {
+  color: var(--color-ink);
+  background: color-mix(in oklch, var(--color-ink) 4%, transparent);
+}
+.feed-handle:focus-visible {
+  outline: 2px solid var(--color-accent-strong);
+  outline-offset: -2px;
+}
+
+/* Control center — always visible (feed folded or not), fixed bottom-right.
+   At rest = just the anchor dot; hover / focus / open reveals process + actions. */
+.control-center {
+  position: fixed;
+  bottom: var(--space-lg);
+  right: var(--space-lg);
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+.control-process {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  right: 0;
+  min-width: 184px;
+  background: var(--color-surface);
+  border: 0.5px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 7px 10px;
+  font-size: var(--text-ui-sm);
+  color: var(--color-muted);
+  line-height: 1.55;
+  box-shadow: var(--elev-float);
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(4px);
+  transition:
+    opacity var(--dur-fast) var(--ease-out),
+    transform var(--dur-fast) var(--ease-out);
+}
+.control-actions-extra {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateX(6px);
+  transition:
+    opacity var(--dur-fast) var(--ease-out),
+    transform var(--dur-fast) var(--ease-out);
+}
+.control-center:hover .control-process,
+.control-center:focus-within .control-process,
+.control-center.is-open .control-process,
+.control-center:hover .control-actions-extra,
+.control-center:focus-within .control-actions-extra,
+.control-center.is-open .control-actions-extra {
+  opacity: 1;
+  pointer-events: auto;
+  transform: none;
+}
+.control-process-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+.control-process-row .paid,
+.control-process-row .working {
+  color: #b06000;
+  font-weight: 500;
+}
+.control-process-label {
+  font-size: var(--text-label);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-muted);
+  margin-bottom: 3px;
+}
+.control-actions-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.control-btn {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  border: none;
+  background: transparent;
+  color: var(--color-ink-2);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition:
+    background-color var(--dur-fast) var(--ease-out),
+    color var(--dur-fast) var(--ease-out);
+}
+.control-btn:hover {
+  background: color-mix(in oklch, var(--color-ink) 6%, transparent);
+  color: var(--color-ink);
+}
+.control-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.control-btn:focus-visible {
+  outline: 2px solid var(--color-accent-strong);
+  outline-offset: 1px;
+}
+.control-export-wrap {
+  position: relative;
+  display: flex;
+}
+
+/* Activity / model anchor dot */
+.control-anchor {
+  width: var(--control-anchor-size);
+  height: var(--control-anchor-size);
+  border-radius: 50%;
+  background: var(--color-surface);
+  border: 0.5px solid var(--color-border);
+  box-shadow: var(--elev-hover);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: default;
+  margin-left: 2px;
+  position: relative;
+}
+.control-anchor:focus-visible {
+  outline: 2px solid var(--color-accent-strong);
+  outline-offset: 2px;
+}
+.control-dot {
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  background: color-mix(in oklch, var(--color-muted) 55%, var(--color-border));
+}
+.control-anchor[data-state="working"] .control-dot {
+  background: var(--sem-contradiction);
+  animation: dotPulse var(--dur-pulse) var(--ease-in-out) infinite;
+}
+.control-anchor[data-state="stalled"] .control-dot {
+  background: var(--sem-problem-high);
+}
+.control-anchor[data-paid="true"] {
+  border-color: color-mix(in oklch, var(--color-accent) 45%, var(--color-border));
+}
+@keyframes dotPulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+/* Invisible bridge under the process panel so moving the pointer from the dot
+   up into the panel doesn't cross a dead gap and collapse the reveal. */
+.control-process::after {
+  content: "";
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  height: 12px;
+}
+
+/* Export menu popover (anchored above the export control) */
+.export-menu {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  right: 0;
+  min-width: 184px;
+  background: var(--color-surface);
+  border: 0.5px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--elev-float);
+  overflow: hidden;
+  z-index: 50;
+}
+.export-menu button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 9px 12px;
+  background: transparent;
+  border: none;
+  font-size: var(--text-ui);
+  color: var(--color-ink-2);
+  cursor: pointer;
+}
+.export-menu button:hover {
+  background: color-mix(in oklch, var(--color-ink) 5%, transparent);
+}
+.export-menu button + button {
+  border-top: 0.5px solid var(--color-border);
+}
+
+/* Floating modal (settings, clear-confirm) */
+.modal-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-scrim);
+  animation: fadeIn var(--dur-fast) var(--ease-out);
+}
+.modal-card {
+  width: 340px;
+  max-width: 88vw;
+  background: var(--color-surface);
+  border: 0.5px solid var(--color-border);
+  border-radius: 12px;
+  box-shadow: var(--elev-float);
+  padding: var(--space-lg);
+}
+.modal-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-md);
+}
+.modal-title {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--color-ink);
+}
+.modal-danger-btn {
+  padding: 7px 14px;
+  cursor: pointer;
+  background: var(--sem-problem-high);
+  color: var(--color-surface);
+  border: none;
+  border-radius: var(--radius-sm);
+  font-size: var(--text-ui);
+}
+.modal-ghost-btn {
+  padding: 7px 14px;
+  cursor: pointer;
+  background: transparent;
+  color: var(--color-ink-2);
+  border: 0.5px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  font-size: var(--text-ui);
+}
+
+/* Feed container + drawers */
+.feed-container {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+.arrival-indicator {
+  padding: 4px 8px;
+  font-size: var(--text-ui-sm);
+  color: var(--color-muted);
+  text-align: center;
+  animation: fadeIn var(--dur-fast) var(--ease-out);
+}
+.drawer-toggle {
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: var(--text-ui-sm);
+  color: var(--color-muted);
+  padding: 4px 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.drawer-toggle:hover {
+  color: var(--color-ink);
+}
+.also-noticed-drawer {
+  border-top: 0.5px solid var(--color-border);
+  margin-top: 4px;
+  padding-top: var(--space-xs);
+}
+.drawer-contra-note {
+  font-size: var(--text-ui-sm);
+  color: var(--sem-problem-high);
+  padding-left: 16px;
+  padding-bottom: 2px;
+}
+
+/* Archive — quiet, past-tense (feed_surface.md § Archive) */
+.archive-section {
+  border-top: 0.5px solid var(--color-border);
+  padding-top: var(--space-xs);
+}
+.archive-list {
+  margin-top: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+.archive-card {
+  padding: 11px 12px;
+  background: color-mix(in oklch, var(--color-surface) 55%, var(--color-paper));
+  border: 0.5px solid var(--color-border);
+  border-radius: var(--radius-lg);
+}
+.archive-card .tag {
+  opacity: 0.85;
+}
+.archive-card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+}
+.archive-reason {
+  font-size: var(--text-label);
+  color: var(--color-muted);
+}
+.archive-card-text {
+  margin: 0;
+  font-size: var(--text-ui-sm);
+  color: var(--color-ink-2);
+  line-height: 1.45;
+}
+.archive-anchor {
+  margin-top: 6px;
+  font-size: var(--text-ui-sm);
+  color: var(--color-muted);
+  font-family: var(--font-serif);
+  font-style: italic;
+  border-left: 2px solid var(--color-border);
+  padding-left: 8px;
+  line-height: 1.5;
+}
+.archive-anchor-vs {
+  display: inline-block;
+  margin-top: 4px;
+}
+.card-also-item-text {
+  margin: 4px 0 0;
+  font-size: var(--text-ui-sm);
+  color: var(--color-ink-2);
+  line-height: 1.4;
+}
+
+/* Debug panel (dev only) */
+.debug-panel {
+  border-top: 0.5px solid var(--color-border);
+  padding: 8px;
+  max-height: 300px;
+  overflow-y: auto;
+  background: color-mix(in oklch, var(--color-surface) 55%, var(--color-paper));
+  font-size: 0.8rem;
+}
+.debug-panel-floating {
+  position: fixed;
+  right: var(--space-lg);
+  bottom: calc(var(--space-lg) + var(--control-anchor-size) + 12px);
+  width: 340px;
+  max-width: 88vw;
+  z-index: 39;
+  border: 0.5px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--elev-float);
+}
+.debug-panel-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+.debug-session-stats {
+  margin-bottom: 8px;
+  padding: 4px 6px;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  border-radius: 4px;
+  font-size: 0.7rem;
+  color: #166534;
+  font-family: var(--font-mono);
+}
+.debug-entry {
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  padding: 4px;
+}
+.debug-entry-trigger {
+  background: #eef2ff;
+  border-color: #c7d2fe;
+  color: #4338ca;
+  display: flex;
+  justify-content: space-between;
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  padding: 3px 6px;
+}
+.debug-entry-archive {
+  background: #fdf4ff;
+  border-color: #f0abfc;
+  color: #6b7280;
+  display: flex;
+  justify-content: space-between;
+  gap: 6px;
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  padding: 3px 6px;
+}
+.debug-entry-ellipsis {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.debug-entry-response {
+  background: #e8f5e9;
+}
+.debug-entry-error {
+  background: #ffebee;
+}
+.debug-entry-retry {
+  background: #fff8e1;
+}
+.debug-entry-head {
+  display: flex;
+  justify-content: space-between;
+  cursor: pointer;
+  font-weight: bold;
+}
+.debug-entry-detail {
+  margin-top: 8px;
+  border-top: 1px dashed #ccc;
+  padding-top: 4px;
+}
+.debug-entry-detail pre {
+  white-space: pre-wrap;
+  margin: 4px 0;
+  font-size: 0.7rem;
+}
+
 /* Observation Highlights */
 .obs-highlight {
   transition:
-    background-color 0.2s ease,
-    border-color 0.2s ease;
+    background-color var(--dur-base) var(--ease-out),
+    border-color var(--dur-base) var(--ease-out);
   border-radius: 2px;
   cursor: pointer;
 }
 
 .obs-highlight-clarity {
-  background-color: rgba(142, 142, 147, 0.12);
-  border-bottom: 2px dotted #8e8e93;
+  background-color: color-mix(in oklch, var(--sem-problem-low) 12%, transparent);
+  border-bottom: 2px dotted var(--sem-problem-low);
 }
 
 .obs-highlight-contradiction {
-  background-color: rgba(255, 149, 0, 0.15);
-  border-bottom: 2px dashed #ff9500;
+  background-color: color-mix(in oklch, var(--sem-contradiction) 15%, transparent);
+  border-bottom: 2px dashed var(--sem-contradiction);
 }
 
 .obs-highlight-strategic_tension {
-  background-color: rgba(14, 165, 233, 0.15);
-  border-bottom: 2px dashed #0ea5e9;
+  background-color: color-mix(in oklch, var(--sem-tension) 15%, transparent);
+  border-bottom: 2px dashed var(--sem-tension);
 }
 
 .obs-highlight-hovered {
-  background-color: rgba(255, 149, 0, 0.28) !important;
+  background-color: color-mix(in oklch, var(--sem-contradiction) 28%, transparent) !important;
   border-bottom-style: solid !important;
 }
 
 .obs-highlight-clarity.obs-highlight-hovered {
-  background-color: rgba(142, 142, 147, 0.25) !important;
-  border-bottom-color: #555558 !important;
+  background-color: color-mix(in oklch, var(--sem-problem-low) 25%, transparent) !important;
+  border-bottom-color: var(--color-ink-2) !important;
 }
 
 .obs-highlight-strategic_tension.obs-highlight-hovered {
-  background-color: rgba(14, 165, 233, 0.3) !important;
-  border-bottom-color: #0369a1 !important;
+  background-color: color-mix(in oklch, var(--sem-tension) 30%, transparent) !important;
+  border-bottom-color: var(--sem-opp-high) !important;
 }
 
 /* Print & PDF Export Styles */
@@ -825,151 +1457,3 @@ body,
   background: transparent;
 }
 
-/* ── Context chip (stage discoverability) — Phase 6 ──────────────────────── */
-/* Spec: docs/projects/onboarding_first_run.md § The context chip             */
-/* Always-visible feed-header affordance; three states:                       */
-/*   suggested → inferred context awaiting user decision                      */
-/*   set       → stage active, truncated with inline edit trigger             */
-/*   empty     → muted "Add context" link                                     */
-
-.stage-chip {
-  padding: 6px 10px;
-  border-bottom: 1px solid #e5e7eb;
-  font-size: 0.8rem;
-  background: transparent;
-}
-
-.stage-chip-suggested {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.stage-chip-label {
-  color: #374151;
-  line-height: 1.4;
-}
-
-.stage-chip-label em {
-  font-style: normal;
-  color: #1a1a1a;
-  font-weight: 500;
-}
-
-.stage-chip-set {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  min-width: 0;
-  overflow: hidden;
-}
-
-.stage-chip-set .stage-chip-label {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.stage-chip-value {
-  color: #374151;
-  font-style: italic;
-}
-
-.stage-chip-actions {
-  display: flex;
-  gap: 6px;
-  flex-shrink: 0;
-}
-
-.stage-chip-btn {
-  padding: 2px 8px;
-  border: 1px solid #d1d5db;
-  border-radius: 4px;
-  background: #f9fafb;
-  color: #374151;
-  font-size: 0.75rem;
-  cursor: pointer;
-  white-space: nowrap;
-}
-
-.stage-chip-btn:hover {
-  background: #f3f4f6;
-}
-
-.stage-chip-btn-primary {
-  background: #0ea5e9;
-  color: #fff;
-  border-color: #0ea5e9;
-}
-
-.stage-chip-btn-primary:hover {
-  background: #0284c7;
-  border-color: #0284c7;
-}
-
-.stage-chip-dismiss {
-  background: transparent;
-  border: none;
-  color: #9ca3af;
-  font-size: 0.75rem;
-  cursor: pointer;
-  padding: 2px 4px;
-}
-
-.stage-chip-dismiss:hover {
-  color: #374151;
-}
-
-.stage-chip-edit-btn {
-  background: none;
-  border: none;
-  color: #9ca3af;
-  font-size: 0.75rem;
-  cursor: pointer;
-  padding: 0;
-  line-height: 1;
-}
-
-.stage-chip-edit-btn:hover {
-  color: #374151;
-}
-
-.stage-chip-add-link {
-  color: #9ca3af;
-  font-size: 0.8rem;
-  background: none;
-  border: none;
-  cursor: pointer;
-  padding: 0;
-  text-decoration: none;
-}
-
-.stage-chip-add-link:hover {
-  color: #374151;
-  text-decoration: underline;
-}
-
-.stage-chip-inline-edit {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.stage-chip-textarea {
-  width: 100%;
-  resize: none;
-  border: 1px solid #d1d5db;
-  border-radius: 4px;
-  padding: 4px 6px;
-  font-size: 0.8rem;
-  font-family: inherit;
-  box-sizing: border-box;
-}
-
-.stage-chip-textarea:focus {
-  outline: 2px solid #0ea5e9;
-  outline-offset: 1px;
-}
