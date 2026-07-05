@@ -11,17 +11,26 @@
  * Requires: VITE_GEMINI_API_KEY in .env.local
  *
  * Output: per-fixture and aggregate scorecard printed via console.table.
- * Soft asserts a minimum aggregate quality floor (recall ≥ 0.7, precision ≥ 0.6)
- * so a real prompt regression fails this run.
+ * Asserts **per-type precision floors** keyed to trust cost (Tier A contradiction
+ * ≥ 0.95 … Tier D soft opportunities ≥ 0.70 — see evalScorer.PRECISION_FLOORS) so
+ * a false contradiction fails the run even when cheap nits keep the aggregate high.
+ * A type with no predictions in the corpus is logged and skipped (never silently
+ * passed). Recall stays a single aggregate soft-floor (AGGREGATE_RECALL_FLOOR).
  *
  * `knownGaps` are reported as documented misses/FPs but do NOT count against
  * the score until the prompt fix lands and they move to `expected`.
  *
- * Design: docs/projects/evaluator_quality_ratchet.md §Tier 2
+ * Design: docs/projects/evaluator_quality_ratchet.md § Phase 6 (per-type floors)
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { scoreObservations, type ScoreResult } from "./evalScorer";
+import {
+  scoreObservations,
+  precisionFloorForType,
+  PRECISION_FLOORS,
+  AGGREGATE_RECALL_FLOOR,
+  type ScoreResult,
+} from "./evalScorer";
 import { createFixtureRunner } from "./eval-fixtures/runFixture";
 import { corpus } from "./eval-fixtures/index";
 import type { EvalFixture } from "./eval-fixtures/types";
@@ -193,26 +202,63 @@ describe.skipIf(!LIVE)("Evaluator quality ratchet — Tier 2 (live prompt scorer
     console.log("\nPer-fixture:");
     console.table(fixtureRows);
 
-    // Aggregate floor assertion (excluding known gaps already filtered above)
-    const totalTp = [...typeScores.values()].reduce((s, v) => s + v.tp, 0);
-    const totalFp = [...typeScores.values()].reduce((s, v) => s + v.fp, 0);
-    const totalFn = [...typeScores.values()].reduce((s, v) => s + v.fn, 0);
+    // --- Per-type precision floors (trust-cost tiered) ----------------------
+    // Replaces the old single aggregate-precision assert. Each type is checked
+    // against its tier floor ONLY when it has predictions (tp+fp>0) in the
+    // current corpus; a type with no coverage is logged and skipped so the gate
+    // never silently "passes" a type it never exercised. Iterate over ALL floor
+    // types (not just those that appeared) so coverage gaps are visible.
+    const allTypes = Object.keys(PRECISION_FLOORS) as Observation["type"][];
+    const floorChecks = allTypes.map((type) => {
+      const s = typeScores.get(type) ?? { tp: 0, fp: 0, fn: 0 };
+      const predictions = s.tp + s.fp;
+      const precision = predictions === 0 ? NaN : s.tp / predictions;
+      const floor = precisionFloorForType(type);
+      return { type, predictions, precision, floor };
+    });
 
-    const aggPrecision = totalTp + totalFp === 0 ? 1 : totalTp / (totalTp + totalFp);
-    const aggRecall = totalTp + totalFn === 0 ? 1 : totalTp / (totalTp + totalFn);
-
-    console.log(
-      `\nAggregate: precision=${(aggPrecision * 100).toFixed(1)}%, recall=${(aggRecall * 100).toFixed(1)}%`
+    console.log("\n=== Per-type precision floors (Tier-2 gate) ===");
+    console.table(
+      floorChecks.map((r) => ({
+        type: r.type,
+        n: r.predictions,
+        precision: Number.isNaN(r.precision) ? "-" : (r.precision * 100).toFixed(0) + "%",
+        floor: (r.floor * 100).toFixed(0) + "%",
+        status: Number.isNaN(r.precision)
+          ? "— skipped (n=0)"
+          : r.precision >= r.floor
+            ? "✅ pass"
+            : "❌ FAIL",
+      }))
     );
 
-    // Soft floor — fail if quality regresses below minimum thresholds.
-    expect(
-      aggPrecision,
-      `aggregate precision (${(aggPrecision * 100).toFixed(1)}%) below floor 0.6`
-    ).toBeGreaterThanOrEqual(0.6);
+    const uncovered = floorChecks.filter((r) => r.predictions === 0).map((r) => r.type);
+    if (uncovered.length > 0) {
+      console.log(
+        `\n⚠️  No corpus coverage (floor not asserted) for: ${uncovered.join(", ")}. ` +
+          `Grow the corpus (npm run eval:record) so these tiers gain teeth.`
+      );
+    }
+
+    // Aggregate recall stays a soft-floor (recall is aggregate, not per-type).
+    const totalTp = [...typeScores.values()].reduce((s, v) => s + v.tp, 0);
+    const totalFn = [...typeScores.values()].reduce((s, v) => s + v.fn, 0);
+    const aggRecall = totalTp + totalFn === 0 ? 1 : totalTp / (totalTp + totalFn);
+    console.log(`\nAggregate recall: ${(aggRecall * 100).toFixed(1)}%`);
+
+    // Assert each covered type against its tier floor.
+    for (const r of floorChecks) {
+      if (r.predictions === 0) continue; // no predictions → precision undefined → can't assert
+      expect(
+        r.precision,
+        `${r.type} precision (${(r.precision * 100).toFixed(1)}%, n=${r.predictions}) below tier floor ${(r.floor * 100).toFixed(0)}%`
+      ).toBeGreaterThanOrEqual(r.floor);
+    }
+
+    // Soft aggregate-recall floor — fail if the feed starts missing real issues.
     expect(
       aggRecall,
-      `aggregate recall (${(aggRecall * 100).toFixed(1)}%) below floor 0.7`
-    ).toBeGreaterThanOrEqual(0.7);
+      `aggregate recall (${(aggRecall * 100).toFixed(1)}%) below floor ${(AGGREGATE_RECALL_FLOOR * 100).toFixed(0)}%`
+    ).toBeGreaterThanOrEqual(AGGREGATE_RECALL_FLOOR);
   }, 5_000);
 });
