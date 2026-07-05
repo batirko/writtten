@@ -10,6 +10,7 @@ import {
 } from "./store/db";
 import { scheduleEval } from "./services/orchestrator";
 import { conflictPairKey } from "./services/evaluator";
+import { clearSnapshotsForDocument } from "./services/evalSnapshot";
 import type { EvalContext } from "./services/types";
 import { capabilityForTier, type ModelTier } from "./model/capability";
 import { llmLogger, type LLMLogEntry, type SessionStats } from "./model/logger";
@@ -154,6 +155,7 @@ export default function App() {
 
   const handleClearWorkspace = async () => {
     await clearDocumentData(DOC_ID);
+    clearSnapshotsForDocument(DOC_ID);
     setObservations([]);
     setArchivedObservations([]);
     setStageSuggestion(null);
@@ -167,6 +169,7 @@ export default function App() {
   const handleImportFile = async (file: File) => {
     const text = await file.text();
     await clearDocumentData(DOC_ID);
+    clearSnapshotsForDocument(DOC_ID);
     setObservations([]);
     setArchivedObservations([]);
     setStageSuggestion(null);

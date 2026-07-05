@@ -455,6 +455,25 @@ export async function updateObservationStatus(
   await tx.done;
 }
 
+/** Re-activate a previously-closed observation by its original id, clearing
+ *  the closure reason and refreshing lastSeenAt. Used by revert-aware
+ *  evaluation (Mechanism 2) to restore a card exactly as it was — same id, no
+ *  archive churn, no feed flicker — when the document returns to a text state
+ *  that was already evaluated. See docs/projects/revert_aware_evaluation.md. */
+export async function reactivateObservation(id: string, lastSeenAt: number): Promise<void> {
+  const db = await getDb();
+  const tx = db.transaction("observations", "readwrite");
+  const store = tx.store;
+  const obs = await store.get(id);
+  if (obs) {
+    obs.status = "active";
+    delete obs.closureReason;
+    obs.lastSeenAt = lastSeenAt;
+    await store.put(obs);
+  }
+  await tx.done;
+}
+
 // Block Summaries (by doc)
 export async function loadBlockSummariesForDocument(docId: string): Promise<BlockSummary[]> {
   const db = await getDb();

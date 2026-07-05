@@ -57,6 +57,7 @@ export type HarnessEventType =
   | "observation"
   | "archive"
   | "block-removed"
+  | "restore"
   | "error";
 
 export interface HarnessEvent {
