@@ -43,5 +43,5 @@ your prose.
 - Free-tier evaluation sends settled text to Google's Gemini API (see `SECURITY.md`).
 - Field validation with real users is early.
 
-[Unreleased]: https://github.com/<owner>/writtten/compare/v0.1.0...HEAD
-[0.1.0]: https://github.com/<owner>/writtten/releases/tag/v0.1.0
+[Unreleased]: https://github.com/batirko/writtten/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/batirko/writtten/releases/tag/v0.1.0

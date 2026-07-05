@@ -27,12 +27,12 @@ The first persona is **Product Managers** (and adjacent roles) writing PRDs, spe
 
 ## Try it
 
-**In your browser:** _[live demo — coming at launch]_ — no signup, no key required to see it work.
+**In your browser:** **[writtten.com](https://writtten.com)** — no signup, no key required to see it work.
 
 **Locally:**
 
 ```bash
-git clone https://github.com/<owner>/writtten.git
+git clone https://github.com/batirko/writtten.git
 cd writtten
 npm install
 cp .env.local.example .env.local   # optional — add a free Gemini key for live evaluation

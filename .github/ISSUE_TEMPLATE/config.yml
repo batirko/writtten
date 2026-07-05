@@ -1,5 +1,5 @@
 blank_issues_enabled: true
 contact_links:
   - name: Concept & philosophy
-    url: https://github.com/<owner>/writtten/blob/main/docs/concept.md
+    url: https://github.com/batirko/writtten/blob/main/docs/concept.md
     about: The "why" behind the inversion — read before proposing changes to evaluation or the feed.

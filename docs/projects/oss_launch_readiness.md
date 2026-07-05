@@ -41,7 +41,7 @@ Read alongside:
 - [x] **SECURITY.md** — reporting + honest data-egress disclosure (free-tier text → Gemini). _(2026-07-05)_
 - [x] **`.github/` templates** — Bug · Feature · Signal-quality (FP/FN) issue templates + invariant-referencing PR template. _(2026-07-05)_
 - [x] **`docs/` transparency posture — decided: publish as-is** (2026-07-05, user call). Candor is on-brand; no curation. Only edit needed was the two key-partial redactions above.
-- [ ] **Branch protection on `main`** — require the existing CI (`lint`/`build`/`test`) green before merge. **Pending — needs a GitHub repo setting** (do at publish time). — 🟢 Low · 🔧
+- [ ] **Branch protection on `main`** — require the existing CI (`verify`) green before merge. **Blocked until public:** GitHub's free tier only allows branch protection on **public** repos (or with GitHub Pro), so this can't be enabled while the repo is private — attempting it returns `403 "Upgrade to GitHub Pro or make this repository public"`. **Enable it as the first action right after flipping the repo public** (required check: `verify`; `enforce_admins` off so solo auto-merge still works). — 🟢 Low · 🔧
 - [x] **`.nvmrc` / `engines` field** pinning Node 20. _(2026-07-05)_
 
 ### Good-enough — a credible, welcoming launch (Phase 6 → early 7)
