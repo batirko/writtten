@@ -5,6 +5,7 @@ import { SpanPeek } from "./sidecar/SpanPeek";
 import { ControlCenter } from "./sidecar/ControlCenter";
 import { DocumentContext } from "./sidecar/DocumentContext";
 import { groupObservations, findGroupForObs } from "./sidecar/obsAggregation";
+import { surfacedObservationIds, DEFAULT_FEED_BUDGET } from "./sidecar/feedBudget";
 import {
   loadObservationsForDocument,
   updateObservationStatus,
@@ -103,6 +104,13 @@ export default function App() {
   // and the span-focus channel. On leave, a short grace lets the pointer travel
   // onto the floating peek (collapsed) before it closes.
   const groups = useMemo(() => groupObservations(observations), [observations]);
+  // Only surfaced (budgeted) observations get a visible canvas highlight; the
+  // downgraded "also noticed" ones stay messages-only. Memoized so the Set
+  // identity is stable across renders (the highlighter only rebuilds on change).
+  const surfacedIds = useMemo(
+    () => surfacedObservationIds(observations, { budget: DEFAULT_FEED_BUDGET, blockOrder }),
+    [observations, blockOrder]
+  );
   const cancelSpanClose = useCallback(() => {
     if (spanCloseTimer.current) clearTimeout(spanCloseTimer.current);
     spanCloseTimer.current = null;
@@ -354,6 +362,7 @@ export default function App() {
             .map((s) => s.trim())
             .filter(Boolean)}
           observations={observations}
+          surfacedIds={surfacedIds}
           hoveredObservationId={hoveredObservationId}
           onSpanHover={handleSpanHover}
           onObservationCollapsed={handleObservationCollapsed}
@@ -404,16 +413,16 @@ export default function App() {
           onDismissObservation={handleDismissObservation}
         />
       </div>
-      {/* Collapsed feed: reverse hover floats only the hovered span's card(s) in
-          from the right gutter — the messages stay reachable without un-collapsing. */}
-      {feedCollapsed && (
-        <SpanPeek
-          group={spanFocusGroup}
-          onDismiss={handleDismissObservation}
-          onKeepOpen={cancelSpanClose}
-          onClose={() => handleSpanHover(null)}
-        />
-      )}
+      {/* Reverse hover floats the hovered span's card(s) at the top of the gutter
+          — in the open feed the cards behind dim in place; when collapsed it's the
+          only thing shown. Always top-anchored so it's on-screen even if the feed
+          is scrolled. */}
+      <SpanPeek
+        group={spanFocusGroup}
+        onDismiss={handleDismissObservation}
+        onKeepOpen={cancelSpanClose}
+        onClose={() => handleSpanHover(null)}
+      />
       {/* Control center is always visible — independent of feed collapse. */}
       <ControlCenter
         pending={pending}

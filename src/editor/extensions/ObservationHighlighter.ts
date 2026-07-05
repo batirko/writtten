@@ -117,6 +117,12 @@ export const ObservationHighlighter = Extension.create<ObservationHighlighterOpt
               // One-shot activation pulse (UX-009 / C2): the id of the observation
               // whose span(s) should flash. Cleared on a timer by the editor.
               pulseId: null as string | null,
+              // Ids of observations that are *surfaced* in the feed budget. Only
+              // these get a visible highlight; downgraded ("also noticed") ones
+              // render an invisible anchor (present for delete-detection, but no
+              // mark and not reverse-hoverable). `null` = highlight everything
+              // (before the feed reports a set). See UX-006/R7b.
+              surfacedIds: null as Set<string> | null,
             };
           },
           apply(tr, value, _oldState, newState) {
@@ -127,11 +133,14 @@ export const ObservationHighlighter = Extension.create<ObservationHighlighterOpt
             const newObservations = tr.getMeta("setObservations") as Observation[] | undefined;
             const newHoveredId = tr.getMeta("setHoveredObservationId") as string | null | undefined;
             const newPulseId = tr.getMeta("setPulseObsId") as string | null | undefined;
+            const newSurfacedIds = tr.getMeta("setSurfacedIds") as Set<string> | undefined;
 
             const observations =
               newObservations !== undefined ? newObservations : value.observations;
             const hoveredId = newHoveredId !== undefined ? newHoveredId : value.hoveredId;
             const pulseId = newPulseId !== undefined ? newPulseId : value.pulseId;
+            const surfacedIds =
+              newSurfacedIds !== undefined ? newSurfacedIds : value.surfacedIds;
 
             // Rebuild decorations only when the observation set or hovered id changes.
             // For all other doc edits (typing, insertions), the `map()` call above
@@ -140,7 +149,8 @@ export const ObservationHighlighter = Extension.create<ObservationHighlighterOpt
             if (
               newObservations !== undefined ||
               newHoveredId !== undefined ||
-              newPulseId !== undefined
+              newPulseId !== undefined ||
+              newSurfacedIds !== undefined
             ) {
               const decos: Decoration[] = [];
               const doc = newState.doc;
@@ -183,25 +193,27 @@ export const ObservationHighlighter = Extension.create<ObservationHighlighterOpt
                         (isCrossClaim &&
                           (obs.blockId === hoveredId || obs.conflictingBlockId === hoveredId));
                       const isPulsing = pulseId === obs.id;
+                      // Surfaced → visible highlight; downgraded → invisible
+                      // anchor (no `obs-highlight` class, so no mark and the
+                      // reverse-hover handler won't match it), but it stays a
+                      // decoration carrying the obs id so delete-detection works.
+                      const surfaced = surfacedIds === null || surfacedIds.has(obs.id);
                       const cls = (hovered: boolean) =>
                         `obs-highlight obs-highlight-${obs.type}${hovered ? " obs-highlight-hovered" : ""}${isPulsing ? " obs-highlight-pulse" : ""}`;
+                      const inlineDeco = (from: number, to: number) =>
+                        Decoration.inline(
+                          from,
+                          to,
+                          surfaced ? { class: cls(isHovered), "data-obs-id": obs.id } : {},
+                          // The collapse detector (view().update below) reads the
+                          // obs id off `spec`, not `attrs`. Without this 4th arg
+                          // `spec` defaults to {} and auto-close-on-deletion never
+                          // fires. See lifecycle_integrity L2.
+                          { "data-obs-id": obs.id }
+                        );
 
                       if (start < end) {
-                        decos.push(
-                          Decoration.inline(
-                            start,
-                            end,
-                            {
-                              class: cls(isHovered),
-                              "data-obs-id": obs.id,
-                            },
-                            // The collapse detector (view().update below) reads
-                            // the obs id off `spec`, not `attrs`. Without this 4th
-                            // arg `spec` defaults to {} and auto-close-on-deletion
-                            // never fires. See lifecycle_integrity L2.
-                            { "data-obs-id": obs.id }
-                          )
-                        );
+                        decos.push(inlineDeco(start, end));
                       }
 
                       // For cross-claim observations (contradiction,
@@ -237,17 +249,7 @@ export const ObservationHighlighter = Extension.create<ObservationHighlighterOpt
                               true
                             );
                             if (cStart < cEnd) {
-                              decos.push(
-                                Decoration.inline(
-                                  cStart,
-                                  cEnd,
-                                  {
-                                    class: cls(isHovered),
-                                    "data-obs-id": obs.id,
-                                  },
-                                  { "data-obs-id": obs.id }
-                                )
-                              );
+                              decos.push(inlineDeco(cStart, cEnd));
                             }
                           }
                         }
@@ -265,6 +267,7 @@ export const ObservationHighlighter = Extension.create<ObservationHighlighterOpt
               observations,
               hoveredId,
               pulseId,
+              surfacedIds,
             };
           },
         },

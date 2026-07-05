@@ -36,9 +36,7 @@ interface GroupedObsCardProps {
   isActive: boolean;
   isArriving: boolean;
   isExiting: boolean;
-  /** Reverse-hover spotlight (UX-006): this card is the span-focus target. */
-  isSpotlit?: boolean;
-  /** Reverse-hover spotlight (UX-006): another card is the target — recede. */
+  /** Reverse-hover focus (UX-006): a span is focused elsewhere — recede. */
   isDimmed?: boolean;
   onHover: (id: string | null) => void;
   onDismiss: (id: string) => void;
@@ -49,7 +47,6 @@ export function GroupedObsCard({
   isActive,
   isArriving,
   isExiting,
-  isSpotlit = false,
   isDimmed = false,
   onHover,
   onDismiss,
@@ -64,7 +61,7 @@ export function GroupedObsCard({
 
   return (
     <div
-      className={`observation-card observation-${primary.type}${isActive ? " observation-card-active" : ""}${isArriving ? " observation-card-arriving" : ""}${isExiting ? " observation-card-exiting" : ""}${isSpotlit ? " observation-card-spotlit" : ""}${isDimmed ? " observation-card-dimmed" : ""}`}
+      className={`observation-card observation-${primary.type}${isActive ? " observation-card-active" : ""}${isArriving ? " observation-card-arriving" : ""}${isExiting ? " observation-card-exiting" : ""}${isDimmed ? " observation-card-dimmed" : ""}`}
       data-testid="obs-card"
       role="listitem"
       tabIndex={0}
@@ -246,20 +243,11 @@ export function SidecarFeed({
   });
   const overflowContradictionCount = alsoNoticedObs.filter((g) => g.hasContradiction).length;
 
-  // Reverse-hover spotlight (UX-006): when a span is focused, lift its card to
-  // the top as an ephemeral lens — a shallow reorder, not a persisted re-rank.
-  // The underlying budget/order is untouched; releasing the span restores it.
-  let displayObs = visibleObs;
-  const spotIdx = spanFocusObsId
-    ? visibleObs.findIndex((g) => g.primary.id === spanFocusObsId)
-    : -1;
-  if (spotIdx > 0) {
-    displayObs = [
-      visibleObs[spotIdx],
-      ...visibleObs.slice(0, spotIdx),
-      ...visibleObs.slice(spotIdx + 1),
-    ];
-  }
+  // Reverse-hover focus (UX-006): when a span is focused, dim every card in
+  // place (no reorder) — the focused card is surfaced by the floating SpanPeek
+  // pinned to the top of the gutter, so it's always on-screen even if the feed
+  // is scrolled. Releasing the span restores full opacity.
+  const feedFocused = spanFocusObsId != null;
 
   return (
     <aside className="sidecar-panel" aria-label="Observations">
@@ -279,13 +267,12 @@ export function SidecarFeed({
                   +{arrivalBatchCount} new
                 </div>
               )}
-              {displayObs.map((group) => (
+              {visibleObs.map((group) => (
                 <GroupedObsCard
                   key={group.id}
                   group={group}
                   isActive={hoveredObservationId === group.primary.id}
-                  isSpotlit={spanFocusObsId === group.primary.id}
-                  isDimmed={spanFocusObsId != null && spanFocusObsId !== group.primary.id}
+                  isDimmed={feedFocused}
                   isArriving={
                     arrivingIds.has(group.primary.id) ||
                     group.others.some((o) => arrivingIds.has(o.id))
@@ -330,6 +317,7 @@ export function SidecarFeed({
                           key={group.id}
                           group={group}
                           isActive={hoveredObservationId === group.primary.id}
+                          isDimmed={feedFocused}
                           isArriving={
                             arrivingIds.has(group.primary.id) ||
                             group.others.some((o) => arrivingIds.has(o.id))
