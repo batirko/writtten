@@ -17,6 +17,9 @@ import {
   saveDocEvalState,
   loadDocEvalState,
   loadActiveObservationsForDocument,
+  loadObservation,
+  reactivateObservation,
+  updateObservationStatus,
   type ClaimLedgerEntry,
   type Observation,
 } from "../store/db";
@@ -44,7 +47,14 @@ import {
   reconcileObservations,
   reconcileDocumentObservations,
   reconcileSweepContradictions,
+  archiveObs,
 } from "./evaluatorReconcile";
+import {
+  snapshotKey,
+  getSectionSnapshot,
+  setSectionSnapshot,
+  type SectionSnapshot,
+} from "./evalSnapshot";
 
 // ---------------------------------------------------------------------------
 // Re-exports — preserve the public API so callers don't need to change their
@@ -80,6 +90,57 @@ interface ContradictionObservation {
   newClaimText: string;
   existingClaimId: number | string;
   message: string;
+}
+
+// ---------------------------------------------------------------------------
+// Revert-aware evaluation — Mechanism 2 (see evalSnapshot.ts + step 1b below).
+// ---------------------------------------------------------------------------
+
+/**
+ * Restore a section to a previously-evaluated (membership, text) state:
+ * reactivate the cached cards by their original id (no new id → no feed
+ * flicker), close any stray active observation on these blocks that isn't
+ * part of the restored state (a real artifact of the transient window, not a
+ * false closure), and re-save the claims + block summary the cached state
+ * produced — all without a model call. See docs/projects/revert_aware_evaluation.md.
+ */
+async function restoreSectionFromSnapshot(
+  docId: string,
+  sectionId: string,
+  memberBlockIds: string[],
+  cleanText: string,
+  textHash: string,
+  snapshot: SectionSnapshot
+): Promise<void> {
+  const restoreIds = new Set(snapshot.observationIds);
+  const now = Date.now();
+
+  for (const id of snapshot.observationIds) {
+    const obs = await loadObservation(id);
+    if (obs && obs.status !== "active") {
+      await reactivateObservation(id, now);
+    }
+  }
+
+  const memberSet = new Set(memberBlockIds);
+  const active = await loadActiveObservationsForDocument(docId);
+  for (const o of active) {
+    if (o.blockId != null && memberSet.has(o.blockId) && !restoreIds.has(o.id)) {
+      await updateObservationStatus(o.id, "auto_closed", "resolved_by_edit");
+      archiveObs(o, "auto_closed");
+    }
+  }
+
+  await saveClaimsForBlock(docId, sectionId, snapshot.claims);
+  await saveBlockSummary({ blockId: sectionId, docId, summary: snapshot.summary, hash: textHash });
+
+  if (import.meta.env.DEV) {
+    harness.emit("restore", {
+      sectionId,
+      restored: snapshot.observationIds.length,
+      textLength: cleanText.length,
+    });
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -127,6 +188,22 @@ export async function evaluateSection(
   // 1. Skip if text hasn't changed since last eval
   const existingSummary = await loadBlockSummary(sectionId);
   if (existingSummary && existingSummary.hash === textHash) {
+    return;
+  }
+
+  // 1b. Revert-aware restore (Mechanism 2, revert_aware_evaluation.md): a
+  //     section's membership can transiently resize (a paragraph<->heading
+  //     toggle) with no debounce of its own, so the block-summary hash above
+  //     can miss even when this *exact* (membership, text) combination was
+  //     already evaluated under a different representative sectionId. Key the
+  //     snapshot on membership+text, not sectionId, so a toggle->revert (or a
+  //     Ctrl-Z back to prior text) restores the prior observations by id
+  //     instead of re-running the model and re-deriving new ones.
+  const snapKey = snapshotKey(memberBlockIds, textHash);
+  const snapshot = getSectionSnapshot(docId, snapKey);
+  if (snapshot) {
+    if (!isLive()) return;
+    await restoreSectionFromSnapshot(docId, sectionId, memberBlockIds, cleanText, textHash, snapshot);
     return;
   }
 
@@ -498,6 +575,21 @@ export async function evaluateSection(
     //    rate-limited strong call), the hash stays unsaved and the next trigger
     //    re-runs the whole eval instead of short-circuiting on a stale match.
     await saveBlockSummary({ blockId: sectionId, docId, summary: summaryText, hash: textHash });
+
+    // 9. Snapshot this (membership, text) state so a later return to it — a
+    //    toggle reverted, a Ctrl-Z, deleting and retyping the same sentence —
+    //    can restore rather than re-evaluate. See step 1b / Mechanism 2.
+    const settledActive = await loadActiveObservationsForDocument(docId);
+    const memberSet = new Set(memberBlockIds);
+    const observationIds = settledActive
+      .filter((o) => o.blockId != null && memberSet.has(o.blockId))
+      .map((o) => o.id);
+    setSectionSnapshot(docId, snapKey, {
+      sectionId,
+      summary: summaryText,
+      claims: extractedClaims,
+      observationIds,
+    });
   } catch (error) {
     console.error("Evaluation error for section", sectionId, error);
   }

@@ -10,6 +10,7 @@ import {
 import * as db from "../store/db";
 import type { Observation } from "../store/db";
 import { capabilityForTier } from "../model/capability";
+import { clearAllSnapshots } from "./evalSnapshot";
 
 const STRONG = capabilityForTier("strong");
 
@@ -22,12 +23,23 @@ vi.mock("../store/db", () => {
     loadActiveClaimsForDocument: vi.fn(async () => []),
     loadBlockSummariesForDocument: vi.fn(async () => []),
     saveObservation: vi.fn(),
+    loadObservation: vi.fn(async () => undefined),
+    reactivateObservation: vi.fn(),
     loadActiveObservationsForDocument: vi.fn(async () => []),
     updateObservationStatus: vi.fn(),
     loadSuppressionsForDocument: vi.fn(async () => []),
     loadDocEvalState: vi.fn(async () => undefined),
     saveDocEvalState: vi.fn(),
   };
+});
+
+// The revert-aware snapshot store (evalSnapshot.ts) is module-level so it
+// survives across evaluateSection calls within a real session — but this file
+// reuses docId/blockId/text combinations across unrelated describe blocks, so
+// without a reset a later fixture could spuriously "restore" from an earlier,
+// unrelated one. Clear before every test regardless of which describe it's in.
+beforeEach(() => {
+  clearAllSnapshots();
 });
 
 // Mock the Gemini model module
@@ -1570,5 +1582,126 @@ describe("evaluator - conflict identity unified on conflictPairKey (L5c)", () =>
     await evaluateBlock(docId, "block1", "We plan to launch in Q3.", "Stage", apiKey);
 
     expect(db.updateObservationStatus).toHaveBeenCalledWith("cx-old", "auto_closed", "resolved_by_edit");
+  });
+});
+
+describe("evaluator - revert-aware snapshot restore (UX-014 Mechanism 2)", () => {
+  const docId = "docRevert";
+  const apiKey = "mock-key";
+
+  // A tiny stateful fake DB so the reconciler's auto-close and the restore
+  // path's reactivate both observe (and mutate) the same records, mirroring
+  // real IndexedDB across the sequence of evaluateSection calls below.
+  let stored: Observation[];
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    clearAllSnapshots();
+    stored = [];
+    vi.mocked(db.loadBlockSummary).mockResolvedValue(undefined);
+    vi.mocked(db.loadActiveClaimsForDocument).mockResolvedValue([]);
+    vi.mocked(db.loadActiveObservationsForDocument).mockImplementation(async () =>
+      stored.filter((o) => o.status === "active")
+    );
+    vi.mocked(db.loadObservation).mockImplementation(async (id: string) =>
+      stored.find((o) => o.id === id)
+    );
+    vi.mocked(db.saveObservation).mockImplementation(async (o) => {
+      stored.push(o as Observation);
+    });
+    vi.mocked(db.updateObservationStatus).mockImplementation(async (id, status, closureReason) => {
+      const o = stored.find((s) => s.id === id);
+      if (o) {
+        o.status = status;
+        if (closureReason !== undefined) o.closureReason = closureReason;
+      }
+    });
+    vi.mocked(db.reactivateObservation).mockImplementation(async (id: string) => {
+      const o = stored.find((s) => s.id === id);
+      if (o) {
+        o.status = "active";
+        delete o.closureReason;
+      }
+    });
+  });
+
+  const introMembers = [
+    { blockId: "intro", text: "Some intro paragraph." },
+    { blockId: "target", text: "Body text worth flagging." },
+    { blockId: "trail", text: "Trailing paragraph." },
+  ];
+  const combinedText = introMembers.map((m) => m.text).join("\n\n");
+  const shrunkMembers = [{ blockId: "intro", text: "Some intro paragraph." }];
+  const shrunkText = "Some intro paragraph.";
+
+  // Anchored to the "intro" block (not "target"), so it's still a member of
+  // the section post-shrink — real anchors don't vanish, they only migrate
+  // between which *section* reconciles them, which is Editor.tsx's job, not
+  // evaluateSection's; the point under test is evaluateSection's own restore
+  // contract, so the anchor stays inside the section given to it in both calls.
+  const fastWithClarity = {
+    text: JSON.stringify({
+      summary: "s",
+      claims: [],
+      clarity_observations: [{ text: "Vague claim.", substring: "Some intro paragraph." }],
+    }),
+  };
+  const fastEmpty = {
+    text: JSON.stringify({ summary: "s2", claims: [], clarity_observations: [] }),
+  };
+
+  it("restores the prior observation by id (no model call, no new insert) once membership+text return to a prior state", async () => {
+    // 1. Original shape: three-block section, produces one clarity observation.
+    mockFast.mockResolvedValueOnce(fastWithClarity);
+    await evaluateSection(docId, "intro", combinedText, introMembers, undefined, apiKey);
+    expect(db.saveObservation).toHaveBeenCalledTimes(1);
+    expect(stored).toHaveLength(1);
+    const [obs] = stored;
+    expect(obs.status).toBe("active");
+
+    // 2. Transient toggle: the section shrinks to one block with different text
+    //    (a real state — new hash) — the fast call runs again and, producing no
+    //    observations this time, closes the one anchored to a still-member block.
+    mockFast.mockResolvedValueOnce(fastEmpty);
+    await evaluateSection(docId, "intro", shrunkText, shrunkMembers, undefined, apiKey);
+    expect(mockFast).toHaveBeenCalledTimes(2);
+    expect(obs.status).toBe("auto_closed");
+    expect(obs.closureReason).toBe("resolved_by_edit");
+
+    // 3. Revert: membership + text return exactly to state 1's shape. This must
+    //    restore — not re-call the model, not insert a new observation.
+    await evaluateSection(docId, "intro", combinedText, introMembers, undefined, apiKey);
+    expect(mockFast).toHaveBeenCalledTimes(2); // no third model call
+    expect(db.saveObservation).toHaveBeenCalledTimes(1); // no new insert
+    expect(db.reactivateObservation).toHaveBeenCalledWith("mock-id", expect.any(Number));
+    expect(stored).toHaveLength(1); // same record, not a duplicate
+    expect(obs.status).toBe("active"); // restored, no lingering closure
+    expect(obs.closureReason).toBeUndefined();
+  });
+
+  it("does not restore when the text differs even if membership matches (a real edit, not a revert)", async () => {
+    mockFast.mockResolvedValueOnce(fastWithClarity);
+    await evaluateSection(docId, "intro", combinedText, introMembers, undefined, apiKey);
+    expect(mockFast).toHaveBeenCalledTimes(1);
+
+    mockFast.mockResolvedValueOnce(fastEmpty);
+    const differentText = introMembers
+      .map((m) => m.text)
+      .join("\n\n")
+      .replace("Body text worth flagging.", "Body text now says something else entirely.");
+    await evaluateSection(
+      docId,
+      "intro",
+      differentText,
+      [
+        { blockId: "intro", text: "Some intro paragraph." },
+        { blockId: "target", text: "Body text now says something else entirely." },
+        { blockId: "trail", text: "Trailing paragraph." },
+      ],
+      undefined,
+      apiKey
+    );
+    // Different text, same membership → a real change, not a snapshot hit.
+    expect(mockFast).toHaveBeenCalledTimes(2);
   });
 });

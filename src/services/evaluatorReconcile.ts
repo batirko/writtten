@@ -35,8 +35,11 @@ import {
 
 /** Record a system-driven observation closure in the debug log (dev-only).
  *  Mirrors the user-driven archives emitted from App.tsx, so the log shows every
- *  status transition with its actor + reason. See docs/projects/debug_log.md. */
-function archiveObs(
+ *  status transition with its actor + reason. See docs/projects/debug_log.md.
+ *  Exported for reuse by evaluator.ts's snapshot-restore path (Mechanism 2,
+ *  revert_aware_evaluation.md), which closes stray observations the same way
+ *  the normal reconciler does. */
+export function archiveObs(
   o: Observation,
   reason: ArchiveInfo["reason"],
   evalId?: string,
