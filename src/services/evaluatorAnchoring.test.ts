@@ -46,6 +46,24 @@ describe("anchorClaimsToMembers", () => {
     expect(c.kind).toBe("fact_claim");
   });
 
+  it("tolerates a trailing sentence period the extractor added to a mid-sentence clause", () => {
+    // Source has "...in Q3, giving..." (comma); the extractor lifted it as a
+    // standalone claim ending in a period. Exact match misses on that one char;
+    // the punctuation-tolerant fallback recovers the real clause.
+    const secs: SectionMember[] = [
+      { blockId: "h", text: "Summary", isHeading: true },
+      { blockId: "body", text: "The rollout will ship to all customers in Q3, giving support time." },
+    ];
+    const [c] = anchorClaimsToMembers(secs, [
+      { text: "The rollout will ship to all customers in Q3.", kind: "commitment" },
+    ]);
+    expect(c.anchorBlockId).toBe("body");
+    // Anchored to the clause (without the trailing period), not the heading.
+    expect(secs[1].text.slice(c.anchorStartOffset, c.anchorEndOffset)).toBe(
+      "The rollout will ship to all customers in Q3"
+    );
+  });
+
   it("anchors a mix — some verbatim, some reworded — independently", () => {
     const out = anchorClaimsToMembers(members, [
       { text: "requires a solutions engineer", kind: "constraint" },
