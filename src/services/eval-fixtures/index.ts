@@ -7,7 +7,7 @@
  * Add a fixture by:
  *   1. Create src/services/eval-fixtures/<id>.ts
  *   2. Add it to the array below
- *   3. Run `npm run eval:record -- <id>` to populate the recordings map
+ *   3. Run `EVAL_RECORD_ID=<id> npm run eval:record` to populate the recordings map
  *   4. Add expected[] ground-truth labels
  *   5. `npm test` should pass (Tier 1 exact match)
  */
@@ -26,6 +26,8 @@ import clarityWordySpecified from "./clarity-wordy-specified";
 import clarityConditionalSpecified from "./clarity-conditional-specified";
 import claimKindDiscrimination from "./claim-kind-discrimination";
 import clarityTextInsight from "./clarity-text-insight";
+import opinionApprehension from "./opinion-apprehension";
+import commsNarrative from "./comms-narrative";
 import type { EvalFixture } from "./types";
 
 export const corpus: EvalFixture[] = [
@@ -43,6 +45,8 @@ export const corpus: EvalFixture[] = [
   clarityConditionalSpecified,
   claimKindDiscrimination,
   clarityTextInsight,
+  opinionApprehension,
+  commsNarrative,
 ];
 
 export { type EvalFixture } from "./types";

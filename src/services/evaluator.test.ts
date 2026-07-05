@@ -393,6 +393,75 @@ describe("evaluator - evaluateSection skipContradiction (bulk paste)", () => {
   });
 });
 
+describe("evaluator - evaluateSection cross-section context (OBS-027)", () => {
+  const docId = "doc1";
+  const sectionId = "sec1";
+  const apiKey = "mock-key";
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(db.loadBlockSummary).mockResolvedValue(undefined);
+    vi.mocked(db.loadActiveObservationsForDocument).mockResolvedValue([]);
+    mockFast.mockResolvedValue({
+      text: JSON.stringify({
+        summary: "s",
+        claims: [],
+        clarity_observations: [],
+        unsupported_claim_observations: [],
+        undefined_jargon_observations: [],
+      }),
+    });
+  });
+
+  const runSection = () =>
+    evaluateSection(
+      docId,
+      sectionId,
+      "This notification pattern retries three times.",
+      [{ blockId: sectionId, text: "This notification pattern retries three times." }],
+      "Stage",
+      apiKey,
+      undefined,
+      undefined,
+      true // skipContradiction — keep to a single fast call
+    );
+
+  it("injects sibling summaries and sibling claims as established context", async () => {
+    vi.mocked(db.loadBlockSummariesForDocument).mockResolvedValue([
+      { blockId: "secSolution", docId, summary: "The notification pattern is defined here.", hash: "h" },
+      { blockId: sectionId, docId, summary: "own section summary", hash: "h" }, // own → excluded
+    ]);
+    vi.mocked(db.loadActiveClaimsForDocument).mockResolvedValue([
+      { id: 1, docId, sourceBlockId: "secSolution", text: "Retries are capped at three.", kind: "constraint", status: "active" },
+      { id: 2, docId, sourceBlockId: sectionId, text: "own-section claim", kind: "fact_claim", status: "active" }, // own → excluded
+    ]);
+
+    await runSection();
+
+    const user = mockFast.mock.calls[0][0].user as string;
+    expect(user).toContain("Established elsewhere in this document");
+    expect(user).toContain("The notification pattern is defined here.");
+    expect(user).toContain("Retries are capped at three.");
+    // The section's own summary/claim must not leak into its own context block.
+    expect(user).not.toContain("own section summary");
+    expect(user).not.toContain("own-section claim");
+  });
+
+  it("omits the context block when there is no sibling content (fixture-hash stability)", async () => {
+    vi.mocked(db.loadBlockSummariesForDocument).mockResolvedValue([
+      { blockId: sectionId, docId, summary: "own section summary", hash: "h" },
+    ]);
+    vi.mocked(db.loadActiveClaimsForDocument).mockResolvedValue([
+      { id: 2, docId, sourceBlockId: sectionId, text: "own-section claim", kind: "fact_claim", status: "active" },
+    ]);
+
+    await runSection();
+
+    const user = mockFast.mock.calls[0][0].user as string;
+    expect(user).not.toContain("Established elsewhere in this document");
+  });
+});
+
 describe("evaluator - evaluateLedgerContradictions (bootstrap sweep)", () => {
   const docId = "doc1";
   const apiKey = "mock-key";
@@ -483,6 +552,23 @@ describe("evaluator - evaluateLedgerContradictions (bootstrap sweep)", () => {
         status: "active",
       })
     );
+  });
+
+  it("drops a self-pair (a claim cannot contradict itself) (OBS-026)", async () => {
+    vi.mocked(db.loadActiveClaimsForDocument).mockResolvedValue([claimA, claimB]);
+    vi.mocked(db.loadActiveObservationsForDocument).mockResolvedValueOnce([]);
+    mockStrong.mockResolvedValueOnce({
+      text: JSON.stringify({
+        // Same claim index on both sides — a degenerate self-conflict.
+        contradictions: [{ claimAId: 0, claimBId: 0, message: "Self conflict." }],
+        tensions: [],
+      }),
+    });
+
+    await evaluateLedgerContradictions(docId, "Stage", apiKey);
+
+    expect(mockStrong).toHaveBeenCalledTimes(1);
+    expect(db.saveObservation).not.toHaveBeenCalled();
   });
 
   it("is a no-op when the ledger is unchanged since the last sweep (dirty-check)", async () => {

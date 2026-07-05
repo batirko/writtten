@@ -2,7 +2,12 @@
  * Unit tests for scoreObservations — pure function, zero mocks.
  */
 import { describe, it, expect } from "vitest";
-import { scoreObservations } from "./evalScorer";
+import {
+  scoreObservations,
+  precisionFloorForType,
+  PRECISION_FLOORS,
+  AGGREGATE_RECALL_FLOOR,
+} from "./evalScorer";
 import type { Observation } from "../store/db";
 import type { ExpectedObservation } from "./eval-fixtures/types";
 
@@ -181,5 +186,59 @@ describe("scoreObservations — edge cases", () => {
     ];
     const r = scoreObservations("fx", produced, expected, sectionTexts);
     expect(r.recall).toBe(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Per-type precision floors (trust-cost tiers)
+// ---------------------------------------------------------------------------
+describe("precision floors — tier policy", () => {
+  const ALL_TYPES: Observation["type"][] = [
+    "clarity",
+    "contradiction",
+    "strategic_tension",
+    "unsupported_claim",
+    "undefined_jargon",
+    "underexposed_topic",
+    "missing_topic",
+    "structure_flow",
+    "audience_mismatch",
+  ];
+
+  it("assigns a floor to every observation type (exhaustive — no unguarded type)", () => {
+    for (const t of ALL_TYPES) {
+      const floor = precisionFloorForType(t);
+      expect(floor, `${t} has a floor`).toBeGreaterThan(0);
+      expect(floor).toBeLessThanOrEqual(1);
+    }
+    // No extra keys beyond the known taxonomy.
+    expect(Object.keys(PRECISION_FLOORS).sort()).toEqual([...ALL_TYPES].sort());
+  });
+
+  it("orders tiers by trust cost: contradiction ≥ assertive ≥ nits ≥ soft opportunities", () => {
+    const A = precisionFloorForType("contradiction");
+    const B = precisionFloorForType("unsupported_claim");
+    const C = precisionFloorForType("clarity");
+    const D = precisionFloorForType("strategic_tension");
+    expect(A).toBe(0.95);
+    expect(B).toBe(0.85);
+    expect(C).toBe(0.8);
+    expect(D).toBe(0.7);
+    expect(A).toBeGreaterThan(B);
+    expect(B).toBeGreaterThan(C);
+    expect(C).toBeGreaterThan(D);
+  });
+
+  it("groups types into the four tiers as specified", () => {
+    expect(precisionFloorForType("audience_mismatch")).toBe(0.85); // Tier B with unsupported_claim
+    expect(precisionFloorForType("undefined_jargon")).toBe(0.8); // Tier C with clarity
+    for (const t of ["missing_topic", "underexposed_topic", "structure_flow"] as const) {
+      expect(precisionFloorForType(t), `${t} is Tier D`).toBe(0.7);
+    }
+  });
+
+  it("keeps the aggregate recall floor a sane probability", () => {
+    expect(AGGREGATE_RECALL_FLOOR).toBeGreaterThan(0);
+    expect(AGGREGATE_RECALL_FLOOR).toBeLessThanOrEqual(1);
   });
 });

@@ -5,9 +5,10 @@
  * It runs inside Vitest so import.meta.env, vi.mock, and the full module
  * resolution work exactly as in the normal test environment.
  *
- * Usage:
- *   npm run eval:record -- contradiction-timeline
- *   npm run eval:record -- --all
+ * Usage (the fixture id is read from the EVAL_RECORD_ID env var — a bare
+ * `-- <id>` positional does NOT work, vitest treats it as a filename filter):
+ *   EVAL_RECORD_ID=contradiction-timeline npm run eval:record
+ *   npm run eval:record            # no id → records the whole corpus
  *
  * Requires VITE_GEMINI_API_KEY in .env.local.
  *
@@ -46,6 +47,10 @@ vi.mock("../../store/db", () => ({
   loadBlockSummary: vi.fn(),
   saveClaimsForBlock: vi.fn(),
   loadActiveClaimsForDocument: vi.fn(),
+  // OBS-027: evaluateSection now injects sibling-section context via this.
+  // Without it recording throws before any call. runFixture wires no summary
+  // store, so [] is correct (siblings come from the accumulating ledger).
+  loadBlockSummariesForDocument: vi.fn(async () => []),
   saveObservation: vi.fn(),
   loadActiveObservationsForDocument: vi.fn(),
   updateObservationStatus: vi.fn(),

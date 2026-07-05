@@ -17,6 +17,7 @@ import { createElement } from "react";
 import { createRoot } from "react-dom/client";
 import { act } from "react";
 import { SidecarFeed } from "./SidecarFeed";
+import { ControlCenter } from "./ControlCenter";
 import type { Observation } from "../store/db";
 
 const minProps = {
@@ -39,7 +40,9 @@ describe("SidecarFeed debug panel (L7 — prod prompt-leak)", () => {
     document.body.appendChild(div);
     containers.push(div);
     act(() => {
-      createRoot(div).render(createElement(SidecarFeed, minProps));
+      // The debug panel now lives in ControlCenter (always-visible, lifted out
+      // of the collapsible feed). This guards its default-off invariant.
+      createRoot(div).render(createElement(ControlCenter, minProps));
     });
     return div;
   }

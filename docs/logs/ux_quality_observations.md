@@ -38,6 +38,7 @@ When enough entries cluster around the same failure mode or interface area, pull
 - [ ] **Jargon allowlist scope** — Remove the user-facing "Suppress jargon alerts" control from the settings panel for now, as it belongs in a future account/project-level settings scope. (See UX-005)
 - [ ] **Reverse-hover affordance** — Implement a bi-directional link so hovering highlighted text in the editor surfaces or summarizes the corresponding observation(s) from the sidecar. (See UX-006)
 - [ ] **Feed choreography** — Implement visual transitions (animations, highlights, or "new" states) when the feed updates so users don't have to manually rescan to spot changes. (See UX-007)
+- [ ] **No evaluator-internal IDs in message copy** — forbid `Claim #N`-style index references in contradiction/tension `message` text; the model should quote or restate the claim's own words instead. Prompt-level fix, pairs with OBS-031's paraphrase-fidelity fix. (See UX-017.)
 - [ ] **Observation quotes** — Add a small snippet of the referenced text as a subtitle to observation cards to improve scanning speed without requiring a hover interaction. (See UX-008)
 - [ ] **Observation auto-scroll & split-context** — Implement auto-scrolling the editor when focusing a card, and design a solution (e.g., floating portal) for viewing distant spans simultaneously in a contradiction. (See UX-009)
 - [ ] **Smart Feed vs Manual Control (Design Project)** — Draft a new project spec to explore lightweight user controls for the feed (sorting, filtering, warnings vs. suggestions) that respect the "lean/smart interface" philosophy without becoming a traditional settings-heavy dashboard. (See UX-010)
@@ -259,3 +260,15 @@ Each entry follows the format:
 **Actual:** The contradiction check never ran (`strongCalls: 0`). The contradiction sweep is a document-level check, and document-level checks are gated behind a 150-word maturity threshold (`CONTENT_THRESHOLD_WORDS`) to save LLM quota on early, incomplete drafts. Because the test string was short, it never crossed the threshold, so the check was skipped silently. The user only saw a weak-tier `clarity` nit.\
 **Failure mode:** unreachable-feedback / missing-hero-moment\
 **Notes:** While gating strong/doc-level checks on word count saves money and reduces noise on empty drafts, it completely silences the most impressive (and structurally critical) feedback early in the drafting process when users are laying out their core arguments. If a user drops in a short, punchy outline with a blatant logical flaw, we miss the chance to catch it. This clusters with UX-013 (doc-level fit on short drafts) and suggests the maturity heuristic needs to be smarter than a hard word-count cliff—perhaps allowing certain high-signal sweeps (like contradiction) to bypass the length gate entirely when the ledger contains clear conflicts.
+
+---
+
+### UX-017 — "Claim #N" evaluator-internal index leaks into user-facing contradiction/tension message text
+
+**Date:** 2026-07-05\
+**Area/Component:** contradiction/tension card copy (`src/services/evaluatorPrompts.ts:127,145`, sweep contradiction prompt)\
+**Interaction:** Reading two contradiction/tension cards on a rollout spec; one message read _"...while Claim #0 gates the feature to a specific user segment"_ and another _"...which the concurrent device retries in Claim #1 could exceed."_\
+**Expected:** A message that refers back to the user's own document — a quote, a paraphrase, or a pointer to the section/sentence — never an opaque internal identifier the user has no way to decode without inspecting the ledger.\
+**Actual:** The prompts (`CONTRADICTION_SWEEP_SYSTEM_PROMPT` and its hedged variant) label claims `[Claim #N]` for the model's own bookkeeping (so it can return `claimAId`/`claimBId` as structured fields) — but nothing stops the model from echoing that same `Claim #N` label inside the free-text `message` field it writes for the user. The example given in the prompt ("This contradicts the Q3 target date set earlier.") doesn't use index phrasing, but no instruction explicitly forbids it, so the model sometimes reaches for the label that's right in front of it.\
+**Failure mode:** internal-implementation leak into user-facing copy (register violation — evaluator's-eye-view instead of the user's-eye-view)\
+**Notes:** Purely a prompt fix: add an explicit instruction that the `message` field must never reference a claim by its index/label — it should quote or closely restate the claim's own words instead. Same session also surfaced OBS-031 (paraphrase drift) on one of these two messages — worth fixing together since both are about what the `message` field is allowed to say about a compared claim. → see `docs/logs/prompt_quality_observations.md` (OBS-031).

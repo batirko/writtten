@@ -38,6 +38,7 @@ vi.mock("../store/db", () => ({
   loadBlockSummary: vi.fn(),
   saveClaimsForBlock: vi.fn(),
   loadActiveClaimsForDocument: vi.fn(),
+  loadBlockSummariesForDocument: vi.fn(async () => []),
   saveObservation: vi.fn(),
   loadObservation: vi.fn(),
   reactivateObservation: vi.fn(),

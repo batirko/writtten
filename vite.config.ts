@@ -35,6 +35,9 @@ export default defineConfig({
       // Standard vitest/vite excludes (keep in sync with vitest defaults):
       "**/node_modules/**",
       "**/dist/**",
+      // Per-session parallel-work git worktrees live under .worktrees/ (gitignored);
+      // don't run other branches' test copies in this tree's suite.
+      "**/.worktrees/**",
     ],
   },
 });
