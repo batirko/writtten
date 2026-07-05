@@ -143,6 +143,59 @@ describe("buildEnvelope — call merge", () => {
   });
 });
 
+describe("buildEnvelope — harness semantic request/response are not fabricated calls", () => {
+  it("routes model/callId/payload-less request+response events to the harness bucket, not empty calls", () => {
+    // The evaluator emits `harness.emit("request"/"response", { block, tier })`
+    // as lifecycle signals. They share the type strings of real HTTP legs but
+    // carry no callId/model/payload — they must NOT become empty call records.
+    const entries = [
+      // harness "request" lifecycle event (no callId/model/payload)
+      entry({ type: "request", model: undefined, payload: undefined, tier: "fast" }),
+      // the real Gemini leg for that section
+      entry({
+        type: "request",
+        callId: "c1",
+        tier: "fast",
+        model: "gemini-3.1-flash-lite",
+        promptRef: "section-eval",
+        payload: { system: SYS, user: "u" },
+      }),
+      entry({
+        type: "response",
+        callId: "c1",
+        tier: "fast",
+        model: "gemini-3.1-flash-lite",
+        statusCode: 200,
+        latencyMs: 1399,
+        payload: { system: SYS, user: "u" },
+        response: "{}",
+      }),
+      // harness "response" lifecycle event (no callId/model/payload)
+      entry({
+        type: "response",
+        model: undefined,
+        payload: undefined,
+        tier: "fast",
+        latencyMs: 1016,
+      }),
+    ] as LLMLogEntry[];
+
+    const env = buildEnvelope(entries, new Map());
+    const calls = env.log.filter((r) => r.kind === "call") as CallRecord[];
+    // Exactly one real call — no phantom { model: "", status: "pending" } records.
+    expect(calls).toHaveLength(1);
+    expect(calls[0].callId).toBe("c1");
+    expect(calls[0].status).toBe(200);
+    expect(env.meta.counts.calls).toBe(1);
+
+    // The two lifecycle events surface as harness records with their type intact.
+    const harnessReqResp = env.log.filter(
+      (r) => r.kind === "harness" && (r.eventType === "request" || r.eventType === "response")
+    );
+    expect(harnessReqResp).toHaveLength(2);
+  });
+});
+
 describe("buildEnvelope — glossary dereference", () => {
   it("extracts the defined-terms list once and tokenizes it in user content", () => {
     const user =

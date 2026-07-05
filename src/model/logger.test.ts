@@ -174,6 +174,47 @@ describe("llmLogger.getApiStats", () => {
   });
 });
 
+describe("llmLogger retention", () => {
+  beforeEach(() => {
+    llmLogger.clearLogs();
+  });
+
+  it("keeps LLM call rows despite a flood of lifecycle events (per-class caps)", () => {
+    // Two real Gemini calls early in the session.
+    for (let i = 0; i < 2; i++) {
+      llmLogger.log({
+        type: "request",
+        tier: "fast",
+        model: "gemini-3.1-flash-lite",
+        payload: { system: "S", user: "U" },
+      });
+      llmLogger.log({
+        type: "response",
+        tier: "fast",
+        model: "gemini-3.1-flash-lite",
+        statusCode: 200,
+        latencyMs: 100,
+        payload: { system: "S", user: "U" },
+        response: "{}",
+      });
+    }
+    // A session's worth of high-frequency lifecycle churn (settle on every pause,
+    // observation on every reconcile) — far past any single shared cap.
+    for (let i = 0; i < 500; i++) {
+      llmLogger.log({ type: "settle" });
+      llmLogger.log({ type: "observation" });
+    }
+
+    const logs = llmLogger.getLogs();
+    const llmRows = logs.filter((l) => (l.type === "request" || l.type === "response") && l.model);
+    const lifecycle = logs.filter((l) => l.type === "settle" || l.type === "observation");
+    // All four LLM legs survive; before per-class retention they were all evicted.
+    expect(llmRows).toHaveLength(4);
+    // Lifecycle chatter is capped by its own budget, not by starving LLM rows.
+    expect(lifecycle).toHaveLength(200);
+  });
+});
+
 describe("llmLogger archive + produced", () => {
   beforeEach(() => {
     llmLogger.clearLogs();

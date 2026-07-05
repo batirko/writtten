@@ -125,9 +125,23 @@ function extractGlossary(user: string): string[] | null {
     .filter(Boolean);
 }
 
-/** Whether an entry represents a single LLM call leg (vs. trigger/archive). */
-function isCallLeg(type: LLMLogEntry["type"]): boolean {
-  return type === "request" || type === "response" || type === "retry" || type === "error";
+/**
+ * Whether an entry is a real Gemini call leg (vs. trigger/archive/lifecycle).
+ *
+ * The type string alone is ambiguous: the evaluator emits *semantic* lifecycle
+ * events `harness.emit("request"/"response", { block, tier })` that share those
+ * type strings but describe "I'm evaluating this section" / "I got a result" —
+ * they carry no `callId`, `model`, or `payload`. Keying those by a synthetic id
+ * fabricated an empty `{ model: "", status: "pending" }` call record per event.
+ * A real HTTP leg always carries at least one of `callId` / `payload` / `model`
+ * (live legs mint a `callId`; legacy pre-correlation legs still had model+payload),
+ * so require that. Lifecycle request/response events fall through to the generic
+ * harness bucket instead.
+ */
+function isCallLeg(e: LLMLogEntry): boolean {
+  const isLegType =
+    e.type === "request" || e.type === "response" || e.type === "retry" || e.type === "error";
+  return isLegType && Boolean(e.callId || e.payload || e.model);
 }
 
 /**
@@ -215,7 +229,7 @@ export function buildEnvelope(
       continue;
     }
 
-    if (!isCallLeg(e.type)) {
+    if (!isCallLeg(e)) {
       const {
         type,
         id,
