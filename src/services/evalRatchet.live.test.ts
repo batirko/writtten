@@ -51,6 +51,11 @@ vi.mock("../store/db", () => ({
   loadBlockSummary: vi.fn(),
   saveClaimsForBlock: vi.fn(),
   loadActiveClaimsForDocument: vi.fn(),
+  // OBS-027 injects sibling-section context, so evaluateSection now calls this.
+  // Without it, every live eval throws (missing export) before the API call —
+  // silently yielding zero observations. runFixture wires no summary store, so
+  // an empty array is the correct default here (siblings come from the ledger).
+  loadBlockSummariesForDocument: vi.fn(async () => []),
   saveObservation: vi.fn(),
   loadActiveObservationsForDocument: vi.fn(),
   updateObservationStatus: vi.fn(),
