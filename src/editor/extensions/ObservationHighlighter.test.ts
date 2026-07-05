@@ -229,9 +229,23 @@ describe("reanchorOffset (L5)", () => {
     expect(reanchorOffset("some text", "   ", 2, 6)).toEqual({ start: 2, end: 6 });
   });
 
-  it("leaves the whole-block 0:9999 sentinel unchanged", () => {
-    // Even though "x" occurs, sentinels must not be re-anchored.
-    expect(reanchorOffset("x y z", "x", 0, 9999)).toEqual({ start: 0, end: 9999 });
+  it("re-anchors the whole-block 0:9999 sentinel to the verbatim claim clause", () => {
+    // Sweep/conflict anchors store 0:9999 (claims carry text, not offsets). When
+    // the claim text is a verbatim substring we now resolve it precisely instead
+    // of lighting the whole block.
+    expect(reanchorOffset("we ship in Q3 to all", "ship in Q3", 0, 9999)).toEqual({
+      start: 3,
+      end: 13,
+    });
+  });
+
+  it("keeps the 0:9999 sentinel whole-block when the claim was reworded (no match)", () => {
+    // LLM paraphrased the claim → not a substring → fall back to whole-block; the
+    // caller clamps 9999 to the real text length.
+    expect(reanchorOffset("we ship in Q3", "committed to Q3 delivery", 0, 9999)).toEqual({
+      start: 0,
+      end: 9999,
+    });
   });
 
   it("picks the occurrence nearest the stored start when the anchor repeats", () => {

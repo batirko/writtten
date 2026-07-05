@@ -93,10 +93,20 @@ export function spansOverlap(
 export function conflictPairKey(
   o: Pick<Observation, "type" | "blockId" | "conflictingBlockId">
 ): string {
+  return `${o.type}::${blockPairKey(o)}`;
+}
+
+/**
+ * Type-agnostic block-pair key (order-independent) for a cross-claim observation.
+ * Unlike `conflictPairKey` it omits the type, so a `contradiction` and a
+ * `strategic_tension` on the same two blocks share a key — the basis for
+ * cross-type precedence (a contradiction outranks a tension on the same pair).
+ */
+export function blockPairKey(o: Pick<Observation, "blockId" | "conflictingBlockId">): string {
   const a = o.blockId ?? "";
   const b = o.conflictingBlockId ?? "";
   const [lo, hi] = a < b ? [a, b] : [b, a];
-  return `${o.type}::${lo}|${hi}`;
+  return `${lo}|${hi}`;
 }
 
 // ---------------------------------------------------------------------------
