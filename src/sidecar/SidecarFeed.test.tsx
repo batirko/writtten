@@ -283,3 +283,62 @@ describe("SidecarFeed — reverse-hover spotlight (UX-006)", () => {
     expect(div.querySelector(".observation-card-dimmed")).toBeNull();
   });
 });
+
+// ---------------------------------------------------------------------------
+// C2 — click a card to locate its span. Clicking the card body dispatches
+// `obs-card-activate`; clicking the dismiss button does NOT (it dismisses).
+// ---------------------------------------------------------------------------
+
+describe("SidecarFeed — click-to-locate (C2)", () => {
+  const containers: HTMLDivElement[] = [];
+
+  function renderOne(): HTMLDivElement {
+    const div = document.createElement("div");
+    document.body.appendChild(div);
+    containers.push(div);
+    act(() => {
+      createRoot(div).render(
+        createElement(SidecarFeed, {
+          ...minProps,
+          observations: [
+            obs({ id: "x", type: "clarity", blockId: "b1", startOffset: 0, endOffset: 5 }),
+          ],
+        })
+      );
+    });
+    return div;
+  }
+
+  afterEach(() => {
+    for (const c of containers) act(() => c.remove());
+    containers.length = 0;
+  });
+
+  it("dispatches obs-card-activate when the card body is clicked", () => {
+    const div = renderOne();
+    const events: string[] = [];
+    const handler = (e: Event) => events.push((e as CustomEvent<{ id: string }>).detail.id);
+    window.addEventListener("obs-card-activate", handler);
+    act(() => {
+      div.querySelector('[data-testid="obs-card"]')?.dispatchEvent(
+        new MouseEvent("click", { bubbles: true })
+      );
+    });
+    window.removeEventListener("obs-card-activate", handler);
+    expect(events).toEqual(["x"]);
+  });
+
+  it("does NOT activate when the dismiss button is clicked", () => {
+    const div = renderOne();
+    const events: string[] = [];
+    const handler = (e: Event) => events.push((e as CustomEvent<{ id: string }>).detail.id);
+    window.addEventListener("obs-card-activate", handler);
+    act(() => {
+      div.querySelector('[data-testid="obs-dismiss"]')?.dispatchEvent(
+        new MouseEvent("click", { bubbles: true })
+      );
+    });
+    window.removeEventListener("obs-card-activate", handler);
+    expect(events).toEqual([]);
+  });
+});

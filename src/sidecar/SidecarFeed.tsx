@@ -78,6 +78,12 @@ export function GroupedObsCard({
       onMouseLeave={() => onHover(null)}
       onFocus={() => onHover(primary.id)}
       onBlur={() => onHover(null)}
+      onClick={(e) => {
+        // Click-to-locate (C2): scroll to (and pulse) the span. Clicks on the
+        // dismiss X or the "N more" toggle keep their own behaviour.
+        if ((e.target as HTMLElement).closest("button")) return;
+        window.dispatchEvent(new CustomEvent("obs-card-activate", { detail: { id: primary.id } }));
+      }}
       onKeyDown={(e) => {
         if (e.key === "Enter" || e.key === " ") {
           e.preventDefault();

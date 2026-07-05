@@ -194,6 +194,8 @@ Bidirectional completion of C1: hovering/focusing a highlighted **span in the ed
 
 #### UX-009 — Distant-contradiction floating peek
 
+**Shipped (#51), and it landed the C2 contract with it** (which was unbuilt: cards were keyboard-only, the handler scrolled the primary span only, no pulse). Now **clicking any card** (guarded so the dismiss X / "N more" toggle keep their own behaviour) scrolls to its span and fires a one-shot pulse (`obs-highlight-pulse` via the highlighter's `setPulseObsId` meta channel + the `obsPulse` keyframe); a `contradiction`/`strategic_tension` **dual-pulses both spans**. Fit is decided by the pure `bothSpansFit(aTop, bTop, viewportH, 0.85)` (`src/editor/spanFit.ts`) over `coordsAtPos` tops. When the two spans **can't** share the viewport, `ContradictionPeek` (`src/editor/ContradictionPeek.tsx`, `.contradiction-peek`) floats a serif-italic quote of the **far** span under the near one (flipping above on viewport overflow via measured `coordsAtPos`, SlashMenu-style), with a bidirectional **Jump** that scrolls to the far span and re-quotes the near one. Dismiss on Escape / wheel / touchmove (user-scroll gesture, not the programmatic `scroll` our own smooth-scroll emits) / the × control. The full **split editor view** stays deferred per spec.
+
 C2 already scrolls to a card's span and pulses it. The gap is **comparing two distant conflicting spans at once**. Settled v1: a **floating peek of the other span** (not a full split-view).
 
 - **Trigger:** activating a `contradiction` card (click/Enter, C2) whose two spans **cannot both fit in the viewport**. (If both already fit, C2's scroll+dual-pulse suffices — no peek.)

@@ -114,6 +114,9 @@ export const ObservationHighlighter = Extension.create<ObservationHighlighterOpt
               decorations: DecorationSet.empty,
               observations: [] as Observation[],
               hoveredId: null as string | null,
+              // One-shot activation pulse (UX-009 / C2): the id of the observation
+              // whose span(s) should flash. Cleared on a timer by the editor.
+              pulseId: null as string | null,
             };
           },
           apply(tr, value, _oldState, newState) {
@@ -123,16 +126,22 @@ export const ObservationHighlighter = Extension.create<ObservationHighlighterOpt
             // 2. Check if observations or hover status were updated via metadata
             const newObservations = tr.getMeta("setObservations") as Observation[] | undefined;
             const newHoveredId = tr.getMeta("setHoveredObservationId") as string | null | undefined;
+            const newPulseId = tr.getMeta("setPulseObsId") as string | null | undefined;
 
             const observations =
               newObservations !== undefined ? newObservations : value.observations;
             const hoveredId = newHoveredId !== undefined ? newHoveredId : value.hoveredId;
+            const pulseId = newPulseId !== undefined ? newPulseId : value.pulseId;
 
             // Rebuild decorations only when the observation set or hovered id changes.
             // For all other doc edits (typing, insertions), the `map()` call above
             // correctly position-maps existing decorations through ProseMirror's
             // transaction mapping — no rebuild needed and no stored-offset drift.
-            if (newObservations !== undefined || newHoveredId !== undefined) {
+            if (
+              newObservations !== undefined ||
+              newHoveredId !== undefined ||
+              newPulseId !== undefined
+            ) {
               const decos: Decoration[] = [];
               const doc = newState.doc;
 
@@ -173,6 +182,9 @@ export const ObservationHighlighter = Extension.create<ObservationHighlighterOpt
                         hoveredId === obs.id ||
                         (isCrossClaim &&
                           (obs.blockId === hoveredId || obs.conflictingBlockId === hoveredId));
+                      const isPulsing = pulseId === obs.id;
+                      const cls = (hovered: boolean) =>
+                        `obs-highlight obs-highlight-${obs.type}${hovered ? " obs-highlight-hovered" : ""}${isPulsing ? " obs-highlight-pulse" : ""}`;
 
                       if (start < end) {
                         decos.push(
@@ -180,7 +192,7 @@ export const ObservationHighlighter = Extension.create<ObservationHighlighterOpt
                             start,
                             end,
                             {
-                              class: `obs-highlight obs-highlight-${obs.type} ${isHovered ? "obs-highlight-hovered" : ""}`,
+                              class: cls(isHovered),
                               "data-obs-id": obs.id,
                             },
                             // The collapse detector (view().update below) reads
@@ -230,7 +242,7 @@ export const ObservationHighlighter = Extension.create<ObservationHighlighterOpt
                                   cStart,
                                   cEnd,
                                   {
-                                    class: `obs-highlight obs-highlight-${obs.type} ${isHovered ? "obs-highlight-hovered" : ""}`,
+                                    class: cls(isHovered),
                                     "data-obs-id": obs.id,
                                   },
                                   { "data-obs-id": obs.id }
@@ -252,6 +264,7 @@ export const ObservationHighlighter = Extension.create<ObservationHighlighterOpt
               decorations,
               observations,
               hoveredId,
+              pulseId,
             };
           },
         },
