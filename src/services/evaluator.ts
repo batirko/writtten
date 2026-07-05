@@ -41,6 +41,7 @@ import {
 import {
   hashCode,
   anchorSubstring,
+  anchorClaimsToMembers,
   normalizeText,
   type NewObservation,
 } from "./evaluatorAnchoring";
@@ -358,7 +359,25 @@ export async function evaluateSection(
     const summaryText = parsedMerged.summary?.trim() || "";
     // Keep meta-statements about the artifact ("This document is a PRD") out of
     // the ledger — they pollute the glossary and the contradiction comparison.
-    const extractedClaims = (parsedMerged.claims || []).filter((c) => !isDocumentMetaClaim(c.text));
+    // Resolve each claim to the member block + offsets that actually contain its
+    // text, so contradictions/tensions anchor to the real clause (not the section
+    // heading). A claim the LLM reworded won't be a verbatim substring → no anchor
+    // → whole-block fallback at emit. See docs/mechanics/evaluation-triggers.md.
+    const extractedClaims = anchorClaimsToMembers(
+      members,
+      (parsedMerged.claims || []).filter((c) => !isDocumentMetaClaim(c.text))
+    );
+    if (import.meta.env.DEV && extractedClaims.length > 0) {
+      const unanchored = extractedClaims.filter((c) => !c.anchorBlockId).length;
+      if (unanchored > 0) {
+        // Dev "measure" for the paraphrase residual: how many claims couldn't be
+        // anchored verbatim and fell back to whole-block. Gauge before investing
+        // in an extraction-quote prompt change.
+        console.debug(
+          `[anchor] section ${sectionId}: ${unanchored}/${extractedClaims.length} claims unanchored (paraphrase fallback)`
+        );
+      }
+    }
     const clarityObservations = parsedMerged.clarity_observations || [];
     const unsupportedObservations = parsedMerged.unsupported_claim_observations || [];
     const jargonObservations = parsedMerged.undefined_jargon_observations || [];
@@ -545,9 +564,11 @@ export async function evaluateSection(
             startOffset: exact?.startOffset ?? 0,
             endOffset: exact?.endOffset ?? fallback.text.length,
             anchorText: con.newClaimText,
-            conflictingBlockId: matchingExisting.sourceBlockId,
-            conflictingStartOffset: 0,
-            conflictingEndOffset: 9999,
+            // Conflicting side: anchor to the existing claim's precise block +
+            // offsets when resolved at extraction; else its section block + whole-block.
+            conflictingBlockId: matchingExisting.anchorBlockId ?? matchingExisting.sourceBlockId,
+            conflictingStartOffset: matchingExisting.anchorStartOffset ?? 0,
+            conflictingEndOffset: matchingExisting.anchorEndOffset ?? 9999,
             conflictingAnchorText: matchingExisting.text,
           });
         };
@@ -925,15 +946,17 @@ export async function evaluateLedgerContradictions(
         confidence,
         priority,
         text: con.message,
-        // Whole-block anchoring: claims carry only their source block, not span
-        // offsets. Matches the existing contradiction fallback (endOffset 9999).
-        blockId: a.sourceBlockId,
-        startOffset: 0,
-        endOffset: 9999,
+        // Precise anchoring: claims resolved at extraction carry the block +
+        // offsets where their text actually lives (anchorClaimsToMembers), so the
+        // conflict marks the real clause rather than the section heading. Claims
+        // the LLM reworded lack the anchor → whole-block fallback (endOffset 9999).
+        blockId: a.anchorBlockId ?? a.sourceBlockId,
+        startOffset: a.anchorStartOffset ?? 0,
+        endOffset: a.anchorEndOffset ?? 9999,
         anchorText: a.text,
-        conflictingBlockId: b.sourceBlockId,
-        conflictingStartOffset: 0,
-        conflictingEndOffset: 9999,
+        conflictingBlockId: b.anchorBlockId ?? b.sourceBlockId,
+        conflictingStartOffset: b.anchorStartOffset ?? 0,
+        conflictingEndOffset: b.anchorEndOffset ?? 9999,
         conflictingAnchorText: b.text,
       });
     };

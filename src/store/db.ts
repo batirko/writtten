@@ -21,10 +21,23 @@ export interface BlockSummary {
 export interface ClaimLedgerEntry {
   id?: number;
   docId: string;
+  /** The section's representative (heading / first) block — the claim's
+   *  *membership* key, used for section filters, orphaning, and dirty-checks.
+   *  NOT necessarily where the claim text lives (see `anchorBlockId`). */
   sourceBlockId: string;
   text: string;
   kind: "commitment" | "fact_claim" | "definition" | "constraint" | "metric";
   status: "active" | "orphaned";
+  /** The *precise* block + offsets where this claim's text actually appears,
+   *  resolved from the section members at extraction time (`anchorClaimsToMembers`).
+   *  Lets contradiction/tension observations anchor to the real clause instead of
+   *  the section heading. Absent when the claim text isn't a verbatim substring of
+   *  any member (the LLM reworded it) — emit then falls back to `sourceBlockId` +
+   *  whole-block. Optional/additive: existing (pre-fix) claims lack it and are
+   *  re-derived on the next eval, so no DB migration is needed. */
+  anchorBlockId?: string;
+  anchorStartOffset?: number;
+  anchorEndOffset?: number;
 }
 
 export interface Observation {
