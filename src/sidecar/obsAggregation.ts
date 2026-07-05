@@ -68,3 +68,19 @@ export function groupObservations(observations: Observation[]): GroupedObservati
     };
   });
 }
+
+/**
+ * Find the grouped card that contains a given observation id — matching either
+ * the group's `primary` or any of its `others`. Used by reverse hover (UX-006):
+ * a highlighted span in the editor carries the raw observation id (`data-obs-id`),
+ * which must resolve to the id of the *card* that renders it. For a contradiction
+ * both spans share one observation id, so hovering either resolves to one card.
+ */
+export function findGroupForObs(
+  groups: GroupedObservation[],
+  obsId: string
+): GroupedObservation | undefined {
+  return groups.find(
+    (g) => g.primary.id === obsId || g.others.some((o) => o.id === obsId)
+  );
+}

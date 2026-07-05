@@ -177,6 +177,11 @@ Owns UX-008 (quoted-text subtitle), UX-006 (reverse hover text→card), UX-009 (
 
 #### UX-006 — Reverse hover (text → feed "focus mode")
 
+**Shipped** (collapse-aware — extends the spec below, which predated the collapsible feed). A **dwell guard** gates it: the pointer must rest on a highlighted span for `SPAN_HOVER_DWELL_MS` (≈600ms, `Editor.tsx`) before anything surfaces, so a mouse merely crossing the document fires nothing; a fast sweep across several spans surfaces none. The editor emits the dwelled span's `data-obs-id`; `App` resolves it to the rendered card via `findGroupForObs` (`obsAggregation.ts`) and drives two channels — `hoveredObservationId` (shared with forward hover: lights span + card) and `spanFocusObsId` (span-origin only: drives the spotlight / float).
+- **Feed open →** the spotlight below (`observation-card-spotlit` rises to top + opaque; `observation-card-dimmed` on the rest at 32%).
+- **Feed collapsed →** the feed is `width:0`, so the related card(s) instead **float in from the right gutter** (`SpanPeek`, pinned top-of-gutter, `.span-peek`), rendered by the same `GroupedObsCard` for visual consistency — the "show messages even when collapsed" need. A **hover-bridge** (150ms close grace in `App`, cancelled on peek `mouseenter`) lets the pointer travel from span onto the floating card to read/dismiss it.
+- **Deferred:** keyboard span-focus equivalence — ProseMirror inline-decoration spans aren't tab-focusable; the forward card→span path already serves keyboard users.
+
 Bidirectional completion of C1: hovering/focusing a highlighted **span in the editor** surfaces its observation(s) in the feed. The behaviour is a transient **focus mode**, not just a card highlight:
 
 - **On hover/focus of a span decoration:** resolve every observation anchored to that span — the aggregated group card, plus (for a `contradiction`/`strategic_tension`) the card whose _conflicting_ span is the hovered one. Then:

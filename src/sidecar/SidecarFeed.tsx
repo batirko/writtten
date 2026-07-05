@@ -36,15 +36,21 @@ interface GroupedObsCardProps {
   isActive: boolean;
   isArriving: boolean;
   isExiting: boolean;
+  /** Reverse-hover spotlight (UX-006): this card is the span-focus target. */
+  isSpotlit?: boolean;
+  /** Reverse-hover spotlight (UX-006): another card is the target — recede. */
+  isDimmed?: boolean;
   onHover: (id: string | null) => void;
   onDismiss: (id: string) => void;
 }
 
-function GroupedObsCard({
+export function GroupedObsCard({
   group,
   isActive,
   isArriving,
   isExiting,
+  isSpotlit = false,
+  isDimmed = false,
   onHover,
   onDismiss,
 }: GroupedObsCardProps) {
@@ -58,7 +64,7 @@ function GroupedObsCard({
 
   return (
     <div
-      className={`observation-card observation-${primary.type}${isActive ? " observation-card-active" : ""}${isArriving ? " observation-card-arriving" : ""}${isExiting ? " observation-card-exiting" : ""}`}
+      className={`observation-card observation-${primary.type}${isActive ? " observation-card-active" : ""}${isArriving ? " observation-card-arriving" : ""}${isExiting ? " observation-card-exiting" : ""}${isSpotlit ? " observation-card-spotlit" : ""}${isDimmed ? " observation-card-dimmed" : ""}`}
       data-testid="obs-card"
       role="listitem"
       tabIndex={0}
@@ -167,6 +173,10 @@ interface Props {
   /** Ordered blockIds from the editor (top → bottom), for document-order display. */
   blockOrder?: string[];
   hoveredObservationId: string | null;
+  /** Reverse-hover spotlight target (UX-006): the primary id of the group whose
+   *  span is being dwelled on. When set, that card rises to the top and stays
+   *  opaque while the rest recede. Null when no span is focused. */
+  spanFocusObsId?: string | null;
   onHoverObservation: (id: string | null) => void;
   onDismissObservation: (id: string) => void;
 }
@@ -176,6 +186,7 @@ export function SidecarFeed({
   archivedObservations = [],
   blockOrder = [],
   hoveredObservationId,
+  spanFocusObsId = null,
   onHoverObservation,
   onDismissObservation,
 }: Props) {
@@ -229,6 +240,21 @@ export function SidecarFeed({
   });
   const overflowContradictionCount = alsoNoticedObs.filter((g) => g.hasContradiction).length;
 
+  // Reverse-hover spotlight (UX-006): when a span is focused, lift its card to
+  // the top as an ephemeral lens — a shallow reorder, not a persisted re-rank.
+  // The underlying budget/order is untouched; releasing the span restores it.
+  let displayObs = visibleObs;
+  const spotIdx = spanFocusObsId
+    ? visibleObs.findIndex((g) => g.primary.id === spanFocusObsId)
+    : -1;
+  if (spotIdx > 0) {
+    displayObs = [
+      visibleObs[spotIdx],
+      ...visibleObs.slice(0, spotIdx),
+      ...visibleObs.slice(spotIdx + 1),
+    ];
+  }
+
   return (
     <aside className="sidecar-panel" aria-label="Observations">
       <div className="feed-container">
@@ -247,11 +273,13 @@ export function SidecarFeed({
                   +{arrivalBatchCount} new
                 </div>
               )}
-              {visibleObs.map((group) => (
+              {displayObs.map((group) => (
                 <GroupedObsCard
                   key={group.id}
                   group={group}
                   isActive={hoveredObservationId === group.primary.id}
+                  isSpotlit={spanFocusObsId === group.primary.id}
+                  isDimmed={spanFocusObsId != null && spanFocusObsId !== group.primary.id}
                   isArriving={
                     arrivingIds.has(group.primary.id) ||
                     group.others.some((o) => arrivingIds.has(o.id))

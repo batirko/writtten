@@ -30,6 +30,11 @@ const DOC_IDLE_MS = 12000;
 /** Minimum word count before doc-level checks are worth running. */
 const CONTENT_THRESHOLD_WORDS = 150;
 
+/** Reverse hover (UX-006): how long the pointer must rest on a highlighted span
+ *  before its card surfaces — long enough that a mouse merely crossing the
+ *  document fires nothing, short enough to feel intentional. */
+const SPAN_HOVER_DWELL_MS = 600;
+
 interface Props {
   apiKey?: string;
   paidKey?: string;
@@ -42,6 +47,9 @@ interface Props {
   jargonAllowlist?: string[];
   observations: Observation[];
   hoveredObservationId: string | null;
+  /** Reverse hover (UX-006): fires the observation id of a highlighted span the
+   *  pointer has *dwelled* on (see SPAN_HOVER_DWELL_MS), or null on leave. */
+  onSpanHover?: (obsId: string | null) => void;
   onObservationCollapsed: (id: string) => void;
   onEvaluationComplete: () => void;
   onStageSuggestion?: (suggestion: string) => void;
@@ -93,6 +101,7 @@ export function Editor({
   jargonAllowlist,
   observations,
   hoveredObservationId,
+  onSpanHover,
   onObservationCollapsed,
   onEvaluationComplete,
   onStageSuggestion,
@@ -493,6 +502,68 @@ export function Editor({
     };
     window.addEventListener("obs-card-activate", handleCardActivate);
     return () => window.removeEventListener("obs-card-activate", handleCardActivate);
+  }, [editor]);
+
+  // --- Reverse hover (UX-006): span → feed ---
+  // Dwell on a highlighted span to surface its card. A fast sweep across the
+  // document fires nothing; only resting on one span past SPAN_HOVER_DWELL_MS
+  // emits. Leaving emits null immediately — the close *grace* (so the pointer
+  // can travel onto a floating card) lives in App, where the float renders.
+  const onSpanHoverRef = useRef(onSpanHover);
+  useEffect(() => {
+    onSpanHoverRef.current = onSpanHover;
+  }, [onSpanHover]);
+
+  useEffect(() => {
+    if (!editor || editor.isDestroyed) return;
+    const dom = editor.view.dom;
+    let dwellTimer: ReturnType<typeof setTimeout> | null = null;
+    let pendingId: string | null = null; // armed, not yet fired
+    let firedId: string | null = null; // currently surfaced
+
+    const clearDwell = () => {
+      if (dwellTimer) clearTimeout(dwellTimer);
+      dwellTimer = null;
+      pendingId = null;
+    };
+    const spanOf = (t: EventTarget | null): HTMLElement | null =>
+      (t as HTMLElement | null)?.closest?.(".obs-highlight[data-obs-id]") ?? null;
+
+    const handleOver = (e: MouseEvent) => {
+      const el = spanOf(e.target);
+      if (!el) return;
+      const id = el.getAttribute("data-obs-id");
+      if (!id || id === firedId || id === pendingId) return;
+      clearDwell();
+      pendingId = id;
+      dwellTimer = setTimeout(() => {
+        dwellTimer = null;
+        pendingId = null;
+        firedId = id;
+        onSpanHoverRef.current?.(id);
+      }, SPAN_HOVER_DWELL_MS);
+    };
+
+    const handleOut = (e: MouseEvent) => {
+      const el = spanOf(e.target);
+      if (!el) return;
+      // Ignore moves that stay within the same span (over its child text nodes).
+      const to = e.relatedTarget as Node | null;
+      if (to && el.contains(to)) return;
+      clearDwell();
+      if (firedId) {
+        firedId = null;
+        onSpanHoverRef.current?.(null);
+      }
+    };
+
+    dom.addEventListener("mouseover", handleOver);
+    dom.addEventListener("mouseout", handleOut);
+    return () => {
+      clearDwell();
+      dom.removeEventListener("mouseover", handleOver);
+      dom.removeEventListener("mouseout", handleOut);
+    };
   }, [editor]);
 
   // Cleanup: cancel any pending doc-idle timer when the editor instance changes

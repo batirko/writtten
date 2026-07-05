@@ -1,8 +1,10 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { Editor } from "./editor/Editor";
 import { SidecarFeed } from "./sidecar/SidecarFeed";
+import { SpanPeek } from "./sidecar/SpanPeek";
 import { ControlCenter } from "./sidecar/ControlCenter";
 import { DocumentContext } from "./sidecar/DocumentContext";
+import { groupObservations, findGroupForObs } from "./sidecar/obsAggregation";
 import {
   loadObservationsForDocument,
   updateObservationStatus,
@@ -68,6 +70,11 @@ export default function App() {
   const [archivedObservations, setArchivedObservations] = useState<Observation[]>([]);
   const [blockOrder, setBlockOrder] = useState<string[]>([]);
   const [hoveredObservationId, setHoveredObservationId] = useState<string | null>(null);
+  // Reverse hover (UX-006): the primary id of the card whose span the pointer is
+  // dwelling on. Distinct from hoveredObservationId because *only* a span-origin
+  // hover drives the spotlight (open feed) and the floating peek (collapsed feed).
+  const [spanFocusObsId, setSpanFocusObsId] = useState<string | null>(null);
+  const spanCloseTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [clearTrigger, setClearTrigger] = useState(0);
   const [stageSuggestion, setStageSuggestion] = useState<string | null>(null);
   const [importContent, setImportContent] = useState<{ content: string; timestamp: number }>();
@@ -90,6 +97,36 @@ export default function App() {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, []);
+
+  // Reverse hover (UX-006). Resolve a hovered span's raw observation id to its
+  // rendered card (group primary) and drive both the shared highlight channel
+  // and the span-focus channel. On leave, a short grace lets the pointer travel
+  // onto the floating peek (collapsed) before it closes.
+  const groups = useMemo(() => groupObservations(observations), [observations]);
+  const cancelSpanClose = useCallback(() => {
+    if (spanCloseTimer.current) clearTimeout(spanCloseTimer.current);
+    spanCloseTimer.current = null;
+  }, []);
+  const handleSpanHover = useCallback(
+    (rawId: string | null) => {
+      cancelSpanClose();
+      if (rawId == null) {
+        spanCloseTimer.current = setTimeout(() => {
+          setSpanFocusObsId(null);
+          setHoveredObservationId(null);
+        }, 150);
+        return;
+      }
+      const primaryId = findGroupForObs(groups, rawId)?.primary.id ?? rawId;
+      setSpanFocusObsId(primaryId);
+      setHoveredObservationId(primaryId);
+    },
+    [groups, cancelSpanClose]
+  );
+  const spanFocusGroup = useMemo(
+    () => (spanFocusObsId ? (findGroupForObs(groups, spanFocusObsId) ?? null) : null),
+    [groups, spanFocusObsId]
+  );
 
   const [logs, setLogs] = useState<LLMLogEntry[]>([]);
   const [activeProvider, setActiveProvider] = useState<string>("gemini-2.0-flash");
@@ -318,6 +355,7 @@ export default function App() {
             .filter(Boolean)}
           observations={observations}
           hoveredObservationId={hoveredObservationId}
+          onSpanHover={handleSpanHover}
           onObservationCollapsed={handleObservationCollapsed}
           onEvaluationComplete={refreshObservations}
           onStageSuggestion={setStageSuggestion}
@@ -361,10 +399,21 @@ export default function App() {
           archivedObservations={archivedObservations}
           blockOrder={blockOrder}
           hoveredObservationId={hoveredObservationId}
+          spanFocusObsId={feedCollapsed ? null : spanFocusObsId}
           onHoverObservation={setHoveredObservationId}
           onDismissObservation={handleDismissObservation}
         />
       </div>
+      {/* Collapsed feed: reverse hover floats only the hovered span's card(s) in
+          from the right gutter — the messages stay reachable without un-collapsing. */}
+      {feedCollapsed && (
+        <SpanPeek
+          group={spanFocusGroup}
+          onDismiss={handleDismissObservation}
+          onKeepOpen={cancelSpanClose}
+          onClose={() => handleSpanHover(null)}
+        />
+      )}
       {/* Control center is always visible — independent of feed collapse. */}
       <ControlCenter
         pending={pending}
