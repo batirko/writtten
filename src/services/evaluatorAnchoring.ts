@@ -153,7 +153,14 @@ export function anchorClaimsToMembers<T extends { text: string }>(
   claims: T[]
 ): (T & ClaimAnchor)[] {
   return claims.map((c) => {
-    const a = anchorSubstring(members, c.text);
+    // Exact match first; then tolerate a trailing sentence punctuation the
+    // extractor commonly appends when it lifts a *mid-sentence* clause into a
+    // standalone claim (e.g. claim "…ship in Q3." vs source "…ship in Q3, giving…").
+    // Without this that one trailing char fails the substring match and the
+    // conflict falls back to the section heading.
+    const a =
+      anchorSubstring(members, c.text) ??
+      anchorSubstring(members, c.text.replace(/[.,;:!?]+$/, ""));
     if (!a) return c;
     return {
       ...c,
