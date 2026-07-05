@@ -36,6 +36,12 @@
   --sem-contradiction: oklch(72% 0.17 60); /* #ff9500 */
   --sem-tension: oklch(70% 0.13 235); /* #0ea5e9 */
 
+  /* System-activity (Control Center dot) — a SEPARATE vocabulary from --sem-*.
+     "Working" must not borrow the contradiction hue: amber reads as a document
+     problem, not the machine thinking. Amber/red stays reserved for `stalled`. */
+  --activity-working: oklch(64% 0.13 240); /* calm blue — thinking, not "done/go" */
+  --activity-idle: oklch(72% 0.035 160); /* grey-green — alive, at rest */
+
   /* Typography — dual voice: serif writing-canvas / sans feed+chrome, mono for code
      (docs/projects/visual_style.md § Typography). The serif is *your* prose; the
      sans is the machine's commentary — the visual spine of "provoke, don't prescribe".
@@ -592,7 +598,9 @@ body,
   padding: 2px 4px;
   border-radius: 3px;
   flex-shrink: 0;
-  cursor: help;
+  /* Regular cursor across the card — a passive provocation, not a button. The
+     severity badge's hover popover still appears; it doesn't need a `help`
+     cursor to advertise it. Quoted text keeps its native I-beam (selectable). */
 }
 
 .impact-label.impact-kind-problem.impact-sev-low {
@@ -941,10 +949,12 @@ body,
   width: 13px;
   height: 13px;
   border-radius: 50%;
-  background: color-mix(in oklch, var(--color-muted) 55%, var(--color-border));
+  /* Idle = grey-green: alive and at rest, not a dead neutral grey. */
+  background: var(--activity-idle);
 }
 .control-anchor[data-state="working"] .control-dot {
-  background: var(--sem-contradiction);
+  /* Working = calm blue (system activity), NOT the contradiction amber. */
+  background: var(--activity-working);
   animation: dotPulse var(--dur-pulse) var(--ease-in-out) infinite;
 }
 .control-anchor[data-state="stalled"] .control-dot {
