@@ -3,6 +3,9 @@ dist
 .env.local
 *.tsbuildinfo
 
+# Scratch / captured test output (keep out of the public repo)
+*_output.txt
+
 # Obsidian vault config (rich-text editing of docs/ — local, per-machine)
 .obsidian/
 

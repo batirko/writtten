@@ -1,0 +1,43 @@
+name: Bug report
+description: Something in the app is broken or behaves incorrectly
+labels: ["bug"]
+body:
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What did you do, what did you expect, and what happened instead?
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open a document with…
+        2. Type / paste…
+        3. …
+    validations:
+      required: true
+  - type: input
+    id: tier
+    attributes:
+      label: Model tier
+      description: Free (default Gemini) or bring-your-own-key? Which model, if known?
+      placeholder: e.g. free / BYO-key (gemini-2.5-pro)
+    validations:
+      required: false
+  - type: input
+    id: env
+    attributes:
+      label: Browser & OS
+      placeholder: e.g. Chrome 126 / macOS 15
+    validations:
+      required: false
+  - type: textarea
+    id: console
+    attributes:
+      label: Console / debug output
+      description: Any errors from the browser console. **Redact your API key** — never paste a full key.
+    validations:
+      required: false

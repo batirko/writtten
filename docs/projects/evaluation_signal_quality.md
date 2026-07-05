@@ -303,6 +303,6 @@ Captured from design discussion on 2026-06-02. Each item is either a **decision 
 
 **Decision:** API keys must never appear in logged endpoints, event streams, or debug-panel output. Log the _tier_ instead: `key=<free>` / `key=<byo>`. The tier is the useful signal; the secret is not.
 
-**Why:** the full key appears in every `endpoint` field in the current debug log (e.g. `?key=AIzaSy…IBD1w`). Any debug dump a user shares — in a support ticket, a bug report, or this conversation — leaks a live credential. This is a security issue, not a UX issue.
+**Why:** the full key appears in every `endpoint` field in the current debug log (e.g. `?key=AIza…<redacted>`). Any debug dump a user shares — in a support ticket, a bug report, or this conversation — leaks a live credential. This is a security issue, not a UX issue.
 
 **Scope:** the alias must be applied at the point of logging in the model router / logger, not as a display-layer scrub, so the raw key never enters the event stream at all. → Implementation note in `docs/projects/model_rotation_and_debugging.md`.

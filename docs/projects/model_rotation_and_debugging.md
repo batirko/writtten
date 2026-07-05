@@ -168,7 +168,7 @@ When Debug Mode is enabled:
 
 **Decision (2026-06-02):** API keys must never appear in logged endpoints, event-stream entries, or debug-panel output. Log the _tier_ instead: `key=<free>` / `key=<byo>`. The tier is the actionable signal; the raw key is a secret.
 
-**Why this matters:** every `endpoint` field in the current logger includes the full key as a query parameter (e.g. `?key=AIzaSy…`). Any debug dump shared externally — a bug report, a support ticket, a session transcript — leaks a live credential. This is a local-first product; the user's key should never leave their machine in plaintext, even in local logs.
+**Why this matters:** every `endpoint` field in the current logger includes the full key as a query parameter (e.g. `?key=AIza…<redacted>`). Any debug dump shared externally — a bug report, a support ticket, a session transcript — leaks a live credential. This is a local-first product; the user's key should never leave their machine in plaintext, even in local logs.
 
 **Implementation scope:**
 

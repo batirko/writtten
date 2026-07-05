@@ -1,0 +1,47 @@
+name: Signal-quality report (false positive / false negative)
+description: The evaluator flagged something it shouldn't have, or missed something it should have caught
+labels: ["signal-quality"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        These reports are the field data this project most needs. Thank you.
+        The evaluator uses a **fixed observation taxonomy** — this template is for its _accuracy_, not for requesting new observation types (open a Feature request for that).
+  - type: dropdown
+    id: kind
+    attributes:
+      label: Type of misfire
+      options:
+        - False positive (flagged something that was fine)
+        - False negative (missed something it should have caught)
+        - Misclassified (right instinct, wrong observation type)
+    validations:
+      required: true
+  - type: textarea
+    id: passage
+    attributes:
+      label: The passage
+      description: The text (or a paraphrase) that was / wasn't flagged. Redact anything confidential.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected vs. what happened
+      description: Which observation fired (or should have), and why you disagree.
+    validations:
+      required: true
+  - type: input
+    id: doc-context
+    attributes:
+      label: Document context / stage
+      description: What was the "Document context" field set to? (PRD, essay, memo, comms…) This calibrates strictness.
+    validations:
+      required: false
+  - type: input
+    id: tier
+    attributes:
+      label: Model tier
+      placeholder: free / BYO-key (which model)
+    validations:
+      required: true
