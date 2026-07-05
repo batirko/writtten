@@ -144,122 +144,8 @@ function GroupedObsCard({
 }
 
 // ---------------------------------------------------------------------------
-// ContextChip — always-visible Document Context / Stage affordance.
-// (Relocation to a document-attached position is tracked separately; for now
-// it renders at the top of the feed column. Testids preserved.)
-// ---------------------------------------------------------------------------
-
-interface ContextChipProps {
-  stage: string;
-  onStageChange: (s: string) => void;
-  stageSuggestion?: string | null;
-  onAcceptStageSuggestion?: (s: string) => void;
-  onDismissStageSuggestion?: () => void;
-}
-
-function ContextChip({
-  stage,
-  onStageChange,
-  stageSuggestion,
-  onAcceptStageSuggestion,
-  onDismissStageSuggestion,
-}: ContextChipProps) {
-  const [editing, setEditing] = useState(false);
-
-  const chipState: "suggested" | "set" | "empty" = stageSuggestion
-    ? "suggested"
-    : stage
-      ? "set"
-      : "empty";
-
-  const handleAcceptAndEdit = () => {
-    if (stageSuggestion) onAcceptStageSuggestion?.(stageSuggestion);
-    setEditing(true);
-  };
-
-  return (
-    <div className="stage-chip" data-testid="stage-chip" data-chip-state={chipState}>
-      {chipState === "suggested" && !editing && (
-        <div className="stage-chip-suggested" data-testid="stage-suggestion">
-          <span className="stage-chip-label">
-            Inferred context: <em>{stageSuggestion}</em>
-          </span>
-          <div className="stage-chip-actions">
-            <button
-              className="stage-chip-btn stage-chip-btn-primary"
-              data-testid="stage-suggestion-accept"
-              onClick={() => onAcceptStageSuggestion?.(stageSuggestion!)}
-            >
-              Use this
-            </button>
-            <button
-              className="stage-chip-btn"
-              data-testid="stage-chip-edit"
-              onClick={handleAcceptAndEdit}
-            >
-              Edit
-            </button>
-            <button
-              className="stage-chip-dismiss"
-              data-testid="stage-suggestion-dismiss"
-              aria-label="Dismiss context suggestion"
-              onClick={() => onDismissStageSuggestion?.()}
-            >
-              ×
-            </button>
-          </div>
-        </div>
-      )}
-
-      {chipState === "set" && !editing && (
-        <div className="stage-chip-set">
-          <span className="stage-chip-label" title={stage}>
-            Context:{" "}
-            <em className="stage-chip-value">
-              {stage.length > 48 ? stage.slice(0, 48) + "…" : stage}
-            </em>
-          </span>
-          <button
-            className="stage-chip-edit-btn"
-            data-testid="stage-chip-edit"
-            aria-label="Edit document context"
-            onClick={() => setEditing(true)}
-          >
-            ✎
-          </button>
-        </div>
-      )}
-
-      {chipState === "empty" && !editing && (
-        <button className="stage-chip-add-link" onClick={() => setEditing(true)}>
-          Add context
-        </button>
-      )}
-
-      {editing && (
-        <div className="stage-chip-inline-edit">
-          <textarea
-            className="stage-chip-textarea"
-            rows={2}
-            placeholder="e.g., PRD for payments team, audience is engineers and designers."
-            value={stage}
-            onChange={(e) => onStageChange(e.target.value)}
-            autoFocus
-          />
-          <button
-            className="stage-chip-btn stage-chip-btn-primary"
-            onClick={() => setEditing(false)}
-          >
-            Done
-          </button>
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// SidecarFeed — the floating card column (context chip + observations + archive).
+// SidecarFeed — the floating card column (observations + archive). The document
+// context affordance moved to DocumentContext (attached to the writing column).
 // The control center, settings/clear modals, and debug panel live in
 // ControlCenter (always visible, independent of feed collapse).
 // ---------------------------------------------------------------------------
@@ -269,28 +155,18 @@ interface Props {
   archivedObservations?: Observation[];
   /** Ordered blockIds from the editor (top → bottom), for document-order display. */
   blockOrder?: string[];
-  stage: string;
-  onStageChange: (stage: string) => void;
   hoveredObservationId: string | null;
   onHoverObservation: (id: string | null) => void;
   onDismissObservation: (id: string) => void;
-  stageSuggestion?: string | null;
-  onAcceptStageSuggestion?: (s: string) => void;
-  onDismissStageSuggestion?: () => void;
 }
 
 export function SidecarFeed({
   observations,
   archivedObservations = [],
   blockOrder = [],
-  stage,
-  onStageChange,
   hoveredObservationId,
   onHoverObservation,
   onDismissObservation,
-  stageSuggestion,
-  onAcceptStageSuggestion,
-  onDismissStageSuggestion,
 }: Props) {
   const [showArchive, setShowArchive] = useState(false);
   const [showAlsoNoticed, setShowAlsoNoticed] = useState(false);
@@ -344,14 +220,6 @@ export function SidecarFeed({
 
   return (
     <aside className="sidecar-panel" aria-label="Observations">
-      <ContextChip
-        stage={stage}
-        onStageChange={onStageChange}
-        stageSuggestion={stageSuggestion}
-        onAcceptStageSuggestion={onAcceptStageSuggestion}
-        onDismissStageSuggestion={onDismissStageSuggestion}
-      />
-
       <div className="feed-container">
         <div style={{ flex: 1 }}>
           {observations.length === 0 ? (

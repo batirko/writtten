@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { Editor } from "./editor/Editor";
 import { SidecarFeed } from "./sidecar/SidecarFeed";
 import { ControlCenter } from "./sidecar/ControlCenter";
+import { DocumentContext } from "./sidecar/DocumentContext";
 import {
   loadObservationsForDocument,
   updateObservationStatus,
@@ -295,7 +296,15 @@ export default function App() {
   return (
     <div className="app">
       <main className="editor-panel">
-        <Editor
+        <div className="editor-column">
+          <DocumentContext
+            stage={stage}
+            onStageChange={setStage}
+            stageSuggestion={stageSuggestion}
+            onAcceptStageSuggestion={handleAcceptStageSuggestion}
+            onDismissStageSuggestion={handleDismissStageSuggestion}
+          />
+          <Editor
           apiKey={apiKey}
           paidKey={paidKey}
           capability={capability}
@@ -313,7 +322,8 @@ export default function App() {
           clearTrigger={clearTrigger}
           importContent={importContent}
           onReady={(e) => (editorRef.current = e)}
-        />
+          />
+        </div>
       </main>
       <button
         className="feed-handle"
@@ -347,14 +357,9 @@ export default function App() {
           observations={observations}
           archivedObservations={archivedObservations}
           blockOrder={blockOrder}
-          stage={stage}
-          onStageChange={setStage}
           hoveredObservationId={hoveredObservationId}
           onHoverObservation={setHoveredObservationId}
           onDismissObservation={handleDismissObservation}
-          stageSuggestion={stageSuggestion}
-          onAcceptStageSuggestion={handleAcceptStageSuggestion}
-          onDismissStageSuggestion={handleDismissStageSuggestion}
         />
       </div>
       {/* Control center is always visible — independent of feed collapse. */}
