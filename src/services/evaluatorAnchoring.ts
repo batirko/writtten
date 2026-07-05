@@ -131,3 +131,35 @@ export function anchorSubstring(
   }
   return null;
 }
+
+/** Precise-anchor fields carried on a claim once resolved to its member block. */
+export interface ClaimAnchor {
+  anchorBlockId?: string;
+  anchorStartOffset?: number;
+  anchorEndOffset?: number;
+}
+
+/**
+ * Resolve each claim to the precise member block + offsets that contain its text
+ * (via `anchorSubstring`), so contradiction/tension observations later anchor to
+ * the real clause instead of the section's representative (heading) block. Claims
+ * whose text isn't a verbatim substring of any member — the LLM reworded it — are
+ * returned unchanged (no anchor fields); the emit path then falls back to
+ * `sourceBlockId` + whole-block. Pure; the caller counts the unanchored (fallback)
+ * ones for the dev measurement. See docs/mechanics/evaluation-triggers.md.
+ */
+export function anchorClaimsToMembers<T extends { text: string }>(
+  members: SectionMember[],
+  claims: T[]
+): (T & ClaimAnchor)[] {
+  return claims.map((c) => {
+    const a = anchorSubstring(members, c.text);
+    if (!a) return c;
+    return {
+      ...c,
+      anchorBlockId: a.blockId,
+      anchorStartOffset: a.startOffset,
+      anchorEndOffset: a.endOffset,
+    };
+  });
+}
