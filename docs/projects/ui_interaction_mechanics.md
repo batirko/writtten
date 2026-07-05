@@ -83,7 +83,9 @@ The inconsistencies this pass resolves: dismiss has no recovery path; click does
 
 #### C4 — Card anatomy & ordering
 
-Ordering is fixed by `visual_style § Observation card` (left-border impact = kind×severity; header = impact label + type tag + dismiss; body; "also noticed"). This pass only enforces that the DOM matches that order and that the impact label's tooltip (severity/confidence, R7a) is reachable. The **quoted-text subtitle** (show the anchored text on the card, UX-008) is **R7b** — not added here; when added it slots between tag and body.
+> **Restructured by `docs/projects/feed_surface.md` § Card execution (2026-07-05).** The left-border impact stripe is removed; kind×severity is carried by a colour-filled **type-tag** + the `HIGH`/`MED`/`LOW` label. The header becomes: type-tag (colour carrier) + impact label · dismiss. The rest of this contract (ordering discipline, the R7a tooltip reachability, the R7b subtitle slot) is unchanged. The other contracts on this page (C1/C2/C3/C5/C6/C7, R3c, R7b) are **not** affected by that redesign — it reuses them verbatim.
+
+Ordering is fixed by `visual_style § Observation card` **as revised by `feed_surface.md`** (kind×severity = colour-carrying type-tag, no left-border; header = type-tag + impact label + dismiss; body; "also noticed"). This pass only enforces that the DOM matches that order and that the impact label's tooltip (severity/confidence, R7a) is reachable. The **quoted-text subtitle** (show the anchored text on the card, UX-008) is **R7b** — not added here; when added it slots between tag and body.
 
 #### C5 — The two drawers
 

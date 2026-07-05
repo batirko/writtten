@@ -20,8 +20,13 @@ The four taste decisions that set the identity were made 2026-06-17:
 3. **Ink-indigo brand accent** — a single non-semantic "product voice" colour for focus rings, links, active state, and brand touches, distinct from the amber-problem / teal-opportunity _semantic_ palette so brand never competes with an observation's severity.
 4. **Light-first** — light mode is fully specified and buildable; dark mode token values are sketched as a documented future slice (§ Dark mode), not a gate on this milestone.
 
+> **Superseded in part by `docs/projects/feed_surface.md` (2026-07-05).** This spec assumed the feed stays a bordered, background-filled **panel** and that a card's kind×severity impact renders as a coloured **left-border**. The _Companion surface_ project restructures both: the feed becomes a reflowing column of borderless floating cards, and the kind×severity signal moves into a colour-carrying **type-tag** (§ Card execution there). The affected sections here — **§ Feed panel**, **§ Observation card** (esp. the left-border item), **§ Supporting surfaces** (settings/archive) — are revised by that file. Everything else in this spec (§ Tokens, § Typography dual-voice, § Highlights, the R7a impact _label_) is **kept and reused** as the foundation the surface redesign consumes.
+>
+> **Ownership (2026-07-05):** all UI/UX is now built as one program under `feed_surface.md`. This file's **retained half** (tokens, the serif/sans font pipeline, the editor canvas, the `.obs-highlight-*` rules) is the built foundation — it lives, ready, on the `visual-style/tokens-fonts-editor` and `visual-style/feed-cards-highlights` branches, which `feed_surface` § Branch consolidation salvages (adopt tokens/fonts/editor-canvas wholesale; port highlights only; re-derive the feed). The panel/card component-language below is **not** built from those branches — it is re-derived from `feed_surface`.
+
 Read alongside:
 
+- `docs/projects/feed_surface.md` — the **structural** redesign of the feed container/chrome that reuses this file's tokens; revises the panel + card-border component-language above.
 - `docs/projects/emotional_register.md` — the felt-tone half; this file owns _look_, that one owns _voice_.
 - `docs/projects/quality_remediation_synthesis.md` (R3c feed choreography, R7b scanning affordances) — interaction-level work that lands inside this visual vocabulary.
 - `docs/projects/accessibility.md` — the contrast/focus floors here must satisfy the a11y checklist there.
