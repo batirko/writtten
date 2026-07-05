@@ -504,10 +504,6 @@ export function ControlCenter({
             aria-label={`Model ${modelName}${isPaid ? " (paid)" : ""} — ${statusText}`}
           >
             <span className="control-dot" />
-            <span className="control-anchor-tip" role="tooltip">
-              {modelName}
-              {isPaid ? " · paid" : ""} — {statusText}
-            </span>
           </div>
         </div>
       </div>

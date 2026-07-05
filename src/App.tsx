@@ -337,7 +337,12 @@ export default function App() {
           <polyline points="9 18 15 12 9 6" />
         </svg>
       </button>
-      {!feedCollapsed && (
+      {/* Always mounted so the fold animates (width transition); the canvas
+          reflows around it. aria-hidden while collapsed. */}
+      <div
+        className={`feed-slot${feedCollapsed ? " is-collapsed" : ""}`}
+        aria-hidden={feedCollapsed}
+      >
         <SidecarFeed
           observations={observations}
           archivedObservations={archivedObservations}
@@ -351,7 +356,7 @@ export default function App() {
           onAcceptStageSuggestion={handleAcceptStageSuggestion}
           onDismissStageSuggestion={handleDismissStageSuggestion}
         />
-      )}
+      </div>
       {/* Control center is always visible — independent of feed collapse. */}
       <ControlCenter
         pending={pending}

@@ -209,6 +209,24 @@ body,
 /* Sidecar panel */
 /* Companion surface — the feed is a floating column on paper, not a panel wall.
    No background fill; a single hairline marks the gutter (feed_surface.md § Layout). */
+
+/* The slot animates the fold: it clips a fixed-width panel from --gutter-width
+   to 0, so the canvas reflows smoothly instead of the feed snapping in/out. */
+.feed-slot {
+  display: flex;
+  flex-shrink: 0;
+  width: var(--gutter-width);
+  overflow: hidden;
+  transition:
+    width var(--dur-base) var(--ease-in-out),
+    opacity var(--dur-base) var(--ease-out);
+}
+.feed-slot.is-collapsed {
+  width: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
 .sidecar-panel {
   width: var(--gutter-width);
   flex-shrink: 0;
@@ -828,24 +846,15 @@ body,
     opacity: 0.35;
   }
 }
-.control-anchor-tip {
+/* Invisible bridge under the process panel so moving the pointer from the dot
+   up into the panel doesn't cross a dead gap and collapse the reveal. */
+.control-process::after {
+  content: "";
   position: absolute;
-  bottom: calc(100% + 8px);
+  top: 100%;
+  left: 0;
   right: 0;
-  background: var(--color-ink);
-  color: var(--color-paper);
-  font-size: var(--text-ui-sm);
-  white-space: nowrap;
-  padding: 5px 9px;
-  border-radius: var(--radius-sm);
-  box-shadow: var(--elev-float);
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity var(--dur-fast) var(--ease-out);
-}
-.control-anchor:hover .control-anchor-tip,
-.control-anchor:focus-visible .control-anchor-tip {
-  opacity: 1;
+  height: 12px;
 }
 
 /* Export menu popover (anchored above the export control) */
