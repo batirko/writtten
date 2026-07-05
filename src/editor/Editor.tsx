@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Placeholder from "@tiptap/extension-placeholder";
@@ -8,10 +8,16 @@ import TableRow from "@tiptap/extension-table-row";
 import TableHeader from "@tiptap/extension-table-header";
 import TableCell from "@tiptap/extension-table-cell";
 import { BlockId } from "./extensions/BlockId";
-import { ObservationHighlighter } from "./extensions/ObservationHighlighter";
+import {
+  ObservationHighlighter,
+  charOffsetToPmPos,
+  reanchorOffset,
+} from "./extensions/ObservationHighlighter";
 import { SlashMenu } from "./extensions/SlashMenu";
 import { EditorBubbleMenu } from "./menus/BubbleMenu";
 import { TableMenu } from "./menus/TableMenu";
+import { ContradictionPeek } from "./ContradictionPeek";
+import { bothSpansFit } from "./spanFit";
 import { resolveSection, resolveSections } from "./section";
 import { saveDocument, loadDocument, type Observation } from "../store/db";
 import { scheduleEval } from "../services/orchestrator";
@@ -34,6 +40,9 @@ const CONTENT_THRESHOLD_WORDS = 150;
  *  before its card surfaces — long enough that a mouse merely crossing the
  *  document fires nothing, short enough to feel intentional. */
 const SPAN_HOVER_DWELL_MS = 600;
+
+/** Activation pulse duration (UX-009 / C2) — matches the `obsPulse` keyframe. */
+const PULSE_MS = 1200;
 
 interface Props {
   apiKey?: string;
@@ -484,25 +493,194 @@ export function Editor({
     },
   });
 
+  // --- Card activation → scroll-to-span + pulse (C2), and the distant-
+  // contradiction peek (UX-009). ---
+  const [peek, setPeek] = useState<{ quote: string; top: number; left: number } | null>(null);
+  /** Positions + texts for the active contradiction, so Jump can flip sides. */
+  const peekSpans = useRef<{
+    primaryStart: number;
+    conflictingStart: number;
+    primaryText: string;
+    conflictingText: string;
+    anchor: "primary" | "conflicting";
+  } | null>(null);
+  const pulseTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const observationsRef = useRef(observations);
   useEffect(() => {
-    const handleCardActivate = (e: Event) => {
-      const customEvent = e as CustomEvent<{ id: string }>;
-      const { id } = customEvent.detail;
-      if (!editor || !id) return;
+    observationsRef.current = observations;
+  }, [observations]);
 
-      const el = editor.view.dom.querySelector(`.obs-highlight[data-obs-id="${id}"]`);
-      if (el) {
-        el.scrollIntoView({ behavior: "smooth", block: "center" });
-        const pos = editor.view.posAtDOM(el, 0);
-        if (pos >= 0) {
-          editor.commands.setTextSelection(pos);
-          editor.view.focus();
+  const prefersReducedMotion = () =>
+    typeof window !== "undefined" &&
+    window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+
+  /** Absolute PM start position of a span (block + char offset), re-anchored. */
+  const spanStartPos = useCallback(
+    (blockId: string, startOffset: number, endOffset: number, anchorText?: string): number | null => {
+      if (!editor) return null;
+      const doc = editor.state.doc;
+      let blockPos: number | null = null;
+      doc.descendants((node, pos) => {
+        if (blockPos !== null) return false;
+        if (doc.resolve(pos).depth === 0 && node.isBlock && node.attrs.blockId === blockId) {
+          blockPos = pos;
+          return false;
+        }
+      });
+      if (blockPos === null) return null;
+      const blockNode = doc.nodeAt(blockPos);
+      if (!blockNode) return null;
+      const len = blockNode.textContent.length;
+      const re = reanchorOffset(blockNode.textContent, anchorText ?? "", startOffset, endOffset);
+      const raw = Math.max(0, Math.min(re.start, len));
+      return charOffsetToPmPos(blockNode, blockPos, raw, false);
+    },
+    [editor]
+  );
+
+  const scrollToPos = useCallback(
+    (pos: number) => {
+      if (!editor) return;
+      editor.commands.setTextSelection(pos);
+      const el = editor.view.domAtPos(pos)?.node as HTMLElement | undefined;
+      const target = el?.nodeType === 1 ? el : el?.parentElement;
+      target?.scrollIntoView?.({
+        behavior: prefersReducedMotion() ? "auto" : "smooth",
+        block: "center",
+      });
+    },
+    [editor]
+  );
+
+  const pulse = useCallback(
+    (id: string) => {
+      if (!editor) return;
+      editor.view.dispatch(editor.state.tr.setMeta("setPulseObsId", id));
+      if (pulseTimer.current) clearTimeout(pulseTimer.current);
+      pulseTimer.current = setTimeout(() => {
+        if (editor && !editor.isDestroyed) {
+          editor.view.dispatch(editor.state.tr.setMeta("setPulseObsId", null));
+        }
+      }, PULSE_MS);
+    },
+    [editor]
+  );
+
+  const dismissPeek = useCallback(() => {
+    peekSpans.current = null;
+    setPeek(null);
+  }, []);
+
+  /** Scroll to `anchor`'s span and float the peek quoting the *other* span. */
+  const anchorPeek = useCallback(
+    (anchor: "primary" | "conflicting") => {
+      const s = peekSpans.current;
+      if (!s || !editor) return;
+      const anchorPos = anchor === "primary" ? s.primaryStart : s.conflictingStart;
+      const quote = anchor === "primary" ? s.conflictingText : s.primaryText;
+      s.anchor = anchor;
+      scrollToPos(anchorPos);
+      // Let the (possibly smooth) scroll settle, then place the peek under the
+      // anchor span — flip above if it would overflow the viewport bottom.
+      const place = () => {
+        if (!editor || editor.isDestroyed) return;
+        const coords = editor.view.coordsAtPos(anchorPos);
+        const PEEK_W = 280;
+        const EST_H = 132;
+        const below = coords.bottom + 8;
+        const flip = below + EST_H > window.innerHeight;
+        const top = flip ? Math.max(8, coords.top - EST_H - 8) : below;
+        const left = Math.min(Math.max(8, coords.left), window.innerWidth - PEEK_W - 8);
+        setPeek({ quote, top, left });
+      };
+      if (prefersReducedMotion()) place();
+      else setTimeout(place, 260);
+    },
+    [editor, scrollToPos]
+  );
+
+  const activateObservation = useCallback(
+    (id: string) => {
+      if (!editor) return;
+      const obs = observationsRef.current.find((o) => o.id === id);
+      if (!obs || !obs.blockId) {
+        dismissPeek();
+        return;
+      }
+      const primaryStart = spanStartPos(
+        obs.blockId,
+        obs.startOffset ?? 0,
+        obs.endOffset ?? 9999,
+        obs.anchorText
+      );
+      if (primaryStart === null) return;
+      pulse(id);
+
+      // Contradiction / tension: measure both spans; peek only when they can't
+      // share the viewport. Otherwise a plain scroll + dual-pulse suffices.
+      if (obs.conflictingBlockId) {
+        const conflictingStart = spanStartPos(
+          obs.conflictingBlockId,
+          obs.conflictingStartOffset ?? 0,
+          obs.conflictingEndOffset ?? 9999,
+          obs.conflictingAnchorText
+        );
+        if (conflictingStart !== null) {
+          const aTop = editor.view.coordsAtPos(primaryStart).top;
+          const bTop = editor.view.coordsAtPos(conflictingStart).top;
+          if (!bothSpansFit(aTop, bTop, window.innerHeight)) {
+            peekSpans.current = {
+              primaryStart,
+              conflictingStart,
+              primaryText: obs.anchorText ?? "",
+              conflictingText: obs.conflictingAnchorText ?? "",
+              anchor: "primary",
+            };
+            anchorPeek("primary");
+            return;
+          }
         }
       }
+      // Single span, or a contradiction whose sides both fit: just scroll.
+      dismissPeek();
+      scrollToPos(primaryStart);
+    },
+    [editor, spanStartPos, pulse, scrollToPos, anchorPeek, dismissPeek]
+  );
+
+  useEffect(() => {
+    const handleCardActivate = (e: Event) => {
+      const { id } = (e as CustomEvent<{ id: string }>).detail;
+      if (id) activateObservation(id);
     };
     window.addEventListener("obs-card-activate", handleCardActivate);
     return () => window.removeEventListener("obs-card-activate", handleCardActivate);
-  }, [editor]);
+  }, [activateObservation]);
+
+  // Dismiss the peek on Escape or a user scroll gesture. We key off wheel/
+  // touchmove (real intent) rather than the `scroll` event, because our own
+  // smooth scrollIntoView fires `scroll` and would self-dismiss.
+  useEffect(() => {
+    if (!peek) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") dismissPeek();
+    };
+    const onUserScroll = () => dismissPeek();
+    window.addEventListener("keydown", onKey);
+    window.addEventListener("wheel", onUserScroll, { passive: true });
+    window.addEventListener("touchmove", onUserScroll, { passive: true });
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("wheel", onUserScroll);
+      window.removeEventListener("touchmove", onUserScroll);
+    };
+  }, [peek, dismissPeek]);
+
+  useEffect(() => {
+    return () => {
+      if (pulseTimer.current) clearTimeout(pulseTimer.current);
+    };
+  }, []);
 
   // --- Reverse hover (UX-006): span → feed ---
   // Dwell on a highlighted span to surface its card. A fast sweep across the
@@ -765,6 +943,15 @@ export function Editor({
       {editor && <EditorBubbleMenu editor={editor} />}
       {editor && <TableMenu editor={editor} />}
       <EditorContent editor={editor} />
+      {peek && (
+        <ContradictionPeek
+          quote={peek.quote}
+          top={peek.top}
+          left={peek.left}
+          onJump={() => anchorPeek(peekSpans.current?.anchor === "primary" ? "conflicting" : "primary")}
+          onDismiss={dismissPeek}
+        />
+      )}
     </div>
   );
 }
