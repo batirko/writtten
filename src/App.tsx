@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { Editor } from "./editor/Editor";
 import { SidecarFeed } from "./sidecar/SidecarFeed";
+import { ControlCenter } from "./sidecar/ControlCenter";
 import {
   loadObservationsForDocument,
   updateObservationStatus,
@@ -341,31 +342,34 @@ export default function App() {
           observations={observations}
           archivedObservations={archivedObservations}
           blockOrder={blockOrder}
-          apiKey={apiKey}
-          onApiKeyChange={setApiKey}
-          keyTier={keyTier}
-          onKeyTierChange={setKeyTier}
           stage={stage}
           onStageChange={setStage}
           hoveredObservationId={hoveredObservationId}
           onHoverObservation={setHoveredObservationId}
           onDismissObservation={handleDismissObservation}
-          onClearWorkspace={handleClearWorkspace}
-          onImportFile={handleImportFile}
-          logs={logs}
-          activeProvider={activeProvider}
-          pending={pending}
-          sessionStats={sessionStats}
           stageSuggestion={stageSuggestion}
           onAcceptStageSuggestion={handleAcceptStageSuggestion}
           onDismissStageSuggestion={handleDismissStageSuggestion}
-          onExportMarkdown={handleExportMarkdown}
-          onExportPdf={handleExportPdf}
-          onCopyMarkdown={handleCopyMarkdown}
-          onCopyRichText={handleCopyRichText}
-          documentIsEmpty={blockOrder.length === 0}
         />
       )}
+      {/* Control center is always visible — independent of feed collapse. */}
+      <ControlCenter
+        pending={pending}
+        activeProvider={activeProvider}
+        sessionStats={sessionStats}
+        documentIsEmpty={blockOrder.length === 0}
+        apiKey={apiKey}
+        onApiKeyChange={setApiKey}
+        keyTier={keyTier}
+        onKeyTierChange={setKeyTier}
+        onImportFile={handleImportFile}
+        onClearWorkspace={handleClearWorkspace}
+        onExportMarkdown={handleExportMarkdown}
+        onExportPdf={handleExportPdf}
+        onCopyMarkdown={handleCopyMarkdown}
+        onCopyRichText={handleCopyRichText}
+        logs={logs}
+      />
     </div>
   );
 }

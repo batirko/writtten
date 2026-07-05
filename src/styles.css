@@ -214,7 +214,9 @@ body,
   flex-shrink: 0;
   background: var(--color-paper);
   overflow-y: auto;
-  padding: var(--space-lg) var(--space-md);
+  /* bottom clearance so scrolled content doesn't hide behind the fixed dot */
+  padding: var(--space-lg) var(--space-md) calc(var(--control-anchor-size) + var(--space-lg))
+    var(--space-md);
   display: flex;
   flex-direction: column;
   gap: var(--space-sm);
@@ -676,17 +678,22 @@ body,
   outline-offset: -2px;
 }
 
-/* Control center — docked at the bottom of the feed column, under the cards */
+/* Control center — always visible (feed folded or not), fixed bottom-right.
+   At rest = just the anchor dot; hover / focus / open reveals process + actions. */
 .control-center {
-  margin-top: auto;
-  padding-top: var(--space-sm);
+  position: fixed;
+  bottom: var(--space-lg);
+  right: var(--space-lg);
+  z-index: 40;
   display: flex;
   flex-direction: column;
   align-items: flex-end;
-  gap: var(--space-xs);
 }
 .control-process {
-  align-self: stretch;
+  position: absolute;
+  bottom: calc(100% + 8px);
+  right: 0;
+  min-width: 184px;
   background: var(--color-surface);
   border: 0.5px solid var(--color-border);
   border-radius: var(--radius-md);
@@ -694,7 +701,34 @@ body,
   font-size: var(--text-ui-sm);
   color: var(--color-muted);
   line-height: 1.55;
-  box-shadow: var(--elev-rest);
+  box-shadow: var(--elev-float);
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(4px);
+  transition:
+    opacity var(--dur-fast) var(--ease-out),
+    transform var(--dur-fast) var(--ease-out);
+}
+.control-actions-extra {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateX(6px);
+  transition:
+    opacity var(--dur-fast) var(--ease-out),
+    transform var(--dur-fast) var(--ease-out);
+}
+.control-center:hover .control-process,
+.control-center:focus-within .control-process,
+.control-center.is-open .control-process,
+.control-center:hover .control-actions-extra,
+.control-center:focus-within .control-actions-extra,
+.control-center.is-open .control-actions-extra {
+  opacity: 1;
+  pointer-events: auto;
+  transform: none;
 }
 .control-process-row {
   display: flex;
@@ -1003,6 +1037,17 @@ body,
   overflow-y: auto;
   background: color-mix(in oklch, var(--color-surface) 55%, var(--color-paper));
   font-size: 0.8rem;
+}
+.debug-panel-floating {
+  position: fixed;
+  right: var(--space-lg);
+  bottom: calc(var(--space-lg) + var(--control-anchor-size) + 12px);
+  width: 340px;
+  max-width: 88vw;
+  z-index: 39;
+  border: 0.5px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--elev-float);
 }
 .debug-panel-head {
   display: flex;
