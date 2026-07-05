@@ -1,5 +1,5 @@
 ---
-status: in-progress
+status: done
 kind: spec
 phases: [6]
 summary: Reframe the observation feed from a bordered side panel into a summonable "companion surface" — a reflowing column of borderless floating cards, a unified bottom-right control center (actions ← / process ↑), a floating settings modal, an icon-only activity+model indicator, a document-attached context affordance, and an elegant archive. Modernizes the visual and structural execution while preserving the kind×severity information architecture. Consumes the visual_style tokens; reframes the panel/chrome those specs assumed.
@@ -11,7 +11,7 @@ summary: Reframe the observation feed from a bordered side panel into a summonab
 
 > Canonical status lives in the frontmatter above and is mirrored in the Projects Index in `docs/plan.md`. This block carries the human-readable scope only.
 
-**Idea — Phase 6 (design being written; two forks flagged _to prototype_ before build).** This is a **structural** redesign of the observation feed, sitting one layer above `visual_style.md`. Where `visual_style.md` re-skins the _existing_ panel to the token system, this project changes the panel's fundamental shape: the feed stops being a bordered "sidecar" and becomes a **companion surface** — a space of floating elements the document can cede space to or reclaim. It is the direct response to the observation that the feed, even after the token re-skin, still "functions like a dev tool and looks vibecoded."
+**Done — shipped & merged via #46 (2026-07-05).** Built to this spec, browser-verified across surfaces, and merged to `main`; all § Todo items are `[x]`. This is a **structural** redesign of the observation feed, sitting one layer above `visual_style.md`. Where `visual_style.md` re-skins the _existing_ panel to the token system, this project changes the panel's fundamental shape: the feed stops being a bordered "sidecar" and becomes a **companion surface** — a space of floating elements the document can cede space to or reclaim. It is the direct response to the observation that the feed, even after the token re-skin, still "functions like a dev tool and looks vibecoded."
 
 Decided interactively 2026-07-05 (this session):
 
