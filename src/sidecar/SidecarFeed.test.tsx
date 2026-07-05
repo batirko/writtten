@@ -221,3 +221,65 @@ describe("SidecarFeed — quoted-text subtitle (UX-008)", () => {
     expect(div.querySelector('[data-testid="obs-anchor-doc"]')).toBeNull();
   });
 });
+
+// ---------------------------------------------------------------------------
+// UX-006 — reverse-hover spotlight in the open feed.
+//
+// When a span is dwelled on, its card rises to the top (ephemeral lens) and
+// stays opaque (`observation-card-spotlit`) while the rest recede
+// (`observation-card-dimmed`). Releasing restores document order with no dim.
+// ---------------------------------------------------------------------------
+
+describe("SidecarFeed — reverse-hover spotlight (UX-006)", () => {
+  const containers: HTMLDivElement[] = [];
+
+  function renderWith(observations: Observation[], spanFocusObsId: string | null): HTMLDivElement {
+    const div = document.createElement("div");
+    document.body.appendChild(div);
+    containers.push(div);
+    act(() => {
+      createRoot(div).render(
+        createElement(SidecarFeed, { ...minProps, observations, spanFocusObsId })
+      );
+    });
+    return div;
+  }
+
+  afterEach(() => {
+    for (const c of containers) act(() => c.remove());
+    containers.length = 0;
+  });
+
+  const three = [
+    obs({ id: "a", type: "clarity", blockId: "b1", startOffset: 0, endOffset: 5, priority: 1 }),
+    obs({ id: "b", type: "clarity", blockId: "b2", startOffset: 0, endOffset: 5, priority: 1 }),
+    obs({ id: "c", type: "clarity", blockId: "b3", startOffset: 0, endOffset: 5, priority: 1 }),
+  ];
+
+  function cardIds(div: HTMLDivElement): string[] {
+    return Array.from(div.querySelectorAll('[data-testid="obs-card"]')).map(
+      (el) => el.getAttribute("data-obs-id") ?? ""
+    );
+  }
+
+  it("lifts the focused card to the top and dims the rest", () => {
+    const div = renderWith(three, "c");
+    // 'c' rises to the front despite being last in document order.
+    expect(cardIds(div)).toEqual(["c", "a", "b"]);
+    const spotlit = div.querySelector(".observation-card-spotlit");
+    expect(spotlit?.getAttribute("data-obs-id")).toBe("c");
+    // Exactly the two non-focused cards are dimmed; the spotlit one is not.
+    const dimmed = Array.from(div.querySelectorAll(".observation-card-dimmed")).map((el) =>
+      el.getAttribute("data-obs-id")
+    );
+    expect(dimmed.sort()).toEqual(["a", "b"]);
+    expect(div.querySelector('.observation-card-spotlit.observation-card-dimmed')).toBeNull();
+  });
+
+  it("restores document order with no dim when nothing is focused", () => {
+    const div = renderWith(three, null);
+    expect(cardIds(div)).toEqual(["a", "b", "c"]);
+    expect(div.querySelector(".observation-card-spotlit")).toBeNull();
+    expect(div.querySelector(".observation-card-dimmed")).toBeNull();
+  });
+});

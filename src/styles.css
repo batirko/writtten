@@ -523,7 +523,8 @@ body,
   transition:
     transform var(--dur-base) var(--ease-out),
     box-shadow var(--dur-base) var(--ease-out),
-    border-color var(--dur-base) var(--ease-out);
+    border-color var(--dur-base) var(--ease-out),
+    opacity var(--dur-base) var(--ease-out);
   box-shadow: var(--elev-rest);
 }
 
@@ -535,6 +536,42 @@ body,
 .observation-card-active {
   box-shadow: var(--elev-active);
   border-color: var(--color-border-strong);
+}
+
+/* Reverse-hover spotlight (UX-006). Dwelling on a highlighted span lifts its
+   card (spotlit, opaque, emphasised) and recedes the rest (dimmed). Ephemeral
+   lens — restores on release. Emphasis is never opacity-only: the spotlit card
+   also carries the active elevation + border. */
+.observation-card-spotlit {
+  box-shadow: var(--elev-active);
+  border-color: var(--color-border-strong);
+}
+.observation-card-dimmed {
+  opacity: 0.32;
+}
+
+/* Collapsed-feed reverse hover (UX-006): only the hovered span's card, floated
+   in from the right gutter (where the feed lives) so the messages stay reachable
+   without un-collapsing. Pinned to the top of the gutter; never overlays the
+   writing column (it sits in the folded gutter's lane). */
+.span-peek {
+  position: fixed;
+  top: var(--space-lg);
+  right: var(--space-lg);
+  width: calc(var(--gutter-width) - 2 * var(--space-md));
+  z-index: 35;
+  animation: peekIn var(--dur-base) var(--ease-out);
+}
+
+@keyframes peekIn {
+  from {
+    opacity: 0;
+    transform: translateX(16px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }
 
 .card-header {
