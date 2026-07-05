@@ -61,6 +61,11 @@ export { reconcileDocumentObservations } from "./evaluatorReconcile";
 // Local types — used only inside the evaluate* functions below.
 // ---------------------------------------------------------------------------
 
+// Char budget for the OBS-027 "Established elsewhere" sibling-claim context.
+// Summaries are always included (one-liners); claim texts are truncated/capped
+// to this budget so token growth stays bounded on large documents.
+const CONTEXT_CLAIM_BUDGET_CHARS = 1200;
+
 interface SpanObservation {
   text: string;
   substring: string;
@@ -170,6 +175,53 @@ export async function evaluateSection(
         `\nDefined terms (do not flag as undefined jargon):\n${definedTerms.join("\n")}`
       );
     }
+
+    // OBS-027: give the model the context of what SIBLING sections already
+    // establish, so reference-resolving span checks (clarity / undefined_jargon /
+    // unsupported_claim) don't false-positive on terms, references, or claims
+    // that other sections define or assert. Reuses artifacts already in memory
+    // (block summaries + the active ledger) — no extra model call. Gated on
+    // sibling content so single-section fixtures keep stable hashes (mirrors the
+    // priorObs gate below). See docs/projects/section_eval_precision.md (OBS-027).
+    const siblingSummaries = (await loadBlockSummariesForDocument(docId))
+      .filter((s) => s.blockId !== sectionId && s.summary.trim().length > 0)
+      .map((s) => s.summary.trim());
+    // Broaden past the glossary (which uses only `definition` claims) to sibling
+    // assertions/commitments/metrics/constraints so `unsupported_claim` resolves
+    // against what other sections assert. `definition` claims are excluded here —
+    // they already surface via the "Defined terms" glossary above (dedup).
+    const siblingClaims = existingClaimsForGlossary
+      .filter((c) => !memberBlockIds.includes(c.sourceBlockId) && c.kind !== "definition")
+      .map((c) => c.text.trim())
+      .filter((t) => t.length > 0);
+    // Bound token growth on large documents: summaries are one-liners (kept whole),
+    // claim texts are truncated and capped to a char budget.
+    const cappedClaims: string[] = [];
+    let claimBudget = CONTEXT_CLAIM_BUDGET_CHARS;
+    for (const t of siblingClaims) {
+      const line = t.length > 200 ? `${t.slice(0, 197)}…` : t;
+      if (claimBudget - line.length < 0) break;
+      cappedClaims.push(line);
+      claimBudget -= line.length;
+    }
+    if (siblingSummaries.length > 0 || cappedClaims.length > 0) {
+      const contextParts: string[] = [];
+      if (siblingSummaries.length > 0) {
+        contextParts.push(`Other sections:\n${siblingSummaries.map((s) => `- ${s}`).join("\n")}`);
+      }
+      if (cappedClaims.length > 0) {
+        contextParts.push(`Established claims:\n${cappedClaims.map((c) => `- ${c}`).join("\n")}`);
+      }
+      // Instructions ride with the (gated) block rather than the static system
+      // prompt so single-section fixtures keep stable request hashes for mock
+      // replay — only sections that actually have sibling context change.
+      userParts.push(
+        `\nEstablished elsewhere in this document — CONTEXT ONLY, not part of the section under review. Other sections already define/assert the following. Do NOT flag a term, reference, or claim as undefined, unclear, or unsupported when it is resolved here; do not generate observations about this context block. Still flag a reference this block does not actually resolve — loose topical overlap is not a definition. Also treat the section heading as governing intent: items under "Out of scope"/"Non-goals"/"Future" headings are deliberate exclusions, not omissions.\n${contextParts.join(
+          "\n"
+        )}`
+      );
+    }
+
     if (priorObs.length > 0) {
       const priorLines = priorObs.map((o, i) => `[${i}]: (${o.type}) "${o.text}"`).join("\n");
       // Injected in user content only (not system prompt) so the base fixture
