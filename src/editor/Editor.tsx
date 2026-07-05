@@ -55,6 +55,9 @@ interface Props {
    *  the hardcoded preset). One entry per term; case-insensitive. */
   jargonAllowlist?: string[];
   observations: Observation[];
+  /** Ids of observations surfaced in the feed budget — only these get a visible
+   *  highlight (downgraded ones render an invisible anchor). See UX-006/R7b. */
+  surfacedIds?: Set<string>;
   hoveredObservationId: string | null;
   /** Reverse hover (UX-006): fires the observation id of a highlighted span the
    *  pointer has *dwelled* on (see SPAN_HOVER_DWELL_MS), or null on leave. */
@@ -109,6 +112,7 @@ export function Editor({
   stage,
   jargonAllowlist,
   observations,
+  surfacedIds,
   hoveredObservationId,
   onSpanHover,
   onObservationCollapsed,
@@ -924,6 +928,14 @@ export function Editor({
     if (!editor || editor.isDestroyed) return;
     editor.view.dispatch(editor.state.tr.setMeta("setObservations", observations));
   }, [editor, observations]);
+
+  // Sync the surfaced-id set so only budgeted observations get a visible mark.
+  useEffect(() => {
+    if (!editor || editor.isDestroyed) return;
+    editor.view.dispatch(
+      editor.state.tr.setMeta("setSurfacedIds", surfacedIds ?? new Set<string>())
+    );
+  }, [editor, surfacedIds]);
 
   // Sync hovered observation with the highlighter extension
   useEffect(() => {

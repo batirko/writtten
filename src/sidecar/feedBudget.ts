@@ -133,3 +133,23 @@ export function partitionFeed(
 
   return { visible: orderByBand(visibleSet), alsoNoticed: orderByBand(alsoNoticedSet) };
 }
+
+/**
+ * The set of individual observation ids that are *surfaced* (in the visible
+ * budget), including every member of each visible group. Downgraded
+ * "also noticed" observations are excluded. Used to gate canvas highlights:
+ * only surfaced observations mark the text — highlight-presence is the visible
+ * differentiator between a surfaced and a downgraded observation. See UX-006/R7b.
+ */
+export function surfacedObservationIds(
+  observations: Observation[],
+  options: FeedPartitionOptions
+): Set<string> {
+  const { visible } = partitionFeed(observations, options);
+  const ids = new Set<string>();
+  for (const g of visible) {
+    ids.add(g.primary.id);
+    for (const o of g.others) ids.add(o.id);
+  }
+  return ids;
+}

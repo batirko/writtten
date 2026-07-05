@@ -10,7 +10,12 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { partitionFeed, DEFAULT_FEED_BUDGET, CONTRADICTION_CEILING } from "./feedBudget";
+import {
+  partitionFeed,
+  surfacedObservationIds,
+  DEFAULT_FEED_BUDGET,
+  CONTRADICTION_CEILING,
+} from "./feedBudget";
 import type { Observation } from "../store/db";
 
 // ---------------------------------------------------------------------------
@@ -438,5 +443,36 @@ describe("partitionFeed — doc-scoped observations", () => {
 
     // Both Infinity blockId, both Infinity startOffset → stable by source order
     expect(visible).toHaveLength(2);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// surfacedObservationIds — the canvas-highlight gate (UX-006/R7b).
+//   Only budgeted observations mark the text; overflow ones are excluded.
+//   Every member of a visible aggregated group is surfaced.
+// ---------------------------------------------------------------------------
+
+describe("surfacedObservationIds", () => {
+  const opts = { budget: DEFAULT_FEED_BUDGET, blockOrder: [] as string[] };
+
+  it("includes visible observations and excludes overflow", () => {
+    // 9 distinct-span groups > budget of 7 → 2 overflow into 'also noticed'.
+    const all = Array.from({ length: 9 }, (_, i) =>
+      obs({ type: "clarity", priority: 9 - i, blockId: `b${i}`, id: `o${i}` })
+    );
+    const ids = surfacedObservationIds(all, opts);
+    const { visible, alsoNoticed } = partitionFeed(all, opts);
+    for (const g of visible) expect(ids.has(g.primary.id)).toBe(true);
+    for (const g of alsoNoticed) expect(ids.has(g.primary.id)).toBe(false);
+    expect(ids.size).toBe(DEFAULT_FEED_BUDGET);
+  });
+
+  it("surfaces every member of a visible aggregated group", () => {
+    // Two observations on the exact same span → one visible group, both surfaced.
+    const a = obs({ type: "undefined_jargon", priority: 2, blockId: "b1", id: "hi" });
+    const b = obs({ type: "clarity", priority: 1, blockId: "b1", id: "lo" });
+    const ids = surfacedObservationIds([a, b], opts);
+    expect(ids.has("hi")).toBe(true);
+    expect(ids.has("lo")).toBe(true);
   });
 });
