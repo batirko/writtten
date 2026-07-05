@@ -148,3 +148,76 @@ describe("SidecarFeed — priority-banded render order (UX-015)", () => {
     expect(types).toEqual(["missing_topic", "clarity", "clarity"]);
   });
 });
+
+// ---------------------------------------------------------------------------
+// UX-008 — quoted-text subtitle on cards.
+//
+// A span observation quotes its stored `anchorText` back at the user between the
+// type tag and the body (serif-italic, muted) so the passage is legible without
+// eye-travel to the editor. Doc-scope cards have no anchorText → the quiet
+// "Whole document" label instead. Span cards missing anchorText render neither.
+// ---------------------------------------------------------------------------
+
+describe("SidecarFeed — quoted-text subtitle (UX-008)", () => {
+  const containers: HTMLDivElement[] = [];
+
+  function renderWith(observations: Observation[]): HTMLDivElement {
+    const div = document.createElement("div");
+    document.body.appendChild(div);
+    containers.push(div);
+    act(() => {
+      createRoot(div).render(createElement(SidecarFeed, { ...minProps, observations }));
+    });
+    return div;
+  }
+
+  afterEach(() => {
+    for (const c of containers) act(() => c.remove());
+    containers.length = 0;
+  });
+
+  it("quotes a span observation's anchorText as the subtitle", () => {
+    const div = renderWith([
+      obs({
+        id: "s1",
+        type: "clarity",
+        blockId: "b1",
+        startOffset: 0,
+        endOffset: 15,
+        anchorText: "non-invasive way",
+        text: "'non-invasive way' is vague.",
+      }),
+    ]);
+    const anchor = div.querySelector('[data-testid="obs-anchor"]');
+    expect(anchor).not.toBeNull();
+    expect(anchor?.textContent).toBe("“non-invasive way”");
+    // The full span stays reachable — the truncated quote carries a title tooltip.
+    expect(anchor?.getAttribute("title")).toBe("non-invasive way");
+    // Doc-scope label must not appear for a span card.
+    expect(div.querySelector('[data-testid="obs-anchor-doc"]')).toBeNull();
+  });
+
+  it('shows "Whole document" for a doc-scope observation with no anchorText', () => {
+    const div = renderWith([
+      obs({
+        id: "m1",
+        type: "missing_topic",
+        scope: "document",
+        blockId: undefined,
+        text: "No competitor positioning.",
+      }),
+    ]);
+    const docLabel = div.querySelector('[data-testid="obs-anchor-doc"]');
+    expect(docLabel).not.toBeNull();
+    expect(docLabel?.textContent).toBe("Whole document");
+    expect(div.querySelector('[data-testid="obs-anchor"]')).toBeNull();
+  });
+
+  it("renders no subtitle for a span observation lacking anchorText", () => {
+    const div = renderWith([
+      obs({ id: "s2", type: "clarity", blockId: "b1", startOffset: 0, endOffset: 5 }),
+    ]);
+    expect(div.querySelector('[data-testid="obs-anchor"]')).toBeNull();
+    expect(div.querySelector('[data-testid="obs-anchor-doc"]')).toBeNull();
+  });
+});

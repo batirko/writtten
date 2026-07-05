@@ -1122,6 +1122,26 @@ body,
   line-height: 1.4;
 }
 
+/* UX-008: quoted-text subtitle — the user's own words quoted back, between
+   the type tag and the body. Serif-italic muted, same treatment as the archive
+   ghost-anchor. Truncated to one line; the full span is reachable via hover/click. */
+.card-anchor {
+  margin: 6px 0 0;
+  font-size: var(--text-ui-sm);
+  color: var(--color-ink-2);
+  font-family: var(--font-serif);
+  font-style: italic;
+  line-height: 1.5;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.card-anchor-doc {
+  font-family: var(--font-sans);
+  font-style: normal;
+  color: var(--color-muted);
+}
+
 /* Debug panel (dev only) */
 .debug-panel {
   border-top: 0.5px solid var(--color-border);
