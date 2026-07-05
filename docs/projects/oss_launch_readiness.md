@@ -32,26 +32,26 @@ Read alongside:
 
 ### Minimum — must be true before the repo goes public (Phase 6)
 
-- [ ] **LICENSE file.** `package.json` declares `Apache-2.0` but there is **no `LICENSE` file** — add the full Apache-2.0 text (+ optional `NOTICE`). A declared-but-absent license is legally ambiguous and blocks confident forking.
-- [ ] **README.md that pitches the inversion** (see _README spec_ below). This is the single highest-leverage artifact.
-- [ ] **Pre-flight cleanup:** remove stray tracked files `print_diffs.js`, `print_vague.js`, `test_output.txt` (scratch/junk, not part of the product). Add `test_output.txt`-style patterns to `.gitignore`.
-- [ ] **Security sweep sign-off** (see _Pre-flight cleanup & security sweep_ below). Already ~clean: `.env.local` was never committed; the only `AIza` strings in history are two docs _describing_ the key-in-logs problem with a redacted `AIzaSy…IBD1w` partial. Fully redact those two partials before public, then sign off.
-- [ ] **CONTRIBUTING.md** — setup, test/lint/build commands, the branch/PR model, and the load-bearing invariants (transmit invariant #1 and #2 in the contributor's language).
-- [ ] **CODE_OF_CONDUCT.md** — Contributor Covenant, boilerplate.
-- [ ] **SECURITY.md** — how to report; plus the honest data-handling disclosure (BYO-key stays local; free-tier settled text is sent to Google's Gemini API — state it plainly).
-- [ ] **`.github/` templates** — issue templates (Bug · Feature · **Signal-quality: false positive/negative**) and a PR template whose checklist references the invariants + `npm test`/`lint`/`build`.
-- [ ] **Decide & document the `docs/` transparency posture** (publish-as-is vs. curate — see below). Default recommendation: **publish as-is.**
-- [ ] **Branch protection on `main`** — require the existing CI (`lint`/`build`/`test`) green before merge. CI already exists (`.github/workflows/ci.yml`); just gate on it.
-- [ ] **`.nvmrc` / `engines` field** pinning Node 20 (CI uses 20) so contributors' local envs match.
+- [x] **LICENSE file.** Apache-2.0 full text added (fetched canonical). _(2026-07-05)_
+- [x] **README.md that pitches the inversion** — leads with the inversion, honest-status box, quickstart, how-it-works. _(2026-07-05)_
+- [x] **Pre-flight cleanup:** removed `print_diffs.js`, `print_vague.js`, `test_output.txt`; added `*_output.txt` to `.gitignore`. _(2026-07-05)_
+- [x] **Security sweep sign-off** — `.env.local` never committed; no live key in history; the two redacted-partial doc strings fully redacted to `AIza…<redacted>`. _(2026-07-05)_
+- [x] **CONTRIBUTING.md** — setup, commands, branch/PR model, the five hard invariants, where-to-start. _(2026-07-05)_
+- [x] **CODE_OF_CONDUCT.md** — Contributor Covenant 2.1. _(placeholder: enforcement contact still to fill)_
+- [x] **SECURITY.md** — reporting + honest data-egress disclosure (free-tier text → Gemini). _(2026-07-05)_
+- [x] **`.github/` templates** — Bug · Feature · Signal-quality (FP/FN) issue templates + invariant-referencing PR template. _(2026-07-05)_
+- [x] **`docs/` transparency posture — decided: publish as-is** (2026-07-05, user call). Candor is on-brand; no curation. Only edit needed was the two key-partial redactions above.
+- [ ] **Branch protection on `main`** — require the existing CI (`lint`/`build`/`test`) green before merge. **Pending — needs a GitHub repo setting** (do at publish time). — 🟢 Low · 🔧
+- [x] **`.nvmrc` / `engines` field** pinning Node 20. _(2026-07-05)_
 
 ### Good-enough — a credible, welcoming launch (Phase 6 → early 7)
 
 - [ ] **Hosted live demo** at `writtten.com` (or a static host) — the single biggest conversion asset; lets people _try_ before cloning. Ships as a static PWA (Phase 5 install work is done), no backend. Pair with the BYO-key + zero-config mock demo.
-- [ ] **Hero visual** — a screenshot + short GIF/video of the loop (write → observation appears → reverse-hover highlights the span → contradiction peek). Embed at the top of the README.
+- [ ] **Hero visual** — a screenshot + short GIF/video of the loop (write → observation appears → reverse-hover highlights the span → contradiction peek). Embed at the top of the README (placeholder `<!-- TODO(launch) -->` is in place).
 - [ ] **Zero-config "See it in action"** — a one-click planted-contradiction example so a first-time visitor witnesses the hero with no key (`onboarding_first_run.md`). Doubles as the demo's opening state.
-- [ ] **Update `concept.md` + `plan.md`** — flip the "OSS real or decorative?" open question to resolved (real), and remove/rewrite the "contribute to is currently unserved" caveat as this checklist drains it.
-- [ ] **CHANGELOG.md + a tagged `v0.1.0` release.** A first release tag makes the project feel real and gives Show HN/PH something to point at.
-- [ ] **A short "why I built this" launch post** — the inversion thesis. This project has unusually strong narrative material in `concept.md`; mine it.
+- [x] **Update `concept.md` + `plan.md`** — flipped the "OSS real or decorative?" open question to resolved (real); rewrote the concept.md caveat. _(2026-07-05)_
+- [x] **CHANGELOG.md** added (Keep-a-Changelog, `0.1.0` first-release notes). _The tagged `v0.1.0` release + the `<owner>` compare links are done at publish time._
+- [x] **A short "why I built this" launch post** — `docs/launch/why-writtten.md`, adaptable for Show HN / blog. _(2026-07-05)_
 
 ### Superb — makes "a tool people want to contribute to" actually true (Phase 7)
 
