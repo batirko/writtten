@@ -22,6 +22,51 @@
 import type { Observation } from "../store/db";
 import type { ExpectedObservation } from "./eval-fixtures/types";
 
+/**
+ * Per-type precision floors for the Tier-2 live ratchet, keyed to **trust cost**
+ * rather than one aggregate number: a false `contradiction` discredits the whole
+ * feed (R4.4), while a false soft-opportunity is mild and easily ignored. Four
+ * tiers — see docs/projects/evaluator_quality_ratchet.md § Phase 6.
+ *
+ *   A ≥ 0.95  contradiction                                   (hero; one FP discounts the feed)
+ *   B ≥ 0.85  unsupported_claim, audience_mismatch            (assertive problem-claims)
+ *   C ≥ 0.80  clarity, undefined_jargon                       (span nits; clarity high-end — G2 slot)
+ *   D ≥ 0.70  missing_topic, underexposed_topic,              (soft opportunity-kind suggestions)
+ *             structure_flow, strategic_tension
+ *
+ * PROVISIONAL: the tiering (the policy) is fixed; the constants get recalibrated
+ * against real per-type precision once field_validation V1 lands independent,
+ * second-rater-labelled real-PRD numbers. A `Record<Observation["type"], …>` so
+ * the compiler rejects adding an observation type without assigning it a floor.
+ */
+export const PRECISION_FLOORS: Record<Observation["type"], number> = {
+  // Tier A
+  contradiction: 0.95,
+  // Tier B
+  unsupported_claim: 0.85,
+  audience_mismatch: 0.85,
+  // Tier C
+  clarity: 0.8,
+  undefined_jargon: 0.8,
+  // Tier D
+  missing_topic: 0.7,
+  underexposed_topic: 0.7,
+  structure_flow: 0.7,
+  strategic_tension: 0.7,
+};
+
+/** The tier floor a produced observation of this type must clear (Tier-2 live). */
+export function precisionFloorForType(type: Observation["type"]): number {
+  return PRECISION_FLOORS[type];
+}
+
+/**
+ * Aggregate recall soft-floor for the live ratchet. Recall stays aggregate (not
+ * per-type) here; field_validation V3 measures the load-bearing contradiction-
+ * at-distance recall separately against a hand-labelled corpus.
+ */
+export const AGGREGATE_RECALL_FLOOR = 0.8;
+
 export interface ScoreResult {
   fixture: string;
   truePositives: Array<{ expected: ExpectedObservation; produced: Observation }>;
