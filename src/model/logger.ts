@@ -303,9 +303,18 @@ class LLMLogger {
     this.syncHook = hook;
   }
   // Raw entries are append-only and pre-projection (request/response/retry are
-  // separate rows), so the buffer holds ~3 rows per call. 120 keeps a realistic
-  // bulk-paste session intact once the export projection merges them.
-  private maxLogs = 120;
+  // separate rows), so the buffer holds ~3 rows per call. Retention is capped
+  // *per class* — see `trim()`. Since the debug-log unify routed high-frequency
+  // lifecycle events (settle/observation/ledger-write/block-removed) into this
+  // same buffer, a single shared cap let that chatter evict the sparse, valuable
+  // LLM call rows entirely (the debug panel then showed lifecycle noise and no
+  // request/response). Two independent budgets keep both classes present.
+  // 120 keeps a realistic bulk-paste session of LLM calls intact once the export
+  // projection merges request/response/retry into one record.
+  private maxLlmLogs = 120;
+  // Lifecycle events are chatty (a settle fires on every typing pause) but each
+  // is tiny; a separate budget lets them accumulate without starving LLM calls.
+  private maxLifecycleLogs = 200;
   // What each call produced, keyed by callId — attached out-of-band by the
   // evaluator so the projection can show a call's effect without mutating the
   // append-only log.
@@ -478,6 +487,42 @@ class LLMLogger {
     });
   }
 
+  /**
+   * High-frequency lifecycle events routed in via the harness. They carry no
+   * model/payload and are cheap; they get their own retention budget so they
+   * never evict LLM call rows (request/response/retry/error/trigger/archive).
+   */
+  private static readonly LIFECYCLE_TYPES: ReadonlySet<LLMLogEntry["type"]> = new Set([
+    "settle",
+    "observation",
+    "ledger-write",
+    "block-removed",
+  ]);
+
+  /**
+   * Trim the buffer with an independent cap per class (LLM calls vs. lifecycle
+   * chatter), evicting oldest-first within each. A single shared cap let a burst
+   * of lifecycle events push every LLM request/response out of the window.
+   */
+  private trim(): void {
+    let llm = 0;
+    let lifecycle = 0;
+    const kept: LLMLogEntry[] = [];
+    // this.logs is newest-first, so iterating forward keeps the most recent.
+    for (const e of this.logs) {
+      if (LLMLogger.LIFECYCLE_TYPES.has(e.type)) {
+        if (lifecycle < this.maxLifecycleLogs) {
+          kept.push(e);
+          lifecycle++;
+        }
+      } else if (llm < this.maxLlmLogs) {
+        kept.push(e);
+        llm++;
+      }
+    }
+    if (kept.length !== this.logs.length) this.logs = kept;
+  }
+
   log(entry: Omit<LLMLogEntry, "id" | "timestamp">) {
     const fullEntry: LLMLogEntry = {
       ...entry,
@@ -548,9 +593,7 @@ class LLMLogger {
     }
 
     this.logs.unshift(fullEntry);
-    if (this.logs.length > this.maxLogs) {
-      this.logs.pop();
-    }
+    this.trim();
 
     this.notify();
     if (this.syncHook) {
