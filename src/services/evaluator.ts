@@ -4,6 +4,11 @@ import { prefilterClaims } from "./prefilter";
 import { computePriority } from "./priority";
 import { JARGON_PRESET } from "./jargonPreset";
 import {
+  classifyDocumentClass,
+  sectionCalibrationBlock,
+  docCalibrationBlock,
+} from "./documentClass";
+import {
   saveBlockSummary,
   loadBlockSummary,
   saveClaimsForBlock,
@@ -170,6 +175,11 @@ export async function evaluateSection(
 
     const userParts: string[] = [cleanText];
     if (stage) userParts.push(`\nDocument context: ${stage}`);
+    // Document-type calibration (OBS-023/OBS-028): on non-PRD genres, relax
+    // unsupported_claim to hard external-fact assertions only. Empty (hash-stable)
+    // for prd_spec / unknown. See documentClass.ts.
+    const sectionCalib = sectionCalibrationBlock(classifyDocumentClass(stage));
+    if (sectionCalib) userParts.push(sectionCalib);
     if (definedTerms.length > 0) {
       userParts.push(
         `\nDefined terms (do not flag as undefined jargon):\n${definedTerms.join("\n")}`
@@ -575,6 +585,10 @@ export async function evaluateDocument(
 
   const parts: string[] = [];
   parts.push(stage ? `Stage/Context: ${stage}` : "Stage/Context: (none set)");
+  // Document-type calibration: on non-PRD genres, don't demand PRD structure
+  // (missing_topic / structure_flow). Empty (hash-stable) for prd_spec / unknown.
+  const docCalib = docCalibrationBlock(classifyDocumentClass(stage));
+  if (docCalib) parts.push(docCalib);
   parts.push(
     `\nBlock Summaries:\n${meaningful.map((s, i) => `[${i + 1}] ${s.summary}`).join("\n")}`
   );

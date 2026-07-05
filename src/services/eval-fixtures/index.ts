@@ -27,6 +27,7 @@ import clarityConditionalSpecified from "./clarity-conditional-specified";
 import claimKindDiscrimination from "./claim-kind-discrimination";
 import clarityTextInsight from "./clarity-text-insight";
 import opinionApprehension from "./opinion-apprehension";
+import commsNarrative from "./comms-narrative";
 import type { EvalFixture } from "./types";
 
 export const corpus: EvalFixture[] = [
@@ -45,6 +46,7 @@ export const corpus: EvalFixture[] = [
   claimKindDiscrimination,
   clarityTextInsight,
   opinionApprehension,
+  commsNarrative,
 ];
 
 export { type EvalFixture } from "./types";
