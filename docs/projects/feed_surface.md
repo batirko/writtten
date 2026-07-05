@@ -1,5 +1,5 @@
 ---
-status: idea
+status: in-progress
 kind: spec
 phases: [6]
 summary: Reframe the observation feed from a bordered side panel into a summonable "companion surface" — a reflowing column of borderless floating cards, a unified bottom-right control center (actions ← / process ↑), a floating settings modal, an icon-only activity+model indicator, a document-attached context affordance, and an elegant archive. Modernizes the visual and structural execution while preserving the kind×severity information architecture. Consumes the visual_style tokens; reframes the panel/chrome those specs assumed.
@@ -44,20 +44,22 @@ Build-ready against the **Hallmark** editorial genre with modern-minimal structu
 
 ## Todo
 
-Each item is build-scoped and independently verifiable. Anchor files: `src/sidecar/SidecarFeed.tsx` (all feed markup), `src/App.tsx` (layout column + collapse state), `src/styles.css` (tokens + surface CSS). **Lane: Visual (solo)** — rewrites feed markup + styles wholesale; sequence against no other UI lane.
+Each item is build-scoped and independently verifiable. Anchor files: `src/sidecar/SidecarFeed.tsx` + `src/sidecar/ControlCenter.tsx` + `src/sidecar/DocumentContext.tsx` (feed markup), `src/App.tsx` (layout column + collapse state), `src/styles.css` (tokens + surface CSS). **Lane: Visual (solo)** — rewrites feed markup + styles wholesale; sequence against no other UI lane.
 
-- [ ] **Reflow-column layout** — make the feed a collapsible layout column that the canvas reflows around (canvas → full `--editor-measure` when collapsed, cedes `--gutter-width` when present). No overlay/`position:fixed` feed. Persist collapse state locally.
-- [ ] **Collapse/expand affordance** — a slim, quiet edge handle at the canvas↔gutter boundary + a keyboard shortcut; state survives reload. Motion via visual_style `--dur-*`/`--ease-*`, reduced-motion honoured.
-- [ ] **Borderless floating cards** — retire the panel background (`--color-sidecar`); render cards as `--color-surface` on the `--color-paper` gutter with `--elev-rest` + hairline, shallow (not "floating glass"). Preserve all `data-testid` hooks and the C1/C2/C3 contracts.
-- [ ] **Tag-carries-colour severity** — replace the kind×severity **left-border** with a filled/tinted **type-tag** whose colour is the semantic kind×severity value, plus the adjacent `HIGH`/`MED`/`LOW` impact label (both retained for the colour-blind floor). Keep `data-testid="impact-badge"` and the R7a popover. (§ Card execution.)
-- [ ] **Unified control center** — one bottom-right anchor = the activity/model dot; expands **← actions** (export, import, config, clear) and **↑ process** (model, tier, pending/idle, session stats; dev-only debug entry). Fold in and retire the header `sidecar-status-chip` + `provider-chip` + the header icon-button row. Preserve every action's `data-testid`.
-- [ ] **Activity/model indicator** — the anchor dot's colour encodes state (idle / working / stalled / paid-tier), gentle opacity pulse while `pending>0`, static under reduced-motion; hover/focus tooltip shows model + tier + status. Absorbs the two old chips.
-- [ ] **Floating settings modal** — move API-key / tier-toggle / (dev) debug-toggle out of the inline feed panel into a centered floating modal (shared modal primitive with the clear-confirm). Keep `settings-panel`, `api-key-input`, `key-tier-toggle` testids.
-- [ ] **Context affordance relocation** — move the Document Context / Stage chip from the feed to a **document-attached** metadata affordance so it's reachable regardless of feed collapse state; reconcile with onboarding_first_run § The context chip. (Fork — prototype first, see § Open forks.)
-- [ ] **Elegant archive** — restyle the archive to the floating language: quiet past-tense cards, serif ghost-anchor quote (visual_style), no colour stripe; collapsible below the column. Keep `archive-*` testids.
-- [ ] **Reserved filter seam** — leave a documented, un-wired slot in the control center's process/up axis for the future R2c noisiness switch; ship no filter UI. (§ Reserved seams.)
-- [ ] **New tokens** — append the surface tokens (§ New tokens) to the visual_style `:root` block; no inline literals (Hallmark locked-token rule).
-- [ ] **Slop test + prototype sign-off** — each surface passes its static prototype review (§ Working norm) before implementation; the built CSS passes the Hallmark slop test and honours reduced-motion + print.
+> **Shipped 2026-07-05** on branch `ui/companion-surface-redesign` (built + browser-verified; not yet merged). All items below are done. Canvas serif resolved to **Faustina** (soft-contrast humanist, self-hosted) after the interim sans-only detour; control center **lifted out of the feed** (fixed, always-visible, hover-reveal) after dogfooding; context **document-attached**.
+
+- [x] **Reflow-column layout** — feed slot animates `--gutter-width`→0; canvas reflows to full `--editor-measure` when collapsed. No overlay. Collapse persisted (`App.tsx`).
+- [x] **Collapse/expand affordance** — slim edge handle + `⌘\` shortcut; state survives reload; reduced-motion honoured.
+- [x] **Borderless floating cards** — panel background retired; cards `--color-surface` on `--color-paper` with token elevation. testids + C1/C2/C3 preserved.
+- [x] **Tag-carries-colour severity** — left-border removed; filled/tinted type-tag (HIGH solid / MED tint / LOW outline; contradiction orange, tension teal) + `HIGH/MED/LOW` label. `impact-badge` + R7a popover kept.
+- [x] **Unified control center** — fixed bottom-right, always visible; dot anchor, ← actions, ↑ process. Header chips + button row retired. testids preserved.
+- [x] **Activity/model indicator** — dot state colour + working pulse (static under reduced-motion); process panel is the hover detail (redundant dot tooltip removed).
+- [x] **Floating settings modal** — key / tier / (dev) debug in a shared scrim/modal primitive. testids kept.
+- [x] **Context affordance relocation** — moved to the document-attached `DocumentContext` (top of the writing column); onboarding_first_run § The context chip reconciled.
+- [x] **Elegant archive** — quiet past-tense cards, desaturated tag, serif ghost-anchor quote; `archive-*` testids kept.
+- [x] **Reserved filter seam** — documented un-wired slot in the control-center process axis (`ControlCenter.tsx`); no filter UI shipped.
+- [x] **New tokens** — surface tokens added to `:root`; `--color-sidecar` retired.
+- [x] **Slop test + prototype sign-off** — every surface prototyped/approved before build; `styles.css` stamped; reduced-motion + print paths hold; dead CSS pruned.
 
 ---
 

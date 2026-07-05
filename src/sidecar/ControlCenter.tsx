@@ -378,6 +378,10 @@ export function ControlCenter({
       )}
 
       <div className={`control-center${forceOpen ? " is-open" : ""}`}>
+        {/* Reserved seam: the future R2c noisiness switch (Key issues / Balanced /
+            Everything) drops in here — the process/up axis is an extensible stack,
+            not a fixed list. No filter UI is shipped now (feed_surface.md § Reserved
+            seams · smart_feed_curation.md). */}
         <div className="control-process">
           <div className="control-process-label">process</div>
           <div className="control-process-row">

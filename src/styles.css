@@ -1,3 +1,7 @@
+/* Hallmark · macrostructure: Long Document (app shell) · tone: editorial · anchor hue: ink-indigo 274 */
+/* Companion surface (docs/projects/feed_surface.md): serif Faustina writing canvas +
+   sans feed on warm paper; reflow-column feed; tag-carries-colour severity; docked
+   control center. Colour/font/space by token; transform/opacity motion; reduced-motion honoured. */
 *,
 *::before,
 *::after {
@@ -362,71 +366,6 @@ body,
   gap: var(--space-sm);
 }
 
-.sidecar-header {
-  border-bottom: 1px solid var(--border);
-  padding-bottom: 16px;
-  margin-bottom: 16px;
-}
-
-.sidecar-title-bar {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 12px;
-}
-
-.sidecar-title-bar h3 {
-  font-size: 0.875rem;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--text-muted);
-  font-weight: 700;
-  margin: 0;
-}
-
-.settings-toggle-btn {
-  background: none;
-  border: none;
-  cursor: pointer;
-  color: var(--text-muted);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 4px;
-  border-radius: 4px;
-  transition:
-    background-color 0.2s,
-    color 0.2s;
-}
-
-.settings-toggle-btn:hover {
-  background-color: rgba(0, 0, 0, 0.05);
-  color: var(--text);
-}
-
-.settings-panel {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  background: rgba(0, 0, 0, 0.02);
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  padding: 12px;
-  margin-top: 8px;
-  animation: slideDown 0.2s ease-out;
-}
-
-@keyframes slideDown {
-  from {
-    opacity: 0;
-    transform: translateY(-4px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
 /* Feed choreography (R3c) */
 @keyframes cardEnter {
   from {
@@ -527,11 +466,6 @@ body,
   text-align: center;
   margin-top: 40px;
   line-height: 1.7;
-}
-
-.empty-icon {
-  font-size: 1.5rem;
-  margin-bottom: 8px;
 }
 
 .empty-subtext {
@@ -1523,151 +1457,3 @@ body,
   background: transparent;
 }
 
-/* ── Context chip (stage discoverability) — Phase 6 ──────────────────────── */
-/* Spec: docs/projects/onboarding_first_run.md § The context chip             */
-/* Always-visible feed-header affordance; three states:                       */
-/*   suggested → inferred context awaiting user decision                      */
-/*   set       → stage active, truncated with inline edit trigger             */
-/*   empty     → muted "Add context" link                                     */
-
-.stage-chip {
-  padding: 6px 10px;
-  border-bottom: 1px solid #e5e7eb;
-  font-size: 0.8rem;
-  background: transparent;
-}
-
-.stage-chip-suggested {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.stage-chip-label {
-  color: #374151;
-  line-height: 1.4;
-}
-
-.stage-chip-label em {
-  font-style: normal;
-  color: #1a1a1a;
-  font-weight: 500;
-}
-
-.stage-chip-set {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  min-width: 0;
-  overflow: hidden;
-}
-
-.stage-chip-set .stage-chip-label {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.stage-chip-value {
-  color: #374151;
-  font-style: italic;
-}
-
-.stage-chip-actions {
-  display: flex;
-  gap: 6px;
-  flex-shrink: 0;
-}
-
-.stage-chip-btn {
-  padding: 2px 8px;
-  border: 1px solid #d1d5db;
-  border-radius: 4px;
-  background: #f9fafb;
-  color: #374151;
-  font-size: 0.75rem;
-  cursor: pointer;
-  white-space: nowrap;
-}
-
-.stage-chip-btn:hover {
-  background: #f3f4f6;
-}
-
-.stage-chip-btn-primary {
-  background: #0ea5e9;
-  color: #fff;
-  border-color: #0ea5e9;
-}
-
-.stage-chip-btn-primary:hover {
-  background: #0284c7;
-  border-color: #0284c7;
-}
-
-.stage-chip-dismiss {
-  background: transparent;
-  border: none;
-  color: #9ca3af;
-  font-size: 0.75rem;
-  cursor: pointer;
-  padding: 2px 4px;
-}
-
-.stage-chip-dismiss:hover {
-  color: #374151;
-}
-
-.stage-chip-edit-btn {
-  background: none;
-  border: none;
-  color: #9ca3af;
-  font-size: 0.75rem;
-  cursor: pointer;
-  padding: 0;
-  line-height: 1;
-}
-
-.stage-chip-edit-btn:hover {
-  color: #374151;
-}
-
-.stage-chip-add-link {
-  color: #9ca3af;
-  font-size: 0.8rem;
-  background: none;
-  border: none;
-  cursor: pointer;
-  padding: 0;
-  text-decoration: none;
-}
-
-.stage-chip-add-link:hover {
-  color: #374151;
-  text-decoration: underline;
-}
-
-.stage-chip-inline-edit {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.stage-chip-textarea {
-  width: 100%;
-  resize: none;
-  border: 1px solid #d1d5db;
-  border-radius: 4px;
-  padding: 4px 6px;
-  font-size: 0.8rem;
-  font-family: inherit;
-  box-sizing: border-box;
-}
-
-.stage-chip-textarea:focus {
-  outline: 2px solid #0ea5e9;
-  outline-offset: 1px;
-}
