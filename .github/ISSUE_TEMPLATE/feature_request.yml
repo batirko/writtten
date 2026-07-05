@@ -1,0 +1,30 @@
+name: Feature request
+description: Suggest an improvement or new capability
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Before filing: this product **surfaces observations, never fixes**. Features that make the AI
+        write, rewrite, auto-fix, or "apply" changes to the user's text are out of scope by design —
+        see the philosophy in `README.md` and `CONTRIBUTING.md`. Everything else is fair game.
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem does this solve?
+      description: The user need or friction, not just the proposed solution.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed direction
+    validations:
+      required: false
+  - type: checkboxes
+    id: philosophy
+    attributes:
+      label: Philosophy check
+      options:
+        - label: This does **not** make the AI write, rewrite, or auto-apply changes to the user's prose.
+          required: true
