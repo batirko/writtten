@@ -2,7 +2,7 @@
 
 ## Reporting a vulnerability
 
-If you find a security issue, please **do not open a public issue**. Instead, use GitHub's [private vulnerability reporting](https://docs.github.com/en/code-security/security-advisories/guidance-on-reporting-and-writing-information-about-vulnerabilities/privately-reporting-a-security-vulnerability) ("Report a vulnerability" under the repository's **Security** tab), or contact the maintainer directly.
+If you find a security issue, please **do not open a public issue**. Instead, use GitHub's [private vulnerability reporting](https://docs.github.com/en/code-security/security-advisories/guidance-on-reporting-and-writing-information-about-vulnerabilities/privately-reporting-a-security-vulnerability) ("Report a vulnerability" under the repository's **Security** tab), or message the maintainer [@batirko](https://github.com/batirko) on GitHub.
 
 Please include steps to reproduce and the affected version/commit. We'll acknowledge as promptly as we can — this is a small project, so response times are best-effort.
 
