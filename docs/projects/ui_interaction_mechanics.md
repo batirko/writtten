@@ -41,7 +41,7 @@ Anchor files: `src/sidecar/SidecarFeed.tsx` (feed, cards, drawers, dismiss), `sr
 - [ ] **Card anatomy ordering** — confirm the DOM order matches the visual_style card spec (impact dot → tag → dismiss; body; "also noticed"); the quoted-text subtitle is R7b/UX-008, not built here (§ C4).
 - [ ] **Two-drawer contract** — distinguish and document the per-card group drawer (`expanded`, "N more on this passage") from the feed-level budget drawer (`showAlsoNoticed`, "also noticed"); consistent toggle affordance, `aria-expanded`/`aria-controls` (already present), token-driven reveal (§ C5).
 - [ ] **Document-scope hover** — doc-level observations (no span) show the "whole document" affordance on hover instead of a span highlight (§ C6); verify it's distinct and calm.
-- [ ] **Highlight density / auto-highlight decision (§ C7)** — resolve always-on vs on-interaction vs user-toggle for span highlights (today: all active spans highlighted persistently, hover only boosts). Implement the chosen default with visual_style highlight tokens; preserve dual-span contradiction behaviour.
+- [x] **Highlight density / auto-highlight decision (§ C7)** — **settled 2026-07-06 (option a′, gentle always-on).** Surfaced spans stay tinted at rest but much fainter (~4–6% wash vs. the old 10–15%); the strong lift now lives on interaction (the `.obs-highlight-hovered` 22–30% boosts), a ~4–5× contrast jump on hover. Discoverability survives without the marked-up feel. Pure `styles.css` change — `ObservationHighlighter.ts` logic (`showMark = surfaced || isHovered || isPulsing`) is unchanged, so dual-span contradiction/`strategic_tension` behaviour is preserved verbatim. Options (b) on-interaction and (c) user-toggle were declined (b risks the feed feeling disconnected from the text; c adds a setting to a zero-config product).
 - [ ] **Consistency pass** — one hover/transition language across all of the above: only the visual_style `--dur-*`/`--ease-*` tokens, `transform`/`opacity` only, reduced-motion honored (§ Consistency rules).
 
 ## Design
@@ -100,7 +100,9 @@ Both use the visual_style reveal (slide+fade, `--dur-base`/`--ease-out`, reduced
 
 Doc-level observations (`missing_topic`, `structure_flow`, `audience_mismatch`, doc-scope `underexposed_topic`) have no span. On hover/focus they show a subtle **"whole document"** affordance (per features.md → Anchoring) rather than a span highlight — e.g. a calm edge indication on the editor column, not an alarm. Distinct from span highlights; never a full-canvas flash.
 
-#### C7 — Highlight density / auto-highlight (OPEN DECISION)
+#### C7 — Highlight density / auto-highlight (SETTLED — a′ gentle always-on, 2026-07-06)
+
+**Resolution: option (a′), a gentler always-on.** After a prototype-to-taste review, the at-rest wash was dropped to ~4–6% (from 10–15%) across the five `.obs-highlight-<type>` rules in `styles.css`, while the `.obs-highlight-hovered` boosts (22–30%) and the pulse animation stay untouched — so the canvas is calm at rest but a hovered/activated span lifts sharply (~4–5×). The `ObservationHighlighter.ts` logic is unchanged (`showMark = surfaced || isHovered || isPulsing`), so surfaced-only highlighting (#53), transient "also noticed" hover marks, and the dual-span contradiction/`strategic_tension` behaviour all carry over verbatim. The historical decision framing is preserved below.
 
 **Today, every active span observation is highlighted _persistently_** — `ObservationHighlighter` decorates all `scope === "span" && status === "active"` observations on every rebuild (`ObservationHighlighter.ts`), and hover only _intensifies_ via `obs-highlight-hovered` (`styles.css`). So C1's "hover highlights" is really "hover boosts an already-on highlight." On a doc with many active observations the canvas can read as **busy/marked-up**, which sits in tension with the calm-editorial canvas (`visual_style`) and the "your text is yours" stance.
 
