@@ -33,15 +33,15 @@ type** — to see whether contradiction-at-distance (the hero) holds off its
 best-case doc type or collapses. On disk: one subfolder per type
 (`.v1-corpus/<docType>/*.md`); the runner tags each doc and the report slices by it.
 
-**Sourced 2026-07-06** via `fetch-corpus.sh` (19 docs, all public + license-clear
-markdown; stored locally, referenced by anonymised id `P01`…`P19`):
+**Sourced 2026-07-06** via `fetch-corpus.sh` (21 docs, all public + license-clear
+markdown; stored locally, referenced by anonymised id `P01`…`P21`):
 
 | `docType` | n | Source | License |
 | --- | --- | --- | --- |
+| `prd` | 4 | 2 WICG web-platform explainers (PRD-shaped) + 2 genuinely-hunted PRDs: 1 **genuine** company PRD (paziresh24) + 1 **illustrative** example PRD (ugur10 template) | CC-BY/W3C · public · MIT |
 | `spec` (PRD proxy) | 10 | Rust RFCs (8), React RFCs (2) | MIT / Apache-2.0 |
 | `decision` | 4 | Cosmos SDK ADRs | Apache-2.0 |
 | `comms` | 3 | Rust blog announcements | MIT / Apache-2.0 |
-| `prd` | 2 | WICG web-platform explainers (PRD-shaped) | CC-BY / W3C |
 
 > **Validity caveat — read before quoting the base rate.** Genuine confidential
 > PRDs are almost never public, so the `spec` slice uses **open-source RFCs / design
@@ -52,6 +52,16 @@ markdown; stored locally, referenced by anonymised id `P01`…`P19`):
 > This is the honest limit of public evidence; it still beats n=0 / founder-only.
 > The `prd`+`spec` split lets you check whether the number is register-sensitive,
 > and the audit-#5 path stays open to drop in confidential PRDs (paid-key only) later.
+
+> **AI first-pass labels drafted 2026-07-06** (tool-blind, all `verified=false` in the
+> local `labels.csv` — pending human verification). **Emerging signal worth stress-testing
+> in the keyed run:** un-disclosed contradictions are **rare in polished public specs**
+> (the RFC proxy `spec` slice ≈ 0) but **common in real/near-real PRDs** (`prd`) and
+> **code-bearing decision ADRs** (`decision`). Of ~17 candidate rows, the PRD slice carried
+> the most (8, largely from the 2 real PRDs) and the polished RFCs almost none. If this
+> survives verification, **the hero base rate on the actual target doc type (PRDs) is
+> materially higher than the RFC proxy implies** — i.e. the proxy likely *under*-states the
+> real base rate, which strengthens (not weakens) the hero case. Confirm with the keyed run.
 
 ## How to run it (the follow-up)
 
@@ -85,7 +95,7 @@ The per-type rows are the point of stratification: does the hero hold off `spec`
 | ALL | B1 strict contradiction | TBD | TBD | TBD | TBD |
 | ALL | B2 tension | TBD | TBD | TBD | TBD |
 | spec | B1 / B2 | 10 | TBD | TBD | TBD |
-| prd | B1 / B2 | 2 | TBD | TBD | TBD |
+| prd | B1 / B2 | 4 | TBD | TBD | TBD |
 | decision | B1 / B2 | 4 | TBD | TBD | TBD |
 | comms | B1 / B2 | 3 | TBD | TBD | TBD |
 
