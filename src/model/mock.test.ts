@@ -9,11 +9,16 @@ import {
   dumpRecordings,
   clearRecordings,
   recordingsSize,
+  loadFallbackRecordings,
+  replayFallback,
+  clearFallbackRecordings,
+  fallbackSize,
 } from "./mock";
 
 beforeEach(() => {
   setLlmMode("live");
   clearRecordings();
+  clearFallbackRecordings();
 });
 
 describe("llm mode", () => {
@@ -71,5 +76,25 @@ describe("record / replay", () => {
     loadRecordings({ fresh: "w" });
     expect(replayResponse("old")).toBeUndefined();
     expect(replayResponse("fresh")).toBe("w");
+  });
+});
+
+describe("live-error fallback recordings", () => {
+  it("is a separate map from the mock recordings", () => {
+    loadRecordings({ h: "mockValue" });
+    loadFallbackRecordings({ h: "fallbackValue" });
+    expect(replayResponse("h")).toBe("mockValue");
+    expect(replayFallback("h")).toBe("fallbackValue");
+  });
+
+  it("load/replay/clear round-trip and size", () => {
+    expect(fallbackSize()).toBe(0);
+    expect(replayFallback("h1")).toBeUndefined();
+    loadFallbackRecordings({ h1: "r1", h2: "r2" });
+    expect(fallbackSize()).toBe(2);
+    expect(replayFallback("h1")).toBe("r1");
+    clearFallbackRecordings();
+    expect(fallbackSize()).toBe(0);
+    expect(replayFallback("h1")).toBeUndefined();
   });
 });

@@ -8,12 +8,36 @@
 
 import type { LLMRequest, LLMResponse, ModelRouter } from "./router";
 import { createGeminiRouter } from "./gemini";
-import { getLlmMode, reqHash, recordResponse, replayResponse } from "./mock";
+import {
+  getLlmMode,
+  reqHash,
+  recordResponse,
+  replayResponse,
+  replayFallback,
+  fallbackSize,
+} from "./mock";
 
 function wrap(call: (req: LLMRequest) => Promise<LLMResponse>) {
   return async (req: LLMRequest): Promise<LLMResponse> => {
     const mode = getLlmMode();
-    if (mode === "live") return call(req);
+    if (mode === "live") {
+      try {
+        return await call(req);
+      } catch (err) {
+        // Live-error fallback (see mock.ts): if a bundled recording exists for
+        // this exact request — the "See it in action" example — serve it rather
+        // than fail, so a keyed user who's hit their quota still sees the demo.
+        // Hash is computed only on the error path, so normal calls pay nothing.
+        if (fallbackSize() > 0) {
+          const recorded = replayFallback(reqHash(req.system, req.user, req.json));
+          if (recorded !== undefined) {
+            console.warn("[example-fallback] live call failed; serving recorded response", err);
+            return { text: recorded };
+          }
+        }
+        throw err;
+      }
+    }
 
     const hash = reqHash(req.system, req.user, req.json);
 

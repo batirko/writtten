@@ -2,36 +2,61 @@ import { describe, it, expect, afterEach } from "vitest";
 import {
   activateExampleReplay,
   deactivateExampleReplay,
+  onKeyBecameAvailable,
   isExampleReplayActive,
 } from "./exampleReplay";
 import { EXAMPLE_DOC_RECORDING } from "./exampleDocRecording";
-import { getLlmMode, setLlmMode, recordingsSize } from "../model/mock";
+import { getLlmMode, setLlmMode, recordingsSize, fallbackSize } from "../model/mock";
+
+const RECORDING_SIZE = Object.keys(EXAMPLE_DOC_RECORDING).length;
 
 afterEach(() => {
-  // Never leave a test with the router stuck in mock mode.
+  // Never leave a test with the router stuck in mock mode or a fallback armed.
   deactivateExampleReplay();
   setLlmMode("live");
 });
 
 describe("exampleReplay", () => {
-  it("activate installs the recordings and routes to mock replay", () => {
+  it("keyless: routes to mock replay and arms the fallback", () => {
     expect(isExampleReplayActive()).toBe(false);
-    activateExampleReplay();
+    activateExampleReplay({ keyless: true });
     expect(isExampleReplayActive()).toBe(true);
     expect(getLlmMode()).toBe("mock");
-    expect(recordingsSize()).toBe(Object.keys(EXAMPLE_DOC_RECORDING).length);
+    expect(recordingsSize()).toBe(RECORDING_SIZE);
+    expect(fallbackSize()).toBe(RECORDING_SIZE);
   });
 
-  it("deactivate returns the router to live and clears the recordings", () => {
-    activateExampleReplay();
+  it("keyed: stays live but arms the error fallback", () => {
+    activateExampleReplay({ keyless: false });
+    expect(isExampleReplayActive()).toBe(true);
+    expect(getLlmMode()).toBe("live");
+    expect(recordingsSize()).toBe(0);
+    expect(fallbackSize()).toBe(RECORDING_SIZE);
+  });
+
+  it("deactivate returns to live and clears both replay and fallback", () => {
+    activateExampleReplay({ keyless: true });
     deactivateExampleReplay();
     expect(isExampleReplayActive()).toBe(false);
     expect(getLlmMode()).toBe("live");
     expect(recordingsSize()).toBe(0);
+    expect(fallbackSize()).toBe(0);
+  });
+
+  it("onKeyBecameAvailable exits keyless mock replay (but is a no-op when live)", () => {
+    activateExampleReplay({ keyless: true });
+    onKeyBecameAvailable();
+    expect(getLlmMode()).toBe("live");
+    expect(isExampleReplayActive()).toBe(false);
+
+    // A keyed demo (already live) is untouched by a key-available signal.
+    activateExampleReplay({ keyless: false });
+    onKeyBecameAvailable();
+    expect(isExampleReplayActive()).toBe(true);
+    expect(fallbackSize()).toBe(RECORDING_SIZE);
   });
 
   it("deactivate is idempotent and won't clobber a mode it didn't set", () => {
-    // Simulate the dev harness putting the router in record mode.
     setLlmMode("record");
     deactivateExampleReplay(); // never activated → no-op
     expect(getLlmMode()).toBe("record");
@@ -39,7 +64,7 @@ describe("exampleReplay", () => {
 });
 
 describe("exampleDocRecording", () => {
-  it("bundles the planted contradiction so the keyless hero can replay", () => {
+  it("bundles the planted contradiction so the hero can replay", () => {
     const values = Object.values(EXAMPLE_DOC_RECORDING);
     expect(values.length).toBeGreaterThan(0);
     const withContradiction = values.filter((v) => {
@@ -51,7 +76,6 @@ describe("exampleDocRecording", () => {
       }
     });
     expect(withContradiction.length).toBeGreaterThan(0);
-    // Every entry must be valid JSON (a real captured response), not truncated.
     for (const v of values) expect(() => JSON.parse(v)).not.toThrow();
   });
 });
