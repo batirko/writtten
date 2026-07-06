@@ -13,6 +13,7 @@
  */
 
 import contradictionTimeline from "./contradiction-timeline";
+import contradictionSweepFidelity from "./contradiction-sweep-fidelity";
 import strategicTensionFraud from "./strategic-tension-fraud";
 import clarityVague from "./clarity-vague";
 import unsupportedVsAttributed from "./unsupported-vs-attributed";
@@ -32,6 +33,7 @@ import type { EvalFixture } from "./types";
 
 export const corpus: EvalFixture[] = [
   contradictionTimeline,
+  contradictionSweepFidelity,
   strategicTensionFraud,
   clarityVague,
   unsupportedVsAttributed,
