@@ -609,6 +609,17 @@ body,
   box-shadow: var(--elev-hover);
 }
 
+/* Regular cursor across the whole card and every element inside it — a passive
+   provocation, not a button (even the quoted text shows the arrow, not an
+   I-beam). Only the dismiss (X) button keeps its pointer. */
+.observation-card,
+.observation-card * {
+  cursor: default;
+}
+.observation-card .dismiss-btn {
+  cursor: pointer;
+}
+
 .observation-card-active {
   box-shadow: var(--elev-active);
   border-color: var(--color-border-strong);
