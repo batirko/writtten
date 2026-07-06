@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { scheduleEval } from "./orchestrator";
-import { evaluateSection } from "./evaluator";
+import { evaluateSection, evaluateLedgerContradictions } from "./evaluator";
 import type { EvalContext, SectionMember } from "./types";
 
 // Mock the evaluator: we only want to drive the orchestrator's lifecycle/
@@ -184,5 +184,52 @@ describe("orchestrator - stage-changed trigger (UX-012)", () => {
     // Crucially, it must NOT have superseded existing observations
     const db = await import("../store/db");
     expect(db.updateObservationStatus).not.toHaveBeenCalled();
+  });
+});
+
+describe("orchestrator - bootstrap contradiction sweep ordering (import race)", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("defers the block-paste contradiction sweep until the same-tick section evals finish", async () => {
+    const id = "secImport";
+    let resolveEval!: () => void;
+    vi.mocked(evaluateSection).mockImplementation(
+      () =>
+        new Promise<void>((r) => {
+          resolveEval = r;
+        })
+    );
+
+    // Bulk paste / import: a section eval and the block-paste contradiction sweep
+    // are scheduled in the SAME tick. The section is still in the 250ms coalesce
+    // window — not yet inFlightSections — so the sweep must NOT fire yet, or it
+    // would read an empty ledger (the import contradiction-sweep race).
+    scheduleEval(
+      { kind: "block-settle-pause", sectionId: id, members: memberFor(id) },
+      "Some text long enough to evaluate.",
+      ctx
+    );
+    scheduleEval({ kind: "block-paste", blockIds: [id] }, null, ctx);
+
+    // Deferred while the section is still coalescing.
+    expect(evaluateLedgerContradictions).not.toHaveBeenCalled();
+
+    // Past the coalesce window: the section eval is dispatched and in-flight —
+    // still no sweep (the ledger isn't populated until it resolves).
+    await vi.advanceTimersByTimeAsync(300);
+    expect(evaluateSection).toHaveBeenCalledTimes(1);
+    expect(evaluateLedgerContradictions).not.toHaveBeenCalled();
+
+    // Section eval resolves → ledger populated → the sweep finally runs, once.
+    resolveEval();
+    await vi.runAllTimersAsync();
+    expect(evaluateLedgerContradictions).toHaveBeenCalledTimes(1);
   });
 });

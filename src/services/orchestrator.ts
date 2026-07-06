@@ -236,14 +236,17 @@ async function dispatch(
       // This is the partner to the "defer if sections in flight" check in
       // handleDocIdle — together they ensure the doc-level strong call never
       // overlaps a section's contradiction strong call (OBS-020).
-      if (inFlightSections.size === 0 && pendingDocIdle) {
+      // Only once every section eval has both drained its coalesce window and
+      // finished in-flight — otherwise the strong pass could slip through a
+      // transient inFlightSections===0 gap between two coalesced dispatches.
+      if (inFlightSections.size === 0 && coalesceTimers.size === 0 && pendingDocIdle) {
         const pd = pendingDocIdle;
         pendingDocIdle = null;
         handleDocIdle(pd.ctx, pd.onComplete);
       }
       // Same drain for the bootstrap sweep: it must see the fully-populated
       // ledger, so it waits for every pasted section's fast eval to finish.
-      if (inFlightSections.size === 0 && pendingBootstrapSweep) {
+      if (inFlightSections.size === 0 && coalesceTimers.size === 0 && pendingBootstrapSweep) {
         const pb = pendingBootstrapSweep;
         pendingBootstrapSweep = null;
         handleBootstrapSweep(pb.ctx, pb.onComplete);
@@ -269,7 +272,10 @@ async function handleDocIdle(ctx: EvalContext, onComplete?: () => void): Promise
   // user burns two paid invocations per settle. Queue the doc-idle and let
   // dispatch's finally block trigger it once the last in-flight section
   // finishes (OBS-020).
-  if (inFlightSections.size > 0) {
+  // ...including section evals still in their coalesce window: they haven't
+  // entered inFlightSections yet, but they're about to write claims, so a
+  // strong doc-level call must wait for them too (else it reads a stale ledger).
+  if (inFlightSections.size > 0 || coalesceTimers.size > 0) {
     pendingDocIdle = { ctx, onComplete };
     recomputePending();
     return;
@@ -332,8 +338,12 @@ async function handleBootstrapSweep(ctx: EvalContext, onComplete?: () => void): 
     return;
   }
 
-  // Wait for the paste's section evals to populate the ledger first.
-  if (inFlightSections.size > 0) {
+  // Wait for the paste's section evals to populate the ledger first — including
+  // those still in the coalesce window. On a bulk paste/import the section evals
+  // and this sweep are scheduled in the same tick, so the sections are queued in
+  // coalesceTimers (not yet inFlightSections); without this the sweep would read
+  // an empty ledger and find nothing (the import contradiction-sweep race).
+  if (inFlightSections.size > 0 || coalesceTimers.size > 0) {
     pendingBootstrapSweep = { ctx, onComplete };
     recomputePending();
     return;
