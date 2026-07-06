@@ -100,8 +100,6 @@ interface ControlCenterProps {
   onExportPdf?: () => void;
   onCopyMarkdown?: () => void;
   onCopyRichText?: () => void;
-  /** Re-show the first-run welcome (and, on a blank doc, the example link). */
-  onResetFirstRun?: () => void;
   logs?: LLMLogEntry[];
 }
 
@@ -120,7 +118,6 @@ export function ControlCenter({
   onExportPdf,
   onCopyMarkdown,
   onCopyRichText,
-  onResetFirstRun,
   logs = [],
 }: ControlCenterProps) {
   const [showExportMenu, setShowExportMenu] = useState(false);
@@ -262,26 +259,6 @@ export function ControlCenter({
                 </label>
               )}
             </div>
-            {onResetFirstRun && (
-              <div className="setting-group" style={{ marginTop: "var(--space-sm)" }}>
-                <label>First-run intro</label>
-                <span className="setting-help">
-                  Bring back the welcome and the “See it in action” example.
-                </span>
-                <button
-                  type="button"
-                  className="modal-ghost-btn"
-                  data-testid="reset-first-run"
-                  style={{ marginTop: "8px", alignSelf: "flex-start" }}
-                  onClick={() => {
-                    setShowSettings(false);
-                    onResetFirstRun();
-                  }}
-                >
-                  Show it again
-                </button>
-              </div>
-            )}
             {import.meta.env.DEV && (
               <div className="setting-group" style={{ marginTop: "var(--space-sm)" }}>
                 <label

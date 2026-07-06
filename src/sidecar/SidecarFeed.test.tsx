@@ -499,55 +499,6 @@ describe("SidecarFeed — first-settle micro-moment (empty → first card)", () 
 });
 
 // ---------------------------------------------------------------------------
-// Reset path (onboarding_first_run.md § Reset path). A settings affordance to
-// re-show the welcome + re-run the example — for testing and for anyone who
-// wants it again. Lives in ControlCenter's settings modal.
-// ---------------------------------------------------------------------------
-
-describe("ControlCenter — reset first-run", () => {
-  const containers: HTMLDivElement[] = [];
-
-  afterEach(() => {
-    for (const c of containers) act(() => c.remove());
-    containers.length = 0;
-  });
-
-  function renderCC(props: Record<string, unknown>): HTMLDivElement {
-    const div = document.createElement("div");
-    document.body.appendChild(div);
-    containers.push(div);
-    act(() => createRoot(div).render(createElement(ControlCenter, { ...minProps, ...props })));
-    return div;
-  }
-
-  function openSettings(div: HTMLDivElement) {
-    act(() =>
-      div
-        .querySelector('button[aria-label="Settings"]')
-        ?.dispatchEvent(new MouseEvent("click", { bubbles: true }))
-    );
-  }
-
-  it("Settings exposes 'Show it again', which fires onResetFirstRun and closes settings", () => {
-    let reset = 0;
-    const div = renderCC({ onResetFirstRun: () => (reset += 1) });
-    openSettings(div);
-    const btn = div.querySelector('[data-testid="reset-first-run"]');
-    expect(btn).not.toBeNull();
-    act(() => btn?.dispatchEvent(new MouseEvent("click", { bubbles: true })));
-    expect(reset).toBe(1);
-    // The welcome lives in the feed, not the modal — so the modal closes.
-    expect(div.querySelector('[data-testid="settings-panel"]')).toBeNull();
-  });
-
-  it("offers no reset affordance when onResetFirstRun is not wired", () => {
-    const div = renderCC({});
-    openSettings(div);
-    expect(div.querySelector('[data-testid="reset-first-run"]')).toBeNull();
-  });
-});
-
-// ---------------------------------------------------------------------------
 // C3 — dismiss + Undo toast with suppression rollback. Dismissing a card is
 // optimistic (animate out, then write the dismissal) and reversible: an Undo
 // toast rides the bottom of the feed for ~5s, and Undo restores the whole group

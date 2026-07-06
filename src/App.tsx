@@ -278,15 +278,17 @@ export default function App() {
   // suppression write and no Undo toast (it isn't an observation).
   const handleDismissWelcome = () => setHasSeenWelcome(true);
 
-  // Reset the first-run intro (onboarding_first_run.md § Reset path) — for
-  // testing and for anyone who wants to see it again. Clears the persisted
-  // flag so the welcome card returns, and un-collapses the feed so it's
-  // actually on-screen. The card carries the "See it in action" link on a
-  // blank doc, so re-running the example is one click from here — we don't
-  // auto-load it (witnessing, not forcing).
-  const handleResetFirstRun = () => {
-    setHasSeenWelcome(false);
-    setFeedCollapsed(false);
+  // The welcome card retires itself once the user is clearly engaged — not only
+  // on an explicit ×. First trigger: their first evaluation settles (this hook,
+  // wired to the Editor). Second trigger: they click "See it in action"
+  // (handleLoadExample). setHasSeenWelcome(true) is idempotent, so calling it on
+  // every settle is a cheap no-op once already dismissed. Fires from the
+  // orchestrator's finally block, so it lands even keyless / on skip, and only
+  // after a real trigger from the user's own text (never spuriously on mount —
+  // initial load calls refreshObservations directly, not through here).
+  const handleEvaluationComplete = () => {
+    setHasSeenWelcome(true);
+    refreshObservations();
   };
 
   // "See it in action": load the pre-written example PRD so the pipeline catches
@@ -298,6 +300,8 @@ export default function App() {
   // recording (mock mode). Keyed, the live pipeline runs — but we still arm the
   // recording as an error-fallback so a spent quota (429) can't blank the demo.
   const handleLoadExample = async () => {
+    // Clicking the CTA retires the welcome card (it's done its job).
+    setHasSeenWelcome(true);
     activateExampleReplay({ keyless: !apiKey });
     await clearDocumentData(DOC_ID);
     clearSnapshotsForDocument(DOC_ID);
@@ -456,7 +460,7 @@ export default function App() {
           hoveredObservationId={hoveredObservationId}
           onSpanHover={handleSpanHover}
           onObservationCollapsed={handleObservationCollapsed}
-          onEvaluationComplete={refreshObservations}
+          onEvaluationComplete={handleEvaluationComplete}
           onStageSuggestion={setStageSuggestion}
           onBlockOrderChange={setBlockOrder}
           clearTrigger={clearTrigger}
@@ -537,7 +541,6 @@ export default function App() {
         onExportPdf={handleExportPdf}
         onCopyMarkdown={handleCopyMarkdown}
         onCopyRichText={handleCopyRichText}
-        onResetFirstRun={handleResetFirstRun}
         logs={logs}
       />
     </div>
