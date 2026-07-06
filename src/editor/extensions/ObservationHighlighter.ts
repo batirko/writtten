@@ -196,18 +196,26 @@ export const ObservationHighlighter = Extension.create<ObservationHighlighterOpt
                         (isCrossClaim &&
                           (obs.blockId === hoveredId || obs.conflictingBlockId === hoveredId));
                       const isPulsing = pulseId === obs.id;
-                      // Surfaced → visible highlight; downgraded → invisible
-                      // anchor (no `obs-highlight` class, so no mark and the
-                      // reverse-hover handler won't match it), but it stays a
-                      // decoration carrying the obs id so delete-detection works.
+                      // Surfaced → persistent visible highlight; downgraded →
+                      // invisible anchor (no `obs-highlight` class, so no mark)
+                      // that still carries the obs id so delete-detection works.
+                      // A downgraded ("also noticed") obs gets the visible mark
+                      // *transiently* for the moment it's the hovered or activated
+                      // (pulsing) one, so hover/click on its card can locate its
+                      // span — it reverts when the interaction ends. The persistent
+                      // surfaced budget is unchanged, and no at-rest reverse-hover
+                      // path is introduced (the mark only exists while hovered), so
+                      // the surfaced-only reverse-hover invariant (R7b/UX-006) holds.
+                      // Composes with — does not pre-empt — the C7 density decision.
                       const surfaced = surfacedIds === null || surfacedIds.has(obs.id);
+                      const showMark = surfaced || isHovered || isPulsing;
                       const cls = (hovered: boolean) =>
                         `obs-highlight obs-highlight-${obs.type}${hovered ? " obs-highlight-hovered" : ""}${isPulsing ? " obs-highlight-pulse" : ""}`;
                       const inlineDeco = (from: number, to: number) =>
                         Decoration.inline(
                           from,
                           to,
-                          surfaced ? { class: cls(isHovered), "data-obs-id": obs.id } : {},
+                          showMark ? { class: cls(isHovered), "data-obs-id": obs.id } : {},
                           // The collapse detector (view().update below) reads the
                           // obs id off `spec`, not `attrs`. Without this 4th arg
                           // `spec` defaults to {} and auto-close-on-deletion never
