@@ -9,12 +9,21 @@
  *   - `context`    — the fictional PRD situation both messages address
  *
  * These are NOT EvalFixture instances (they don't run the pipeline).
- * They are a labeled corpus for the Tier-2 / manual tone scorer:
- * the scorer must classify each `wrong` message as `wrongTone` and
- * each `right` message as "colleague".
+ * They are a labeled corpus for the tone scorer: the scorer must classify each
+ * `wrong` message as `wrongTone` and each `right` message as "colleague".
  *
- * Tier-2 scorer: docs/projects/evaluator_quality_ratchet.md § Phase 6.
- * Gated on EVAL_LIVE=1 — no CI quota usage.
+ * Two consumers:
+ *   - registerLint.classifyTone (deterministic, in CI) — the drift guard.
+ *     registerLint.test.ts asserts classifyTone reproduces every label below.
+ *   - toneScorer.live.test.ts (LLM judge, gated on EVAL_LIVE=1 — no CI quota).
+ *
+ * LABEL PRECEDENCE (five wrong personas → four labels): the deterministic
+ * classifier sorts by condescending → pedant → cold → colleague. `boss` →
+ * condescending (quality verdicts); `pedant`/`linter`/`therapist` → pedant
+ * (teacherly / over-explaining / soft — the "therapist" soft failure folds in
+ * here, the one taste call made with the user to keep four labels); `smartass`
+ * → cold (gotcha / irony / emoji). Keep each `wrong` message's dominant feature
+ * unambiguous so the classifier and this corpus can't silently diverge.
  */
 
 export type ToneLabel = "colleague" | "pedant" | "cold" | "condescending";
