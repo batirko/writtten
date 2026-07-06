@@ -303,6 +303,89 @@ describe("highlight re-anchoring on rebuild (L5)", () => {
   });
 });
 
+describe("transient highlight for downgraded 'also noticed' obs", () => {
+  const obs = (): Observation => ({
+    id: "obs-1",
+    docId: "doc-1",
+    type: "clarity",
+    scope: "span",
+    kind: "problem",
+    severity: "low",
+    confidence: "medium",
+    priority: 0.75,
+    text: "Vague phrase",
+    status: "active",
+    blockId: "b1",
+    startOffset: 0,
+    endOffset: 8,
+    anchorText: "the moon",
+  });
+
+  function makeEditor() {
+    return new Editor({
+      extensions: [StarterKit, BlockId, ObservationHighlighter],
+      content: {
+        type: "doc",
+        content: [
+          {
+            type: "paragraph",
+            attrs: { blockId: "b1" },
+            content: [{ type: "text", text: "the moon is here" }],
+          },
+        ],
+      },
+    });
+  }
+
+  it("renders an invisible anchor at rest, marks transiently on hover, and reverts", () => {
+    const editor = makeEditor();
+    try {
+      // Downgraded: the surfaced set is empty, so obs-1 is not surfaced.
+      editor.view.dispatch(
+        editor.state.tr
+          .setMeta("setObservations", [obs()])
+          .setMeta("setSurfacedIds", new Set<string>())
+      );
+      expect(editor.view.dom.querySelector(".obs-highlight")).toBeNull();
+
+      // Hovering its card marks the span transiently.
+      editor.view.dispatch(editor.state.tr.setMeta("setHoveredObservationId", "obs-1"));
+      const hovered = editor.view.dom.querySelector(".obs-highlight");
+      expect(hovered).not.toBeNull();
+      expect(hovered?.textContent).toBe("the moon");
+      expect(hovered?.classList.contains("obs-highlight-hovered")).toBe(true);
+
+      // Leaving reverts to the invisible anchor.
+      editor.view.dispatch(editor.state.tr.setMeta("setHoveredObservationId", null));
+      expect(editor.view.dom.querySelector(".obs-highlight")).toBeNull();
+    } finally {
+      editor.destroy();
+    }
+  });
+
+  it("pulses transiently on activation (C2 click) for a downgraded obs", () => {
+    const editor = makeEditor();
+    try {
+      editor.view.dispatch(
+        editor.state.tr
+          .setMeta("setObservations", [obs()])
+          .setMeta("setSurfacedIds", new Set<string>())
+      );
+      expect(editor.view.dom.querySelector(".obs-highlight")).toBeNull();
+
+      editor.view.dispatch(editor.state.tr.setMeta("setPulseObsId", "obs-1"));
+      const pulsed = editor.view.dom.querySelector(".obs-highlight");
+      expect(pulsed).not.toBeNull();
+      expect(pulsed?.classList.contains("obs-highlight-pulse")).toBe(true);
+
+      editor.view.dispatch(editor.state.tr.setMeta("setPulseObsId", null));
+      expect(editor.view.dom.querySelector(".obs-highlight")).toBeNull();
+    } finally {
+      editor.destroy();
+    }
+  });
+});
+
 describe("intra-block conflict decoration (OBS-026)", () => {
   const crossBlockObs: Observation = {
     id: "obs-cross",
