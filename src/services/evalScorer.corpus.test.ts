@@ -2,6 +2,8 @@ import { describe, it, expect } from "vitest";
 import {
   scoreCorpusRecall,
   scoreWildPrecision,
+  stratifyRecall,
+  stratifyWildPrecision,
   diffTierRuns,
   unlabeledContradictions,
   observationMatchesLabel,
@@ -121,9 +123,30 @@ describe("scoreCorpusRecall", () => {
 describe("scoreWildPrecision", () => {
   it("computes per-type precision against floors and surfaces uncovered types", () => {
     const emissions: EmissionRow[] = [
-      { docId: "P01", type: "contradiction", anchoredSpan: "", message: "", verdict: "tp", verified: true },
-      { docId: "P01", type: "contradiction", anchoredSpan: "", message: "", verdict: "fp", verified: true },
-      { docId: "P02", type: "clarity", anchoredSpan: "", message: "", verdict: "tp", verified: true },
+      {
+        docId: "P01",
+        type: "contradiction",
+        anchoredSpan: "",
+        message: "",
+        verdict: "tp",
+        verified: true,
+      },
+      {
+        docId: "P01",
+        type: "contradiction",
+        anchoredSpan: "",
+        message: "",
+        verdict: "fp",
+        verified: true,
+      },
+      {
+        docId: "P02",
+        type: "clarity",
+        anchoredSpan: "",
+        message: "",
+        verdict: "tp",
+        verified: true,
+      },
     ];
     const r = scoreWildPrecision(emissions);
     const contradiction = r.perType.find((t) => t.type === "contradiction")!;
@@ -147,10 +170,21 @@ describe("scoreWildPrecision", () => {
 
   it("verifiedOnly drops unverified draft verdicts", () => {
     const emissions: EmissionRow[] = [
-      { docId: "P01", type: "clarity", anchoredSpan: "", message: "", verdict: "fp", verified: false },
+      {
+        docId: "P01",
+        type: "clarity",
+        anchoredSpan: "",
+        message: "",
+        verdict: "fp",
+        verified: false,
+      },
     ];
     expect(scoreWildPrecision(emissions, { verifiedOnly: true }).overall.tp).toBe(0);
-    expect(scoreWildPrecision(emissions, { verifiedOnly: true }).perType.find((t) => t.type === "clarity")!.n).toBe(0);
+    expect(
+      scoreWildPrecision(emissions, { verifiedOnly: true }).perType.find(
+        (t) => t.type === "clarity"
+      )!.n
+    ).toBe(0);
   });
 });
 
@@ -159,11 +193,21 @@ describe("diffTierRuns", () => {
     const shared = () => ({ blockId: "s2", conflictingBlockId: "s5" });
     const free = [
       obs({ type: "contradiction", ...shared(), text: "free wording" }),
-      obs({ type: "contradiction", blockId: "s1", conflictingBlockId: "s9", text: "free-only fabrication" }),
+      obs({
+        type: "contradiction",
+        blockId: "s1",
+        conflictingBlockId: "s9",
+        text: "free-only fabrication",
+      }),
     ];
     const paid = [
       obs({ type: "contradiction", ...shared(), text: "paid wording (same pair)" }),
-      obs({ type: "strategic_tension", blockId: "s3", conflictingBlockId: "s7", text: "paid-only tension" }),
+      obs({
+        type: "strategic_tension",
+        blockId: "s3",
+        conflictingBlockId: "s7",
+        text: "paid-only tension",
+      }),
     ];
     const d = diffTierRuns(free, paid);
     expect(d.sharedContradictions).toBe(1); // s2|s5 present in both despite different wording
@@ -184,13 +228,117 @@ describe("unlabeledContradictions", () => {
         ["s8", "Pricing is undecided."],
       ]),
       produced: [
-        obs({ type: "contradiction", blockId: "s2", conflictingBlockId: "s5", text: "Q2 vs Q3 ship dates" }),
-        obs({ type: "contradiction", blockId: "s8", conflictingBlockId: "s2", text: "invented pricing conflict" }),
+        obs({
+          type: "contradiction",
+          blockId: "s2",
+          conflictingBlockId: "s5",
+          text: "Q2 vs Q3 ship dates",
+        }),
+        obs({
+          type: "contradiction",
+          blockId: "s8",
+          conflictingBlockId: "s2",
+          text: "invented pricing conflict",
+        }),
       ],
     };
-    const labels = [label({ docId: "P01", bucket: 1, spanA: "ships in Q2", spanB: "slated for Q3" })];
+    const labels = [
+      label({ docId: "P01", bucket: 1, spanA: "ships in Q2", spanB: "slated for Q3" }),
+    ];
     const bogus = unlabeledContradictions(run, labels);
     expect(bogus).toHaveLength(1);
     expect(bogus[0].text).toContain("invented");
+  });
+});
+
+describe("stratifyRecall", () => {
+  const specTexts = new Map([
+    ["s2", "The feature ships in Q2."],
+    ["s5", "Launch is slated for Q3."],
+  ]);
+  const perDoc: PerDocRun[] = [
+    {
+      docId: "P01",
+      docType: "spec",
+      sectionTexts: specTexts,
+      produced: [
+        obs({ type: "contradiction", blockId: "s2", conflictingBlockId: "s5", text: "Q2 vs Q3" }),
+      ],
+    },
+    { docId: "P02", docType: "spec", sectionTexts: new Map(), produced: [] },
+    { docId: "P03", docType: "comms", sectionTexts: new Map(), produced: [] },
+  ];
+
+  it("slices recall + base rate per doc type without cross-type bleed", () => {
+    const labels = [
+      label({ docId: "P01", bucket: 1, spanA: "ships in Q2", spanB: "slated for Q3" }),
+      label({ docId: "P02", bucket: 1, spanA: "x", spanB: "y" }),
+    ];
+    const s = stratifyRecall(perDoc, labels);
+
+    // Overall: 3 docs, 2 B1 labels → base rate 0.67/doc, 1 caught → 50% recall.
+    expect(s.all.docCount).toBe(3);
+    expect(s.all.strictContradiction.baseRatePerDoc).toBeCloseTo(2 / 3);
+    expect(s.all.strictContradiction.recall).toBe(0.5);
+
+    // spec slice: 2 docs, both labels (they belong to spec docs) → base rate 1.0/doc.
+    expect(s.byType.spec!.docCount).toBe(2);
+    expect(s.byType.spec!.strictContradiction.totalLabels).toBe(2);
+    expect(s.byType.spec!.strictContradiction.baseRatePerDoc).toBe(1);
+    expect(s.byType.spec!.strictContradiction.recall).toBe(0.5);
+
+    // comms slice: 1 doc, 0 labels → base rate 0, recall NaN (no bleed from spec).
+    expect(s.byType.comms!.docCount).toBe(1);
+    expect(s.byType.comms!.strictContradiction.totalLabels).toBe(0);
+    expect(Number.isNaN(s.byType.comms!.strictContradiction.recall)).toBe(true);
+
+    // No prd/decision docs → those slices absent.
+    expect(s.byType.prd).toBeUndefined();
+    expect(s.byType.decision).toBeUndefined();
+  });
+});
+
+describe("stratifyWildPrecision", () => {
+  it("slices per-type precision by the emission's doc type", () => {
+    const emissions: EmissionRow[] = [
+      {
+        docId: "P01",
+        docType: "spec",
+        type: "audience_mismatch",
+        anchoredSpan: "",
+        message: "",
+        verdict: "fp",
+        verified: true,
+      },
+      {
+        docId: "P03",
+        docType: "comms",
+        type: "audience_mismatch",
+        anchoredSpan: "",
+        message: "",
+        verdict: "tp",
+        verified: true,
+      },
+      {
+        docId: "P03",
+        docType: "comms",
+        type: "audience_mismatch",
+        anchoredSpan: "",
+        message: "",
+        verdict: "tp",
+        verified: true,
+      },
+    ];
+    const s = stratifyWildPrecision(emissions);
+
+    // Overall audience_mismatch: 2 tp / 3 → 67% (the aggregate hides the split).
+    const allAM = s.all.perType.find((t) => t.type === "audience_mismatch")!;
+    expect(allAM.n).toBe(3);
+    expect(allAM.precision).toBeCloseTo(2 / 3);
+
+    // comms: precise (2/2); spec: noisy (0/1) — the register split the aggregate hides.
+    expect(s.byType.comms!.perType.find((t) => t.type === "audience_mismatch")!.precision).toBe(1);
+    expect(s.byType.spec!.perType.find((t) => t.type === "audience_mismatch")!.precision).toBe(0);
+    expect(s.byType.prd).toBeUndefined();
   });
 });

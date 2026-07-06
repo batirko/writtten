@@ -17,6 +17,7 @@
 
 import type { Observation } from "../../../../store/db";
 import type { ExpectedObservation } from "../../types";
+import { isDocType, type DocType } from "../loadCorpus";
 
 /** Bucket 1 = strict logical contradiction (the hero measure); Bucket 2 = softer
  *  tension / inconsistency. Reported separately so the hero number stays clean. */
@@ -35,6 +36,8 @@ export interface LabelRow {
   rationale: string;
   /** Human-verified (`true`) vs AI first-pass draft (`false`). */
   verified: boolean;
+  /** Optional stratification tag; usually joined from the corpus by docId. */
+  docType?: DocType;
 }
 
 /** One adjudicated tool emission from emissions.csv. */
@@ -47,6 +50,14 @@ export interface EmissionRow {
   /** Human verdict: was this emission a true or false positive? */
   verdict: "tp" | "fp";
   verified: boolean;
+  /** Stratification tag (written by the runner from the corpus doc's type). */
+  docType?: DocType;
+}
+
+/** Parse an optional `doc_type` cell into a `DocType`, or undefined. */
+function parseDocType(v: string | undefined): DocType | undefined {
+  const t = (v ?? "").trim().toLowerCase();
+  return isDocType(t) ? t : undefined;
 }
 
 // ---------------------------------------------------------------------------
@@ -140,6 +151,7 @@ export function parseLabels(csv: string): LabelRow[] {
       sectionB: get(row, "section_b_id") || undefined,
       rationale: get(row, "rationale"),
       verified: parseBool(get(row, "verified")),
+      docType: parseDocType(get(row, "doc_type")),
     });
   }
   return out;
@@ -168,6 +180,7 @@ export function parseEmissions(csv: string): EmissionRow[] {
       message: get(row, "message"),
       verdict,
       verified: parseBool(get(row, "verified")),
+      docType: parseDocType(get(row, "doc_type")),
     });
   }
   return out;

@@ -51,15 +51,19 @@ blank), then adjudicated by hand. Feeds per-type **precision in the wild**.
 ## Workflow
 
 1. Drop 15–20 public PRDs (`*.md`) into the local corpus dir (`V1_CORPUS_DIR`,
-   default `./.v1-corpus/`). They get anonymised ids by sorted filename.
+   default `./.v1-corpus/`), **stratified into one subfolder per `docType`**
+   (`.v1-corpus/{prd,spec,decision,comms}/*.md`) — or run the reproducible sourcing
+   script `../fetch-corpus.sh`. Docs get anonymised ids by (docType, filename); the
+   runner tags each doc's `docType` from its subfolder, and both sheets carry an
+   optional `doc_type` column so precision/recall can be sliced per type.
 2. Hand-label `labels.csv` tool-blind (or generate an AI first-pass draft with
    `verified=false` and verify each row before it counts).
 3. Run `EVAL_V1=1 npm run eval:v1` (record mode) — dumps replayable fixtures and
-   an `emissions.csv` draft to adjudicate.
+   an `emissions.generated.csv` draft to adjudicate.
 4. Re-score offline in mock mode from the dumped fixtures (zero network) to get
-   the three numbers: **hero base rate, per-type wild precision, free-vs-paid
-   delta**. Record them in the `docs/snapshots/` entry.
+   the three numbers **overall and per `docType`**: **hero base rate, per-type wild
+   precision, free-vs-paid delta**. Record them in the `docs/snapshots/` entry.
 
 The parser is `loadLabels.ts` (`parseLabels`, `parseEmissions`, `labelToExpected`);
-the scorers are `scoreCorpusRecall`, `scoreWildPrecision`, `diffTierRuns` in
-`src/services/evalScorer.ts`.
+the scorers are `scoreCorpusRecall`/`stratifyRecall`, `scoreWildPrecision`/
+`stratifyWildPrecision`, and `diffTierRuns` in `src/services/evalScorer.ts`.

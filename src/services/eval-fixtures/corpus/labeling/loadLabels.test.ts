@@ -68,18 +68,20 @@ describe("parseEmissions", () => {
 });
 
 describe("buildCorpus", () => {
-  it("assigns anonymised, sorted-stable ids regardless of input order", () => {
+  it("orders by doc-type rank then name, tags docType, and assigns stable ids", () => {
     const files = [
-      { name: "zeta.md", markdown: "# Z\n\nbody" },
-      { name: "alpha.md", markdown: "# A\n\nbody" },
+      { name: "zeta.md", markdown: "# Z\n\nbody", docType: "comms" as const },
+      { name: "beta.md", markdown: "# B\n\nbody", docType: "spec" as const },
+      { name: "alpha.md", markdown: "# A\n\nbody", docType: "spec" as const },
     ];
     const corpus = buildCorpus(files);
-    expect(corpus.map((c) => c.id)).toEqual(["P01", "P02"]);
-    // alpha sorts first → P01
-    expect(corpus[0].description).toContain("alpha.md");
-    expect(corpus[0].sections[0].id).toBe("s1-a");
-    expect(corpus[0].expected).toEqual([]);
-    expect(corpus[0].recordings).toEqual({});
+    // spec (rank 1) before comms (rank 3); within spec, alpha before beta.
+    expect(corpus.map((c) => c.fixture.id)).toEqual(["P01", "P02", "P03"]);
+    expect(corpus.map((c) => c.docType)).toEqual(["spec", "spec", "comms"]);
+    expect(corpus[0].fixture.description).toContain("spec/alpha.md");
+    expect(corpus[0].fixture.sections[0].id).toBe("s1-a");
+    expect(corpus[0].fixture.expected).toEqual([]);
+    expect(corpus[0].fixture.recordings).toEqual({});
   });
 
   it("anonymisedId zero-pads", () => {
