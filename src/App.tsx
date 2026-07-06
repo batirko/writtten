@@ -276,6 +276,17 @@ export default function App() {
   // suppression write and no Undo toast (it isn't an observation).
   const handleDismissWelcome = () => setHasSeenWelcome(true);
 
+  // Reset the first-run intro (onboarding_first_run.md § Reset path) — for
+  // testing and for anyone who wants to see it again. Clears the persisted
+  // flag so the welcome card returns, and un-collapses the feed so it's
+  // actually on-screen. The card carries the "See it in action" link on a
+  // blank doc, so re-running the example is one click from here — we don't
+  // auto-load it (witnessing, not forcing).
+  const handleResetFirstRun = () => {
+    setHasSeenWelcome(false);
+    setFeedCollapsed(false);
+  };
+
   // "See it in action": load the pre-written example PRD so the pipeline catches
   // its planted contradiction. Reuses the import path (installs the doc +
   // schedules the contradiction sweep). Only offered on a blank doc, so it never
@@ -498,6 +509,7 @@ export default function App() {
         onExportPdf={handleExportPdf}
         onCopyMarkdown={handleCopyMarkdown}
         onCopyRichText={handleCopyRichText}
+        onResetFirstRun={handleResetFirstRun}
         logs={logs}
       />
     </div>
