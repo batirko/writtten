@@ -19,7 +19,7 @@ import { EXAMPLE_DOC_HTML, EXAMPLE_STAGE } from "./services/exampleDoc";
 import {
   activateExampleReplay,
   deactivateExampleReplay,
-  isExampleReplayActive,
+  onKeyBecameAvailable,
 } from "./services/exampleReplay";
 import { clearSnapshotsForDocument } from "./services/evalSnapshot";
 import type { EvalContext } from "./services/types";
@@ -215,10 +215,10 @@ export default function App() {
   }, [apiKey]);
 
   // If a key appears while the keyless example replay is installed (e.g. the user
-  // pastes a BYO key mid-demo), tear the replay down so their real evals run live
-  // instead of replaying the example fixture.
+  // pastes a BYO key mid-demo), stop full mock replay so their real edits run
+  // live instead of replaying the example fixture.
   useEffect(() => {
-    if (apiKey && isExampleReplayActive()) deactivateExampleReplay();
+    if (apiKey) onKeyBecameAvailable();
   }, [apiKey]);
 
   useEffect(() => {
@@ -281,12 +281,11 @@ export default function App() {
   // schedules the contradiction sweep). Only offered on a blank doc, so it never
   // clobbers the user's own text.
   //
-  // With no API key the evaluator would skip every check and the hero would never
-  // fire — so keyless, we install a bundled recording and replay it (mock mode).
-  // With a key present the live pipeline runs instead.
+  // Keyless, the evaluator would skip every check, so we replay a bundled
+  // recording (mock mode). Keyed, the live pipeline runs — but we still arm the
+  // recording as an error-fallback so a spent quota (429) can't blank the demo.
   const handleLoadExample = async () => {
-    if (!apiKey) activateExampleReplay();
-    else deactivateExampleReplay();
+    activateExampleReplay({ keyless: !apiKey });
     await clearDocumentData(DOC_ID);
     clearSnapshotsForDocument(DOC_ID);
     setObservations([]);
