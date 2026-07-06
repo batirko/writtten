@@ -8,6 +8,9 @@ interface Props {
   onJump: () => void;
   /** Dismiss (also wired to Escape / scroll / blur in the editor). */
   onDismiss: () => void;
+  /** Hover glance: a read-only, non-interactive quote that fades on hover-end —
+   *  no Jump / × (those belong to the pinned, card-click peek). */
+  readOnly?: boolean;
 }
 
 /**
@@ -17,10 +20,10 @@ interface Props {
  * compared without losing your place. "Jump" scrolls to the far span and flips
  * the peek to quote the near one (bidirectional). Never a full split view.
  */
-export function ContradictionPeek({ quote, top, left, onJump, onDismiss }: Props) {
+export function ContradictionPeek({ quote, top, left, onJump, onDismiss, readOnly }: Props) {
   return (
     <div
-      className="contradiction-peek"
+      className={`contradiction-peek${readOnly ? " contradiction-peek-hover" : ""}`}
       data-testid="contradiction-peek"
       role="dialog"
       aria-label="Conflicting passage"
@@ -28,7 +31,8 @@ export function ContradictionPeek({ quote, top, left, onJump, onDismiss }: Props
     >
       <div className="contradiction-peek-head">
         <span className="contradiction-peek-label">Conflicts with</span>
-        <button
+        {!readOnly && (
+          <button
           className="contradiction-peek-close"
           data-testid="contradiction-peek-close"
           onClick={onDismiss}
@@ -48,29 +52,32 @@ export function ContradictionPeek({ quote, top, left, onJump, onDismiss }: Props
             <line x1="18" y1="6" x2="6" y2="18"></line>
             <line x1="6" y1="6" x2="18" y2="18"></line>
           </svg>
-        </button>
+          </button>
+        )}
       </div>
       <p className="contradiction-peek-quote">“{quote}”</p>
-      <button
-        className="contradiction-peek-jump"
-        data-testid="contradiction-peek-jump"
-        onClick={onJump}
-      >
-        <svg
-          width="13"
-          height="13"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
+      {!readOnly && (
+        <button
+          className="contradiction-peek-jump"
+          data-testid="contradiction-peek-jump"
+          onClick={onJump}
         >
-          <polyline points="8 7 12 3 16 7"></polyline>
-          <polyline points="8 17 12 21 16 17"></polyline>
-        </svg>
-        Jump to this passage
-      </button>
+          <svg
+            width="13"
+            height="13"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <polyline points="8 7 12 3 16 7"></polyline>
+            <polyline points="8 17 12 21 16 17"></polyline>
+          </svg>
+          Jump to this passage
+        </button>
+      )}
     </div>
   );
 }

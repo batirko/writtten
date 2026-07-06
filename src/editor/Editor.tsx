@@ -499,7 +499,20 @@ export function Editor({
 
   // --- Card activation → scroll-to-span + pulse (C2), and the distant-
   // contradiction peek (UX-009). ---
-  const [peek, setPeek] = useState<{ quote: string; top: number; left: number } | null>(null);
+  // `pinned` = opened by a feed-card click (scrolls, interactive: Jump + ×,
+  // dismissed on Escape/scroll). `hover` = a transient read-only glance opened by
+  // dwelling on a cross-claim span (no scroll, no controls, fades on hover-end).
+  const [peek, setPeek] = useState<{
+    quote: string;
+    top: number;
+    left: number;
+    mode: "pinned" | "hover";
+  } | null>(null);
+  /** Mirror of `peek?.mode` for the [editor]-deps hover listener to read. */
+  const peekModeRef = useRef<"pinned" | "hover" | null>(null);
+  useEffect(() => {
+    peekModeRef.current = peek?.mode ?? null;
+  }, [peek]);
   /** Positions + texts for the active contradiction, so Jump can flip sides. */
   const peekSpans = useRef<{
     primaryStart: number;
@@ -575,17 +588,23 @@ export function Editor({
     setPeek(null);
   }, []);
 
-  /** Scroll to `anchor`'s span and float the peek quoting the *other* span. */
+  /** Float the peek quoting the span *other* than `anchor`, placed under the
+   *  anchor span. `scroll` (default true) navigates to the anchor first — off for
+   *  the hover glance, where the user is already looking at it. `mode` tags the
+   *  peek pinned (interactive) vs hover (read-only, fades on hover-end). */
   const anchorPeek = useCallback(
-    (anchor: "primary" | "conflicting") => {
+    (
+      anchor: "primary" | "conflicting",
+      { scroll = true, mode = "pinned" as "pinned" | "hover" } = {}
+    ) => {
       const s = peekSpans.current;
       if (!s || !editor) return;
       const anchorPos = anchor === "primary" ? s.primaryStart : s.conflictingStart;
       const quote = anchor === "primary" ? s.conflictingText : s.primaryText;
       s.anchor = anchor;
-      scrollToPos(anchorPos);
-      // Let the (possibly smooth) scroll settle, then place the peek under the
-      // anchor span — flip above if it would overflow the viewport bottom.
+      if (scroll) scrollToPos(anchorPos);
+      // Place the peek under the anchor span — flip above if it would overflow the
+      // viewport bottom. When scrolling, wait for the smooth scroll to settle.
       const place = () => {
         if (!editor || editor.isDestroyed) return;
         const coords = editor.view.coordsAtPos(anchorPos);
@@ -595,9 +614,9 @@ export function Editor({
         const flip = below + EST_H > window.innerHeight;
         const top = flip ? Math.max(8, coords.top - EST_H - 8) : below;
         const left = Math.min(Math.max(8, coords.left), window.innerWidth - PEEK_W - 8);
-        setPeek({ quote, top, left });
+        setPeek({ quote, top, left, mode });
       };
-      if (prefersReducedMotion()) place();
+      if (!scroll || prefersReducedMotion()) place();
       else setTimeout(place, 260);
     },
     [editor, scrollToPos]
@@ -661,6 +680,58 @@ export function Editor({
     return () => window.removeEventListener("obs-card-activate", handleCardActivate);
   }, [activateObservation]);
 
+  // Reverse hover on a *cross-claim* span (contradiction / strategic_tension):
+  // dwelling on it floats a read-only glance of the OTHER conflicting side next to
+  // the span the pointer is on — no scroll (you're already there). Only when the
+  // two spans can't share the viewport; if both fit, the card float + dual
+  // highlight already show both. Complements the card float; both fade on out.
+  const openHoverPeek = useCallback(
+    (id: string, spanEl: HTMLElement) => {
+      if (!editor || editor.isDestroyed) return;
+      const obs = observationsRef.current.find((o) => o.id === id);
+      if (!obs || !obs.blockId || !obs.conflictingBlockId) return;
+      const primaryStart = spanStartPos(
+        obs.blockId,
+        obs.startOffset ?? 0,
+        obs.endOffset ?? 9999,
+        obs.anchorText
+      );
+      const conflictingStart = spanStartPos(
+        obs.conflictingBlockId,
+        obs.conflictingStartOffset ?? 0,
+        obs.conflictingEndOffset ?? 9999,
+        obs.conflictingAnchorText
+      );
+      if (primaryStart === null || conflictingStart === null) return;
+      const aTop = editor.view.coordsAtPos(primaryStart).top;
+      const bTop = editor.view.coordsAtPos(conflictingStart).top;
+      if (bothSpansFit(aTop, bTop, window.innerHeight)) return;
+      // Which side is under the pointer? Anchor the glance there, quote the other.
+      const hovPos = editor.view.posAtDOM(spanEl, 0);
+      const hoveredSide: "primary" | "conflicting" =
+        Math.abs(hovPos - primaryStart) <= Math.abs(hovPos - conflictingStart)
+          ? "primary"
+          : "conflicting";
+      peekSpans.current = {
+        primaryStart,
+        conflictingStart,
+        primaryText: obs.anchorText ?? "",
+        conflictingText: obs.conflictingAnchorText ?? "",
+        anchor: hoveredSide,
+      };
+      anchorPeek(hoveredSide, { scroll: false, mode: "hover" });
+    },
+    [editor, spanStartPos, anchorPeek]
+  );
+  const openHoverPeekRef = useRef(openHoverPeek);
+  useEffect(() => {
+    openHoverPeekRef.current = openHoverPeek;
+  }, [openHoverPeek]);
+  const dismissPeekRef = useRef(dismissPeek);
+  useEffect(() => {
+    dismissPeekRef.current = dismissPeek;
+  }, [dismissPeek]);
+
   // Dismiss the peek on Escape or a user scroll gesture. We key off wheel/
   // touchmove (real intent) rather than the `scroll` event, because our own
   // smooth scrollIntoView fires `scroll` and would self-dismiss.
@@ -723,6 +794,8 @@ export function Editor({
         pendingId = null;
         firedId = id;
         onSpanHoverRef.current?.(id);
+        // …and, for a distant cross-claim span, glance the other side.
+        openHoverPeekRef.current?.(id, el);
       }, SPAN_HOVER_DWELL_MS);
     };
 
@@ -736,6 +809,9 @@ export function Editor({
       if (firedId) {
         firedId = null;
         onSpanHoverRef.current?.(null);
+        // Fade the hover glance with the card float; leave a pinned (card-click)
+        // peek alone — only Escape/scroll/× dismiss that one.
+        if (peekModeRef.current === "hover") dismissPeekRef.current();
       }
     };
 
@@ -960,6 +1036,7 @@ export function Editor({
           quote={peek.quote}
           top={peek.top}
           left={peek.left}
+          readOnly={peek.mode === "hover"}
           onJump={() => anchorPeek(peekSpans.current?.anchor === "primary" ? "conflicting" : "primary")}
           onDismiss={dismissPeek}
         />
