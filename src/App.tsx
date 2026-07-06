@@ -16,6 +16,11 @@ import {
 import { scheduleEval } from "./services/orchestrator";
 import { conflictPairKey } from "./services/evaluator";
 import { EXAMPLE_DOC_HTML, EXAMPLE_STAGE } from "./services/exampleDoc";
+import {
+  activateExampleReplay,
+  deactivateExampleReplay,
+  isExampleReplayActive,
+} from "./services/exampleReplay";
 import { clearSnapshotsForDocument } from "./services/evalSnapshot";
 import type { EvalContext } from "./services/types";
 import { capabilityForTier, type ModelTier } from "./model/capability";
@@ -209,6 +214,13 @@ export default function App() {
     localStorage.setItem("writtten_api_key", apiKey);
   }, [apiKey]);
 
+  // If a key appears while the keyless example replay is installed (e.g. the user
+  // pastes a BYO key mid-demo), tear the replay down so their real evals run live
+  // instead of replaying the example fixture.
+  useEffect(() => {
+    if (apiKey && isExampleReplayActive()) deactivateExampleReplay();
+  }, [apiKey]);
+
   useEffect(() => {
     localStorage.setItem("writtten_stage", stage);
   }, [stage]);
@@ -231,6 +243,8 @@ export default function App() {
   }, []);
 
   const handleClearWorkspace = async () => {
+    // Leaving the example demo — restore the live router.
+    deactivateExampleReplay();
     await clearDocumentData(DOC_ID);
     clearSnapshotsForDocument(DOC_ID);
     setObservations([]);
@@ -245,6 +259,8 @@ export default function App() {
 
   const handleImportFile = async (file: File) => {
     const text = await file.text();
+    // The user is bringing their own document — always evaluate it for real.
+    deactivateExampleReplay();
     await clearDocumentData(DOC_ID);
     clearSnapshotsForDocument(DOC_ID);
     setObservations([]);
@@ -260,11 +276,17 @@ export default function App() {
   // suppression write and no Undo toast (it isn't an observation).
   const handleDismissWelcome = () => setHasSeenWelcome(true);
 
-  // "See it in action": load the pre-written example PRD so the live pipeline
-  // catches its planted contradiction. Reuses the import path (installs the doc
-  // + schedules the contradiction sweep). Only offered on a blank doc, so it
-  // never clobbers the user's own text.
+  // "See it in action": load the pre-written example PRD so the pipeline catches
+  // its planted contradiction. Reuses the import path (installs the doc +
+  // schedules the contradiction sweep). Only offered on a blank doc, so it never
+  // clobbers the user's own text.
+  //
+  // With no API key the evaluator would skip every check and the hero would never
+  // fire — so keyless, we install a bundled recording and replay it (mock mode).
+  // With a key present the live pipeline runs instead.
   const handleLoadExample = async () => {
+    if (!apiKey) activateExampleReplay();
+    else deactivateExampleReplay();
     await clearDocumentData(DOC_ID);
     clearSnapshotsForDocument(DOC_ID);
     setObservations([]);
