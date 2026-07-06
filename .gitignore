@@ -11,3 +11,9 @@ dist
 
 # Per-session git worktrees for parallel feature branches (local, per-machine)
 .worktrees/
+
+# V1 base-rate corpus study: real PRDs + filled labeling sheets + dumped
+# recordings stay LOCAL (local-first invariant #5; audit-#5 privacy). Only the
+# templates + loader under src/ are committed. See
+# docs/projects/field_validation.md § V1.
+.v1-corpus/

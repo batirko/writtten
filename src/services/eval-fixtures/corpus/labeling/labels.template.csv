@@ -1,0 +1,9 @@
+doc_id,bucket,span_a,span_b,section_a_id,section_b_id,rationale,verified
+# TEMPLATE — copy to your LOCAL corpus dir (never commit the filled sheet). One row per labeled conflict PAIR.
+# bucket: 1 = strict contradiction (A vs not-A, the hero measure) | 2 = tension / soft inconsistency
+# span_a / span_b: the two conflicting quotes, verbatim from the doc (wrap in double-quotes; "" escapes a quote)
+# section_a_id / section_b_id: optional section anchors (informational; matching is span-based)
+# verified: false = AI first-pass draft (does NOT count as evidence) | true = human-confirmed
+# Rows whose doc_id starts with # are ignored, so these notes are safe to keep.
+# P01,1,"ships in Q2","launch is slated for Q3","s2-timeline","s5-milestones","Same feature, two incompatible ship quarters",false
+# P01,2,"success metric is DAU","goal is to deepen power-user engagement","s1-goals","s3-metrics","Metric measures breadth; stated goal is depth",false

@@ -22,7 +22,7 @@
 import { vi } from "vitest";
 import { evaluateSection, evaluateLedgerContradictions } from "../evaluator";
 import * as db from "../../store/db";
-import { loadRecordings, setLlmMode, clearRecordings } from "../../model/mock";
+import { loadRecordings, setLlmMode, clearRecordings, dumpRecordings } from "../../model/mock";
 import type { ClaimLedgerEntry, Observation } from "../../store/db";
 import type { EvalFixture } from "./types";
 
@@ -62,6 +62,18 @@ export interface FixtureRunner {
    * Returns the active observations produced.
    */
   runLive(fixture: EvalFixture, apiKey: string, paidKey?: string): Promise<Observation[]>;
+  /**
+   * Like `runLive`, but in RECORD mode: makes real API calls AND captures every
+   * response into a recordings map, so a real run can be frozen into a fixture
+   * and re-scored offline in `mock` mode later (the record/replay batching the
+   * V1 corpus study relies on to spend RPD once). Returns both the produced
+   * observations and the recordings to persist locally.
+   */
+  runRecord(
+    fixture: EvalFixture,
+    apiKey: string,
+    paidKey?: string
+  ): Promise<{ observations: Observation[]; recordings: Record<string, string> }>;
 }
 
 /**
@@ -231,5 +243,42 @@ export function createFixtureRunner(): FixtureRunner {
     return savedObservations.filter((o) => o.status === "active" && !supersededIds.has(o.id));
   }
 
-  return { setup, teardown, run, runSweep, runLive };
+  async function runRecord(
+    fixture: EvalFixture,
+    apiKey: string,
+    paidKey?: string
+  ): Promise<{ observations: Observation[]; recordings: Record<string, string> }> {
+    // Reset per-run
+    claimsStore.length = 0;
+    claimIdCounter = 1;
+    savedObservations.length = 0;
+    supersededIds.clear();
+
+    clearRecordings();
+    setLlmMode("record"); // real calls AND capture
+
+    const docId = `record-${fixture.id}`;
+
+    for (const section of fixture.sections) {
+      await evaluateSection(
+        docId,
+        section.id,
+        section.text,
+        [{ blockId: section.id, text: section.text }],
+        fixture.stage,
+        apiKey,
+        paidKey,
+        fixture.jargonAllowlist
+      );
+    }
+
+    const recordings = dumpRecordings();
+    setLlmMode("live"); // leave the shared mode as it was for other callers
+    const observations = savedObservations.filter(
+      (o) => o.status === "active" && !supersededIds.has(o.id)
+    );
+    return { observations, recordings };
+  }
+
+  return { setup, teardown, run, runSweep, runLive, runRecord };
 }
