@@ -53,9 +53,15 @@ fetch_dir cosmos/cosmos-sdk docs/architecture decision cosmos-adr 4 8000 40000 "
 echo "== comms (3): Rust blog announcements =="
 fetch_dir rust-lang/blog.rust-lang.org content comms rust-blog 3 6000 25000 "MIT/Apache-2.0"
 
-echo "== prd (2): PRD-shaped web-platform explainers =="
+echo "== prd (4): PRD-shaped web-platform explainers + genuinely-hunted real PRDs =="
+# PRD-shaped web-platform explainers (problem / goals / non-goals / use-cases).
 fetch_url "https://raw.githubusercontent.com/WICG/view-transitions/main/explainer.md" prd explainer-01.md "CC-BY/W3C"
 fetch_url "https://raw.githubusercontent.com/WICG/soft-navigations/main/README.md"     prd explainer-02.md "CC-BY/W3C"
+# Genuinely-hunted real/near-real PRDs. prd-analytics = a GENUINE public company PRD;
+# prd-trading-alerts = an ILLUSTRATIVE example PRD (crafted, fictional PM/contributors) —
+# very PRD-complete but weight it separately for base-rate purity (see the snapshot).
+fetch_url "https://raw.githubusercontent.com/paziresh24/temp-repo/main/Product%20Requirements%20Document%20(PRD)%20for%20General%20Analytics%20Service.md" prd prd-analytics.md "unspecified(public)"
+fetch_url "https://raw.githubusercontent.com/ugur10/prd-template/main/EXAMPLE_PRD.md" prd prd-trading-alerts.md "MIT (illustrative example)"
 
 echo "== done =="
 for d in prd spec decision comms; do echo "  $d: $(ls "$ROOT/$d" 2>/dev/null | wc -l | tr -d ' ')"; done
