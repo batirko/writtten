@@ -34,7 +34,7 @@ export function SpanPeek({ group, onDismiss, onKeepOpen, onClose }: Props) {
         isArriving={false}
         isExiting={false}
         onHover={() => {}}
-        onDismiss={onDismiss}
+        onDismiss={(g) => [g.primary, ...g.others].forEach((o) => onDismiss(o.id))}
       />
     </div>
   );

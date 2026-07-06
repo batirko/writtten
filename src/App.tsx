@@ -9,8 +9,10 @@ import { surfacedObservationIds, DEFAULT_FEED_BUDGET } from "./sidecar/feedBudge
 import {
   loadObservationsForDocument,
   updateObservationStatus,
+  reactivateObservation,
   clearDocumentData,
   saveDismissalSuppression,
+  deleteDismissalSuppression,
   type Observation,
 } from "./store/db";
 import { scheduleEval } from "./services/orchestrator";
@@ -308,8 +310,15 @@ export default function App() {
     setImportContent({ content: EXAMPLE_DOC_HTML, timestamp: Date.now() });
   };
 
-  const handleDismissObservation = async (id: string, closureReason?: string) => {
+  // Returns the id of the suppression written on dismiss, so the C3 Undo toast
+  // can roll it back (see handleRestoreDismissed). `undefined` when nothing was
+  // suppressed (observation not found, or a doc-scope obs with no span key).
+  const handleDismissObservation = async (
+    id: string,
+    closureReason?: string
+  ): Promise<string | undefined> => {
     const obs = observations.find((o) => o.id === id);
+    let suppressionId: string | undefined;
     if (obs) {
       const spanSignature =
         obs.scope === "span" && obs.blockId != null
@@ -317,8 +326,9 @@ export default function App() {
           : undefined;
       // L5: store the anchor identity so the suppression matches across edits.
       const isConflict = obs.type === "contradiction" || obs.type === "strategic_tension";
+      suppressionId = nanoid(10);
       await saveDismissalSuppression({
-        id: nanoid(10),
+        id: suppressionId,
         docId: DOC_ID,
         type: obs.type,
         kind: obs.kind,
@@ -346,6 +356,23 @@ export default function App() {
         reason: "dismissed",
         actor: "user",
       });
+    }
+    refreshObservations();
+    return suppressionId;
+  };
+
+  // C3 Undo: reverse a just-dismissed group. For each entry we delete the
+  // suppression record written on dismiss (so the feed isn't silently trained
+  // quieter — the G1 flattery-resistance concern) and reactivate the observation
+  // by its original id (clean restore: same id, closureReason cleared, no
+  // archive churn). See docs/projects/ui_interaction_mechanics.md § C3.
+  const handleRestoreDismissed = async (
+    entries: { obsId: string; suppressionId?: string }[]
+  ) => {
+    const now = Date.now();
+    for (const { obsId, suppressionId } of entries) {
+      if (suppressionId) await deleteDismissalSuppression(suppressionId);
+      await reactivateObservation(obsId, now);
     }
     refreshObservations();
   };
@@ -474,6 +501,7 @@ export default function App() {
           spanFocusObsId={feedCollapsed ? null : spanFocusObsId}
           onHoverObservation={setHoveredObservationId}
           onDismissObservation={handleDismissObservation}
+          onRestoreDismissed={handleRestoreDismissed}
           showWelcome={!hasSeenWelcome}
           // A blank editor still holds one empty paragraph block, so "brand-new,
           // nothing to clobber" is <= 1 block (not === 0). This gates the

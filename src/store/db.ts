@@ -507,6 +507,15 @@ export async function saveDismissalSuppression(sup: DismissalSuppression): Promi
   await db.put("dismissal_suppressions", sup);
 }
 
+/** Delete a single dismissal suppression by id. Used by the C3 dismiss-Undo
+ *  toast to roll back the suppression written on dismiss, so an accidental
+ *  dismiss never silently trains the feed quieter (the G1 flattery-resistance
+ *  concern). See docs/projects/ui_interaction_mechanics.md § C3. */
+export async function deleteDismissalSuppression(id: string): Promise<void> {
+  const db = await getDb();
+  await db.delete("dismissal_suppressions", id);
+}
+
 export async function loadSuppressionsForDocument(docId: string): Promise<DismissalSuppression[]> {
   const db = await getDb();
   const tx = db.transaction("dismissal_suppressions", "readonly");

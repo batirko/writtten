@@ -12,7 +12,7 @@
  * in a test environment, but the default-off state is the primary guard.
  */
 
-import { describe, it, expect, afterEach } from "vitest";
+import { describe, it, expect, afterEach, vi } from "vitest";
 import { createElement } from "react";
 import { createRoot } from "react-dom/client";
 import { act } from "react";
@@ -28,7 +28,7 @@ const minProps = {
   onStageChange: () => {},
   hoveredObservationId: null,
   onHoverObservation: () => {},
-  onDismissObservation: () => {},
+  onDismissObservation: async () => undefined,
   onClearWorkspace: () => {},
 };
 
@@ -544,5 +544,137 @@ describe("ControlCenter — reset first-run", () => {
     const div = renderCC({});
     openSettings(div);
     expect(div.querySelector('[data-testid="reset-first-run"]')).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// C3 — dismiss + Undo toast with suppression rollback. Dismissing a card is
+// optimistic (animate out, then write the dismissal) and reversible: an Undo
+// toast rides the bottom of the feed for ~5s, and Undo restores the whole group
+// AND rolls back its suppression (so an accidental dismiss doesn't silently
+// train the feed quieter — the G1 flattery-resistance concern).
+// ---------------------------------------------------------------------------
+
+describe("SidecarFeed — dismiss + Undo toast (C3)", () => {
+  const containers: HTMLDivElement[] = [];
+
+  afterEach(() => {
+    for (const c of containers) act(() => c.remove());
+    containers.length = 0;
+    vi.useRealTimers();
+  });
+
+  function renderWith(props: Record<string, unknown>): HTMLDivElement {
+    const div = document.createElement("div");
+    document.body.appendChild(div);
+    containers.push(div);
+    act(() => {
+      createRoot(div).render(createElement(SidecarFeed, { ...minProps, ...props }));
+    });
+    return div;
+  }
+
+  function clickDismiss(div: HTMLDivElement) {
+    act(() => {
+      div.querySelector('[data-testid="obs-dismiss"]')?.dispatchEvent(
+        new MouseEvent("click", { bubbles: true })
+      );
+    });
+  }
+
+  it("shows an Undo toast after dismiss; Undo restores the group and rolls back its suppression", async () => {
+    vi.useFakeTimers();
+    const dismissed: string[] = [];
+    const restored: { obsId: string; suppressionId?: string }[] = [];
+    const div = renderWith({
+      observations: [
+        obs({
+          id: "d1",
+          type: "contradiction",
+          kind: "problem",
+          severity: "high",
+          blockId: "b1",
+          startOffset: 0,
+          endOffset: 5,
+        }),
+      ],
+      onDismissObservation: async (id: string) => {
+        dismissed.push(id);
+        return `sup-${id}`;
+      },
+      onRestoreDismissed: (entries: { obsId: string; suppressionId?: string }[]) =>
+        restored.push(...entries),
+    });
+
+    clickDismiss(div);
+    // Past the 200ms exit animation + the async dismiss writes.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(250);
+    });
+
+    expect(dismissed).toEqual(["d1"]);
+    expect(div.querySelector('[data-testid="undo-toast"]')).not.toBeNull();
+
+    act(() => {
+      div.querySelector('[data-testid="undo-action"]')?.dispatchEvent(
+        new MouseEvent("click", { bubbles: true })
+      );
+    });
+
+    // Undo carries the suppression id so the caller can delete exactly the
+    // record written on dismiss (suppression rollback).
+    expect(restored).toEqual([{ obsId: "d1", suppressionId: "sup-d1" }]);
+    expect(div.querySelector('[data-testid="undo-toast"]')).toBeNull();
+  });
+
+  it("dismissing a grouped card collects every member; one toast, Undo restores all", async () => {
+    vi.useFakeTimers();
+    const restored: { obsId: string; suppressionId?: string }[] = [];
+    const div = renderWith({
+      // Same span → aggregated into one group (primary + others).
+      observations: [
+        obs({ id: "g1", type: "clarity", blockId: "b1", startOffset: 2, endOffset: 8, priority: 0.9 }),
+        obs({ id: "g2", type: "undefined_jargon", blockId: "b1", startOffset: 2, endOffset: 8, priority: 0.5 }),
+      ],
+      onDismissObservation: async (id: string) => `sup-${id}`,
+      onRestoreDismissed: (entries: { obsId: string; suppressionId?: string }[]) =>
+        restored.push(...entries),
+    });
+
+    clickDismiss(div);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(250);
+    });
+
+    expect(div.querySelectorAll('[data-testid="undo-toast"]').length).toBe(1);
+
+    act(() => {
+      div.querySelector('[data-testid="undo-action"]')?.dispatchEvent(
+        new MouseEvent("click", { bubbles: true })
+      );
+    });
+
+    expect(restored.map((e) => e.obsId).sort()).toEqual(["g1", "g2"]);
+    expect(restored.every((e) => e.suppressionId === `sup-${e.obsId}`)).toBe(true);
+  });
+
+  it("auto-dismisses the toast after ~5s", async () => {
+    vi.useFakeTimers();
+    const div = renderWith({
+      observations: [obs({ id: "a1", blockId: "b1", startOffset: 0, endOffset: 3 })],
+      onDismissObservation: async () => "sup-a1",
+    });
+
+    clickDismiss(div);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(250);
+    });
+    expect(div.querySelector('[data-testid="undo-toast"]')).not.toBeNull();
+
+    // Past the ~5s lifetime + the exit animation.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5300);
+    });
+    expect(div.querySelector('[data-testid="undo-toast"]')).toBeNull();
   });
 });

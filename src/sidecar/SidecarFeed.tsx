@@ -93,7 +93,9 @@ interface GroupedObsCardProps {
   /** Reverse-hover focus (UX-006): a span is focused elsewhere — recede. */
   isDimmed?: boolean;
   onHover: (id: string | null) => void;
-  onDismiss: (id: string) => void;
+  /** Dismiss the whole group (primary + same-span members) as one unit — the
+   *  card is the group, and the C3 Undo toast reverses them together. */
+  onDismiss: (group: GroupedObservation) => void;
 }
 
 export function GroupedObsCard({
@@ -109,8 +111,7 @@ export function GroupedObsCard({
   const { primary, others } = group;
 
   const handleDismiss = () => {
-    onDismiss(primary.id);
-    for (const o of others) onDismiss(o.id);
+    onDismiss(group);
   };
 
   return (
@@ -229,7 +230,13 @@ interface Props {
    *  opaque while the rest recede. Null when no span is focused. */
   spanFocusObsId?: string | null;
   onHoverObservation: (id: string | null) => void;
-  onDismissObservation: (id: string) => void;
+  /** Dismiss one observation; resolves to the id of the suppression written on
+   *  dismiss (or undefined), so the Undo toast can roll it back. */
+  onDismissObservation: (id: string) => Promise<string | undefined>;
+  /** C3 Undo: restore a just-dismissed group — reactivate each observation and
+   *  delete its dismissal suppression, so an accidental dismiss is fully
+   *  reversible and doesn't silently train the feed quieter. */
+  onRestoreDismissed?: (entries: { obsId: string; suppressionId?: string }[]) => void;
   /** First-run welcome moment: show the one-time welcome card until dismissed. */
   showWelcome?: boolean;
   /** Whether the editor is empty — gates the "See it in action" example so it
@@ -247,6 +254,7 @@ export function SidecarFeed({
   spanFocusObsId = null,
   onHoverObservation,
   onDismissObservation,
+  onRestoreDismissed,
   showWelcome = false,
   documentIsEmpty = false,
   onDismissWelcome,
@@ -260,6 +268,43 @@ export function SidecarFeed({
   const [arrivingIds, setArrivingIds] = useState<Set<string>>(new Set());
   const [arrivalBatchCount, setArrivalBatchCount] = useState(0);
   const [exitingIds, setExitingIds] = useState<Set<string>>(new Set());
+
+  // --- C3 dismiss + Undo toast ---
+  // A transient "Dismissed · Undo" affordance rides the bottom of the feed after
+  // a dismiss. Undo reverses the whole group and rolls back its suppression.
+  // Only one toast at a time; a second dismiss replaces the first (the first's
+  // dismissal stands). See docs/projects/ui_interaction_mechanics.md § C3.
+  const [undoToast, setUndoToast] = useState<{
+    entries: { obsId: string; suppressionId?: string }[];
+    count: number;
+    exiting: boolean;
+  } | null>(null);
+  const toastTimers = useRef<{ hide?: number; remove?: number }>({});
+  const clearToastTimers = useCallback(() => {
+    if (toastTimers.current.hide) clearTimeout(toastTimers.current.hide);
+    if (toastTimers.current.remove) clearTimeout(toastTimers.current.remove);
+    toastTimers.current = {};
+  }, []);
+  const showUndoToast = useCallback(
+    (entries: { obsId: string; suppressionId?: string }[], count: number) => {
+      clearToastTimers();
+      setUndoToast({ entries, count, exiting: false });
+      // Auto-dismiss ~5s: fade out, then unmount after the exit animation.
+      toastTimers.current.hide = window.setTimeout(() => {
+        setUndoToast((t) => (t ? { ...t, exiting: true } : t));
+        toastTimers.current.remove = window.setTimeout(() => setUndoToast(null), 200);
+      }, 5000);
+    },
+    [clearToastTimers]
+  );
+  const handleUndo = useCallback(() => {
+    clearToastTimers();
+    setUndoToast((t) => {
+      if (t) onRestoreDismissed?.(t.entries);
+      return null;
+    });
+  }, [clearToastTimers, onRestoreDismissed]);
+  useEffect(() => () => clearToastTimers(), [clearToastTimers]);
 
   useEffect(() => {
     const currentIds = new Set(observations.map((o) => o.id));
@@ -279,20 +324,29 @@ export function SidecarFeed({
     return () => clearTimeout(timer);
   }, [arrivingIds]);
 
+  // Dismiss a whole group as one unit: animate the card out (R3c exit), then
+  // write each dismissal, collecting the suppression ids so one Undo toast can
+  // reverse the group and roll back every suppression together.
   const handleDismiss = useCallback(
-    (id: string) => {
-      if (exitingIds.has(id)) return;
-      setExitingIds((prev) => new Set([...prev, id]));
-      setTimeout(() => {
+    (group: GroupedObservation) => {
+      const ids = [group.primary.id, ...group.others.map((o) => o.id)];
+      if (ids.some((id) => exitingIds.has(id))) return;
+      setExitingIds((prev) => new Set([...prev, ...ids]));
+      setTimeout(async () => {
         setExitingIds((prev) => {
           const next = new Set(prev);
-          next.delete(id);
+          for (const id of ids) next.delete(id);
           return next;
         });
-        onDismissObservation(id);
+        const entries: { obsId: string; suppressionId?: string }[] = [];
+        for (const id of ids) {
+          const suppressionId = await onDismissObservation(id);
+          entries.push({ obsId: id, suppressionId });
+        }
+        showUndoToast(entries, ids.length);
       }, 200);
     },
-    [exitingIds, onDismissObservation]
+    [exitingIds, onDismissObservation, showUndoToast]
   );
 
   // Partition observations: budget-select by priority, display in document order.
@@ -468,6 +522,25 @@ export function SidecarFeed({
                 })}
               </div>
             )}
+          </div>
+        )}
+
+        {undoToast && (
+          <div
+            className={`undo-toast${undoToast.exiting ? " undo-toast--exiting" : ""}`}
+            data-testid="undo-toast"
+            role="status"
+            aria-live="polite"
+          >
+            <span className="undo-toast__label">Dismissed</span>
+            <button
+              type="button"
+              className="undo-toast__action"
+              data-testid="undo-action"
+              onClick={handleUndo}
+            >
+              Undo
+            </button>
           </div>
         )}
       </div>
