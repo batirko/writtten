@@ -26,11 +26,11 @@ function DismissIcon() {
 }
 
 // ---------------------------------------------------------------------------
-// SeeExampleLink — the quiet "See it in action →" affordance. Shared by the
-// welcome card and the empty feed. Loading the example replaces the document,
-// so it's only offered on a blank doc (guarded by the caller) — never clobbers
-// the user's own text. Not a fix affordance: it plants pre-written text the
-// live pipeline reacts to (Hard Invariant #1).
+// SeeExampleLink — the quiet "See it in action →" affordance. Lives on the
+// welcome card only. Loading the example replaces the document, so it's only
+// offered on a blank doc (guarded by the caller) — never clobbers the user's
+// own text. Not a fix affordance: it plants pre-written text the live pipeline
+// reacts to (Hard Invariant #1).
 // ---------------------------------------------------------------------------
 
 function SeeExampleLink({ onLoadExample }: { onLoadExample: () => void }) {
@@ -328,9 +328,6 @@ export function SidecarFeed({
                 <span className="empty-subtext">
                   Observations appear here as the document matures.
                 </span>
-                {documentIsEmpty && onLoadExample && (
-                  <SeeExampleLink onLoadExample={onLoadExample} />
-                )}
               </div>
             )
           ) : (
