@@ -501,7 +501,7 @@ describe("SidecarFeed — first-settle micro-moment (empty → first card)", () 
 // ---------------------------------------------------------------------------
 // C3 — dismiss + in-place Undo placeholder (deferred commit). Dismissing a card
 // replaces it IN PLACE with a "Dismissed · Undo" ghost slot. The dismissal is
-// deferred: the observation stays live until the placeholder fades (~5s), at
+// deferred: the observation stays live until the placeholder fades (~3s), at
 // which point onDismissObservation finalizes it. Undo before then is a pure
 // local cancel — nothing is written (which strengthens the G1 guarantee). Each
 // dismissal gets its own placeholder.
@@ -587,7 +587,7 @@ describe("SidecarFeed — in-place dismiss + Undo (C3)", () => {
     expect(dismissed).toEqual([]);
   });
 
-  it("finalizes the dismissal (writes each member) after the ~5s fade", async () => {
+  it("finalizes the dismissal (writes each member) after the ~3s fade", async () => {
     vi.useFakeTimers();
     const dismissed: string[] = [];
     const div = renderWith({
@@ -616,9 +616,9 @@ describe("SidecarFeed — in-place dismiss + Undo (C3)", () => {
     expect(dismissed).toEqual([]);
     expect(div.querySelector('[data-testid="undo-placeholder"]')).not.toBeNull();
 
-    // Past the ~5s lifetime + the fade → every group member is finalized.
+    // Past the ~3s lifetime + the fade → every group member is finalized.
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(5300);
+      await vi.advanceTimersByTimeAsync(3300);
     });
     expect(dismissed.sort()).toEqual(["g1", "g2"]);
     expect(div.querySelector('[data-testid="undo-placeholder"]')).toBeNull();

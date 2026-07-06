@@ -224,7 +224,7 @@ export function GroupedObsCard({
 // DismissedPlaceholder (C3) — the temporary "ghost slot" that replaces a card
 // the moment it's dismissed, in place, so the Undo affordance sits exactly
 // where the card was (no mouse trek, no lost mental link). Each dismissal gets
-// its own placeholder. Undo restores the card; left alone it fades after ~5s,
+// its own placeholder. Undo restores the card; left alone it fades after ~3s,
 // at which point the dismissal is finalized. See docs/mechanics/dismiss_undo.md.
 // ---------------------------------------------------------------------------
 
@@ -268,7 +268,7 @@ interface Props {
   spanFocusObsId?: string | null;
   onHoverObservation: (id: string | null) => void;
   /** Finalize a dismissal: write the suppression + flip the observation to
-   *  `dismissed`. Called only when a dismiss placeholder fades (~5s) — Undo
+   *  `dismissed`. Called only when a dismiss placeholder fades (~3s) — Undo
    *  before then cancels locally and never calls this, so no rollback is
    *  needed. See docs/mechanics/dismiss_undo.md. */
   onDismissObservation: (id: string) => void | Promise<unknown>;
@@ -306,13 +306,13 @@ export function SidecarFeed({
   // Dismissing a card replaces it *in place* with a temporary "Dismissed · Undo"
   // ghost slot, so the Undo affordance sits exactly where the card was and each
   // dismissal gets its own placeholder. The dismissal is deferred: the
-  // observation stays live until the placeholder fades (~5s), at which point it's
+  // observation stays live until the placeholder fades (~3s), at which point it's
   // finalized (onDismissObservation writes the suppression). Undo before then is a
   // pure local cancel — nothing was written, nothing to roll back (which
   // *strengthens* the G1 guarantee). Keyed by span coordinates (stable even if a
   // re-eval swaps the group's primary), mirroring obsAggregation's grouping key.
   // See docs/mechanics/dismiss_undo.md.
-  const PENDING_MS = 5000;
+  const PENDING_MS = 3000;
   const FADE_MS = 200;
   const [pendingDismiss, setPendingDismiss] = useState<
     Map<string, { ids: string[]; fading: boolean }>
@@ -367,7 +367,7 @@ export function SidecarFeed({
   }, [arrivingIds]);
 
   // Dismiss a whole group as one unit: replace its card in place with a
-  // "Dismissed · Undo" placeholder. The dismissal is deferred — after ~5s the
+  // "Dismissed · Undo" placeholder. The dismissal is deferred — after ~3s the
   // placeholder fades (FADE_MS) and only then is each member finalized. Undo
   // (handleUndoPending) cancels before finalize and never writes anything.
   const handleDismiss = useCallback(
