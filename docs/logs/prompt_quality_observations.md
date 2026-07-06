@@ -398,6 +398,7 @@ The observation card therefore shows only the quoted metric with no insight — 
 ### OBS-026 — Contradiction sweep silently drops conflicts between two claims in the same block
 
 **Date:** 2026-06-25\
+**Resolved:** 2026-07-05 (OBS-026 — same-block `emit` guard dropped + single-block whole-block highlight; `src/services/evaluator.ts`, `src/editor/extensions/ObservationHighlighter.ts`; self-pair + same-text guard retained. See `docs/projects/section_eval_precision.md` (OBS-026).)\
 **Prompt tier:** strong (gemini-2.5-pro, contradiction-sweep) — but the drop is **post-prompt**, in the consumer, not the model\
 **Type flag:** contradiction\
 **Input excerpt:** Solution / "how it works" section claims, both extracted from the same section block: _"The challenge window is 60 seconds from the time of the block"_ and _"After 60 seconds, the transaction expires and the user must start over at the merchant."_\
@@ -411,6 +412,7 @@ The observation card therefore shows only the quoted metric with no insight — 
 ### OBS-027 — Section-eval isolation produces false-positive clarity/jargon/unsupported flags for things defined in sibling sections
 
 **Date:** 2026-06-25\
+**Resolved:** 2026-07-05 (OBS-027 — `evaluateSection` injects a gated "Established elsewhere in this document" block: sibling-section summaries + other sections' non-`definition` claims, plus scope + heading-intent rules; `src/services/evaluator.ts`. See `docs/projects/section_eval_precision.md` (OBS-027).)\
 **Prompt tier:** fast (gemini-3.1-flash-lite, section-eval)\
 **Type flag:** clarity (also exposes undefined*jargon, unsupported_claim — any span check)\
 **Input excerpt:** The "Out of scope" section was evaluated with this payload only: *"Out of scope\n\nWeb/desktop flows (browser does not support this notification pattern reliably). Multiple retries. Users who fail the challenge are directed to support."_ + `Document context: <stage>` + glossary. **No sibling-section content or claim ledger was included.**\
@@ -445,6 +447,7 @@ The observation card therefore shows only the quoted metric with no insight — 
 ### OBS-029 — Heading-only section (no body) hallucinates a fabricated PRD; regression of the section_as_eval_unit fix
 
 **Date:** 2026-07-02\
+**Resolved:** 2026-07-02 (OBS-029 — bodyless-heading short-circuit in `evaluateSection`: a section with no non-heading body text is inert (retire claims/observations, empty summary + hash, no model call); `src/services/evaluator.ts`. See `docs/projects/section_eval_precision.md` (OBS-029).)\
 **Prompt tier:** fast (gemini-3.1-flash-lite, section-eval) — cascading into a paid strong contradiction call\
 **Type flag:** claims (extraction), clarity, unsupported_claim, and a downstream strategic_tension\
 **Input excerpt:** Section-eval payload was a **heading with no body** — literally `"Writing in age of AI\n"` — produced transiently when the user toggled the first paragraph to H1 (splitting the single section into a heading-only section + a new section). The 20-char heading clears the only guard, `cleanText.length < 10` ([`src/services/evaluator.ts:126`](../../src/services/evaluator.ts)).\
