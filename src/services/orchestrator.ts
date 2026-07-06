@@ -75,6 +75,29 @@ function bumpSectionGeneration(sectionId: string): void {
   sectionEvalGeneration.set(sectionId, (sectionEvalGeneration.get(sectionId) ?? 0) + 1);
 }
 
+/**
+ * Invalidate any pending/in-flight eval for a section whose boundaries just
+ * reverted to a previously-committed shape (revert-aware eval, Mechanism 1).
+ * Bumps the section's eval generation — so any `evaluateSection` already in
+ * flight sees `isLive()` go false and skips its post-LLM writes (the same L4
+ * machinery `block-removed` uses) — and drops any not-yet-dispatched coalesce or
+ * queued re-run for it. Unlike `handleBlockRemoved`, this fires **no** LLM call
+ * and does **not** orphan claims or close observations: the section still exists,
+ * only a transient boundary change is being unwound. Mechanism 2's snapshot
+ * restore handles the observation side. See docs/projects/revert_aware_evaluation.md
+ * and docs/mechanics/evaluation-triggers.md.
+ */
+export function invalidateSectionEval(sectionId: string): void {
+  bumpSectionGeneration(sectionId);
+  const entry = coalesceTimers.get(sectionId);
+  if (entry) {
+    clearTimeout(entry.timer);
+    coalesceTimers.delete(sectionId);
+  }
+  pendingAfterInflight.delete(sectionId);
+  recomputePending();
+}
+
 let docIdleInFlight = false;
 let pendingDocIdle: { ctx: EvalContext; onComplete?: () => void } | null = null;
 
