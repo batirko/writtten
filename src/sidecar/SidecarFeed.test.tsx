@@ -425,14 +425,14 @@ describe("SidecarFeed — first-run welcome moment", () => {
     expect(loaded).toBe(1);
   });
 
-  it("a returning user (welcome dismissed) still finds the example in the empty feed", () => {
+  it("the empty feed carries no 'See it in action' link — it lives on the welcome card only", () => {
     const div = renderWith({
       showWelcome: false,
       documentIsEmpty: true,
       onLoadExample: () => {},
     });
     expect(div.querySelector(".sidecar-empty")).not.toBeNull();
-    expect(div.querySelector('[data-testid="see-example"]')).not.toBeNull();
+    expect(div.querySelector('[data-testid="see-example"]')).toBeNull();
   });
 });
 
