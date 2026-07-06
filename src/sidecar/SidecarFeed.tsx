@@ -3,6 +3,15 @@ import type { Observation } from "../store/db";
 import { partitionFeed, DEFAULT_FEED_BUDGET } from "./feedBudget";
 import type { GroupedObservation } from "./feedBudget";
 
+// Stable per-group key for the pending-dismiss map — mirrors obsAggregation's
+// grouping key (span coords, or a per-obs doc-scope key). Deliberately NOT
+// group.id (= primary.id), which can swap if a re-eval re-ranks the group.
+function groupKey(group: GroupedObservation): string {
+  return group.blockId != null
+    ? `${group.blockId}:${group.startOffset ?? ""}:${group.endOffset ?? ""}`
+    : `__doc__:${group.primary.id}`;
+}
+
 // ---------------------------------------------------------------------------
 // DismissIcon
 // ---------------------------------------------------------------------------
@@ -89,12 +98,12 @@ interface GroupedObsCardProps {
   group: GroupedObservation;
   isActive: boolean;
   isArriving: boolean;
-  isExiting: boolean;
   /** Reverse-hover focus (UX-006): a span is focused elsewhere — recede. */
   isDimmed?: boolean;
   onHover: (id: string | null) => void;
   /** Dismiss the whole group (primary + same-span members) as one unit — the
-   *  card is the group, and the C3 Undo toast reverses them together. */
+   *  card is replaced in place by the C3 dismiss placeholder, which reverses
+   *  them together. */
   onDismiss: (group: GroupedObservation) => void;
 }
 
@@ -102,7 +111,6 @@ export function GroupedObsCard({
   group,
   isActive,
   isArriving,
-  isExiting,
   isDimmed = false,
   onHover,
   onDismiss,
@@ -116,7 +124,7 @@ export function GroupedObsCard({
 
   return (
     <div
-      className={`observation-card observation-${primary.type}${isActive ? " observation-card-active" : ""}${isArriving ? " observation-card-arriving" : ""}${isExiting ? " observation-card-exiting" : ""}${isDimmed ? " observation-card-dimmed" : ""}`}
+      className={`observation-card observation-${primary.type}${isActive ? " observation-card-active" : ""}${isArriving ? " observation-card-arriving" : ""}${isDimmed ? " observation-card-dimmed" : ""}`}
       data-testid="obs-card"
       role="listitem"
       tabIndex={0}
@@ -213,6 +221,35 @@ export function GroupedObsCard({
 }
 
 // ---------------------------------------------------------------------------
+// DismissedPlaceholder (C3) — the temporary "ghost slot" that replaces a card
+// the moment it's dismissed, in place, so the Undo affordance sits exactly
+// where the card was (no mouse trek, no lost mental link). Each dismissal gets
+// its own placeholder. Undo restores the card; left alone it fades after ~5s,
+// at which point the dismissal is finalized. See docs/mechanics/dismiss_undo.md.
+// ---------------------------------------------------------------------------
+
+function DismissedPlaceholder({ fading, onUndo }: { fading: boolean; onUndo: () => void }) {
+  return (
+    <div
+      className={`observation-card-dismissed${fading ? " observation-card-exiting" : ""}`}
+      data-testid="undo-placeholder"
+      role="status"
+      aria-live="polite"
+    >
+      <span className="observation-card-dismissed__label">Dismissed</span>
+      <button
+        type="button"
+        className="observation-card-dismissed__undo"
+        data-testid="undo-action"
+        onClick={onUndo}
+      >
+        Undo
+      </button>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // SidecarFeed — the floating card column (observations + archive). The document
 // context affordance moved to DocumentContext (attached to the writing column).
 // The control center, settings/clear modals, and debug panel live in
@@ -230,13 +267,11 @@ interface Props {
    *  opaque while the rest recede. Null when no span is focused. */
   spanFocusObsId?: string | null;
   onHoverObservation: (id: string | null) => void;
-  /** Dismiss one observation; resolves to the id of the suppression written on
-   *  dismiss (or undefined), so the Undo toast can roll it back. */
-  onDismissObservation: (id: string) => Promise<string | undefined>;
-  /** C3 Undo: restore a just-dismissed group — reactivate each observation and
-   *  delete its dismissal suppression, so an accidental dismiss is fully
-   *  reversible and doesn't silently train the feed quieter. */
-  onRestoreDismissed?: (entries: { obsId: string; suppressionId?: string }[]) => void;
+  /** Finalize a dismissal: write the suppression + flip the observation to
+   *  `dismissed`. Called only when a dismiss placeholder fades (~5s) — Undo
+   *  before then cancels locally and never calls this, so no rollback is
+   *  needed. See docs/mechanics/dismiss_undo.md. */
+  onDismissObservation: (id: string) => void | Promise<unknown>;
   /** First-run welcome moment: show the one-time welcome card until dismissed. */
   showWelcome?: boolean;
   /** Whether the editor is empty — gates the "See it in action" example so it
@@ -254,7 +289,6 @@ export function SidecarFeed({
   spanFocusObsId = null,
   onHoverObservation,
   onDismissObservation,
-  onRestoreDismissed,
   showWelcome = false,
   documentIsEmpty = false,
   onDismissWelcome,
@@ -267,44 +301,52 @@ export function SidecarFeed({
   const prevObsIdsRef = useRef<Set<string>>(new Set(observations.map((o) => o.id)));
   const [arrivingIds, setArrivingIds] = useState<Set<string>>(new Set());
   const [arrivalBatchCount, setArrivalBatchCount] = useState(0);
-  const [exitingIds, setExitingIds] = useState<Set<string>>(new Set());
 
-  // --- C3 dismiss + Undo toast ---
-  // A transient "Dismissed · Undo" affordance rides the bottom of the feed after
-  // a dismiss. Undo reverses the whole group and rolls back its suppression.
-  // Only one toast at a time; a second dismiss replaces the first (the first's
-  // dismissal stands). See docs/projects/ui_interaction_mechanics.md § C3.
-  const [undoToast, setUndoToast] = useState<{
-    entries: { obsId: string; suppressionId?: string }[];
-    count: number;
-    exiting: boolean;
-  } | null>(null);
-  const toastTimers = useRef<{ hide?: number; remove?: number }>({});
-  const clearToastTimers = useCallback(() => {
-    if (toastTimers.current.hide) clearTimeout(toastTimers.current.hide);
-    if (toastTimers.current.remove) clearTimeout(toastTimers.current.remove);
-    toastTimers.current = {};
+  // --- C3 dismiss + in-place Undo placeholder ---
+  // Dismissing a card replaces it *in place* with a temporary "Dismissed · Undo"
+  // ghost slot, so the Undo affordance sits exactly where the card was and each
+  // dismissal gets its own placeholder. The dismissal is deferred: the
+  // observation stays live until the placeholder fades (~5s), at which point it's
+  // finalized (onDismissObservation writes the suppression). Undo before then is a
+  // pure local cancel — nothing was written, nothing to roll back (which
+  // *strengthens* the G1 guarantee). Keyed by span coordinates (stable even if a
+  // re-eval swaps the group's primary), mirroring obsAggregation's grouping key.
+  // See docs/mechanics/dismiss_undo.md.
+  const PENDING_MS = 5000;
+  const FADE_MS = 200;
+  const [pendingDismiss, setPendingDismiss] = useState<
+    Map<string, { ids: string[]; fading: boolean }>
+  >(new Map());
+  const pendingTimers = useRef<Map<string, { finalize?: number; fade?: number }>>(new Map());
+  const clearPendingTimers = useCallback((key: string) => {
+    const t = pendingTimers.current.get(key);
+    if (t?.finalize) clearTimeout(t.finalize);
+    if (t?.fade) clearTimeout(t.fade);
+    pendingTimers.current.delete(key);
   }, []);
-  const showUndoToast = useCallback(
-    (entries: { obsId: string; suppressionId?: string }[], count: number) => {
-      clearToastTimers();
-      setUndoToast({ entries, count, exiting: false });
-      // Auto-dismiss ~5s: fade out, then unmount after the exit animation.
-      toastTimers.current.hide = window.setTimeout(() => {
-        setUndoToast((t) => (t ? { ...t, exiting: true } : t));
-        toastTimers.current.remove = window.setTimeout(() => setUndoToast(null), 200);
-      }, 5000);
+  const handleUndoPending = useCallback(
+    (key: string) => {
+      clearPendingTimers(key);
+      setPendingDismiss((prev) => {
+        if (!prev.has(key)) return prev;
+        const next = new Map(prev);
+        next.delete(key);
+        return next;
+      });
     },
-    [clearToastTimers]
+    [clearPendingTimers]
   );
-  const handleUndo = useCallback(() => {
-    clearToastTimers();
-    setUndoToast((t) => {
-      if (t) onRestoreDismissed?.(t.entries);
-      return null;
-    });
-  }, [clearToastTimers, onRestoreDismissed]);
-  useEffect(() => () => clearToastTimers(), [clearToastTimers]);
+  // Clear every pending timer on unmount.
+  useEffect(() => {
+    const timers = pendingTimers.current;
+    return () => {
+      for (const t of timers.values()) {
+        if (t.finalize) clearTimeout(t.finalize);
+        if (t.fade) clearTimeout(t.fade);
+      }
+      timers.clear();
+    };
+  }, []);
 
   useEffect(() => {
     const currentIds = new Set(observations.map((o) => o.id));
@@ -324,29 +366,38 @@ export function SidecarFeed({
     return () => clearTimeout(timer);
   }, [arrivingIds]);
 
-  // Dismiss a whole group as one unit: animate the card out (R3c exit), then
-  // write each dismissal, collecting the suppression ids so one Undo toast can
-  // reverse the group and roll back every suppression together.
+  // Dismiss a whole group as one unit: replace its card in place with a
+  // "Dismissed · Undo" placeholder. The dismissal is deferred — after ~5s the
+  // placeholder fades (FADE_MS) and only then is each member finalized. Undo
+  // (handleUndoPending) cancels before finalize and never writes anything.
   const handleDismiss = useCallback(
     (group: GroupedObservation) => {
+      const key = groupKey(group);
+      if (pendingDismiss.has(key)) return;
       const ids = [group.primary.id, ...group.others.map((o) => o.id)];
-      if (ids.some((id) => exitingIds.has(id))) return;
-      setExitingIds((prev) => new Set([...prev, ...ids]));
-      setTimeout(async () => {
-        setExitingIds((prev) => {
-          const next = new Set(prev);
-          for (const id of ids) next.delete(id);
-          return next;
+      setPendingDismiss((prev) => new Map(prev).set(key, { ids, fading: false }));
+      const finalize = window.setTimeout(() => {
+        // Fade the placeholder out, then write the dismissals and clear the slot.
+        setPendingDismiss((prev) => {
+          const entry = prev.get(key);
+          if (!entry) return prev;
+          return new Map(prev).set(key, { ...entry, fading: true });
         });
-        const entries: { obsId: string; suppressionId?: string }[] = [];
-        for (const id of ids) {
-          const suppressionId = await onDismissObservation(id);
-          entries.push({ obsId: id, suppressionId });
-        }
-        showUndoToast(entries, ids.length);
-      }, 200);
+        const fade = window.setTimeout(async () => {
+          for (const id of ids) await onDismissObservation(id);
+          clearPendingTimers(key);
+          setPendingDismiss((prev) => {
+            if (!prev.has(key)) return prev;
+            const next = new Map(prev);
+            next.delete(key);
+            return next;
+          });
+        }, FADE_MS);
+        pendingTimers.current.set(key, { ...pendingTimers.current.get(key), fade });
+      }, PENDING_MS);
+      pendingTimers.current.set(key, { finalize });
     },
-    [exitingIds, onDismissObservation, showUndoToast]
+    [pendingDismiss, onDismissObservation, clearPendingTimers]
   );
 
   // Partition observations: budget-select by priority, display in document order.
@@ -361,6 +412,35 @@ export function SidecarFeed({
   // pinned to the top of the gutter, so it's always on-screen even if the feed
   // is scrolled. Releasing the span restores full opacity.
   const feedFocused = spanFocusObsId != null;
+
+  // Render a group's slot: while a dismissal is pending, the in-place
+  // "Dismissed · Undo" placeholder stands where the card was; otherwise the card.
+  const renderGroup = (group: GroupedObservation) => {
+    const key = groupKey(group);
+    const pending = pendingDismiss.get(key);
+    if (pending) {
+      return (
+        <DismissedPlaceholder
+          key={group.id}
+          fading={pending.fading}
+          onUndo={() => handleUndoPending(key)}
+        />
+      );
+    }
+    return (
+      <GroupedObsCard
+        key={group.id}
+        group={group}
+        isActive={hoveredObservationId === group.primary.id}
+        isDimmed={feedFocused}
+        isArriving={
+          arrivingIds.has(group.primary.id) || group.others.some((o) => arrivingIds.has(o.id))
+        }
+        onHover={onHoverObservation}
+        onDismiss={handleDismiss}
+      />
+    );
+  };
 
   return (
     <aside className="sidecar-panel" aria-label="Observations">
@@ -391,24 +471,7 @@ export function SidecarFeed({
                   +{arrivalBatchCount} new
                 </div>
               )}
-              {visibleObs.map((group) => (
-                <GroupedObsCard
-                  key={group.id}
-                  group={group}
-                  isActive={hoveredObservationId === group.primary.id}
-                  isDimmed={feedFocused}
-                  isArriving={
-                    arrivingIds.has(group.primary.id) ||
-                    group.others.some((o) => arrivingIds.has(o.id))
-                  }
-                  isExiting={
-                    exitingIds.has(group.primary.id) ||
-                    group.others.some((o) => exitingIds.has(o.id))
-                  }
-                  onHover={onHoverObservation}
-                  onDismiss={handleDismiss}
-                />
-              ))}
+              {visibleObs.map(renderGroup)}
 
               {alsoNoticedObs.length > 0 && (
                 <div data-testid="also-noticed-drawer" className="also-noticed-drawer">
@@ -436,24 +499,7 @@ export function SidecarFeed({
                       id="also-noticed-list"
                       style={{ display: "flex", flexDirection: "column", gap: "8px" }}
                     >
-                      {alsoNoticedObs.map((group) => (
-                        <GroupedObsCard
-                          key={group.id}
-                          group={group}
-                          isActive={hoveredObservationId === group.primary.id}
-                          isDimmed={feedFocused}
-                          isArriving={
-                            arrivingIds.has(group.primary.id) ||
-                            group.others.some((o) => arrivingIds.has(o.id))
-                          }
-                          isExiting={
-                            exitingIds.has(group.primary.id) ||
-                            group.others.some((o) => exitingIds.has(o.id))
-                          }
-                          onHover={onHoverObservation}
-                          onDismiss={handleDismiss}
-                        />
-                      ))}
+                      {alsoNoticedObs.map(renderGroup)}
                     </div>
                   )}
                 </div>
@@ -522,25 +568,6 @@ export function SidecarFeed({
                 })}
               </div>
             )}
-          </div>
-        )}
-
-        {undoToast && (
-          <div
-            className={`undo-toast${undoToast.exiting ? " undo-toast--exiting" : ""}`}
-            data-testid="undo-toast"
-            role="status"
-            aria-live="polite"
-          >
-            <span className="undo-toast__label">Dismissed</span>
-            <button
-              type="button"
-              className="undo-toast__action"
-              data-testid="undo-action"
-              onClick={handleUndo}
-            >
-              Undo
-            </button>
           </div>
         )}
       </div>

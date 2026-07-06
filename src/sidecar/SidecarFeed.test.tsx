@@ -499,14 +499,15 @@ describe("SidecarFeed — first-settle micro-moment (empty → first card)", () 
 });
 
 // ---------------------------------------------------------------------------
-// C3 — dismiss + Undo toast with suppression rollback. Dismissing a card is
-// optimistic (animate out, then write the dismissal) and reversible: an Undo
-// toast rides the bottom of the feed for ~5s, and Undo restores the whole group
-// AND rolls back its suppression (so an accidental dismiss doesn't silently
-// train the feed quieter — the G1 flattery-resistance concern).
+// C3 — dismiss + in-place Undo placeholder (deferred commit). Dismissing a card
+// replaces it IN PLACE with a "Dismissed · Undo" ghost slot. The dismissal is
+// deferred: the observation stays live until the placeholder fades (~5s), at
+// which point onDismissObservation finalizes it. Undo before then is a pure
+// local cancel — nothing is written (which strengthens the G1 guarantee). Each
+// dismissal gets its own placeholder.
 // ---------------------------------------------------------------------------
 
-describe("SidecarFeed — dismiss + Undo toast (C3)", () => {
+describe("SidecarFeed — in-place dismiss + Undo (C3)", () => {
   const containers: HTMLDivElement[] = [];
 
   afterEach(() => {
@@ -525,18 +526,17 @@ describe("SidecarFeed — dismiss + Undo toast (C3)", () => {
     return div;
   }
 
-  function clickDismiss(div: HTMLDivElement) {
+  function clickDismissAt(div: HTMLDivElement, i = 0) {
     act(() => {
-      div.querySelector('[data-testid="obs-dismiss"]')?.dispatchEvent(
+      div.querySelectorAll('[data-testid="obs-dismiss"]')[i]?.dispatchEvent(
         new MouseEvent("click", { bubbles: true })
       );
     });
   }
 
-  it("shows an Undo toast after dismiss; Undo restores the group and rolls back its suppression", async () => {
+  it("replaces the card in place with a placeholder; nothing is written yet", () => {
     vi.useFakeTimers();
     const dismissed: string[] = [];
-    const restored: { obsId: string; suppressionId?: string }[] = [];
     const div = renderWith({
       observations: [
         obs({
@@ -549,22 +549,31 @@ describe("SidecarFeed — dismiss + Undo toast (C3)", () => {
           endOffset: 5,
         }),
       ],
-      onDismissObservation: async (id: string) => {
+      onDismissObservation: (id: string) => {
         dismissed.push(id);
-        return `sup-${id}`;
       },
-      onRestoreDismissed: (entries: { obsId: string; suppressionId?: string }[]) =>
-        restored.push(...entries),
     });
 
-    clickDismiss(div);
-    // Past the 200ms exit animation + the async dismiss writes.
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(250);
+    clickDismissAt(div);
+    // In-place: the card is gone from its slot, the placeholder stands there,
+    // and — crucially — the dismissal is NOT committed (deferred).
+    expect(div.querySelector('[data-testid="obs-card"]')).toBeNull();
+    expect(div.querySelector('[data-testid="undo-placeholder"]')).not.toBeNull();
+    expect(dismissed).toEqual([]);
+  });
+
+  it("Undo restores the card in place and never writes the dismissal", () => {
+    vi.useFakeTimers();
+    const dismissed: string[] = [];
+    const div = renderWith({
+      observations: [obs({ id: "u1", blockId: "b1", startOffset: 0, endOffset: 3 })],
+      onDismissObservation: (id: string) => {
+        dismissed.push(id);
+      },
     });
 
-    expect(dismissed).toEqual(["d1"]);
-    expect(div.querySelector('[data-testid="undo-toast"]')).not.toBeNull();
+    clickDismissAt(div);
+    expect(div.querySelector('[data-testid="undo-placeholder"]')).not.toBeNull();
 
     act(() => {
       div.querySelector('[data-testid="undo-action"]')?.dispatchEvent(
@@ -572,60 +581,64 @@ describe("SidecarFeed — dismiss + Undo toast (C3)", () => {
       );
     });
 
-    // Undo carries the suppression id so the caller can delete exactly the
-    // record written on dismiss (suppression rollback).
-    expect(restored).toEqual([{ obsId: "d1", suppressionId: "sup-d1" }]);
-    expect(div.querySelector('[data-testid="undo-toast"]')).toBeNull();
+    // Card back in its slot, placeholder gone, and onDismissObservation never fired.
+    expect(div.querySelector('[data-testid="undo-placeholder"]')).toBeNull();
+    expect(div.querySelector('[data-testid="obs-card"]')).not.toBeNull();
+    expect(dismissed).toEqual([]);
   });
 
-  it("dismissing a grouped card collects every member; one toast, Undo restores all", async () => {
+  it("finalizes the dismissal (writes each member) after the ~5s fade", async () => {
     vi.useFakeTimers();
-    const restored: { obsId: string; suppressionId?: string }[] = [];
+    const dismissed: string[] = [];
     const div = renderWith({
       // Same span → aggregated into one group (primary + others).
       observations: [
         obs({ id: "g1", type: "clarity", blockId: "b1", startOffset: 2, endOffset: 8, priority: 0.9 }),
-        obs({ id: "g2", type: "undefined_jargon", blockId: "b1", startOffset: 2, endOffset: 8, priority: 0.5 }),
+        obs({
+          id: "g2",
+          type: "undefined_jargon",
+          blockId: "b1",
+          startOffset: 2,
+          endOffset: 8,
+          priority: 0.5,
+        }),
       ],
-      onDismissObservation: async (id: string) => `sup-${id}`,
-      onRestoreDismissed: (entries: { obsId: string; suppressionId?: string }[]) =>
-        restored.push(...entries),
+      onDismissObservation: async (id: string) => {
+        dismissed.push(id);
+      },
     });
 
-    clickDismiss(div);
+    clickDismissAt(div);
+    // Not yet: still within the pending window.
     await act(async () => {
       await vi.advanceTimersByTimeAsync(250);
     });
+    expect(dismissed).toEqual([]);
+    expect(div.querySelector('[data-testid="undo-placeholder"]')).not.toBeNull();
 
-    expect(div.querySelectorAll('[data-testid="undo-toast"]').length).toBe(1);
-
-    act(() => {
-      div.querySelector('[data-testid="undo-action"]')?.dispatchEvent(
-        new MouseEvent("click", { bubbles: true })
-      );
-    });
-
-    expect(restored.map((e) => e.obsId).sort()).toEqual(["g1", "g2"]);
-    expect(restored.every((e) => e.suppressionId === `sup-${e.obsId}`)).toBe(true);
-  });
-
-  it("auto-dismisses the toast after ~5s", async () => {
-    vi.useFakeTimers();
-    const div = renderWith({
-      observations: [obs({ id: "a1", blockId: "b1", startOffset: 0, endOffset: 3 })],
-      onDismissObservation: async () => "sup-a1",
-    });
-
-    clickDismiss(div);
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(250);
-    });
-    expect(div.querySelector('[data-testid="undo-toast"]')).not.toBeNull();
-
-    // Past the ~5s lifetime + the exit animation.
+    // Past the ~5s lifetime + the fade → every group member is finalized.
     await act(async () => {
       await vi.advanceTimersByTimeAsync(5300);
     });
-    expect(div.querySelector('[data-testid="undo-toast"]')).toBeNull();
+    expect(dismissed.sort()).toEqual(["g1", "g2"]);
+    expect(div.querySelector('[data-testid="undo-placeholder"]')).toBeNull();
+  });
+
+  it("each dismissal gets its own in-place placeholder", () => {
+    vi.useFakeTimers();
+    const div = renderWith({
+      // Two different spans → two separate cards.
+      observations: [
+        obs({ id: "p1", blockId: "b1", startOffset: 0, endOffset: 4 }),
+        obs({ id: "p2", blockId: "b2", startOffset: 0, endOffset: 4 }),
+      ],
+      onDismissObservation: () => {},
+    });
+
+    expect(div.querySelectorAll('[data-testid="obs-card"]').length).toBe(2);
+    clickDismissAt(div, 0);
+    clickDismissAt(div, 0); // the remaining card's dismiss is now index 0
+    expect(div.querySelectorAll('[data-testid="undo-placeholder"]').length).toBe(2);
+    expect(div.querySelectorAll('[data-testid="obs-card"]').length).toBe(0);
   });
 });

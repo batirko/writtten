@@ -1,8 +1,8 @@
-# Dismiss + Undo toast
+# Dismiss + in-place Undo placeholder
 
-> **Keep this current.** If you change the dismiss flow, the suppression rollback, the toast timing, or the group-dismiss aggregation, update this file in the same task. Design contract: `docs/projects/ui_interaction_mechanics.md` § C3.
+> **Keep this current.** If you change the dismiss flow, the deferred-finalize timing, the pending-dismiss keying, or the placeholder rendering, update this file in the same task. Design contract: `docs/projects/ui_interaction_mechanics.md` § C3.
 
-How a user dismisses an observation and how that dismissal is made reversible. Dismiss is **optimistic** and **reversible**: the card animates out immediately, a transient "Dismissed · Undo" toast rides the bottom of the feed, and Undo restores the observation **and** rolls back the suppression written on dismiss — so an accidental dismiss never silently trains the feed quieter (the G1 flattery-resistance concern).
+How a user dismisses an observation and how that dismissal is made reversible. Dismissing a card replaces it **in place** with a temporary "Dismissed · Undo" ghost slot — so the Undo affordance sits exactly where the card was (no mouse trek, no lost mental link) and each dismissal gets its own placeholder. The dismissal is **deferred**: the observation stays live until the placeholder fades (~5s), at which point it is finalized. Undo before then is a pure local **cancel** — nothing was written, so there is nothing to roll back. This *strengthens* the G1 flattery-resistance guarantee: an un-committed (undone) dismiss never writes a suppression at all.
 
 ---
 
@@ -11,46 +11,58 @@ How a user dismisses an observation and how that dismissal is made reversible. D
 - The dismiss control is the quiet `×` in the card header (`[data-testid="obs-dismiss"]`). One click dismisses — **no confirm dialog**.
 - A card is a **group**: the primary observation plus any same-span aggregated members (`obsAggregation`). Dismiss operates on the whole group as one unit, and Undo reverses them together.
 
-## Flow (happy path)
+## Flow (deferred, in place)
 
-1. **Click ×** → `GroupedObsCard.handleDismiss` calls the feed's `onDismiss(group)` (group-level, not per-id).
-2. **Optimistic exit** — the feed's `handleDismiss` adds every member id to `exitingIds`, so the card plays the R3c `cardExit` (fade + small `translateY`, 200 ms). `src/sidecar/SidecarFeed.tsx`.
-3. **After the 200 ms exit**, the feed writes each dismissal by awaiting `onDismissObservation(id)` per member, collecting `{ obsId, suppressionId }` entries.
-   - `App.handleDismissObservation` (`src/App.tsx`): writes a `DismissalSuppression` (`saveDismissalSuppression`, id = `nanoid(10)`), flips the observation to `status: "dismissed"` (`updateObservationStatus`), archives it (dev harness), refreshes, and **returns the suppression id** so the toast can reverse it. Returns `undefined` when nothing was suppressed (obs not found / doc-scope with no span key).
-4. **One toast** — `showUndoToast(entries, count)` renders `.undo-toast` (`[data-testid="undo-toast"]`), pinned to the bottom of the feed column (`position: sticky`). Terse copy: **"Dismissed"** + a quiet **"Undo"** text-button (`[data-testid="undo-action"]`). `role="status"`, `aria-live="polite"`.
+1. **Click ×** → `GroupedObsCard.handleDismiss` calls the feed's `onDismiss(group)`.
+2. **In-place placeholder** — `SidecarFeed.handleDismiss` adds the group to a local `pendingDismiss` map (keyed by span coordinates — see below), capturing its member ids. `renderGroup` then renders a `DismissedPlaceholder` (`[data-testid="undo-placeholder"]`) in that group's slot instead of the card. **No DB write happens.** The observation stays `active`.
+3. **A ~5s timer** (`PENDING_MS`) runs per group. When it fires: the placeholder is marked `fading` (plays `cardExit` via `.observation-card-exiting`), and after `FADE_MS` (200 ms) the dismissal is **finalized**: `for (const id of ids) await onDismissObservation(id)`, then the key is removed from `pendingDismiss`.
+   - `App.handleDismissObservation` (`src/App.tsx`): writes the G1 kind/severity-aware `DismissalSuppression` (`saveDismissalSuppression`), flips the observation to `status: "dismissed"` (`updateObservationStatus`), archives it (dev harness), and refreshes. After the refresh the observation leaves the active list, so the slot is gone.
 
-## Undo (the rollback)
+## Undo (a local cancel)
 
-Clicking **Undo** (`handleUndo`) calls `onRestoreDismissed(entries)` and clears the toast. `App.handleRestoreDismissed`, for every entry:
+Clicking **Undo** (`[data-testid="undo-action"]`) calls `handleUndoPending(key)`, which clears that group's timers and removes it from `pendingDismiss`. The group's observations were never touched, so it re-renders as a normal card in its original slot. **No DB call, no suppression, nothing to roll back.**
 
-1. `deleteDismissalSuppression(suppressionId)` (`src/store/db.ts`) — deletes **exactly** the suppression the dismiss wrote. This is the load-bearing G1 detail: the feed is not silently trained quieter by an accidental dismiss.
-2. `reactivateObservation(obsId, Date.now())` — restores the observation by its original id (status → `active`, `closureReason` cleared, `lastSeenAt` refreshed). Clean restore: same id, no archive churn, no feed flicker.
+**Invariant:** because the suppression is written only at finalize, a dismiss that is undone never trains the feed quieter — the G1 flattery-resistance concern is satisfied by construction. A dismiss that is *not* undone writes its suppression after ~5s; from then on `evaluatorReconcile.isSpanSuppressed` (G1 severity-aware span-vs-category logic) applies as before.
 
-Then `refreshObservations()` re-renders the feed with the group restored.
+## Keying (why span coords, not group.id)
 
-**Round-trip invariant:** dismiss → Undo leaves the suppression store exactly as it was before the dismiss (verified live: suppression count 1 → 0, observation `dismissed` → `active`). A dismiss that is **not** undone keeps its suppression, so flattery-resistance (`evaluatorReconcile.isSpanSuppressed`, G1 severity-aware span-vs-category logic) is untouched.
+`pendingDismiss` and the timers map are keyed by **span coordinates**, mirroring `obsAggregation`'s grouping key:
+
+```
+group.blockId != null
+  ? `${group.blockId}:${group.startOffset ?? ""}:${group.endOffset ?? ""}`
+  : `__doc__:${group.primary.id}`
+```
+
+`group.id` is the *primary* observation's id, which can swap if a re-eval re-ranks the group during the pending window. The span key is stable across such re-ranks, so the placeholder stays anchored to the same slot.
 
 ## Timing & lifecycle
 
-- **Auto-dismiss:** the toast fades out after **~5 s** (`toastTimers.current.hide`), then unmounts after the 200 ms exit animation (`.undo-toast--exiting`).
-- **One at a time:** a second dismiss calls `showUndoToast` again, which clears the previous timers and replaces the toast — the first dismissal stands (only its toast is superseded).
-- **Reduced motion:** the enter/exit animations collapse to ~instant via the global `@media (prefers-reduced-motion: reduce)` rule; no bespoke handling needed.
-- **Timers are cleared on unmount** (`useEffect` cleanup → `clearToastTimers`).
+- **Deferred commit:** ~5 s (`PENDING_MS`) live placeholder, then a 200 ms (`FADE_MS`) fade, then the write.
+- **Independent per card:** each dismissed group has its own map entry + timers, so a run of dismissals shows a run of in-place placeholders — no shared affordance.
+- **Reduced motion:** the enter/fade animations collapse to ~instant via the global `@media (prefers-reduced-motion: reduce)` rule.
+- **All pending timers are cleared on unmount** (`useEffect` cleanup).
+
+## Known minor edge (accepted)
+
+If a re-eval fires *within* the pending window (the user dismisses, then types and settles within ~5 s), reconciliation may auto-close/supersede the still-active observation out from under the placeholder — the placeholder then disappears without its fade, and the finalize becomes a near no-op. Low probability; harmless. Not guarded.
+
+Also: reloading the app within the pending window cancels the pending dismiss (the write never happened) — an accepted consequence of the deferred model, analogous to Gmail's "undo send."
 
 ## Scope boundaries
 
-- **Welcome card** dismissal is chrome, not an observation — no suppression, no toast (`SidecarFeed` `WelcomeCard`).
-- **SpanPeek** (collapsed-feed reverse-hover float) dismisses per-id straight through to `App.handleDismissObservation` — it does **not** raise the feed toast (the feed is folded away when the peek is in use). Long-term recovery for any dismissal still lives in the **archive**.
-- The toast never applies a fix to the user's prose — it only reverses a lifecycle+suppression write (Hard Invariant #1).
+- **Welcome card** dismissal is chrome, not an observation — no placeholder, no suppression (`SidecarFeed` `WelcomeCard`).
+- **SpanPeek** (collapsed-feed reverse-hover float) has no in-place slot, so it dismisses per-id straight through to `App.handleDismissObservation` — immediate, no placeholder. Long-term recovery for any dismissal still lives in the **archive**.
+- The placeholder never applies a fix to the user's prose — it only defers/cancels a lifecycle write (Hard Invariant #1).
 
 ## Key symbols
 
 | Symbol | File | Role |
 | --- | --- | --- |
-| `handleDismiss(group)` | `SidecarFeed.tsx` | optimistic exit + per-member dismiss + `showUndoToast` |
-| `showUndoToast` / `handleUndo` / `clearToastTimers` | `SidecarFeed.tsx` | toast lifecycle |
-| `handleDismissObservation` | `App.tsx` | writes suppression, returns its id |
-| `handleRestoreDismissed` | `App.tsx` | deletes suppression + reactivates obs |
-| `deleteDismissalSuppression` | `store/db.ts` | the rollback primitive |
-| `reactivateObservation` | `store/db.ts` | clean status restore (reused) |
-| `.undo-toast` | `styles.css` | the sticky bottom-of-feed strip |
+| `groupKey(group)` | `SidecarFeed.tsx` | stable span-coord key for the pending map |
+| `handleDismiss(group)` | `SidecarFeed.tsx` | start pending + timers (defer) |
+| `handleUndoPending(key)` | `SidecarFeed.tsx` | local cancel |
+| `renderGroup(group)` | `SidecarFeed.tsx` | placeholder-or-card per slot |
+| `DismissedPlaceholder` | `SidecarFeed.tsx` | the dashed ghost slot |
+| `handleDismissObservation` | `App.tsx` | finalize: write suppression + status |
+| `.observation-card-dismissed` | `styles.css` | the in-place ghost slot |
