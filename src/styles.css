@@ -958,9 +958,14 @@ body,
   justify-content: space-between;
   gap: 12px;
 }
-.control-process-row .paid,
-.control-process-row .working {
+.control-process-row .paid {
   color: #b06000;
+  font-weight: 500;
+}
+.control-process-row .working {
+  /* Match the calm-blue activity dot — the status text is part of the same
+     "thinking" signal, not a document problem (which is what amber connotes). */
+  color: var(--activity-working);
   font-weight: 500;
 }
 .control-process-label {
