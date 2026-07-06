@@ -26,6 +26,7 @@ import type {
   EmissionRow,
   LabelBucket,
 } from "./eval-fixtures/corpus/labeling/loadLabels";
+import { DOC_TYPES, type DocType } from "./eval-fixtures/corpus/loadCorpus";
 
 /**
  * Per-type precision floors for the Tier-2 live ratchet, keyed to **trust cost**
@@ -237,6 +238,8 @@ export interface PerDocRun {
   produced: Observation[];
   /** sectionId → raw text, for the footprint span check. */
   sectionTexts: Map<string, string>;
+  /** Stratification tag, so recall can be sliced per document type. */
+  docType?: DocType;
 }
 
 export interface BucketRecall {
@@ -325,6 +328,37 @@ export function scoreCorpusRecall(
   };
 }
 
+export interface StratifiedRecall {
+  /** Recall over the whole corpus. */
+  all: CorpusRecallResult;
+  /** Recall within each document type present (base rate is per-type docCount). */
+  byType: Partial<Record<DocType, CorpusRecallResult>>;
+}
+
+/**
+ * `scoreCorpusRecall` sliced by document type. The overall number answers "does
+ * the hero fire often enough", the per-type slices answer "does it hold off its
+ * best-case doc type, or collapse" — the reason the corpus is stratified. Each
+ * per-type base rate divides by that type's doc count, and labels are scoped to
+ * the docs of that type (by docId membership), so a spec-only contradiction can
+ * never inflate the comms base rate.
+ */
+export function stratifyRecall(
+  perDoc: PerDocRun[],
+  labels: LabelRow[],
+  opts: { verifiedOnly?: boolean } = {}
+): StratifiedRecall {
+  const byType: Partial<Record<DocType, CorpusRecallResult>> = {};
+  for (const dt of DOC_TYPES) {
+    const docs = perDoc.filter((d) => d.docType === dt);
+    if (docs.length === 0) continue;
+    const ids = new Set(docs.map((d) => d.docId));
+    const typeLabels = labels.filter((l) => ids.has(l.docId));
+    byType[dt] = scoreCorpusRecall(docs, typeLabels, opts);
+  }
+  return { all: scoreCorpusRecall(perDoc, labels, opts), byType };
+}
+
 export interface TypePrecision {
   type: Observation["type"];
   tp: number;
@@ -391,6 +425,30 @@ export function scoreWildPrecision(
       precision: totalTp + totalFp === 0 ? NaN : totalTp / (totalTp + totalFp),
     },
   };
+}
+
+export interface StratifiedWildPrecision {
+  all: WildPrecisionResult;
+  byType: Partial<Record<DocType, WildPrecisionResult>>;
+}
+
+/**
+ * `scoreWildPrecision` sliced by document type (each emission carries the type of
+ * its source doc). Reveals whether e.g. `audience_mismatch` is precise on comms
+ * but noisy on specs — the per-type floor recalibration (audit #7) should not be
+ * driven by one register masquerading as all of them.
+ */
+export function stratifyWildPrecision(
+  emissions: EmissionRow[],
+  opts: { verifiedOnly?: boolean } = {}
+): StratifiedWildPrecision {
+  const byType: Partial<Record<DocType, WildPrecisionResult>> = {};
+  for (const dt of DOC_TYPES) {
+    const rows = emissions.filter((e) => e.docType === dt);
+    if (rows.length === 0) continue;
+    byType[dt] = scoreWildPrecision(rows, opts);
+  }
+  return { all: scoreWildPrecision(emissions, opts), byType };
 }
 
 /**

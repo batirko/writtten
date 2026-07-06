@@ -30,13 +30,20 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { createFixtureRunner } from "./eval-fixtures/runFixture";
-import { buildCorpus } from "./eval-fixtures/corpus/loadCorpus";
+import {
+  buildCorpus,
+  DOC_TYPES,
+  type CorpusEntry,
+  type DocType,
+} from "./eval-fixtures/corpus/loadCorpus";
 import { parseLabels, parseEmissions } from "./eval-fixtures/corpus/labeling/loadLabels";
 import {
-  scoreCorpusRecall,
-  scoreWildPrecision,
+  stratifyRecall,
+  stratifyWildPrecision,
   diffTierRuns,
   unlabeledContradictions,
+  type CorpusRecallResult,
+  type WildPrecisionResult,
   type PerDocRun,
 } from "./evalScorer";
 import type { EvalFixture } from "./eval-fixtures/types";
@@ -72,12 +79,28 @@ const runner = createFixtureRunner();
 // ---------------------------------------------------------------------------
 // Local fs helpers (test-only; app build never compiles this file's fs use)
 // ---------------------------------------------------------------------------
-function readCorpus(): EvalFixture[] {
+/**
+ * Read the stratified corpus: one subfolder per `DocType` (`<dir>/spec/*.md`, …).
+ * Root-level `*.md` (a quick flat smoke corpus) is accepted and tagged `spec`.
+ */
+function readCorpus(): CorpusEntry[] {
   if (!fs.existsSync(CORPUS_DIR)) return [];
-  const files = fs
-    .readdirSync(CORPUS_DIR)
-    .filter((f) => f.toLowerCase().endsWith(".md") && !f.startsWith("."))
-    .map((name) => ({ name, markdown: fs.readFileSync(path.join(CORPUS_DIR, name), "utf8") }));
+  const mdIn = (dir: string) =>
+    fs.existsSync(dir)
+      ? fs
+          .readdirSync(dir)
+          .filter((f) => f.toLowerCase().endsWith(".md") && !f.startsWith("."))
+          .map((name) => ({ name, markdown: fs.readFileSync(path.join(dir, name), "utf8") }))
+      : [];
+
+  const files: { name: string; markdown: string; docType: DocType }[] = [];
+  for (const dt of DOC_TYPES) {
+    for (const f of mdIn(path.join(CORPUS_DIR, dt))) files.push({ ...f, docType: dt });
+  }
+  // Flat fallback: root-level *.md with no subfolders → treat as spec.
+  if (files.length === 0) {
+    for (const f of mdIn(CORPUS_DIR)) files.push({ ...f, docType: "spec" });
+  }
   const corpus = buildCorpus(files);
   return Number.isFinite(LIMIT) ? corpus.slice(0, LIMIT) : corpus;
 }
@@ -100,8 +123,8 @@ function csvCell(v: string): string {
 }
 
 /** One emission → a draft adjudication row (verdict left blank for the human). */
-function emissionRow(docId: string, o: Observation): string {
-  return [docId, o.type, o.anchorText ?? "", o.text.replace(/\n/g, " "), "", "false"]
+function emissionRow(docId: string, docType: DocType, o: Observation): string {
+  return [docId, docType, o.type, o.anchorText ?? "", o.text.replace(/\n/g, " "), "", "false"]
     .map(csvCell)
     .join(",");
 }
@@ -160,33 +183,35 @@ describe.skipIf(!V1)("V1 base-rate corpus study", () => {
 
     const perDocFree: PerDocRun[] = [];
     const perDocPaid: PerDocRun[] = [];
-    const emissionDraft: string[] = ["doc_id,obs_type,anchored_span,message,verdict,verified"];
+    const emissionDraft: string[] = [
+      "doc_id,doc_type,obs_type,anchored_span,message,verdict,verified",
+    ];
     const perDocRows: Record<string, unknown>[] = [];
+    const verifiedLabels = labels.filter((l) => l.verified);
 
-    for (const fixture of corpus) {
+    for (const { fixture, docType } of corpus) {
       const sectionTexts = sectionTextsOf(fixture);
       const free = await runTier(fixture, "free", freeKey ?? "", paidKey);
       const paid = await runTier(fixture, "paid", freeKey ?? "", paidKey);
 
-      const freeRun: PerDocRun = { docId: fixture.id, produced: free, sectionTexts };
-      const paidRun: PerDocRun = { docId: fixture.id, produced: paid, sectionTexts };
+      const freeRun: PerDocRun = { docId: fixture.id, produced: free, sectionTexts, docType };
+      const paidRun: PerDocRun = { docId: fixture.id, produced: paid, sectionTexts, docType };
       perDocFree.push(freeRun);
       perDocPaid.push(paidRun);
 
       // Emissions to adjudicate come from the strong (paid) tier.
-      for (const o of paid) emissionDraft.push(emissionRow(fixture.id, o));
+      for (const o of paid) emissionDraft.push(emissionRow(fixture.id, docType, o));
 
       const diff = diffTierRuns(free, paid);
-      const verifiedLabels = labels.filter((l) => l.verified);
-      const freeFalseContra = unlabeledContradictions(freeRun, verifiedLabels).length;
       perDocRows.push({
         doc: fixture.id,
+        type: docType,
         sections: fixture.sections.length,
         "free·contra": free.filter((o) => o.type === "contradiction").length,
         "paid·contra": paid.filter((o) => o.type === "contradiction").length,
         "free-only contra": diff.freeOnlyContradictions.length,
         "paid-only contra": diff.paidOnlyContradictions.length,
-        "free false-contra*": freeFalseContra,
+        "free false-contra*": unlabeledContradictions(freeRun, verifiedLabels).length,
       });
     }
 
@@ -195,48 +220,48 @@ describe.skipIf(!V1)("V1 base-rate corpus study", () => {
     fs.writeFileSync(path.join(CORPUS_DIR, "emissions.generated.csv"), emissionDraft.join("\n"));
 
     // --- Report -----------------------------------------------------------
+    const typeCounts = DOC_TYPES.map(
+      (dt) => `${dt}:${corpus.filter((c) => c.docType === dt).length}`
+    )
+      .filter((s) => !s.endsWith(":0"))
+      .join(" · ");
     console.log(`\n=== V1 base-rate corpus study (${RECORD ? "record" : "replay"} mode) ===`);
     console.log(
-      `Corpus: ${corpus.length} docs · labels: ${labels.length} (verified: ${labels.filter((l) => l.verified).length})`
+      `Corpus: ${corpus.length} docs (${typeCounts}) · labels: ${labels.length} (verified: ${verifiedLabels.length})`
     );
     console.table(perDocRows);
 
-    const recall = scoreCorpusRecall(perDocPaid, labels, { verifiedOnly: true });
+    // Hero base rate & recall — overall AND stratified by doc type (does the hero
+    // hold off its best-case type, or collapse?).
+    const recall = stratifyRecall(perDocPaid, labels, { verifiedOnly: true });
     console.log("\n--- Hero base rate & recall (paid tier, verified labels) ---");
-    console.table([
-      bucketRow("B1 strict contradiction (hero)", recall.strictContradiction),
-      bucketRow("B2 tension", recall.tension),
-    ]);
+    console.table(recallRows("ALL", recall.all));
+    for (const dt of DOC_TYPES) {
+      const r = recall.byType[dt];
+      if (r) console.table(recallRows(dt, r));
+    }
 
     const totalFreeFalse = perDocFree.reduce(
-      (n, run) =>
-        n +
-        unlabeledContradictions(
-          run,
-          labels.filter((l) => l.verified)
-        ).length,
+      (n, run) => n + unlabeledContradictions(run, verifiedLabels).length,
       0
     );
     console.log(`\n--- Free-vs-paid delta ---`);
     console.log(
       `Confident FALSE contradictions on the FREE tier (no verified B1 label): ${totalFreeFalse}` +
-        (labels.filter((l) => l.verified).length === 0
-          ? "  (⚠ no verified labels yet — not trustworthy)"
-          : "")
+        (verifiedLabels.length === 0 ? "  (⚠ no verified labels yet — not trustworthy)" : "")
     );
 
     if (emissions.length > 0) {
-      const wild = scoreWildPrecision(emissions, { verifiedOnly: true });
-      console.log("\n--- Per-type wild precision (adjudicated emissions) ---");
-      console.table(
-        wild.perType.map((t) => ({
-          type: t.type,
-          n: t.n,
-          precision: Number.isNaN(t.precision) ? "—" : (t.precision * 100).toFixed(0) + "%",
-          floor: (t.floor * 100).toFixed(0) + "%",
-          status: t.meetsFloor === null ? "— n=0" : t.meetsFloor ? "✅" : "❌ below floor",
-        }))
-      );
+      const wild = stratifyWildPrecision(emissions, { verifiedOnly: true });
+      console.log("\n--- Per-type wild precision (adjudicated emissions) — ALL doc types ---");
+      console.table(wildRows(wild.all));
+      for (const dt of DOC_TYPES) {
+        const w = wild.byType[dt];
+        if (w) {
+          console.log(`\n  · wild precision — ${dt} only ·`);
+          console.table(wildRows(w));
+        }
+      }
     } else {
       console.log(
         "\n--- Per-type wild precision ---\n(no adjudicated emissions.csv yet — adjudicate emissions.generated.csv, rename to emissions.csv)"
@@ -244,20 +269,35 @@ describe.skipIf(!V1)("V1 base-rate corpus study", () => {
     }
 
     // Sanity assertions only (never gate on the measured numbers themselves).
-    expect(recall.docCount).toBe(corpus.length);
+    expect(recall.all.docCount).toBe(corpus.length);
     expect(fs.existsSync(path.join(CORPUS_DIR, "emissions.generated.csv"))).toBe(true);
   }, 600_000);
 });
 
-function bucketRow(
-  name: string,
-  b: { totalLabels: number; matched: number; recall: number; baseRatePerDoc: number }
-) {
-  return {
+/** Both buckets of a recall result as console.table rows, labeled by slice. */
+function recallRows(slice: string, r: CorpusRecallResult) {
+  const row = (name: string, b: CorpusRecallResult["strictContradiction"]) => ({
+    slice,
     bucket: name,
+    docs: r.docCount,
     labels: b.totalLabels,
     "base rate/doc": Number.isNaN(b.baseRatePerDoc) ? "—" : b.baseRatePerDoc.toFixed(2),
     matched: b.matched,
     recall: Number.isNaN(b.recall) ? "—" : (b.recall * 100).toFixed(0) + "%",
-  };
+  });
+  return [
+    row("B1 strict contradiction (hero)", r.strictContradiction),
+    row("B2 tension", r.tension),
+  ];
+}
+
+/** Per-type wild-precision rows vs the tier floors. */
+function wildRows(w: WildPrecisionResult) {
+  return w.perType.map((t) => ({
+    type: t.type,
+    n: t.n,
+    precision: Number.isNaN(t.precision) ? "—" : (t.precision * 100).toFixed(0) + "%",
+    floor: (t.floor * 100).toFixed(0) + "%",
+    status: t.meetsFloor === null ? "— n=0" : t.meetsFloor ? "✅" : "❌ below floor",
+  }));
 }

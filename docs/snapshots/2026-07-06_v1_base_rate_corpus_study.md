@@ -14,20 +14,51 @@
 | Piece | Where |
 | --- | --- |
 | Markdown → heading-grouped sections | `src/services/eval-fixtures/corpus/splitSections.ts` |
-| Corpus fixture builder (anonymised ids) | `src/services/eval-fixtures/corpus/loadCorpus.ts` |
+| Corpus fixture builder — anonymised ids, **`docType` stratification** | `src/services/eval-fixtures/corpus/loadCorpus.ts` |
+| Reproducible sourcing script (public URLs only) | `src/services/eval-fixtures/corpus/fetch-corpus.sh` |
 | Labeling-sheet format + parser + `labelToExpected` | `src/services/eval-fixtures/corpus/labeling/` (`labels.template.csv`, `emissions.template.csv`, `loadLabels.ts`, `README.md`) |
-| Per-bucket recall / per-type wild precision / tier diff | `src/services/evalScorer.ts` (`scoreCorpusRecall`, `scoreWildPrecision`, `diffTierRuns`, `unlabeledContradictions`) |
+| Per-bucket recall / wild precision / tier diff + **per-`docType` stratification** | `src/services/evalScorer.ts` (`scoreCorpusRecall`, `scoreWildPrecision`, `diffTierRuns`, `unlabeledContradictions`, `stratifyRecall`, `stratifyWildPrecision`) |
 | Record-mode runner (spends RPD once, dumps replayable fixtures) | `src/services/eval-fixtures/runFixture.ts` (`runRecord`) |
-| `EVAL_V1`-gated corpus runner + report | `src/services/evalV1Corpus.live.test.ts` · `npm run eval:v1` |
+| `EVAL_V1`-gated corpus runner + stratified report | `src/services/evalV1Corpus.live.test.ts` · `npm run eval:v1` |
 
 Corpus + filled labeling sheets + dumped recordings live in a **local, gitignored**
-`.v1-corpus/` (local-first invariant #5; audit-#5 privacy). Only the templates and
-loader are committed.
+`.v1-corpus/` (local-first invariant #5; audit-#5 privacy). Only the templates,
+loader, and sourcing script are committed.
+
+## Corpus composition & sourcing (stratified)
+
+The persona writes "PRDs, specs, comms, and decision docs", so the corpus is
+**stratified** by `docType` and results are reported both **overall** and **per
+type** — to see whether contradiction-at-distance (the hero) holds off its
+best-case doc type or collapses. On disk: one subfolder per type
+(`.v1-corpus/<docType>/*.md`); the runner tags each doc and the report slices by it.
+
+**Sourced 2026-07-06** via `fetch-corpus.sh` (19 docs, all public + license-clear
+markdown; stored locally, referenced by anonymised id `P01`…`P19`):
+
+| `docType` | n | Source | License |
+| --- | --- | --- | --- |
+| `spec` (PRD proxy) | 10 | Rust RFCs (8), React RFCs (2) | MIT / Apache-2.0 |
+| `decision` | 4 | Cosmos SDK ADRs | Apache-2.0 |
+| `comms` | 3 | Rust blog announcements | MIT / Apache-2.0 |
+| `prd` | 2 | WICG web-platform explainers (PRD-shaped) | CC-BY / W3C |
+
+> **Validity caveat — read before quoting the base rate.** Genuine confidential
+> PRDs are almost never public, so the `spec` slice uses **open-source RFCs / design
+> docs as a proxy** and `prd` uses PRD-shaped explainers. RFCs are the closest
+> abundant public analog to specs (problem / motivation / alternatives / drawbacks),
+> and they contain real, un-planted contradictions — but the base rate measured
+> here is **"public engineering-spec base rate," not "confidential-PRD base rate."**
+> This is the honest limit of public evidence; it still beats n=0 / founder-only.
+> The `prd`+`spec` split lets you check whether the number is register-sensitive,
+> and the audit-#5 path stays open to drop in confidential PRDs (paid-key only) later.
 
 ## How to run it (the follow-up)
 
-1. Drop 15–20 public PRDs (`*.md`) into `./.v1-corpus/` (or set `V1_CORPUS_DIR`).
-   They get anonymised ids (`P01`…) by sorted filename.
+0. Assemble the corpus with `bash src/services/eval-fixtures/corpus/fetch-corpus.sh`
+   (or drop your own docs in). Layout is **one subfolder per `docType`**:
+   `.v1-corpus/{prd,spec,decision,comms}/*.md`. Docs get anonymised ids (`P01`…)
+   ordered by (docType, filename); the runner tags each doc's type from its subfolder.
 2. Hand-label `./.v1-corpus/labels.csv` **tool-blind** (copy from
    `labels.template.csv`). An AI first-pass draft is allowed but every row stays
    `verified=false` until a human confirms it — the scorer counts **verified rows
@@ -44,20 +75,25 @@ loader are committed.
 
 ## Results
 
-### 1. Hero base rate & recall
+### 1. Hero base rate & recall — overall AND per `docType`
 
-_Bucket 1 (strict contradiction) is the hero; Bucket 2 (tension) reported separately._
+_Bucket 1 (strict contradiction) is the hero; Bucket 2 (tension) reported separately.
+The per-type rows are the point of stratification: does the hero hold off `spec`, or collapse?_
 
-| Bucket | Labels | Base rate / doc | Recall (paid tier) |
-| --- | --- | --- | --- |
-| B1 — strict contradiction | TBD | TBD | TBD |
-| B2 — tension | TBD | TBD | TBD |
+| Slice | Bucket | Docs | Labels | Base rate / doc | Recall (paid) |
+| --- | --- | --- | --- | --- | --- |
+| ALL | B1 strict contradiction | TBD | TBD | TBD | TBD |
+| ALL | B2 tension | TBD | TBD | TBD | TBD |
+| spec | B1 / B2 | 10 | TBD | TBD | TBD |
+| prd | B1 / B2 | 2 | TBD | TBD | TBD |
+| decision | B1 / B2 | 4 | TBD | TBD | TBD |
+| comms | B1 / B2 | 3 | TBD | TBD | TBD |
 
-Corpus size: TBD docs · verified labels: TBD.
+### 2. Per-type precision in the wild (overall; also sliced per `docType`)
 
-### 2. Per-type precision in the wild
-
-_TP / (TP+FP) from adjudicated emissions, vs the ratchet's per-type floors._
+_TP / (TP+FP) from adjudicated emissions, vs the ratchet's per-type floors. The runner
+also prints a per-`docType` breakdown so one register (e.g. `audience_mismatch` on comms)
+doesn't masquerade as the whole floor._
 
 | Type | n | Wild precision | Ratchet floor | Meets floor? |
 | --- | --- | --- | --- | --- |
