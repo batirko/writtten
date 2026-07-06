@@ -1340,6 +1340,12 @@ body,
   padding: var(--space-sm);
   animation: fadeIn var(--dur-fast) var(--ease-out);
 }
+/* Hover glance (UX-009 span-hover): a read-only quote that fades on hover-end.
+   Non-interactive so it never eats hover events — you read it by looking, and
+   moving off the span dismisses it. */
+.contradiction-peek-hover {
+  pointer-events: none;
+}
 .contradiction-peek-head {
   display: flex;
   justify-content: space-between;
