@@ -537,7 +537,7 @@ body,
 
 .welcome-voice {
   font-family: var(--font-sans);
-  font-size: 0.9375rem;
+  font-size: var(--text-ui);
   line-height: 1.5;
   color: var(--color-ink);
   margin: var(--space-xs) 0 0;
