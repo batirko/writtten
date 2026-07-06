@@ -16,10 +16,23 @@
  */
 
 import type { Observation, ClaimLedgerEntry } from "../store/db";
+import type { MaturityLevel } from "./documentMaturity";
 
 type Severity = "low" | "medium" | "high";
 type Confidence = "low" | "medium" | "high";
 type ClaimKind = ClaimLedgerEntry["kind"];
+
+/**
+ * Document-level structural gap types — the only observations R2 modulates by
+ * maturity. Defects (contradiction, unsupported_claim) and span nits always
+ * surface unchanged. See docs/projects/maturity_aware_severity.md § Scope.
+ */
+const DOC_GAP_TYPES: ReadonlySet<Observation["type"]> = new Set([
+  "missing_topic",
+  "underexposed_topic",
+  "structure_flow",
+  "audience_mismatch",
+]);
 
 // ---------------------------------------------------------------------------
 // Lookup tables
@@ -72,6 +85,15 @@ export interface PriorityInput {
    * default to confidence "medium".
    */
   contradictionTier?: "confident" | "hedged";
+  /**
+   * Document-level gap types only (missing_topic / underexposed_topic /
+   * structure_flow / audience_mismatch): the document's maturity. `mature`
+   * escalates the gap-type's base severity one step (a forming-draft
+   * "opportunity" promotes to a mature-draft "warning"). Omit (undefined) for
+   * span/defect types and for the legacy path — no modulation. See
+   * docs/projects/maturity_aware_severity.md.
+   */
+  maturity?: MaturityLevel;
 }
 
 export interface PriorityResult {
@@ -116,8 +138,33 @@ export function computePriority(input: PriorityInput): PriorityResult {
     severity = escalateSeverity(severity);
   }
 
+  // Maturity escalation (R2) — a matured document promotes its structural gaps
+  // one severity step, raising priority so a matured warning outranks a
+  // forming-stage soft suggestion (and clears the feed's Key-issues band).
+  if (input.maturity === "mature" && DOC_GAP_TYPES.has(input.type)) {
+    severity = escalateSeverity(severity);
+  }
+
   const priority = SEVERITY_NUM[severity] * CONFIDENCE_FACTOR[confidence];
   return { severity, confidence, priority };
+}
+
+/**
+ * Maturity-aware kind for a doc-level gap type (R2). The two topic gaps read as
+ * gentle "opportunities" while forming and promote to "problems" (warnings)
+ * once mature; audience/structure gaps are always framed as problems. Undefined
+ * maturity (legacy path) keeps today's fixed kinds. Pure.
+ * See docs/projects/maturity_aware_severity.md § The promotion mechanic.
+ */
+export function docGapKind(
+  type: Observation["type"],
+  maturity?: MaturityLevel
+): Observation["kind"] {
+  if (type === "missing_topic" || type === "underexposed_topic") {
+    return maturity === "mature" ? "problem" : "opportunity";
+  }
+  // audience_mismatch / structure_flow are problems at every maturity.
+  return "problem";
 }
 
 // ---------------------------------------------------------------------------

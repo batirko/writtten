@@ -305,7 +305,8 @@ async function handleDocIdle(ctx: EvalContext, onComplete?: () => void): Promise
       ctx.onStageSuggestion,
       ctx.paidKey,
       evalId,
-      ctx.capability
+      ctx.capability,
+      ctx.maturity
     );
   } catch (err) {
     console.error("[orchestrator] evaluateDocument threw:", err);

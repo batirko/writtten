@@ -22,6 +22,7 @@ import { resolveSection, resolveSections } from "./section";
 import { saveDocument, loadDocument, type Observation } from "../store/db";
 import { scheduleEval } from "../services/orchestrator";
 import type { EvalContext } from "../services/types";
+import { documentMaturity, type MaturityLevel } from "../services/documentMaturity";
 import type { ModelCapability } from "../model/capability";
 import { harness } from "../debug/harness";
 import { nanoid } from "nanoid";
@@ -33,7 +34,10 @@ const SAVE_DEBOUNCE_MS = 1000;
 const EVAL_DEBOUNCE_MS = 3000;
 /** No edits anywhere for this long → fire doc-level checks. */
 const DOC_IDLE_MS = 12000;
-/** Minimum word count before doc-level checks are worth running. */
+/** Minimum word count before the bulk-paste contradiction sweep is worth
+ *  running. (The doc-level "fit" pass now arms off the maturity proxy instead —
+ *  see getMaturity / R2 UX-013 — so a structurally-complete short draft earns
+ *  doc-level checks even under this word bar.) */
 const CONTENT_THRESHOLD_WORDS = 150;
 
 /** Reverse hover (UX-006): how long the pointer must rest on a highlighted span
@@ -91,6 +95,18 @@ function getWordCount(editor: ReturnType<typeof useEditor>): number {
     count += node.textContent.split(/\s+/).filter(Boolean).length;
   });
   return count;
+}
+
+/** Document maturity (R2) from the live editor — one source of truth feeding
+ *  both the doc-idle arm decision (arm when not "nascent") and the severity/
+ *  voice modulation threaded to evaluateDocument. See documentMaturity.ts. */
+function getMaturity(editor: ReturnType<typeof useEditor>): MaturityLevel {
+  if (!editor) return "nascent";
+  let blockCount = 0;
+  editor.state.doc.forEach(() => {
+    blockCount += 1;
+  });
+  return documentMaturity({ wordCount: getWordCount(editor), blockCount });
 }
 
 /** Live top-level blocks with their text — fed to the dev harness so an agent
@@ -412,12 +428,14 @@ export function Editor({
       }
 
       // Reset the doc-idle timer on every edit. Fires a doc-level check after
-      // DOC_IDLE_MS of silence, but only when there's enough content.
-      const wordCount = getWordCount(editor);
+      // DOC_IDLE_MS of silence, but only once the draft is mature *enough* to
+      // earn it (R2 UX-013): arm on the maturity proxy — which admits a
+      // structurally-complete short draft — instead of the raw 150-word cliff.
+      const maturity = getMaturity(editor);
       if (docIdleTimer.current) {
         clearTimeout(docIdleTimer.current);
       }
-      if (wordCount >= CONTENT_THRESHOLD_WORDS) {
+      if (maturity !== "nascent") {
         docIdleTimer.current = setTimeout(() => {
           docIdleTimer.current = null;
           const ctx: EvalContext = {
@@ -428,6 +446,9 @@ export function Editor({
             stage: stageRef.current,
             jargonAllowlist: jargonAllowlistRef.current,
             onStageSuggestion: onStageSuggestionRef.current,
+            // Recompute at fire time so the level reflects the settled doc, not
+            // the keystroke that armed the timer.
+            maturity: getMaturity(editor),
           };
           scheduleEval({ kind: "doc-idle" }, null, ctx, () => onEvaluationCompleteRef.current());
         }, DOC_IDLE_MS);
@@ -906,10 +927,16 @@ export function Editor({
         (sum, b) => sum + b.text.split(/\s+/).filter(Boolean).length,
         0
       );
+      // Arm on the same maturity proxy as the onUpdate path (R2 UX-013), so a
+      // seeded structurally-complete short draft earns the doc-level pass.
+      const seededMaturity = documentMaturity({
+        wordCount: seededWordCount,
+        blockCount: blocks.length,
+      });
       console.log(
-        `[TIMER-DEBUG] docWriter setContent done. seededWordCount=${seededWordCount}, threshold=${CONTENT_THRESHOLD_WORDS}`
+        `[TIMER-DEBUG] docWriter setContent done. seededWordCount=${seededWordCount}, maturity=${seededMaturity}`
       );
-      if (seededWordCount >= CONTENT_THRESHOLD_WORDS) {
+      if (seededMaturity !== "nascent") {
         setTimeout(() => {
           console.log(
             `[TIMER-DEBUG] docWriter setTimeout 0ms callback running. timerExists=${!!docIdleTimer.current}`
@@ -922,7 +949,12 @@ export function Editor({
               `[TIMER-DEBUG] docWriter timer FIRED. currentWordCount=${getWordCount(editor)}`
             );
             docIdleTimer.current = null;
-            scheduleEval({ kind: "doc-idle" }, null, ctx, () => onEvaluationCompleteRef.current());
+            scheduleEval(
+              { kind: "doc-idle" },
+              null,
+              { ...ctx, maturity: getMaturity(editor) },
+              () => onEvaluationCompleteRef.current()
+            );
           }, DOC_IDLE_MS);
           console.log(`[TIMER-DEBUG] docWriter set timer id=${docIdleTimer.current}`);
         }, 0);
