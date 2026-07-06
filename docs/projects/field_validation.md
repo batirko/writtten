@@ -42,6 +42,8 @@ If the hero fires rarely and the daily experience is the noisy supporting cast (
 
 ### V1 — Base-rate corpus study — 🟢 Med · 🧠 (audit #2, #7) — protocol settled 2026-06-18
 
+> **Machinery landed 2026-07-06** (runner + scorers + labeling-sheet artifact — the run itself is the remaining work, tracked by the unticked boxes below). The headless corpus runner is `npm run eval:v1` (`src/services/evalV1Corpus.live.test.ts`, `EVAL_V1`-gated); the two-bucket recall / per-type wild-precision / free-vs-paid scorers are `scoreCorpusRecall` / `scoreWildPrecision` / `diffTierRuns` / `unlabeledContradictions` in `src/services/evalScorer.ts`; markdown→sections + fixture builder are in `src/services/eval-fixtures/corpus/`; the labeling-sheet format + parser + the "how to run it" walkthrough are in `src/services/eval-fixtures/corpus/labeling/` (see its `README.md`) and mirrored in `docs/snapshots/2026-07-06_v1_base_rate_corpus_study.md` (the durable home for the numbers). Corpus + filled labels + dumped recordings stay in a local, gitignored `.v1-corpus/` (invariant #5). Record once with `V1_RECORD=1`, then re-score offline for free.
+
 **Run procedure (build-ready):**
 
 - [ ] **Assemble the corpus — 15–20 real PRDs.** Sources: the founder's own; colleagues' with permission; public post-mortems / spec write-ups. **Privacy:** others' confidential docs run **only** under a paid key or local model — never the free tier (which may train on them; audit #5). Store the corpus outside the repo; reference docs by anonymised id in the snapshot.

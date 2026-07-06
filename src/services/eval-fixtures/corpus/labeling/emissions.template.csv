@@ -1,0 +1,8 @@
+doc_id,obs_type,anchored_span,message,verdict,verified
+# TEMPLATE — auto-generated per run by the V1 runner, then adjudicated by hand. Never commit the filled sheet.
+# obs_type: contradiction | strategic_tension | clarity | undefined_jargon | unsupported_claim | audience_mismatch | missing_topic | underexposed_topic | structure_flow
+# anchored_span: the span the emission anchored to (or the message, for doc-scoped obs)
+# verdict: tp = true positive (a real issue) | fp = false positive (spurious) — LEAVE BLANK until adjudicated
+# verified: false = AI first-pass draft | true = human-confirmed. Rows with a blank/unknown verdict are skipped by the scorer.
+# P01,contradiction,"ships in Q2","This ship date conflicts with the Q3 launch stated in §5",tp,false
+# P01,clarity,"make it fast","'fast' is unquantified — no target latency or throughput given",fp,false

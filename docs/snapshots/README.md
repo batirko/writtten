@@ -9,6 +9,7 @@ Naming: `YYYY-MM-DD_slug.md`. Newest first.
 
 | Date       | Snapshot                                                                             | Hook                                                                                                                              |
 | ---------- | ------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------- |
+| 2026-07-06 | [V1 — Base-rate corpus study](2026-07-06_v1_base_rate_corpus_study.md)               | Machinery + labeling-sheet artifact for the hero base-rate study; runner/scorers landed, numbers pending the keyed run.           |
 | 2026-06-13 | [Competitor — Proof (proofeditor.ai)](2026-06-13_competitor_proof_editor.md)         | Hands-on study of Every Inc.'s agent-first editor; overlaps the PM persona — provenance rail, track-changes, agent experience.    |
 | 2026-06-10 | [Code & Architecture Audit](2026-06-10_code_architecture_audit.md)                   | Implementation audit of `src/` — good seams, but rotten build/lint gates and three silent observation-lifecycle failure paths.    |
 | 2026-06-10 | [Due-Diligence Audit](2026-06-10_due_diligence_audit.md)                             | Five-lens external-style audit; headline risk is the central bet unfalsified at n=0 with no phase scheduling falsification.       |
