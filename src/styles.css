@@ -509,6 +509,76 @@ body,
   display: block;
 }
 
+/* First-run welcome moment (onboarding_first_run.md). A calm brand variant of
+   the observation card — accent-tint wash, no semantic border/tag/impact dot —
+   so it reads as the product introducing itself, not a flag. */
+.welcome-card {
+  background: var(--color-accent-tint);
+  border: 0.5px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-sm) var(--space-md) calc(var(--space-sm) + 2px);
+  margin-bottom: var(--space-sm);
+  box-shadow: var(--elev-rest);
+}
+
+.welcome-card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.welcome-eyebrow {
+  font-size: var(--text-label);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-accent);
+}
+
+.welcome-voice {
+  font-family: var(--font-serif);
+  font-size: 0.9375rem;
+  line-height: 1.5;
+  color: var(--color-ink);
+  margin: var(--space-xs) 0 0;
+}
+
+.welcome-rhythm {
+  font-size: var(--text-ui-sm);
+  line-height: 1.45;
+  color: var(--color-ink-2);
+  margin: 7px 0 0;
+}
+
+/* Quiet "See it in action →" text link — shared by the welcome card and the
+   empty feed. A plain accent link, never a button-looking CTA. */
+.see-example-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 11px;
+  padding: 0;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--text-ui-sm);
+  font-weight: 500;
+  color: var(--color-accent);
+  transition: color var(--dur-fast) var(--ease-out);
+}
+
+.see-example-link:hover {
+  color: var(--color-accent-strong);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+/* In the empty feed the link sits under centered copy — keep it centered. */
+.sidecar-empty .see-example-link {
+  margin-top: var(--space-md);
+}
+
 .observations-list {
   display: flex;
   flex-direction: column;

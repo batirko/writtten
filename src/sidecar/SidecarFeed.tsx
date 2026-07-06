@@ -26,6 +26,60 @@ function DismissIcon() {
 }
 
 // ---------------------------------------------------------------------------
+// SeeExampleLink — the quiet "See it in action →" affordance. Shared by the
+// welcome card and the empty feed. Loading the example replaces the document,
+// so it's only offered on a blank doc (guarded by the caller) — never clobbers
+// the user's own text. Not a fix affordance: it plants pre-written text the
+// live pipeline reacts to (Hard Invariant #1).
+// ---------------------------------------------------------------------------
+
+function SeeExampleLink({ onLoadExample }: { onLoadExample: () => void }) {
+  return (
+    <button type="button" className="see-example-link" data-testid="see-example" onClick={onLoadExample}>
+      See it in action <span aria-hidden="true">→</span>
+    </button>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// WelcomeCard — the one-time first-run moment. A calm brand-tinted card that
+// frames the inversion, then gets out of the way. Deliberately NOT an
+// observation: no severity border, type tag, or impact dot. Dismissing is
+// chrome (no suppression, no undo). See docs/projects/onboarding_first_run.md.
+// ---------------------------------------------------------------------------
+
+interface WelcomeCardProps {
+  showExample: boolean;
+  onDismiss: () => void;
+  onLoadExample: () => void;
+}
+
+function WelcomeCard({ showExample, onDismiss, onLoadExample }: WelcomeCardProps) {
+  return (
+    <div className="welcome-card" data-testid="welcome-card" role="note">
+      <div className="welcome-card-head">
+        <span className="welcome-eyebrow">Welcome</span>
+        <button
+          className="dismiss-btn"
+          data-testid="welcome-dismiss"
+          onClick={onDismiss}
+          title="Dismiss"
+          aria-label="Dismiss welcome"
+        >
+          <DismissIcon />
+        </button>
+      </div>
+      <p className="welcome-voice">
+        This page is yours. I sit alongside and notice what&rsquo;s worth a second look &mdash; I&rsquo;ll
+        never write for you.
+      </p>
+      <p className="welcome-rhythm">Quiet while you draft. Sharper as you revise.</p>
+      {showExample && <SeeExampleLink onLoadExample={onLoadExample} />}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // GroupedObsCard — renders a single group (one or more observations on the
 // same span). Severity is carried by the type tag (feed_surface.md § Card
 // execution), driven by the card's data-kind / data-severity / data-obs-type.
@@ -176,6 +230,13 @@ interface Props {
   spanFocusObsId?: string | null;
   onHoverObservation: (id: string | null) => void;
   onDismissObservation: (id: string) => void;
+  /** First-run welcome moment: show the one-time welcome card until dismissed. */
+  showWelcome?: boolean;
+  /** Whether the editor is empty — gates the "See it in action" example so it
+   *  never replaces the user's own text. */
+  documentIsEmpty?: boolean;
+  onDismissWelcome?: () => void;
+  onLoadExample?: () => void;
 }
 
 export function SidecarFeed({
@@ -186,6 +247,10 @@ export function SidecarFeed({
   spanFocusObsId = null,
   onHoverObservation,
   onDismissObservation,
+  showWelcome = false,
+  documentIsEmpty = false,
+  onDismissWelcome,
+  onLoadExample,
 }: Props) {
   const [showArchive, setShowArchive] = useState(false);
   const [showAlsoNoticed, setShowAlsoNoticed] = useState(false);
@@ -247,13 +312,27 @@ export function SidecarFeed({
     <aside className="sidecar-panel" aria-label="Observations">
       <div className="feed-container">
         <div style={{ flex: 1 }}>
+          {showWelcome && onDismissWelcome && onLoadExample && (
+            <WelcomeCard
+              showExample={documentIsEmpty}
+              onDismiss={onDismissWelcome}
+              onLoadExample={onLoadExample}
+            />
+          )}
           {observations.length === 0 ? (
-            <div className="sidecar-empty">
-              <p>Quiet while you draft — I'll speak up as you revise.</p>
-              <span className="empty-subtext">
-                Observations appear here as the document matures.
-              </span>
-            </div>
+            // While the welcome card is up on a blank doc, it already carries the
+            // framing + example link — don't stack the quiet empty state under it.
+            showWelcome ? null : (
+              <div className="sidecar-empty">
+                <p>Quiet while you draft — I'll speak up as you revise.</p>
+                <span className="empty-subtext">
+                  Observations appear here as the document matures.
+                </span>
+                {documentIsEmpty && onLoadExample && (
+                  <SeeExampleLink onLoadExample={onLoadExample} />
+                )}
+              </div>
+            )
           ) : (
             <div className="observations-list" role="list">
               {arrivalBatchCount >= 3 && (

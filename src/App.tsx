@@ -15,6 +15,7 @@ import {
 } from "./store/db";
 import { scheduleEval } from "./services/orchestrator";
 import { conflictPairKey } from "./services/evaluator";
+import { EXAMPLE_DOC_HTML, EXAMPLE_STAGE } from "./services/exampleDoc";
 import { clearSnapshotsForDocument } from "./services/evalSnapshot";
 import type { EvalContext } from "./services/types";
 import { capabilityForTier, type ModelTier } from "./model/capability";
@@ -88,6 +89,16 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem("writtten_feed_collapsed", feedCollapsed ? "1" : "0");
   }, [feedCollapsed]);
+
+  // First-run welcome moment: shown once at the top of the feed until dismissed.
+  // Chrome, not an observation — persisted like the other UI flags (localStorage,
+  // no DB schema). Clearing the workspace does NOT re-show it (reset is separate).
+  const [hasSeenWelcome, setHasSeenWelcome] = useState<boolean>(
+    () => localStorage.getItem("writtten_has_seen_welcome") === "1"
+  );
+  useEffect(() => {
+    localStorage.setItem("writtten_has_seen_welcome", hasSeenWelcome ? "1" : "0");
+  }, [hasSeenWelcome]);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === "\\") {
@@ -243,6 +254,26 @@ export default function App() {
     setJargonAllowlist("");
     llmLogger.clearLogs();
     setImportContent({ content: text, timestamp: Date.now() });
+  };
+
+  // First-run welcome: dismissing is chrome — set the persisted flag, no
+  // suppression write and no Undo toast (it isn't an observation).
+  const handleDismissWelcome = () => setHasSeenWelcome(true);
+
+  // "See it in action": load the pre-written example PRD so the live pipeline
+  // catches its planted contradiction. Reuses the import path (installs the doc
+  // + schedules the contradiction sweep). Only offered on a blank doc, so it
+  // never clobbers the user's own text.
+  const handleLoadExample = async () => {
+    await clearDocumentData(DOC_ID);
+    clearSnapshotsForDocument(DOC_ID);
+    setObservations([]);
+    setArchivedObservations([]);
+    setStageSuggestion(null);
+    setStage(EXAMPLE_STAGE);
+    setJargonAllowlist("");
+    llmLogger.clearLogs();
+    setImportContent({ content: EXAMPLE_DOC_HTML, timestamp: Date.now() });
   };
 
   const handleDismissObservation = async (id: string, closureReason?: string) => {
@@ -411,6 +442,13 @@ export default function App() {
           spanFocusObsId={feedCollapsed ? null : spanFocusObsId}
           onHoverObservation={setHoveredObservationId}
           onDismissObservation={handleDismissObservation}
+          showWelcome={!hasSeenWelcome}
+          // A blank editor still holds one empty paragraph block, so "brand-new,
+          // nothing to clobber" is <= 1 block (not === 0). This gates the
+          // "See it in action" example off the user's own multi-block text.
+          documentIsEmpty={blockOrder.length <= 1}
+          onDismissWelcome={handleDismissWelcome}
+          onLoadExample={handleLoadExample}
         />
       </div>
       {/* Reverse hover floats the hovered span's card(s) at the top of the gutter
