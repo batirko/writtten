@@ -1,7 +1,8 @@
 import { createRouter } from "../model/factory";
 import { getLlmMode } from "../model/mock";
 import { prefilterClaims } from "./prefilter";
-import { computePriority } from "./priority";
+import { computePriority, docGapKind } from "./priority";
+import type { MaturityLevel } from "./documentMaturity";
 import { JARGON_PRESET } from "./jargonPreset";
 import {
   classifyDocumentClass,
@@ -664,7 +665,8 @@ export async function evaluateDocument(
   onStageSuggestion?: (suggestion: string) => void,
   paidKey?: string,
   evalId?: string,
-  capability: ModelCapability = WEAK_CAPABILITY
+  capability: ModelCapability = WEAK_CAPABILITY,
+  maturity?: MaturityLevel
 ): Promise<void> {
   if (!apiKey && getLlmMode() !== "mock") {
     console.warn("Evaluator: No API key provided, skipping doc-level check.");
@@ -709,6 +711,21 @@ export async function evaluateDocument(
   // (missing_topic / structure_flow). Empty (hash-stable) for prd_spec / unknown.
   const docCalib = docCalibrationBlock(classifyDocumentClass(stage));
   if (docCalib) parts.push(docCalib);
+  // Maturity voice switch (R2): frame structural gaps by how far along the
+  // draft is — gentle, optional opportunities while forming; firm, located
+  // warnings once mature. Register discipline still binds both (locate, don't
+  // prescribe; no leading questions). Injected in user content (not the system
+  // prompt) and only when maturity is provided, so the legacy path stays
+  // hash-stable. Copy is provisional — owned long-term by emotional_register.md.
+  if (maturity === "forming") {
+    parts.push(
+      "\n\nDraft maturity: FORMING (early). For the structural observations (missing_topic, underexposed_topic, structure_flow, audience_mismatch), frame each as a gentle, optional opportunity the author might consider later — never as a problem, never as a leading question. Locate the gap plainly; do not prescribe a fix. Defects and clarity issues are unaffected."
+    );
+  } else if (maturity === "mature") {
+    parts.push(
+      "\n\nDraft maturity: MATURE (substantially developed). For the structural observations (missing_topic, underexposed_topic, structure_flow, audience_mismatch), be firm and direct — a near-final draft warrants located warnings, not soft suggestions. Still locate, don't prescribe; no leading questions."
+    );
+  }
   parts.push(
     `\nBlock Summaries:\n${meaningful.map((s, i) => `[${i + 1}] ${s.summary}`).join("\n")}`
   );
@@ -775,12 +792,12 @@ export async function evaluateDocument(
     const persistIds = new Set<string>();
     const newObs: NewObservation[] = [];
 
-    const addDocObs = (
-      type: Observation["type"],
-      kind: Observation["kind"],
-      items: DocObsItem[] | undefined
-    ) => {
-      const { severity, confidence, priority } = computePriority({ type });
+    const addDocObs = (type: Observation["type"], items: DocObsItem[] | undefined) => {
+      // R2: kind + severity are a function of document maturity for the gap
+      // types. Undefined maturity (legacy path) reproduces today's fixed kinds
+      // and un-escalated severities. See docs/projects/maturity_aware_severity.md.
+      const kind = docGapKind(type, maturity);
+      const { severity, confidence, priority } = computePriority({ type, maturity });
       for (const item of items ?? []) {
         if (!item.text?.trim()) continue;
         if (item.priorId != null) {
@@ -803,16 +820,20 @@ export async function evaluateDocument(
       }
     };
 
-    addDocObs("missing_topic", "opportunity", parsed.missing_topic_observations);
-    addDocObs("underexposed_topic", "opportunity", parsed.underexposed_topic_observations);
-    addDocObs("audience_mismatch", "problem", parsed.audience_mismatch_observations);
-    addDocObs("structure_flow", "problem", parsed.structure_flow_observations);
+    addDocObs("missing_topic", parsed.missing_topic_observations);
+    addDocObs("underexposed_topic", parsed.underexposed_topic_observations);
+    addDocObs("audience_mismatch", parsed.audience_mismatch_observations);
+    addDocObs("structure_flow", parsed.structure_flow_observations);
 
     if (import.meta.env.DEV) {
       llmLogger.recordProduced(res.callId, { observations: newObs.map((o) => o.type) });
     }
 
-    await reconcileDocumentObservations(docId, newObs, evalId, { resolvedPriorIds, persistIds });
+    await reconcileDocumentObservations(docId, newObs, evalId, {
+      resolvedPriorIds,
+      persistIds,
+      maturity,
+    });
     // Remember the inputs we just reviewed so an unchanged doc skips next time.
     await saveDocEvalState(docId, docStateHash);
 

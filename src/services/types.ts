@@ -1,4 +1,5 @@
 import type { ModelCapability } from "../model/capability";
+import type { MaturityLevel } from "./documentMaturity";
 
 /** A top-level block within a section, carried on settle triggers so the
  *  evaluator can re-anchor span observations to the exact member block. */
@@ -77,4 +78,10 @@ export interface EvalContext {
    *  (the `block-paste` trigger) covers contradiction instead. See
    *  docs/projects/bulk_paste_evaluation.md. */
   skipContradiction?: boolean;
+  /** Document maturity at dispatch time (R2). Computed once in the editor
+   *  (where word + block counts live) and threaded to the doc-level pass so the
+   *  arm decision and the severity/voice decision never diverge. Only the
+   *  `doc-idle` path reads it; `undefined` = legacy no-modulation. See
+   *  docs/projects/maturity_aware_severity.md. */
+  maturity?: MaturityLevel;
 }

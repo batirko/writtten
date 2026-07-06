@@ -9,7 +9,7 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { computePriority, type PriorityInput } from "./priority";
+import { computePriority, docGapKind, type PriorityInput } from "./priority";
 
 describe("computePriority — type-prior table (no structural context)", () => {
   it("contradiction: medium severity, low confidence (no tier → hedged), priority 1.0", () => {
@@ -176,6 +176,83 @@ describe("computePriority — structural escalation", () => {
   it("overlapsCommitment has no effect on non-unsupported types", () => {
     const r = computePriority({ type: "clarity", overlapsCommitment: true });
     expect(r.severity).toBe("low"); // no escalation
+  });
+});
+
+describe("computePriority — maturity escalation (R2)", () => {
+  it("missing_topic forming vs mature: medium→high severity, 1.5→2.25 priority", () => {
+    const forming = computePriority({ type: "missing_topic", maturity: "forming" });
+    expect(forming.severity).toBe("medium");
+    expect(forming.priority).toBe(1.5);
+    const mature = computePriority({ type: "missing_topic", maturity: "mature" });
+    expect(mature.severity).toBe("high");
+    expect(mature.priority).toBe(3 * 0.75); // 2.25 — outranks the forming version
+  });
+
+  it("structure_flow forming stays in the low band; mature crosses into Key issues", () => {
+    const forming = computePriority({ type: "structure_flow", maturity: "forming" });
+    expect(forming.severity).toBe("low");
+    expect(forming.priority).toBe(0.75); // below KEY_BAND_MIN_PRIORITY (1.0)
+    const mature = computePriority({ type: "structure_flow", maturity: "mature" });
+    expect(mature.severity).toBe("medium");
+    expect(mature.priority).toBe(1.5); // ≥ 1.0 → Key issues band
+  });
+
+  it("all four gap types escalate one step when mature", () => {
+    for (const type of [
+      "missing_topic",
+      "underexposed_topic",
+      "structure_flow",
+      "audience_mismatch",
+    ] as const) {
+      const base = computePriority({ type });
+      const mature = computePriority({ type, maturity: "mature" });
+      expect(mature.priority).toBeGreaterThan(base.priority);
+    }
+  });
+
+  it("forming maturity leaves severity at base (no escalation)", () => {
+    const base = computePriority({ type: "audience_mismatch" });
+    const forming = computePriority({ type: "audience_mismatch", maturity: "forming" });
+    expect(forming.severity).toBe(base.severity);
+    expect(forming.priority).toBe(base.priority);
+  });
+
+  it("undefined maturity is the legacy no-op path (identical to no maturity)", () => {
+    const legacy = computePriority({ type: "missing_topic" });
+    const explicit = computePriority({ type: "missing_topic", maturity: undefined });
+    expect(explicit).toEqual(legacy);
+  });
+
+  it("maturity never escalates defect or span types (nascent/forming/mature alike)", () => {
+    for (const type of ["contradiction", "unsupported_claim", "clarity", "undefined_jargon"] as const) {
+      const base = computePriority({ type });
+      const mature = computePriority({ type, maturity: "mature" });
+      expect(mature.severity).toBe(base.severity);
+    }
+  });
+});
+
+describe("docGapKind — maturity-aware kind (R2)", () => {
+  it("topic gaps are opportunities while forming, problems when mature", () => {
+    expect(docGapKind("missing_topic", "forming")).toBe("opportunity");
+    expect(docGapKind("missing_topic", "mature")).toBe("problem");
+    expect(docGapKind("underexposed_topic", "forming")).toBe("opportunity");
+    expect(docGapKind("underexposed_topic", "mature")).toBe("problem");
+  });
+
+  it("audience/structure gaps are problems at every maturity", () => {
+    expect(docGapKind("audience_mismatch", "forming")).toBe("problem");
+    expect(docGapKind("audience_mismatch", "mature")).toBe("problem");
+    expect(docGapKind("structure_flow", "forming")).toBe("problem");
+    expect(docGapKind("structure_flow", "mature")).toBe("problem");
+  });
+
+  it("undefined maturity preserves today's fixed kinds (legacy path)", () => {
+    expect(docGapKind("missing_topic")).toBe("opportunity");
+    expect(docGapKind("underexposed_topic")).toBe("opportunity");
+    expect(docGapKind("audience_mismatch")).toBe("problem");
+    expect(docGapKind("structure_flow")).toBe("problem");
   });
 });
 

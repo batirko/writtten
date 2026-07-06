@@ -799,6 +799,92 @@ describe("evaluator - reconcileDocumentObservations (Tier 2 opts — A3)", () =>
   });
 });
 
+describe("evaluator - reconcileDocumentObservations (R2 in-place maturity promotion)", () => {
+  const docId = "doc1";
+
+  // A forming-stage topic gap: kind=opportunity, severity=medium (base).
+  function formingGap(id: string, missCount = 0): Observation {
+    return {
+      id,
+      docId,
+      type: "missing_topic",
+      scope: "document",
+      kind: "opportunity",
+      severity: "medium",
+      confidence: "medium",
+      priority: 1.5,
+      text: "No rollout plan.",
+      status: "active",
+      missCount,
+    };
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(db.loadSuppressionsForDocument).mockResolvedValue([]);
+  });
+
+  it("promotes a persisting gap in place when the doc has matured (paid persist path)", async () => {
+    vi.mocked(db.loadActiveObservationsForDocument).mockResolvedValue([formingGap("p0", 1)]);
+
+    await reconcileDocumentObservations(docId, [], undefined, {
+      persistIds: new Set(["p0"]),
+      maturity: "mature",
+    });
+
+    // Same id, wording + anchor frozen — but kind/severity/priority restamped.
+    expect(db.updateObservationStatus).not.toHaveBeenCalled();
+    expect(db.saveObservation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: "p0",
+        text: "No rollout plan.",
+        kind: "problem",
+        severity: "high",
+        priority: 2.25,
+        missCount: 0,
+      })
+    );
+    // No fresh insert — this is an update, not a supersede+regenerate (UX-012).
+    const inserts = vi.mocked(db.saveObservation).mock.calls.filter(([o]) => o.id === "mock-id");
+    expect(inserts).toHaveLength(0);
+  });
+
+  it("promotes in place via the lexical dedupe path too (free tier, no priorId)", async () => {
+    vi.mocked(db.loadActiveObservationsForDocument).mockResolvedValue([formingGap("e1", 0)]);
+
+    await reconcileDocumentObservations(
+      docId,
+      [
+        {
+          type: "missing_topic",
+          scope: "document",
+          kind: "problem",
+          severity: "high",
+          confidence: "medium",
+          priority: 2.25,
+          text: "No rollout plan.",
+        },
+      ],
+      undefined,
+      { maturity: "mature" }
+    );
+
+    expect(db.saveObservation).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "e1", kind: "problem", severity: "high", priority: 2.25 })
+    );
+  });
+
+  it("leaves fields frozen when maturity is undefined (legacy path unchanged)", async () => {
+    vi.mocked(db.loadActiveObservationsForDocument).mockResolvedValue([formingGap("p0", 1)]);
+
+    await reconcileDocumentObservations(docId, [], undefined, { persistIds: new Set(["p0"]) });
+
+    expect(db.saveObservation).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "p0", kind: "opportunity", severity: "medium", priority: 1.5 })
+    );
+  });
+});
+
 describe("evaluator - evaluateDocument (Tier 2 A1/A2 routing)", () => {
   const docId = "doc2";
 

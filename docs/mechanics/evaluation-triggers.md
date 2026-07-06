@@ -88,13 +88,13 @@ Cross-document checks (missing-topic, stage fit) and contradiction adjudication 
 
 Source: `onUpdate` in `src/editor/Editor.tsx`
 
-Reset on **every** edit. Fires after **12 s** (`DOC_IDLE_MS`) of silence, **only if** word count ≥ **150** (`CONTENT_THRESHOLD_WORDS`).
+Reset on **every** edit. Fires after **12 s** (`DOC_IDLE_MS`) of silence, **only if** the document is mature enough to earn the pass — `getMaturity(editor) !== "nascent"` (R2 UX-013). The maturity proxy (`src/services/documentMaturity.ts`, pure) reads word + top-level-block counts and admits a *structurally-complete short draft* (≥ 4 blocks and ≥ 80 words) that the old raw 150-word cliff would have silenced, while a genuinely half-formed draft stays `nascent` and quiet. The level (`forming` | `mature`) is carried on `EvalContext.maturity` into `evaluateDocument`, where it drives the structural-gap kind/severity/voice (see `docs/projects/maturity_aware_severity.md`). (`CONTENT_THRESHOLD_WORDS` = 150 now gates only the bulk-paste contradiction sweep, §"Bulk paste & import".)
 
 ### 2. Doc-idle armed after `loadDoc`
 
 Source: `src/editor/Editor.tsx` harness doc-writer
 
-Because `setContent` doesn't reliably fire `onUpdate`, when a seeded doc crosses 150 words the 12 s timer is armed explicitly via a 0 ms timeout (to let any pending `clearContent` effects flush first).
+Because `setContent` doesn't reliably fire `onUpdate`, when a seeded doc is mature enough (same maturity proxy as §1, computed from the seeded blocks) the 12 s timer is armed explicitly via a 0 ms timeout (to let any pending `clearContent` effects flush first), with `maturity` re-read from the live editor at fire time.
 
 ### 3. Stage-changed (`stage-changed`)
 

@@ -23,6 +23,8 @@ import {
 } from "../store/db";
 import { planDocReconciliation } from "./docReconcile";
 import { type ModelCapability } from "../model/capability";
+import { computePriority, docGapKind } from "./priority";
+import { type MaturityLevel } from "./documentMaturity";
 import {
   normalizeText,
   spanSig,
@@ -306,7 +308,7 @@ export async function reconcileDocumentObservations(
   docId: string,
   newObs: NewObservation[],
   evalId?: string,
-  opts?: { resolvedPriorIds?: Set<string>; persistIds?: Set<string> }
+  opts?: { resolvedPriorIds?: Set<string>; persistIds?: Set<string>; maturity?: MaturityLevel }
 ): Promise<void> {
   const [allActive, suppressions] = await Promise.all([
     loadActiveObservationsForDocument(docId),
@@ -320,8 +322,25 @@ export async function reconcileDocumentObservations(
     (o) => !suppressions.some((s) => s.type === o.type && !s.spanSignature)
   );
 
-  const { resolvedPriorIds = new Set<string>(), persistIds = new Set<string>() } = opts ?? {};
+  const {
+    resolvedPriorIds = new Set<string>(),
+    persistIds = new Set<string>(),
+    maturity,
+  } = opts ?? {};
   const now = Date.now();
+
+  // R2 in-place promotion: a kept doc-scope gap is the *same* finding, but its
+  // seriousness tracks the document's maturity. When maturity is provided,
+  // re-derive kind/severity/priority so a persisting gap promotes
+  // (opportunity → warning) in place — same id, frozen wording (D5), same
+  // anchor — instead of churning through a supersede (the UX-012 anti-pattern).
+  // Undefined maturity (legacy path) freezes every field as before.
+  const restamp = (e: Observation): Observation => {
+    if (maturity === undefined) return e;
+    const kind = docGapKind(e.type, maturity);
+    const { severity, priority } = computePriority({ type: e.type, maturity });
+    return { ...e, kind, severity, priority };
+  };
 
   // Pass 0-pre (paid tier): model-confirmed resolutions → force-close now.
   // Mirrors section-eval's resolved_prior handling at line ~853.
@@ -341,7 +360,7 @@ export async function reconcileDocumentObservations(
   for (const e of existing) {
     if (modelResolved.has(e.id)) continue;
     if (persistIds.has(e.id)) {
-      await saveObservation({ ...e, missCount: 0, lastSeenAt: now });
+      await saveObservation({ ...restamp(e), missCount: 0, lastSeenAt: now });
       modelPersisted.add(e.id);
     }
   }
@@ -358,7 +377,7 @@ export async function reconcileDocumentObservations(
   // frozen (D5 default): we keep the existing text, not the rephrase.
   for (const { existingId } of plan.dedupes) {
     const ex = remainingExisting.find((e) => e.id === existingId);
-    if (ex) await saveObservation({ ...ex, missCount: 0, lastSeenAt: now });
+    if (ex) await saveObservation({ ...restamp(ex), missCount: 0, lastSeenAt: now });
   }
 
   // Genuinely new → insert active.
