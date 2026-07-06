@@ -124,6 +124,7 @@ export function ControlCenter({
   const [showSettings, setShowSettings] = useState(false);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [debugMode, setDebugMode] = useState(false);
+  const [debugExpanded, setDebugExpanded] = useState(false);
   const [expandedLogId, setExpandedLogId] = useState<string | null>(null);
   const [copySuccess, setCopySuccess] = useState(false);
   const [stalled, setStalled] = useState(false);
@@ -276,107 +277,6 @@ export function ControlCenter({
         </div>
       )}
 
-      {import.meta.env.DEV && debugMode && (
-        <div className="debug-panel debug-panel-floating">
-          <div className="debug-panel-head">
-            <h4 style={{ margin: 0 }}>LLM Debug Logs</h4>
-            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-              {copySuccess && <span style={{ color: "#4caf50", fontSize: "0.7rem" }}>Copied!</span>}
-              <button onClick={handleCopyLogs} style={{ fontSize: "0.7rem", padding: "2px 8px" }}>
-                Copy All
-              </button>
-            </div>
-          </div>
-          {sessionStats && sessionStats.totalCalls > 0 && (
-            <div data-testid="session-stats" className="debug-session-stats">
-              Session: {sessionStats.fastCalls}f + {sessionStats.strongCalls}s calls
-              {sessionStats.avgLatencyMs > 0 && ` · avg ${sessionStats.avgLatencyMs}ms`}
-            </div>
-          )}
-          {logs.length === 0 ? (
-            <div style={{ color: "#888" }}>No logs yet.</div>
-          ) : (
-            <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-              {logs.map((log) => {
-                if (log.type === "trigger") {
-                  return (
-                    <div
-                      key={log.id}
-                      data-testid="debug-entry"
-                      data-log-type="trigger"
-                      className="debug-entry debug-entry-trigger"
-                    >
-                      <span>
-                        ▶ trigger={log.triggerKind} block={log.blockId?.slice(0, 8)}
-                      </span>
-                      <span style={{ opacity: 0.7 }}>{log.timestamp.toLocaleTimeString()}</span>
-                    </div>
-                  );
-                }
-                if (log.type === "archive" && log.archive) {
-                  const a = log.archive;
-                  return (
-                    <div
-                      key={log.id}
-                      data-testid="debug-entry"
-                      data-log-type="archive"
-                      data-archive-actor={a.actor}
-                      data-archive-reason={a.reason}
-                      className="debug-entry debug-entry-archive"
-                      title={a.text}
-                    >
-                      <span className="debug-entry-ellipsis">
-                        ✕ {a.actor} {a.reason} · {a.obsType}
-                      </span>
-                      <span style={{ opacity: 0.7, flexShrink: 0 }}>
-                        {log.timestamp.toLocaleTimeString()}
-                      </span>
-                    </div>
-                  );
-                }
-                const isExpanded = expandedLogId === log.id;
-                return (
-                  <div
-                    key={log.id}
-                    data-testid="debug-entry"
-                    data-log-type={log.type}
-                    className={`debug-entry debug-entry-${log.type}`}
-                  >
-                    <div
-                      className="debug-entry-head"
-                      onClick={() => setExpandedLogId(isExpanded ? null : log.id)}
-                    >
-                      <span>
-                        [{log.type.toUpperCase()}] {log.model}
-                      </span>
-                      <span>{log.timestamp.toLocaleTimeString()}</span>
-                    </div>
-                    {log.errorMessage && (
-                      <div style={{ color: "red", marginTop: "4px" }}>{log.errorMessage}</div>
-                    )}
-                    {isExpanded && (
-                      <div className="debug-entry-detail">
-                        <div>
-                          <strong>Latency:</strong> {log.latencyMs}ms
-                        </div>
-                        <div>
-                          <strong>Payload:</strong> <pre>{JSON.stringify(log.payload, null, 2)}</pre>
-                        </div>
-                        {log.response && (
-                          <div>
-                            <strong>Response:</strong> <pre>{log.response}</pre>
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      )}
-
       <div className={`control-center${forceOpen ? " is-open" : ""}`}>
         {/* Reserved seam: the future R2c noisiness switch (Key issues / Balanced /
             Everything) drops in here — the process/up axis is an extensible stack,
@@ -407,6 +307,129 @@ export function ControlCenter({
               <span>
                 {sessionStats.fastCalls}f · {sessionStats.strongCalls}s
               </span>
+            </div>
+          )}
+
+          {import.meta.env.DEV && debugMode && (
+            <div className="control-debug">
+              <button
+                className="control-debug-toggle"
+                aria-expanded={debugExpanded}
+                onClick={() => setDebugExpanded((v) => !v)}
+              >
+                <span>
+                  debug logs
+                  {logs.length > 0 && <span className="control-debug-count">{logs.length}</span>}
+                </span>
+                <span aria-hidden="true">{debugExpanded ? "▾" : "▸"}</span>
+              </button>
+              {debugExpanded && (
+                <div className="debug-panel">
+                  <div className="debug-panel-head">
+                    {copySuccess && (
+                      <span style={{ color: "#4caf50", fontSize: "0.7rem" }}>Copied!</span>
+                    )}
+                    <button
+                      onClick={handleCopyLogs}
+                      style={{ fontSize: "0.7rem", padding: "2px 8px" }}
+                    >
+                      Copy All
+                    </button>
+                  </div>
+                  {sessionStats && sessionStats.totalCalls > 0 && (
+                    <div data-testid="session-stats" className="debug-session-stats">
+                      Session: {sessionStats.fastCalls}f + {sessionStats.strongCalls}s calls
+                      {sessionStats.avgLatencyMs > 0 && ` · avg ${sessionStats.avgLatencyMs}ms`}
+                    </div>
+                  )}
+                  {logs.length === 0 ? (
+                    <div style={{ color: "#888" }}>No logs yet.</div>
+                  ) : (
+                    <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                      {logs.map((log) => {
+                        if (log.type === "trigger") {
+                          return (
+                            <div
+                              key={log.id}
+                              data-testid="debug-entry"
+                              data-log-type="trigger"
+                              className="debug-entry debug-entry-trigger"
+                            >
+                              <span>
+                                ▶ trigger={log.triggerKind} block={log.blockId?.slice(0, 8)}
+                              </span>
+                              <span style={{ opacity: 0.7 }}>
+                                {log.timestamp.toLocaleTimeString()}
+                              </span>
+                            </div>
+                          );
+                        }
+                        if (log.type === "archive" && log.archive) {
+                          const a = log.archive;
+                          return (
+                            <div
+                              key={log.id}
+                              data-testid="debug-entry"
+                              data-log-type="archive"
+                              data-archive-actor={a.actor}
+                              data-archive-reason={a.reason}
+                              className="debug-entry debug-entry-archive"
+                              title={a.text}
+                            >
+                              <span className="debug-entry-ellipsis">
+                                ✕ {a.actor} {a.reason} · {a.obsType}
+                              </span>
+                              <span style={{ opacity: 0.7, flexShrink: 0 }}>
+                                {log.timestamp.toLocaleTimeString()}
+                              </span>
+                            </div>
+                          );
+                        }
+                        const isExpanded = expandedLogId === log.id;
+                        return (
+                          <div
+                            key={log.id}
+                            data-testid="debug-entry"
+                            data-log-type={log.type}
+                            className={`debug-entry debug-entry-${log.type}`}
+                          >
+                            <div
+                              className="debug-entry-head"
+                              onClick={() => setExpandedLogId(isExpanded ? null : log.id)}
+                            >
+                              <span>
+                                [{log.type.toUpperCase()}] {log.model}
+                              </span>
+                              <span>{log.timestamp.toLocaleTimeString()}</span>
+                            </div>
+                            {log.errorMessage && (
+                              <div style={{ color: "red", marginTop: "4px" }}>
+                                {log.errorMessage}
+                              </div>
+                            )}
+                            {isExpanded && (
+                              <div className="debug-entry-detail">
+                                <div>
+                                  <strong>Latency:</strong> {log.latencyMs}ms
+                                </div>
+                                <div>
+                                  <strong>Payload:</strong>{" "}
+                                  <pre>{JSON.stringify(log.payload, null, 2)}</pre>
+                                </div>
+                                {log.response && (
+                                  <div>
+                                    <strong>Response:</strong> <pre>{log.response}</pre>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
         </div>
