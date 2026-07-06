@@ -20,6 +20,7 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { scoreObservations } from "./evalScorer";
+import { lintRegister } from "./registerLint";
 import { createFixtureRunner } from "./eval-fixtures/runFixture";
 import { corpus } from "./eval-fixtures/index";
 
@@ -80,90 +81,21 @@ describe("Evaluator quality ratchet — Tier 1 (deterministic replay)", () => {
 
       const sectionTexts = new Map(fixture.sections.map((s) => [s.id, s.text]));
 
-      // G3 + Emotional Register Lint: assert no generated message violates register rules.
-      // Extends the Phase-4 G3 structural lint with the Phase-6 voice/copy guide
-      // mechanical rules from docs/projects/emotional_register.md § Voice & copy guide.
+      // G3 + Emotional Register Lint: assert no generated message violates register
+      // rules. The rule set lives in the shared registerLint module (single source of
+      // truth — same guard powers the tone-corpus test). Hard violations fail; the
+      // soft >240-char length cap only warns (a contradiction that names both anchors
+      // is better than a truncated one — emotional_register.md § Voice & copy guide).
       for (const o of produced) {
-        const textLow = o.text.toLowerCase();
-
-        // 1. No questions (catches Socratic/rhetorical questions like "Have you considered...?")
+        const violations = lintRegister(o.text, { type: o.type });
+        const hard = violations.filter((v) => !v.soft);
+        for (const v of violations.filter((v) => v.soft)) {
+          console.warn(`[register-soft] ${v.detail} (fixture ${fixture.id})`);
+        }
         expect(
-          o.text.includes("?") || o.text.includes("? "),
-          `G3 violation: message contains a question mark. Must be a direct statement.\n  Message: "${o.text}"`
-        ).toBe(false);
-
-        // 2. No prescriptive/imperative patterns
-        const prescriptivePatterns = [
-          "you need to",
-          "you should",
-          "we should",
-          "consider changing",
-          "consider adding",
-          "it might be helpful",
-          "it would be helpful",
-          "i suggest",
-          "i recommend",
-        ];
-        for (const pattern of prescriptivePatterns) {
-          expect(
-            textLow.includes(pattern),
-            `G3 violation: message contains prescriptive pattern "${pattern}". Must locate, not prescribe.\n  Message: "${o.text}"`
-          ).toBe(false);
-        }
-
-        // 3. No hedge words (emotional register rule 4 — colleague voice is confident)
-        const hedgeWords = [
-          "perhaps",
-          "you may want to",
-          "feels like",
-          "i'd suggest",
-          "i would suggest",
-        ];
-        for (const hedge of hedgeWords) {
-          expect(
-            textLow.includes(hedge),
-            `Register violation: message contains hedge word "${hedge}". Confident colleagues don't hedge.\n  Message: "${o.text}"`
-          ).toBe(false);
-        }
-
-        // 4. No evaluative adjectives (emotional register rule 5 — name structural facts, not quality)
-        const evaluativePatterns = [
-          "is weak",
-          "is bad",
-          "is poor",
-          "is insufficient",
-          "won't convince",
-          "will not convince",
-        ];
-        for (const adj of evaluativePatterns) {
-          expect(
-            textLow.includes(adj),
-            `Register violation: message contains evaluative judgment "${adj}". State structural facts, not quality verdicts.\n  Message: "${o.text}"`
-          ).toBe(false);
-        }
-
-        // 5. No evaluator-internal claim index labels in contradiction/tension copy (UX-017).
-        //    The contradiction/sweep prompts number claims `[Claim #N]` / `[Existing
-        //    Claim #N]` for their own bookkeeping (→ structured claimAId/claimBId).
-        //    That numbered label must never leak into the user-facing `message`; the
-        //    model must name a claim by its words. Matches "Claim #1", "claim 2",
-        //    "existing claim 0" — but not the bare phrase "the existing claim", which
-        //    is ordinary English, not a label. Pairs with the OBS-031 fidelity fix.
-        if (o.type === "contradiction" || o.type === "strategic_tension") {
-          expect(
-            /\bclaim\s*#?\s*\d+/i.test(o.text),
-            `UX-017 violation: contradiction/tension message references a claim by its internal index label. Must quote or restate the claim's own words.\n  Message: "${o.text}"`
-          ).toBe(false);
-        }
-
-        // 6. Length soft cap: ≤ 240 chars, ≤ 2 sentences.
-        // Warns but does not fail — a 250-char contradiction that names both anchors
-        // is better than a truncated one (emotional_register.md § Voice & copy guide).
-        if (o.text.length > 240) {
-          console.warn(
-            `[register-soft] message exceeds 240-char soft cap (${o.text.length} chars) in fixture ${fixture.id}:\n  "${o.text}"`
-          );
-        }
+          hard,
+          `Register violation(s) in ${fixture.id}:\n  ${hard.map((v) => v.detail).join("\n  ")}`
+        ).toEqual([]);
       }
 
       const result = scoreObservations(fixture.id, produced, fixture.expected, sectionTexts);

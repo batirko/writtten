@@ -1,5 +1,5 @@
 ---
-status: in-progress
+status: done
 kind: quality
 phases: [6]
 summary: Make the feed's voice intentional — a persona spec (trusted senior colleague), the wrong-persona anti-patterns, a message voice/copy guide, and tone as a labeled eval dimension — so the emotional register that determines whether critique-without-a-fix is bearable is designed, not incidental.
@@ -11,7 +11,9 @@ summary: Make the feed's voice intentional — a persona spec (trusted senior co
 
 > Canonical status lives in the frontmatter above and is mirrored in the Projects Index in `docs/plan.md`. This block carries the human-readable scope only.
 
-**Idea — Phase 6 (design fully written, ready to build).** The 2026-06-04 requirements analysis found the emotional register (`docs/product-requirements.md` § 6, R6.1–R6.4) is the biggest _non-technical_ risk and currently has no owner: prompts assert "confident, non-condescending," but no persona spec shapes them and nothing measures tone. Critique-without-a-fix is harder to receive than critique-with-one, so the voice is load-bearing, not polish. Rides with the Phase 6 `visual_style` and onboarding work because they jointly define product feel — this file owns _voice_, `visual_style` owns _look_.
+**Done — Phase 6 (shipped 2026-07-06).** The 2026-06-04 requirements analysis found the emotional register (`docs/product-requirements.md` § 6, R6.1–R6.4) was the biggest _non-technical_ risk and had no owner: prompts asserted "confident, non-condescending," but no persona spec shaped them and nothing measured tone. Critique-without-a-fix is harder to receive than critique-with-one, so the voice is load-bearing, not polish. Rode with the Phase 6 `visual_style` and onboarding work because they jointly define product feel — this file owns _voice_, `visual_style` owns _look_.
+
+**What shipped (two PRs):** the persona spec, wrong-persona few-shots, and the structural voice lint landed with PR #30 (`feat(signal): emotional register + context chip`). This PR completed the milestone by making tone a _measured_ dimension: it extracted the inline register lint into a shared single-source-of-truth module (`src/services/registerLint.ts` → `lintRegister`), added a deterministic `classifyTone` that the Tier-1 CI guard (`registerLint.test.ts`) asserts reproduces every labeled `toneCorpus` pair, and scaffolded an opt-in LLM "felt-tone" judge (`toneScorer.live.test.ts` + `TONE_SCORER_PROMPT`, gated on `EVAL_LIVE=1`). Voice now fails CI if a future change makes messages pedantic/cold/condescending. Deferred (out of the measurement-layer scope, since editing a prompt string re-keys every fixture recording and forces a live-quota re-record + a V1 rebaseline): _further_ refinement of each per-type prompt's own message instructions beyond the shared `PERSONA_GUIDE` already appended to all six.
 
 **What's already live (the seam this extends):** `PERSONA_GUIDE` in `src/services/evaluatorPrompts.ts:11` already enforces the structural half — the colleague persona, "locate, never prescribe," no imperative-prescription patterns, no therapist/pedant language, and **declarative-only output ("No question marks")**. G3 in `philosophy_guardrails.md` owns that structural lint. This project owns what the prompt rule _cannot_ carry: the canonical persona, the wrong-persona few-shots, the operational voice guide, and a tone eval dimension so the register can't silently rot.
 
@@ -35,13 +37,15 @@ Read alongside:
 
 ## Todo
 
-The design for every item below is now written (§ Design). These are the build tasks.
+The design for every item below is now written (§ Design). All build tasks are complete.
 
-- [ ] **Persona spec → prompt** — lift the canonical voice (§ The persona spec) into `PERSONA_GUIDE` (`src/services/evaluatorPrompts.ts:11`), replacing the terse stub with the fuller spec (still token-cheap; ~8 lines). Keep the existing structural bans.
-- [ ] **Wrong-persona few-shots** — encode the five before/after pairs (§ The five wrong personas) as negative exemplars. Decide per-prompt budget: inline the 2–3 highest-value pairs (pedant, smartass, therapist) into `PERSONA_GUIDE`; keep the full set as eval fixtures (next item).
-- [ ] **Voice/copy guide as a lint** — extend the G3 message lint (`philosophy_guardrails.md`) with the § Voice & copy guide mechanical rules: the ≤ 2-sentence / ~240-char ceiling, the no-hedge list, and the declarative-only `?`-ban (the last already in G3 — assert it here too so the register suite owns it).
-- [ ] **Tone as a labeled eval dimension** — add a `tone` label (`colleague` / `pedant` / `cold` / `condescending`) to ratchet fixtures' expected messages and a Tier-2/manual scorer that flags any non-`colleague` (§ Tone as an eval dimension). Wire into `docs/projects/evaluator_quality_ratchet.md`; seed with the five anti-pattern pairs as labeled negatives.
-- [ ] **Cross-check with G3** — confirm no rule here contradicts the live `PERSONA_GUIDE` / G3 lint; this project only _adds_ (felt-tone, length, persona depth, eval dimension).
+- [x] **Persona spec → prompt** — the fuller canonical voice (§ The persona spec) lives in `PERSONA_GUIDE` (`src/services/evaluatorPrompts.ts:11`), appended to all six prompt strings. (PR #30.)
+- [x] **Wrong-persona few-shots** — three highest-value pairs (pedant, therapist, smartass) inline in `PERSONA_GUIDE`; the full five as the labeled `toneCorpus` (`src/services/eval-fixtures/tone-corpus.ts`). (PR #30.)
+- [x] **Voice/copy guide as a lint** — the § Voice & copy guide mechanical rules (question-ban, prescriptive/hedge/evaluative bans, `[Claim #N]` leak, ~240-char soft cap) now live in the shared `lintRegister` (`src/services/registerLint.ts`), consumed by the Tier-1 ratchet (`evalRatchet.test.ts`) instead of an inline copy — single source of truth.
+- [x] **Tone as a labeled eval dimension** — the `tone` field on `ExpectedObservation` + the five labeled anti-pattern pairs are now _consumed_: `classifyTone` (`registerLint.ts`) sorts a message into `colleague`/`pedant`/`cold`/`condescending` by fixed precedence (§ Tone as an eval dimension), `registerLint.test.ts` asserts it reproduces every `toneCorpus` label in CI (the deterministic drift guard), and `toneScorer.live.test.ts` + `TONE_SCORER_PROMPT` add the opt-in LLM felt-tone judge (`EVAL_LIVE=1`).
+- [x] **Cross-check with G3** — `lintRegister` _is_ the G3 structural lint plus the register additions; nothing contradicts the live `PERSONA_GUIDE`. This project only added felt-tone (`classifyTone`), the length cap, and the eval dimension.
+
+> **Deferred (not this milestone):** _further_ refinement of each per-type prompt's own message instructions beyond the shared `PERSONA_GUIDE`. It's out of the chosen measurement-layer scope because editing any prompt string re-keys every fixture recording (`reqHash`), forcing a live-quota re-record and a V1 (validation lane) rebaseline. Batch it into a future re-record PR.
 
 ## Design
 
