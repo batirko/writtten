@@ -1260,30 +1260,50 @@ body,
   text-overflow: ellipsis;
 }
 
-/* Debug panel (dev only) */
-.debug-panel {
+/* Debug drawer (dev only) — lives inside the control-center process panel and
+   reveals with it on hover, rather than floating on its own. */
+.control-debug {
   border-top: 0.5px solid var(--color-border);
-  padding: 8px;
-  max-height: 300px;
-  overflow-y: auto;
-  background: color-mix(in oklch, var(--color-surface) 55%, var(--color-paper));
-  font-size: 0.8rem;
+  margin: 6px -10px 0;
+  padding: 6px 10px 0;
 }
-.debug-panel-floating {
-  position: fixed;
-  right: var(--space-lg);
-  bottom: calc(var(--space-lg) + var(--control-anchor-size) + 12px);
+.control-debug-toggle {
+  width: 100%;
+  border: none;
+  background: none;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: var(--text-ui-sm);
+  color: var(--color-muted);
+  transition: color var(--dur-fast) var(--ease-out);
+}
+.control-debug-toggle:hover {
+  color: var(--color-ink);
+}
+.control-debug-count {
+  margin-left: 6px;
+  color: var(--color-ink-2);
+}
+/* Only widen the panel while the log list is open — the at-rest panel stays narrow. */
+.control-process:has(.debug-panel) {
   width: 340px;
   max-width: 88vw;
-  z-index: 39;
-  border: 0.5px solid var(--color-border);
-  border-radius: var(--radius-md);
-  box-shadow: var(--elev-float);
+}
+.debug-panel {
+  margin-top: 6px;
+  max-height: 220px;
+  overflow-y: auto;
+  font-size: 0.75rem;
 }
 .debug-panel-head {
   display: flex;
-  justify-content: space-between;
+  justify-content: flex-end;
   align-items: center;
+  gap: 8px;
   margin-bottom: 8px;
 }
 .debug-session-stats {
