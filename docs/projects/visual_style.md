@@ -243,7 +243,11 @@ Re-skin the existing `.obs-highlight-*` rules to the semantic ramps:
 - `clarity` → faint `--sem-problem-low` wash + dotted underline.
 - `contradiction` → `--sem-contradiction` wash + dashed underline; **both** spans highlight together (hero behaviour, keep).
 - `strategic_tension` → `--sem-tension` wash + dashed underline (non-alarm teal).
+- `unsupported_claim` → `--sem-problem-med` (amber) wash + dotted underline (span-level problem, not a cross-claim conflict).
+- `undefined_jargon` → faint `--sem-problem-low` wash + a finer `1px` dashed underline (same low-severity gray family as clarity, but distinguishable from it).
 - Hovered state intensifies the wash and switches underline to solid. Highlights must read as _annotations on_ the prose (translucent, underline-led), never as selection or as edits to the text.
+
+> **All span-anchored types need a rule.** These are the five `scope: "span"` types (added via `addSpanObs`); the doc-scoped types (`missing_topic`, `underexposed_topic`, `audience_mismatch`, `structure_flow`) don't anchor and get no highlight. A missing per-type rule renders the span _invisible at rest_ (it only appears on card-hover via the generic hovered rule) — the exact bug that shipped when the Phase-4 taxonomy grew but the CSS didn't. Guarded by `src/editor/extensions/highlightCssCoverage.test.ts`.
 
 ### Supporting surfaces
 
