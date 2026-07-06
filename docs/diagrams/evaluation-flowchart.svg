@@ -1,0 +1,110 @@
+<svg viewBox="0 0 900 1150" xmlns="http://www.w3.org/2000/svg" role="img" width="100%" style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif">
+<title>End-to-end evaluation flowchart for writtten</title>
+<desc>A single connected flow from an editor event through triggers, settle gates, orchestrator shaping, a mode decision into one of three evaluators, model calls, reconciliation, the claim ledger and observation taxonomy, and finally the feed where the user reflects and rewrites.</desc>
+<style>
+svg{--text-muted:#888780}
+text{fill:#5f5e5a}
+text.t{font-weight:500}
+.c-teal rect,.c-teal polygon,rect.c-teal{fill:#e1f5ee;stroke:#5dcaa5}
+.c-teal text{fill:#0f6e56}
+.c-purple rect,.c-purple polygon,rect.c-purple{fill:#eeedfe;stroke:#afa9ec}
+.c-purple text{fill:#534ab7}
+.c-amber rect,.c-amber polygon,rect.c-amber{fill:#faeeda;stroke:#ef9f27}
+.c-amber text{fill:#854f0b}
+.c-gray rect,.c-gray polygon,rect.c-gray{fill:#f1efe8;stroke:#b4b2a9}
+.c-gray text{fill:#2c2c2a}
+.c-coral rect,.c-coral polygon,rect.c-coral{fill:#faece7;stroke:#f0997b}
+.c-coral text{fill:#4a1b0c}
+@media (prefers-color-scheme:dark){
+text{fill:#b4b2a9}
+.c-teal rect,.c-teal polygon,rect.c-teal{fill:#04342c;stroke:#1d9e75}
+.c-teal text{fill:#9fe1cb}
+.c-purple rect,.c-purple polygon,rect.c-purple{fill:#26215c;stroke:#7f77dd}
+.c-purple text{fill:#cecbf6}
+.c-amber rect,.c-amber polygon,rect.c-amber{fill:#412402;stroke:#ba7517}
+.c-amber text{fill:#fac775}
+.c-gray rect,.c-gray polygon,rect.c-gray{fill:#2c2c2a;stroke:#5f5e5a}
+.c-gray text{fill:#f1efe8}
+.c-coral rect,.c-coral polygon,rect.c-coral{fill:#4a1b0c;stroke:#d85a30}
+.c-coral text{fill:#f5c4b3}
+}
+</style>
+<defs>
+<marker id="ah" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="var(--text-muted)"/></marker>
+</defs>
+
+<g class="c-gray"><rect x="370" y="20" width="160" height="40" rx="20"/><text class="t" x="450" y="45" text-anchor="middle" font-size="13">Editor event</text></g>
+
+<g class="c-teal"><rect x="20" y="100" width="150" height="56" rx="10"/><text class="t" x="95" y="122" text-anchor="middle" font-size="12">Section settle</text><text class="ts" x="95" y="140" text-anchor="middle" font-size="10.5">pause · Enter · blur</text></g>
+<g class="c-amber"><rect x="197" y="100" width="150" height="56" rx="10"/><text class="t" x="272" y="122" text-anchor="middle" font-size="12">Bulk paste</text><text class="ts" x="272" y="140" text-anchor="middle" font-size="10.5">≥150 words</text></g>
+<g class="c-purple"><rect x="375" y="100" width="150" height="56" rx="10"/><text class="t" x="450" y="122" text-anchor="middle" font-size="12">Doc-idle</text><text class="ts" x="450" y="140" text-anchor="middle" font-size="10.5">12 s silence</text></g>
+<g class="c-purple"><rect x="552" y="100" width="150" height="56" rx="10"/><text class="t" x="627" y="122" text-anchor="middle" font-size="12">Stage edited</text><text class="ts" x="627" y="140" text-anchor="middle" font-size="10.5">3 s debounce</text></g>
+<g class="c-gray"><rect x="730" y="100" width="150" height="56" rx="10"/><text class="t" x="805" y="132" text-anchor="middle" font-size="12">Block deleted</text></g>
+
+<g class="c-gray"><rect x="200" y="210" width="320" height="44" rx="10"/><text class="t" x="360" y="237" text-anchor="middle" font-size="12.5">scheduleEval() · orchestrator entry</text></g>
+<g class="c-gray"><rect x="725" y="210" width="160" height="70" rx="10"/><text class="t" x="805" y="230" text-anchor="middle" font-size="11.5">No-LLM cascade</text><text class="ts" x="805" y="247" text-anchor="middle" font-size="10.5">orphan claims +</text><text class="ts" x="805" y="262" text-anchor="middle" font-size="10.5">close observations</text></g>
+<g class="c-gray"><rect x="725" y="320" width="160" height="40" rx="10"/><text class="ts" x="805" y="344" text-anchor="middle" font-size="10.5">observations auto-closed</text></g>
+
+<g class="c-gray"><polygon points="360,293 452,335 360,377 268,335"/><text class="t" x="360" y="331" text-anchor="middle" font-size="12">Settle gates</text><text class="t" x="360" y="347" text-anchor="middle" font-size="12">pass?</text></g>
+<g class="c-gray"><rect x="55" y="315" width="150" height="44" rx="10"/><text class="ts" x="130" y="332" text-anchor="middle" font-size="10.5">Stay silent</text><text class="ts" x="130" y="348" text-anchor="middle" font-size="10.5">no model call</text></g>
+
+<g class="c-gray"><rect x="200" y="410" width="320" height="54" rx="10"/><text class="t" x="360" y="432" text-anchor="middle" font-size="12">Orchestrator shaping</text><text class="ts" x="360" y="450" text-anchor="middle" font-size="10.5">coalesce 250 ms · serialize · RPM defer</text></g>
+
+<g class="c-gray"><polygon points="360,476 460,520 360,564 260,520"/><text class="t" x="360" y="516" text-anchor="middle" font-size="12">Which</text><text class="t" x="360" y="532" text-anchor="middle" font-size="12">grain?</text></g>
+
+<g class="c-teal"><rect x="45" y="610" width="210" height="88" rx="10"/><text class="t" x="150" y="634" text-anchor="middle" font-size="12.5">evaluateSection</text><text class="ts" x="150" y="653" text-anchor="middle" font-size="10.5">fast: summary + claims</text><text class="ts" x="150" y="668" text-anchor="middle" font-size="10.5">+ span checks</text><text class="ts" x="150" y="686" text-anchor="middle" font-size="10.5">→ strong contradiction</text></g>
+<g class="c-purple"><rect x="345" y="610" width="210" height="88" rx="10"/><text class="t" x="450" y="634" text-anchor="middle" font-size="12.5">evaluateDocument</text><text class="ts" x="450" y="653" text-anchor="middle" font-size="10.5">strong · doc-scope</text><text class="ts" x="450" y="668" text-anchor="middle" font-size="10.5">missing_topic, structure,</text><text class="ts" x="450" y="686" text-anchor="middle" font-size="10.5">audience · stage fit</text></g>
+<g class="c-purple"><rect x="645" y="610" width="210" height="88" rx="10"/><text class="t" x="750" y="632" text-anchor="middle" font-size="11.5">evaluateLedger-</text><text class="t" x="750" y="647" text-anchor="middle" font-size="11.5">Contradictions</text><text class="ts" x="750" y="666" text-anchor="middle" font-size="10.5">strong all-pairs sweep</text><text class="ts" x="750" y="684" text-anchor="middle" font-size="10.5">(bulk bootstrap)</text></g>
+
+<g class="c-gray"><rect x="220" y="740" width="460" height="50" rx="10"/><text class="t" x="450" y="760" text-anchor="middle" font-size="12">Reconcile — match · grace · dismissal-suppression gate</text><text class="ts" x="450" y="778" text-anchor="middle" font-size="10.5">persist by id / insert / auto-close · commit dirty-check hash last</text></g>
+
+<g class="c-gray"><rect x="110" y="830" width="280" height="90" rx="10"/><text class="t" x="250" y="852" text-anchor="middle" font-size="12">Claim ledger</text><text class="ts" x="250" y="870" text-anchor="middle" font-size="10.5">commitment · fact · definition</text><text class="ts" x="250" y="885" text-anchor="middle" font-size="10.5">constraint · metric</text><text class="ts" x="250" y="903" text-anchor="middle" font-size="10.5">active | orphaned</text></g>
+<g class="c-coral"><rect x="500" y="830" width="350" height="90" rx="10"/><text class="t" x="675" y="850" text-anchor="middle" font-size="12">Observations — 9 fixed types</text><text class="ts" x="675" y="868" text-anchor="middle" font-size="10.5">span: clarity · unsupported · jargon</text><text class="ts" x="675" y="884" text-anchor="middle" font-size="10.5">doc: missing · structure · audience</text><text class="ts" x="675" y="900" text-anchor="middle" font-size="10.5">conflict: contradiction · strategic_tension</text></g>
+
+<g class="c-gray"><rect x="500" y="960" width="350" height="52" rx="10"/><text class="t" x="675" y="980" text-anchor="middle" font-size="12">writtten feed</text><text class="ts" x="675" y="998" text-anchor="middle" font-size="10.5">active → auto_closed · dismissed · superseded</text></g>
+
+<g class="c-gray"><rect x="505" y="1050" width="340" height="42" rx="20"/><text class="t" x="675" y="1076" text-anchor="middle" font-size="12">User reflects &amp; rewrites — never an auto-fix</text></g>
+
+<path d="M450,60 L95,100" stroke="var(--text-muted)" fill="none" stroke-width="1.4" marker-end="url(#ah)"/>
+<path d="M450,60 L272,100" stroke="var(--text-muted)" fill="none" stroke-width="1.4" marker-end="url(#ah)"/>
+<path d="M450,60 L450,100" stroke="var(--text-muted)" fill="none" stroke-width="1.4" marker-end="url(#ah)"/>
+<path d="M450,60 L627,100" stroke="var(--text-muted)" fill="none" stroke-width="1.4" marker-end="url(#ah)"/>
+<path d="M450,60 L805,100" stroke="var(--text-muted)" fill="none" stroke-width="1.4" marker-end="url(#ah)"/>
+
+<path d="M95,156 L250,208" stroke="var(--text-muted)" fill="none" stroke-width="1.4" marker-end="url(#ah)"/>
+<path d="M272,156 L330,208" stroke="var(--text-muted)" fill="none" stroke-width="1.4" marker-end="url(#ah)"/>
+<path d="M450,156 L400,208" stroke="var(--text-muted)" fill="none" stroke-width="1.4" marker-end="url(#ah)"/>
+<path d="M627,156 L470,208" stroke="var(--text-muted)" fill="none" stroke-width="1.4" marker-end="url(#ah)"/>
+<path d="M805,156 L805,208" stroke="var(--text-muted)" fill="none" stroke-width="1.4" marker-end="url(#ah)"/>
+<path d="M805,280 L805,318" stroke="var(--text-muted)" fill="none" stroke-width="1.4" marker-end="url(#ah)"/>
+
+<path d="M360,254 L360,291" stroke="var(--text-muted)" fill="none" stroke-width="1.4" marker-end="url(#ah)"/>
+<path d="M268,335 L207,336" stroke="var(--text-muted)" fill="none" stroke-width="1.4" marker-end="url(#ah)"/>
+<text class="ts" x="238" y="328" text-anchor="middle" font-size="10">no</text>
+<path d="M360,377 L360,408" stroke="var(--text-muted)" fill="none" stroke-width="1.4" marker-end="url(#ah)"/>
+<text class="ts" x="372" y="398" text-anchor="start" font-size="10">yes</text>
+
+<path d="M360,464 L360,474" stroke="var(--text-muted)" fill="none" stroke-width="1.4" marker-end="url(#ah)"/>
+<path d="M275,530 L150,608" stroke="var(--text-muted)" fill="none" stroke-width="1.4" marker-end="url(#ah)"/>
+<path d="M360,564 L450,608" stroke="var(--text-muted)" fill="none" stroke-width="1.4" marker-end="url(#ah)"/>
+<path d="M445,530 L750,608" stroke="var(--text-muted)" fill="none" stroke-width="1.4" marker-end="url(#ah)"/>
+
+<path d="M150,698 L320,738" stroke="var(--text-muted)" fill="none" stroke-width="1.4" marker-end="url(#ah)"/>
+<path d="M450,698 L450,738" stroke="var(--text-muted)" fill="none" stroke-width="1.4" marker-end="url(#ah)"/>
+<path d="M750,698 L580,738" stroke="var(--text-muted)" fill="none" stroke-width="1.4" marker-end="url(#ah)"/>
+
+<path d="M410,790 L270,828" stroke="var(--text-muted)" fill="none" stroke-width="1.4" marker-end="url(#ah)"/>
+<path d="M500,790 L650,828" stroke="var(--text-muted)" fill="none" stroke-width="1.4" marker-end="url(#ah)"/>
+
+<path d="M110,878 C25,835 20,720 43,700" stroke="var(--text-muted)" fill="none" stroke-width="1.3" stroke-dasharray="4 3" marker-end="url(#ah)"/>
+<text class="ts" x="28" y="770" text-anchor="middle" font-size="9.5" transform="rotate(-90 28 770)">reads ledger</text>
+
+<path d="M675,920 L675,958" stroke="var(--text-muted)" fill="none" stroke-width="1.4" marker-end="url(#ah)"/>
+<path d="M675,1012 L675,1048" stroke="var(--text-muted)" fill="none" stroke-width="1.4" marker-end="url(#ah)"/>
+
+<rect class="c-teal" x="30" y="1108" width="12" height="12" rx="3"/><text class="ts" x="48" y="1118" font-size="10.5">fast · section</text>
+<rect class="c-purple" x="170" y="1108" width="12" height="12" rx="3"/><text class="ts" x="188" y="1118" font-size="10.5">strong · doc</text>
+<rect class="c-amber" x="300" y="1108" width="12" height="12" rx="3"/><text class="ts" x="318" y="1118" font-size="10.5">bulk paste</text>
+<rect class="c-gray" x="415" y="1108" width="12" height="12" rx="3"/><text class="ts" x="433" y="1118" font-size="10.5">control &amp; stores</text>
+<rect class="c-coral" x="575" y="1108" width="12" height="12" rx="3"/><text class="ts" x="593" y="1118" font-size="10.5">observation output</text>
+</svg>

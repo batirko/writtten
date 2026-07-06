@@ -2,7 +2,7 @@
 status: idea
 kind: infra
 phases: [6]
-summary: An OPTIONAL, capped hosted proxy so first-time visitors to writtten.com can evaluate their own writing with zero configuration — a small serverless function holding the owner's paid Gemini key, protected by a hard global daily budget + per-client throttle, with transparent "N free evals then bring your own key" UX. Explicitly revisits the Phase-3 "free-tier proxy stays client-side" decision, which the launch-conversion funnel reopens. GO/NO-GO is unresolved (owner cost-ownership call).
+summary: An OPTIONAL, capped hosted proxy so first-time visitors to writtten.com can evaluate their own writing with zero configuration — a small serverless function holding the owner's paid Gemini key, protected by a hard global daily budget + per-client throttle. DECISION 2026-07-06 → NO-GO for launch (owner declined the infra + bill); the BYOK-only demo ships instead, and this doc is the documented option to revisit post-launch if funnel friction proves costly.
 ---
 
 # Hosted proxy (optional zero-config on-ramp)
@@ -13,7 +13,7 @@ summary: An OPTIONAL, capped hosted proxy so first-time visitors to writtten.com
 
 > Canonical status is the frontmatter above, mirrored in the Projects Index in `docs/plan.md`. This block is human-readable scope only.
 
-**Status: `idea` — Phase 6. GO/NO-GO unresolved.** The design below is complete enough to build; what is **not** decided is whether to build it at all, because it turns on a judgment only the owner can make: _am I willing to own a small, hard-capped monthly bill and a minimal serverless deployment in exchange for a zero-config funnel?_ Readiness is 🟠 for that reason — the blocker is a product/cost decision, not missing design. If the answer is "no", the fallback (§_The zero-cost alternative_) needs nothing built.
+**Status: `idea` — Phase 6. DECIDED: NO-GO for launch (2026-07-06).** The owner declined to own the serverless deployment + a (hard-capped) recurring bill for the initial launch. Consequently: the **BYOK-only demo ships** (see §_The zero-cost alternative_, which is now the launch behavior — canned example + a clear paste-your-key flow), and this document remains on the shelf as the **fully-specced option to revisit post-launch** if the funnel shows first-use friction is losing people. The design below is unchanged and build-ready should that revisit happen; nothing here is scheduled. This is why the Phase-6 plan milestone is closed as a decided NO-GO rather than an open build item.
 
 ## The problem this exists to solve
 

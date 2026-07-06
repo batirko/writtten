@@ -13,7 +13,7 @@ summary: Expand BYOK from Gemini-only to Gemini + OpenAI + Anthropic at launch b
 
 > Canonical status is the frontmatter above, mirrored in the Projects Index in `docs/plan.md`. This block is human-readable scope only.
 
-**Status: `idea` — Phase 6.** Decision locked 2026-07-06: **support Gemini + OpenAI + Anthropic at launch** (user call, this session). Design is specced here; not yet started. Readiness is 🟡 (the interface and adapter boundary are decided below; the resilience-abstraction has judgment calls that surface during the build). This is **model-router / platform** work — client-side, no server/telemetry/egress (standing rule 5); each provider is called direct-from-browser with the user's own key, exactly as Gemini is today.
+**Status: `idea` — Phase 6. Launch blocker.** Decision locked 2026-07-06: **support Gemini + OpenAI + Anthropic at launch** (user call, this session), and the launch bar is "Good-enough **plus** multi-provider" — the repo does not go public until all three ship. Design is specced here to 🟢 (the adapter interface, the resilience abstraction boundary, the concrete model IDs, and the browser-CORS question are all resolved below); not yet started. This is **model-router / platform** work — client-side, no server/telemetry/egress (standing rule 5); each provider is called direct-from-browser with the user's own key, exactly as Gemini is today.
 
 ### The load-bearing fact that shapes everything
 
@@ -59,7 +59,7 @@ _No Phase-7 slice is currently scoped here; multi-key rotation (`byok_capability
 ### B — Reference adapters (OpenAI, Anthropic)
 
 - [ ] `src/model/openai.ts` — `ProviderAdapter` for the OpenAI Chat/Responses API. Models table below. `classifyError`: 429 → `retryable`, honor `Retry-After` header; `insufficient_quota` → non-retryable with a clear surfaced message (no free tier to fall back to).
-- [ ] `src/model/anthropic.ts` — `ProviderAdapter` for the Anthropic Messages API. **Verify browser CORS**: direct-from-browser calls need the `anthropic-dangerous-direct-browser-access` header (or the call is blocked). If a provider genuinely can't be called from the browser, that's a per-provider constraint to flag — **not** a reason to route document content through a server (architecture.md § Privacy). Document the outcome here.
+- [ ] `src/model/anthropic.ts` — `ProviderAdapter` for the Anthropic Messages API. **Browser CORS: resolved — it works.** Endpoint `POST https://api.anthropic.com/v1/messages`; required headers `x-api-key: <key>`, `anthropic-version: 2023-06-01`, `content-type: application/json`, **and `anthropic-dangerous-direct-browser-access: true`** (the flag that permits the direct-from-browser call — same trust posture as Gemini's key-in-`localStorage`; surface it in the README security note, don't hide it). `classifyError`: 429 → retryable, honor the `retry-after` header; non-retryable 400/401/403 surfaced with a clear message. **Eval calls are single-shot JSON classification, so set `thinking: {type: "disabled"}`** on the `strong` (Sonnet 5) request — Sonnet 5 runs adaptive thinking by default when `thinking` is omitted, which we don't want to pay for on a deterministic span/contradiction check. (Haiku 4.5 takes no thinking config.) `parseResponse` reads `content[0].text`; the eval prompts already ask for JSON, so parse it from the text exactly as the Gemini path does.
 - [ ] Each adapter ships a tiny live smoke test (opt-in, excluded from CI like `eval-fixtures/record.test.ts`) — one `fast` and one `strong` call, asserting `parseResponse` shape.
 
 ### C — Provider registry + selection
@@ -81,15 +81,16 @@ _No Phase-7 slice is currently scoped here; multi-key rotation (`byok_capability
 
 ## Per-provider model table
 
-Map the two router tiers (`fast` = cheap/frequent, `strong` = capable/rare) to concrete models. Exact model IDs are set at build time against then-current availability; this table is the intent.
+Map the two router tiers (`fast` = cheap/frequent, `strong` = capable/rare) to concrete models. Anthropic IDs and prices are pinned (verified against the Claude API reference, 2026-07-06); Gemini is the existing pool; OpenAI IDs are the intent and should be confirmed against OpenAI's current lineup at build time.
 
-| Provider  | `fast` (cheap, frequent)      | `strong` (capable, rare)     | Free tier?              |
-| --------- | ----------------------------- | ---------------------------- | ----------------------- |
-| Gemini    | flash-lite (rotation pool)    | pro / flash (rotation pool)  | ✅ — the zero-key on-ramp |
-| OpenAI    | a small/mini model            | a flagship reasoning model   | ❌ paid only             |
-| Anthropic | Haiku (latest)                | Sonnet (latest)              | ❌ paid only             |
+| Provider  | `fast` (cheap, frequent)        | `strong` (capable, rare)                 | Endpoint / auth                                                                 | Free tier?              |
+| --------- | ------------------------------- | ---------------------------------------- | ------------------------------------------------------------------------------- | ----------------------- |
+| Gemini    | flash-lite (rotation pool)      | pro / flash (rotation pool)              | `generativelanguage.googleapis.com` · `?key=`                                   | ✅ — the zero-key on-ramp |
+| OpenAI    | a small/`mini` model (confirm)  | a flagship model (confirm)               | `https://api.openai.com/v1/chat/completions` · `Authorization: Bearer`          | ❌ paid only             |
+| Anthropic | `claude-haiku-4-5` ($1/$5 /Mtok)| `claude-sonnet-5` ($3/$15 /Mtok)         | `https://api.anthropic.com/v1/messages` · `x-api-key` + browser-access header   | ❌ paid only             |
 
-> When picking concrete model IDs during the build, consult the Claude API skill / provider docs for current names and pricing rather than hard-coding from memory — model lineups move.
+> **Anthropic specifics (pinned):** `anthropic-version: 2023-06-01` on every call; add `anthropic-dangerous-direct-browser-access: true` for the direct-from-browser call; set `thinking: {type: "disabled"}` on the Sonnet 5 `strong` request (adaptive thinking is on-by-default when omitted — unwanted for deterministic eval). Sonnet 5 has an introductory $2/$10 per-Mtok price through 2026-08-31.
+> **OpenAI:** IDs move fast — confirm the current small and flagship model names against OpenAI's docs when writing `openai.ts`, rather than hard-coding from memory.
 
 ## Capability model (how this meets `byok_capability_model.md`)
 

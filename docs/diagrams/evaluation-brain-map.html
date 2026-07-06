@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>writtten — evaluation brain map</title>
+<link href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3/dist/tabler-icons.min.css" rel="stylesheet">
+<style>
+:root{
+--surface-2:#ffffff;--surface-1:#faf9f5;--surface-0:#f1efe8;
+--text-primary:#2c2c2a;--text-secondary:#5f5e5a;--text-muted:#888780;
+--border:#e3e1d8;--border-strong:#c9c7bc;
+--bg-success:#e1f5ee;--text-success:#0f6e56;--border-success:#5dcaa5;
+--bg-accent:#eeedfe;--text-accent:#534ab7;--border-accent:#afa9ec;
+--bg-warning:#faeeda;--text-warning:#854f0b;--border-warning:#fac775;
+--font-sans:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+}
+@media (prefers-color-scheme:dark){:root{
+--surface-2:#26251f;--surface-1:#22221d;--surface-0:#1a1a17;
+--text-primary:#f1efe8;--text-secondary:#b4b2a9;--text-muted:#888780;
+--border:#3a3a34;--border-strong:#54534b;
+--bg-success:#04342c;--text-success:#5dcaa5;--border-success:#0f6e56;
+--bg-accent:#26215c;--text-accent:#afa9ec;--border-accent:#534ab7;
+--bg-warning:#412402;--text-warning:#ef9f27;--border-warning:#854f0b;
+}}
+body{background:var(--surface-0);color:var(--text-primary);margin:0;padding:1.5rem}
+.brain{font-family:var(--font-sans);color:var(--text-primary);font-size:13px;line-height:1.45;max-width:960px;margin:0 auto}
+.legend{display:flex;flex-wrap:wrap;gap:.5rem 1rem;margin-bottom:1rem;font-size:12px;color:var(--text-secondary)}
+.legend span{display:inline-flex;align-items:center;gap:.35rem}
+.dot{width:11px;height:11px;border-radius:3px;display:inline-block}
+.band{border:1px solid var(--border);border-radius:12px;padding:.75rem .85rem;background:var(--surface-1)}
+.band-label{font-size:12px;font-weight:500;color:var(--text-secondary);margin-bottom:.6rem;display:flex;align-items:center;gap:.4rem}
+.lanes{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:.6rem}
+.lane{border-radius:10px;padding:.55rem .6rem;border:1px solid var(--c-bd,var(--border));background:var(--c-bg,var(--surface-2))}
+.lane h4{margin:0 0 .45rem;font-size:12px;font-weight:500;color:var(--c-tx,var(--text-primary));display:flex;align-items:center;gap:.35rem}
+.chip{display:block;background:var(--surface-2);border:1px solid var(--border);border-radius:7px;padding:.3rem .45rem;margin-bottom:.35rem;font-size:12px}
+.chip:last-child{margin-bottom:0}
+.chip b{font-weight:500}
+.chip .m{color:var(--text-muted);font-size:11px}
+.flow{display:flex;justify-content:center;color:var(--text-muted);font-size:18px;margin:.15rem 0}
+.fast{--c-bg:var(--bg-success);--c-tx:var(--text-success);--c-bd:var(--border-success)}
+.strong{--c-bg:var(--bg-accent);--c-tx:var(--text-accent);--c-bd:var(--border-accent)}
+.gate{--c-bg:var(--bg-warning);--c-tx:var(--text-warning);--c-bd:var(--border-warning)}
+.ctrl{--c-bg:var(--surface-2);--c-tx:var(--text-secondary);--c-bd:var(--border)}
+.modes{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:.6rem}
+.mode{border-radius:10px;padding:.6rem;border:1px solid var(--c-bd);background:var(--c-bg)}
+.mode h4{margin:0 0 .1rem;font-size:13px;font-weight:500;color:var(--c-tx)}
+.mode .tier{font-size:11px;color:var(--text-muted);margin-bottom:.45rem}
+.steps{font-size:11.5px;color:var(--text-secondary)}
+.steps .s{display:block;padding:.2rem 0;border-top:1px dashed var(--border)}
+.steps .s:first-child{border-top:0}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:.6rem}
+@media(max-width:640px){.two{grid-template-columns:1fr}}
+.tax h4{margin:.15rem 0 .35rem;font-size:12px;font-weight:500}
+.pills{display:flex;flex-wrap:wrap;gap:.3rem;margin-bottom:.5rem}
+.pill{font-size:11.5px;border-radius:6px;padding:.2rem .45rem;border:1px solid var(--c-bd,var(--border));background:var(--c-bg,var(--surface-2));color:var(--c-tx,var(--text-primary))}
+.axes{font-size:11.5px;color:var(--text-secondary)}
+.axes div{padding:.15rem 0}
+.axes b{font-weight:500;color:var(--text-primary)}
+</style>
+</head>
+<body>
+<div class="brain">
+  <div class="legend">
+    <span><i class="dot" style="background:var(--text-success)"></i>fast tier · per section</span>
+    <span><i class="dot" style="background:var(--text-accent)"></i>strong tier · doc / conflict</span>
+    <span><i class="dot" style="background:var(--text-warning)"></i>gate / condition</span>
+    <span><i class="dot" style="background:var(--text-muted)"></i>control · no-LLM</span>
+  </div>
+
+  <div class="band">
+    <div class="band-label"><i class="ti ti-bolt" aria-hidden="true"></i>Triggers — closed set, all flow through scheduleEval()</div>
+    <div class="lanes">
+      <div class="lane fast">
+        <h4><i class="ti ti-cursor-text" aria-hidden="true"></i>Section (fast)</h4>
+        <span class="chip"><b>block-settle-pause</b><span class="m"> — 3 s typing pause</span></span>
+        <span class="chip"><b>block-settle-completion</b><span class="m"> — Enter after block</span></span>
+        <span class="chip"><b>block-settle-blur</b><span class="m"> — cursor leaves section</span></span>
+        <span class="chip"><b>loadDoc / import</b><span class="m"> — one per section</span></span>
+      </div>
+      <div class="lane fast" style="--c-bg:var(--surface-2)">
+        <h4><i class="ti ti-clipboard" aria-hidden="true"></i>Bulk paste · ≥150 words</h4>
+        <span class="chip"><b>per-section dispatch</b><span class="m"> — skipContradiction, 0 paid</span></span>
+        <span class="chip"><b>block-paste sweep</b><span class="m"> — one strong all-pairs call</span></span>
+      </div>
+      <div class="lane strong">
+        <h4><i class="ti ti-file-text" aria-hidden="true"></i>Document (strong)</h4>
+        <span class="chip"><b>doc-idle</b><span class="m"> — 12 s, maturity ≥ forming</span></span>
+        <span class="chip"><b>stage-changed</b><span class="m"> — 3 s, reconcile-aware</span></span>
+      </div>
+      <div class="lane ctrl">
+        <h4><i class="ti ti-eraser" aria-hidden="true"></i>No-LLM cascade</h4>
+        <span class="chip"><b>block-removed</b><span class="m"> — orphan claims + close obs</span></span>
+      </div>
+    </div>
+  </div>
+
+  <div class="flow"><i class="ti ti-chevron-down" aria-hidden="true"></i></div>
+
+  <div class="band gate" style="background:var(--bg-warning);border-color:var(--border-warning)">
+    <div class="band-label" style="color:var(--text-warning)"><i class="ti ti-shield-half" aria-hidden="true"></i>Settle gates — silence during idea formation is a feature</div>
+    <div class="pills">
+      <span class="pill gate">terminal punctuation . ! ? "</span>
+      <span class="pill gate">≥15 chars (pause / Enter) · ≥10 (blur)</span>
+      <span class="pill gate">maturity nascent → stay silent</span>
+      <span class="pill gate">150-word threshold gates the sweep</span>
+      <span class="pill gate">hash unchanged → no-op</span>
+    </div>
+  </div>
+
+  <div class="flow"><i class="ti ti-chevron-down" aria-hidden="true"></i></div>
+
+  <div class="band ctrl" style="background:var(--surface-2)">
+    <div class="band-label"><i class="ti ti-adjustments" aria-hidden="true"></i>Orchestrator shaping — when the eval actually runs</div>
+    <div class="pills">
+      <span class="pill ctrl">coalesce 250 ms (pause + blur → 1)</span>
+      <span class="pill ctrl">serialize in-flight → queue rerun</span>
+      <span class="pill ctrl">doc-idle waits for all sections</span>
+      <span class="pill ctrl">sweep waits for full ledger</span>
+      <span class="pill ctrl">RPM backpressure → defer 30 s</span>
+      <span class="pill ctrl">generation guard (zombie-claim race)</span>
+    </div>
+  </div>
+
+  <div class="flow"><i class="ti ti-chevron-down" aria-hidden="true"></i></div>
+
+  <div class="band">
+    <div class="band-label"><i class="ti ti-brain" aria-hidden="true"></i>Evaluator modes</div>
+    <div class="modes">
+      <div class="mode fast">
+        <h4>evaluateSection</h4>
+        <div class="tier">fast call + optional strong contradiction</div>
+        <div class="steps">
+          <span class="s">1 · hash check → skip if clean</span>
+          <span class="s">1b · revert-snapshot restore</span>
+          <span class="s">2 · inert / bodyless-heading skip</span>
+          <span class="s">3 · merged fast call: summary + claims + clarity / unsupported / jargon</span>
+          <span class="s">4 · strong contradiction (top-10 prefilter)</span>
+          <span class="s">5 · reconcile + suppression gate</span>
+          <span class="s">6 · commit dirty-check hash last</span>
+        </div>
+      </div>
+      <div class="mode strong">
+        <h4>evaluateDocument</h4>
+        <div class="tier">strong · doc-scope judgment</div>
+        <div class="steps">
+          <span class="s">missing_topic · underexposed_topic</span>
+          <span class="s">structure_flow · audience_mismatch</span>
+          <span class="s">stage fit + suggestion</span>
+          <span class="s">maturity-aware severity / voice</span>
+          <span class="s">3-pass reconcile: resolved_prior → persist → lexical + grace</span>
+        </div>
+      </div>
+      <div class="mode strong">
+        <h4>evaluateLedgerContradictions</h4>
+        <div class="tier">strong · bootstrap sweep</div>
+        <div class="steps">
+          <span class="s">one all-pairs call over full ledger</span>
+          <span class="s">emits contradiction / strategic_tension</span>
+          <span class="s">anchors to precise block + offsets</span>
+          <span class="s">weak model → additive only</span>
+          <span class="s">strong model → authoritative-with-grace</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="flow"><i class="ti ti-chevron-down" aria-hidden="true"></i></div>
+
+  <div class="band">
+    <div class="band-label"><i class="ti ti-route" aria-hidden="true"></i>Model router — one interface, two tiers, capability-gated</div>
+    <div class="lanes">
+      <div class="lane fast">
+        <h4>fast()</h4>
+        <span class="chip"><b>gemini-3.1-flash-lite</b><span class="m"> — 500 RPD workhorse</span></span>
+        <span class="chip">flash-lite / flash fallbacks<span class="m"> — 20 RPD each</span></span>
+      </div>
+      <div class="lane strong">
+        <h4>strong()</h4>
+        <span class="chip">contradiction adjudication</span>
+        <span class="chip">doc-level judgment calls</span>
+      </div>
+      <div class="lane ctrl">
+        <h4>capability (≠ credential)</h4>
+        <span class="chip"><b>weak | strong</b><span class="m"> — decided at App boundary</span></span>
+        <span class="chip">adjudicateConfidently · driveResolution</span>
+        <span class="chip">binding limit: requests-per-day / model</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="flow"><i class="ti ti-chevron-down" aria-hidden="true"></i></div>
+
+  <div class="two">
+    <div class="band ctrl" style="background:var(--surface-2)">
+      <div class="band-label"><i class="ti ti-list-check" aria-hidden="true"></i>Claim ledger — cross-doc substrate</div>
+      <div class="tax">
+        <h4>kinds</h4>
+        <div class="pills">
+          <span class="pill">commitment</span><span class="pill">fact_claim</span>
+          <span class="pill">definition</span><span class="pill">constraint</span><span class="pill">metric</span>
+        </div>
+        <div class="axes">
+          <div><b>status</b> — active · orphaned (source block gone)</div>
+          <div><b>anchored</b> — precise block + offsets, not the heading</div>
+          <div><b>prefilter</b> — top-10 lexical Jaccard before a strong call</div>
+          <div><b>feeds</b> — contradiction · missing_topic detection</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="band">
+      <div class="band-label"><i class="ti ti-messages" aria-hidden="true"></i>Observation taxonomy — the only outputs (fixed, typed)</div>
+      <div class="tax">
+        <h4>span scope</h4>
+        <div class="pills">
+          <span class="pill fast">clarity</span><span class="pill fast">unsupported_claim</span><span class="pill fast">undefined_jargon</span>
+        </div>
+        <h4>document scope</h4>
+        <div class="pills">
+          <span class="pill strong">missing_topic</span><span class="pill strong">underexposed_topic</span>
+          <span class="pill strong">structure_flow</span><span class="pill strong">audience_mismatch</span>
+        </div>
+        <h4>cross-doc conflict</h4>
+        <div class="pills">
+          <span class="pill strong">contradiction</span><span class="pill strong">strategic_tension</span>
+        </div>
+        <div class="axes">
+          <div><b>axes</b> — kind (problem / opportunity / reflection) · severity · confidence · priority [0–3]</div>
+          <div><b>lifecycle</b> — active → auto_closed · dismissed · superseded</div>
+          <div><b>guardrails</b> — never a fix; anti-taxonomy (no grammar / style); dismissal suppression is kind / severity-aware</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</body>
+</html>
