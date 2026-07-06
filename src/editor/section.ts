@@ -143,3 +143,73 @@ export function resolveSection(doc: PMNode, blockId: string): Section | null {
   const sections = resolveSections(doc);
   return sections.find((s) => s.members.some((m) => m.blockId === blockId)) ?? null;
 }
+
+// ---------------------------------------------------------------------------
+// Section-boundary structural-change detection (revert-aware eval, Mechanism 1)
+// ---------------------------------------------------------------------------
+//
+// A block-type toggle (paragraph ↔ heading) silently re-sections the document
+// via resolveSections() with no debounce of its own: the block that became a
+// heading opens a new section and steals the body that followed it. The next
+// legitimate trigger then evaluates a *transiently* resized section. These
+// helpers let the editor detect that re-sectioning and hold eval dispatch until
+// the new boundaries are sustained (a "committed" layer over the always-live
+// resolveSections result). See docs/projects/revert_aware_evaluation.md
+// (Mechanism 1) and docs/mechanics/evaluation-triggers.md.
+
+/**
+ * Map every member blockId to the id of the section that currently owns it. The
+ * owner is a section's representative id (heading id, or first-block id for the
+ * intro). This is the *structural* fingerprint of the document: it changes only
+ * when a heading is added/removed/moved (re-sectioning), not when text is edited
+ * or a paragraph is split within an existing section.
+ */
+export function sectionOwnerMap(sections: Section[]): Map<string, string> {
+  const owners = new Map<string, string>();
+  for (const s of sections) {
+    for (const m of s.members) {
+      owners.set(m.blockId, s.sectionId);
+    }
+  }
+  return owners;
+}
+
+/**
+ * True iff a **surviving** block (present in both layouts) changed which section
+ * owns it — the signature of a re-sectioning (heading toggle, heading delete),
+ * as opposed to plain typing or an Enter-split (which add/remove blocks but never
+ * move a survivor to a different owner). Blocks that only exist on one side are
+ * ignored, so add/remove alone is not treated as structural.
+ */
+export function hasStructuralChange(
+  committed: Map<string, string>,
+  live: Map<string, string>
+): boolean {
+  for (const [blockId, owner] of live) {
+    const prior = committed.get(blockId);
+    if (prior !== undefined && prior !== owner) return true;
+  }
+  return false;
+}
+
+/**
+ * The set of section ids affected by a structural change: every owner id, on
+ * either side, of a surviving block whose ownership moved. This spans both the
+ * section that lost blocks and the one that gained them (e.g. the shrunk intro
+ * *and* the new heading section on a P→H toggle). Used to scope eval suppression
+ * and in-flight invalidation to just the re-sectioned area.
+ */
+export function changedSectionIds(
+  committed: Map<string, string>,
+  live: Map<string, string>
+): Set<string> {
+  const changed = new Set<string>();
+  for (const [blockId, owner] of live) {
+    const prior = committed.get(blockId);
+    if (prior !== undefined && prior !== owner) {
+      changed.add(owner);
+      changed.add(prior);
+    }
+  }
+  return changed;
+}

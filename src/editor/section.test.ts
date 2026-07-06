@@ -6,7 +6,14 @@ import TableRow from "@tiptap/extension-table-row";
 import TableHeader from "@tiptap/extension-table-header";
 import TableCell from "@tiptap/extension-table-cell";
 import { BlockId } from "./extensions/BlockId";
-import { resolveSection, resolveSections, MAX_SECTION_CHARS } from "./section";
+import {
+  resolveSection,
+  resolveSections,
+  sectionOwnerMap,
+  hasStructuralChange,
+  changedSectionIds,
+  MAX_SECTION_CHARS,
+} from "./section";
 
 const schema = getSchema([StarterKit, BlockId, Table, TableRow, TableHeader, TableCell]);
 
@@ -170,5 +177,86 @@ describe("resolveSection", () => {
   it("returns null for an unknown block id", () => {
     const d = doc(para("a", "Only paragraph."));
     expect(resolveSection(d, "missing")).toBeNull();
+  });
+});
+
+describe("structural-change detection (revert-aware eval, Mechanism 1)", () => {
+  // A three-paragraph intro: all owned by "a".
+  const intro = doc(para("a", "Para one."), para("b", "Para two."), para("c", "Para three."));
+  // "b" toggled to a heading: it opens a new section that steals "c".
+  const toggled = doc(para("a", "Para one."), heading("b", "Para two."), para("c", "Para three."));
+
+  it("sectionOwnerMap maps every member to its owning sectionId", () => {
+    const owners = sectionOwnerMap(resolveSections(intro));
+    expect(owners.get("a")).toBe("a");
+    expect(owners.get("b")).toBe("a");
+    expect(owners.get("c")).toBe("a");
+  });
+
+  it("flags a paragraph→heading toggle as structural (a survivor changed owner)", () => {
+    const before = sectionOwnerMap(resolveSections(intro));
+    const after = sectionOwnerMap(resolveSections(toggled));
+    expect(hasStructuralChange(before, after)).toBe(true);
+    // Both the shrunk intro ("a") and the new heading section ("b") are affected.
+    expect(changedSectionIds(before, after)).toEqual(new Set(["a", "b"]));
+  });
+
+  it("is symmetric: reverting the heading back is also structural", () => {
+    const before = sectionOwnerMap(resolveSections(toggled));
+    const after = sectionOwnerMap(resolveSections(intro));
+    expect(hasStructuralChange(before, after)).toBe(true);
+  });
+
+  it("does NOT flag plain text edits within stable membership", () => {
+    const edited = doc(
+      para("a", "Para one, now longer."),
+      para("b", "Para two."),
+      para("c", "Para three, edited too.")
+    );
+    const before = sectionOwnerMap(resolveSections(intro));
+    const after = sectionOwnerMap(resolveSections(edited));
+    expect(hasStructuralChange(before, after)).toBe(false);
+    expect(changedSectionIds(before, after).size).toBe(0);
+  });
+
+  it("does NOT flag an Enter-split (a new block joins the same section)", () => {
+    // "c" split into "c" + new "d"; existing survivors keep their owner "a".
+    const split = doc(
+      para("a", "Para one."),
+      para("b", "Para two."),
+      para("c", "Para three,"),
+      para("d", "continued.")
+    );
+    const before = sectionOwnerMap(resolveSections(intro));
+    const after = sectionOwnerMap(resolveSections(split));
+    expect(hasStructuralChange(before, after)).toBe(false);
+  });
+
+  it("does NOT flag block removal alone (no survivor changes owner)", () => {
+    const removed = doc(para("a", "Para one."), para("b", "Para two."));
+    const before = sectionOwnerMap(resolveSections(intro));
+    const after = sectionOwnerMap(resolveSections(removed));
+    expect(hasStructuralChange(before, after)).toBe(false);
+  });
+
+  it("empty→populated (first content) is not structural", () => {
+    const before = new Map<string, string>();
+    const after = sectionOwnerMap(resolveSections(intro));
+    expect(hasStructuralChange(before, after)).toBe(false);
+  });
+
+  it("flags a mid-doc heading delete as structural (body merges up)", () => {
+    // Section H with body; delete H so its body merges into the intro "a".
+    const withHeading = doc(
+      para("a", "Intro."),
+      heading("h", "Section"),
+      para("p", "Body under heading.")
+    );
+    const merged = doc(para("a", "Intro."), para("p", "Body under heading."));
+    const before = sectionOwnerMap(resolveSections(withHeading));
+    const after = sectionOwnerMap(resolveSections(merged));
+    // "p" was owned by "h", now owned by "a" — a surviving block changed owner.
+    expect(hasStructuralChange(before, after)).toBe(true);
+    expect(changedSectionIds(before, after).has("a")).toBe(true);
   });
 });

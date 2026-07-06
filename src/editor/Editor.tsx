@@ -18,9 +18,15 @@ import { EditorBubbleMenu } from "./menus/BubbleMenu";
 import { TableMenu } from "./menus/TableMenu";
 import { ContradictionPeek } from "./ContradictionPeek";
 import { bothSpansFit } from "./spanFit";
-import { resolveSection, resolveSections } from "./section";
+import {
+  resolveSection,
+  resolveSections,
+  sectionOwnerMap,
+  hasStructuralChange,
+  changedSectionIds,
+} from "./section";
 import { saveDocument, loadDocument, type Observation } from "../store/db";
-import { scheduleEval } from "../services/orchestrator";
+import { scheduleEval, invalidateSectionEval } from "../services/orchestrator";
 import type { EvalContext } from "../services/types";
 import { documentMaturity, type MaturityLevel } from "../services/documentMaturity";
 import type { ModelCapability } from "../model/capability";
@@ -153,6 +159,20 @@ export function Editor({
    *  instead of the normal single-section pause. See bulk_paste_evaluation.md. */
   const pastePendingRef = useRef(false);
 
+  // --- Section-boundary commit debounce (revert-aware eval, Mechanism 1) ---
+  // A block-type toggle (P↔H) silently re-sections the doc with no debounce of
+  // its own, so the next legitimate trigger evaluates a transient boundary. We
+  // hold a *committed* owner map (blockId→sectionId) and only let a re-sectioning
+  // become visible to eval dispatch once it survives EVAL_DEBOUNCE_MS. Until then,
+  // dispatch for affected sections is suppressed; a revert within the window nets
+  // zero evals. See docs/projects/revert_aware_evaluation.md (Mechanism 1).
+  /** The last *committed* (settled) section-owner map: blockId → owning sectionId. */
+  const committedOwners = useRef<Map<string, string>>(new Map());
+  /** Armed while a re-sectioning is pending; commits the new layout when it fires. */
+  const structuralTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /** Section ids touched by the pending re-sectioning — the scope of suppression. */
+  const affectedSectionIds = useRef<Set<string>>(new Set());
+
   // Stable refs for props used inside event listeners / timers
   const apiKeyRef = useRef(apiKey);
   useEffect(() => {
@@ -200,6 +220,65 @@ export function Editor({
     if (key !== prevBlockOrderKeyRef.current) {
       prevBlockOrderKeyRef.current = key;
       onBlockOrderChangeRef.current?.(ids);
+    }
+  };
+
+  // --- Section-boundary commit debounce helpers (Mechanism 1) ---
+
+  /** True while a section's boundaries are mid-re-sectioning and not yet
+   *  committed — dispatch for it is suppressed until the settle window elapses. */
+  const isSectionSuppressed = (sectionId: string): boolean =>
+    structuralTimer.current !== null && affectedSectionIds.current.has(sectionId);
+
+  /** Build the ambient EvalContext from the current prop refs. */
+  const buildEvalCtx = (): EvalContext => ({
+    docId: DOC_ID,
+    apiKey: apiKeyRef.current ?? "",
+    paidKey: paidKeyRef.current,
+    capability: capabilityRef.current,
+    stage: stageRef.current,
+    jargonAllowlist: jargonAllowlistRef.current,
+    onStageSuggestion: onStageSuggestionRef.current,
+  });
+
+  /** Accept the given sections' boundaries as committed *now* and cancel any
+   *  pending re-sectioning debounce. Used on load/import/paste, where the new
+   *  boundaries are authoritative and evaluated by their own path. */
+  const commitOwnersNow = (sections: ReturnType<typeof resolveSections>) => {
+    committedOwners.current = sectionOwnerMap(sections);
+    if (structuralTimer.current) {
+      clearTimeout(structuralTimer.current);
+      structuralTimer.current = null;
+    }
+    affectedSectionIds.current.clear();
+  };
+
+  /** Fired when a re-sectioning has held for EVAL_DEBOUNCE_MS: commit the new
+   *  boundaries and fire a synthetic settle-pause for each affected section, so a
+   *  *sustained* new heading actually gets evaluated (nothing else will — the
+   *  pause/departure triggers were suppressed the whole window). Subject to the
+   *  same terminal-punctuation + min-length gates as the pause timer (Invariant
+   *  #4 holds). */
+  const commitStructuralLayout = (ed: NonNullable<ReturnType<typeof useEditor>>) => {
+    structuralTimer.current = null;
+    const affected = affectedSectionIds.current;
+    affectedSectionIds.current = new Set();
+    const sections = resolveSections(ed.state.doc);
+    committedOwners.current = sectionOwnerMap(sections);
+    if (affected.size === 0) return;
+    const ctx = buildEvalCtx();
+    for (const section of sections) {
+      if (!affected.has(section.sectionId)) continue;
+      const hasTerminalPunc = /[.!?"]\s*$/.test(section.combinedText);
+      const hasMinLength = section.combinedText.trim().length >= 15;
+      if (hasTerminalPunc && hasMinLength) {
+        scheduleEval(
+          { kind: "block-settle-pause", sectionId: section.sectionId, members: section.members },
+          section.combinedText,
+          ctx,
+          () => onEvaluationCompleteRef.current()
+        );
+      }
     }
   };
 
@@ -308,6 +387,11 @@ export function Editor({
           };
           prevBlockIds.current = getBlockIds(editor);
           const sections = resolveSections(editor.state.doc);
+          // A bulk paste re-sections wholesale and dispatches its own per-section
+          // evals below, so accept its boundaries as committed immediately and
+          // cancel any pending re-sectioning debounce (Mechanism 1) rather than
+          // firing a redundant synthetic settle 3 s later.
+          commitOwnersNow(sections);
           lastActiveSectionId.current =
             sections.length > 0 ? sections[sections.length - 1].sectionId : null;
           for (const section of sections) {
@@ -338,6 +422,44 @@ export function Editor({
         return;
       }
 
+      // --- 2d. Section-boundary commit debounce (Mechanism 1) ---
+      // A block-type toggle (P↔H) re-sections the doc with no debounce of its
+      // own. Detect that (a *surviving* block changed owner) and hold eval
+      // dispatch for the affected sections until the new boundaries survive
+      // EVAL_DEBOUNCE_MS. A revert within the window nets zero evals; a sustained
+      // change commits and fires a synthetic settle (commitStructuralLayout).
+      // resolveSections here is the same linear walk step 3 already relies on —
+      // no LLM, invariant #3 untouched. See revert_aware_evaluation.md.
+      {
+        const liveOwners = sectionOwnerMap(resolveSections(editor.state.doc));
+        if (hasStructuralChange(committedOwners.current, liveOwners)) {
+          // Re-sectioning in flight. Freeze committed boundaries, suppress the
+          // affected sections, and (re)arm the settle window. Invalidate any eval
+          // already in flight for a section whose boundary is now changing — its
+          // result is stale (closes Mechanism 2's known in-flight-revert gap).
+          for (const id of changedSectionIds(committedOwners.current, liveOwners)) {
+            affectedSectionIds.current.add(id);
+            invalidateSectionEval(id);
+          }
+          if (structuralTimer.current) clearTimeout(structuralTimer.current);
+          structuralTimer.current = setTimeout(() => {
+            commitStructuralLayout(editor);
+          }, EVAL_DEBOUNCE_MS);
+        } else if (structuralTimer.current) {
+          // Live structure returned to the committed shape before the window
+          // elapsed — a revert. Cancel the pending commit, invalidate any eval
+          // that did start for an affected section, and drop the suppression.
+          clearTimeout(structuralTimer.current);
+          structuralTimer.current = null;
+          for (const id of affectedSectionIds.current) invalidateSectionEval(id);
+          affectedSectionIds.current.clear();
+          committedOwners.current = liveOwners;
+        } else {
+          // Steady state: absorb ordinary adds/removes/text edits into committed.
+          committedOwners.current = liveOwners;
+        }
+      }
+
       // --- 3. Track cursor's section and schedule a settle-pause eval ---
       const { selection } = editor.state;
       const $pos = selection.$from;
@@ -366,7 +488,7 @@ export function Editor({
         // parallel with the pause timer below. Coalescing (250 ms window) + the
         // evaluateSection hash short-circuit collapse the double-fire into a
         // single dispatch with no redundant model call.
-        if (blockAdded) {
+        if (blockAdded && !isSectionSuppressed(sectionId)) {
           const hasTerminalPunc = /[.!?"]\s*$/.test(activeSection.combinedText);
           const hasMinLength = activeSection.combinedText.trim().length >= 15;
           if (hasTerminalPunc && hasMinLength) {
@@ -398,9 +520,17 @@ export function Editor({
         const timer = setTimeout(() => {
           evalTimers.current.delete(sectionId);
 
+          // Suppress while this section is mid-re-sectioning (Mechanism 1) — the
+          // structural-commit path will re-fire it once the boundary settles.
+          if (isSectionSuppressed(sectionId)) return;
+
           // Re-resolve from the live doc so the eval sees the current section.
           const fresh = resolveSection(editor.state.doc, sectionId);
           if (!fresh) return;
+          // The captured sectionId may no longer be a live section boundary (a
+          // toggle since armed made this block a member of a different section) —
+          // skip rather than dispatch stale members under a defunct id.
+          if (fresh.sectionId !== sectionId) return;
 
           const hasTerminalPunc = /[.!?"]\s*$/.test(fresh.combinedText);
           const hasMinLength = fresh.combinedText.trim().length >= 15;
@@ -490,16 +620,18 @@ export function Editor({
           evalTimers.current.delete(departedSectionId);
         }
 
-        if (departed && departed.combinedText.trim().length >= 10) {
-          const ctx: EvalContext = {
-            docId: DOC_ID,
-            apiKey: apiKeyRef.current ?? "",
-            paidKey: paidKeyRef.current,
-            capability: capabilityRef.current,
-            stage: stageRef.current,
-            jargonAllowlist: jargonAllowlistRef.current,
-            onStageSuggestion: onStageSuggestionRef.current,
-          };
+        // Suppress the departure eval while the departed section is
+        // mid-re-sectioning (Mechanism 1), or if its id is no longer a live
+        // section boundary — the structural-commit path re-fires it on settle.
+        // The pause-timer cancel + lastActiveSectionId bookkeeping above still
+        // run, so only the dispatch is gated.
+        if (
+          departed &&
+          departed.sectionId === departedSectionId &&
+          departed.combinedText.trim().length >= 10 &&
+          !isSectionSuppressed(departedSectionId)
+        ) {
+          const ctx = buildEvalCtx();
           scheduleEval(
             {
               kind: "block-settle-blur",
@@ -900,6 +1032,9 @@ export function Editor({
       // Emit document order immediately after seeding (setContent doesn't fire onUpdate).
       emitBlockOrderIfChanged(editor);
       const sections = resolveSections(editor.state.doc);
+      // Seed the committed boundary layout so the first post-load edit isn't
+      // misread as a re-sectioning (Mechanism 1).
+      commitOwnersNow(sections);
       // Seed cursor tracking at the last section so subsequent edits depart cleanly.
       lastActiveSectionId.current =
         sections.length > 0 ? sections[sections.length - 1].sectionId : null;
@@ -971,6 +1106,8 @@ export function Editor({
       }
       // setContent() may not fire onUpdate; emit order explicitly after load.
       emitBlockOrderIfChanged(editor);
+      // Seed committed boundaries from the loaded doc (Mechanism 1).
+      commitOwnersNow(resolveSections(editor.state.doc));
     });
   }, [editor]);
 
@@ -981,6 +1118,8 @@ export function Editor({
     prevBlockIds.current = new Set();
     // Emit empty order on clear.
     emitBlockOrderIfChanged(editor);
+    // Drop any committed boundaries + pending re-sectioning debounce (Mechanism 1).
+    commitOwnersNow(resolveSections(editor.state.doc));
   }, [editor, clearTrigger]);
 
   // Handle imported content: set doc, then fire one fast-tier section eval per
@@ -1012,6 +1151,8 @@ export function Editor({
       prevBlockIds.current = getBlockIds(editor);
       emitBlockOrderIfChanged(editor);
       const sections = resolveSections(editor.state.doc);
+      // Accept the imported doc's boundaries as committed (Mechanism 1).
+      commitOwnersNow(sections);
       for (const section of sections) {
         if (section.combinedText.trim().length >= 15) {
           scheduleEval(
