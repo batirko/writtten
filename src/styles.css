@@ -1382,32 +1382,38 @@ body,
   cursor: pointer;
 }
 
+/* C7 — gentle always-on (settled 2026-07-06, ui_interaction_mechanics.md § C7).
+   At-rest washes are deliberately faint (~4–6%) so a doc with several surfaced
+   spans reads as a calm editorial canvas, not marked-up copy; the strong lift
+   lives in the `.obs-highlight-hovered` boosts below (~22–30%), giving a ~4–5×
+   contrast jump on interaction. Underline dash/dot styles are unchanged — they
+   are the per-type differentiator, not part of the density dial. */
 .obs-highlight-clarity {
-  background-color: color-mix(in oklch, var(--sem-problem-low) 12%, transparent);
+  background-color: color-mix(in oklch, var(--sem-problem-low) 5%, transparent);
   border-bottom: 2px dotted var(--sem-problem-low);
 }
 
 .obs-highlight-contradiction {
-  background-color: color-mix(in oklch, var(--sem-contradiction) 15%, transparent);
+  background-color: color-mix(in oklch, var(--sem-contradiction) 6%, transparent);
   border-bottom: 2px dashed var(--sem-contradiction);
 }
 
 .obs-highlight-strategic_tension {
-  background-color: color-mix(in oklch, var(--sem-tension) 15%, transparent);
+  background-color: color-mix(in oklch, var(--sem-tension) 6%, transparent);
   border-bottom: 2px dashed var(--sem-tension);
 }
 
 /* Problem · medium — an assertive claim lacking support. Amber wash, dotted
    (span-level problem, not a cross-claim conflict → dotted, not dashed). */
 .obs-highlight-unsupported_claim {
-  background-color: color-mix(in oklch, var(--sem-problem-med) 12%, transparent);
+  background-color: color-mix(in oklch, var(--sem-problem-med) 5%, transparent);
   border-bottom: 2px dotted var(--sem-problem-med);
 }
 
 /* Problem · low — an undefined term. Same faint-gray family as clarity, but a
    finer dashed underline so it stays distinguishable from a clarity flag. */
 .obs-highlight-undefined_jargon {
-  background-color: color-mix(in oklch, var(--sem-problem-low) 10%, transparent);
+  background-color: color-mix(in oklch, var(--sem-problem-low) 4%, transparent);
   border-bottom: 1px dashed var(--sem-problem-low);
 }
 
