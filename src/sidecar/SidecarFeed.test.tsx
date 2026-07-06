@@ -339,3 +339,99 @@ describe("SidecarFeed — click-to-locate (C2)", () => {
     expect(events).toEqual([]);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Onboarding & first-run — the welcome moment + "See it in action" example.
+// ---------------------------------------------------------------------------
+
+describe("SidecarFeed — first-run welcome moment", () => {
+  const containers: HTMLDivElement[] = [];
+
+  function renderWith(props: Record<string, unknown>): HTMLDivElement {
+    const div = document.createElement("div");
+    document.body.appendChild(div);
+    containers.push(div);
+    act(() => {
+      createRoot(div).render(createElement(SidecarFeed, { ...minProps, ...props }));
+    });
+    return div;
+  }
+
+  afterEach(() => {
+    for (const c of containers) act(() => c.remove());
+    containers.length = 0;
+  });
+
+  it("shows the welcome card only when showWelcome is set", () => {
+    expect(renderWith({ showWelcome: false }).querySelector('[data-testid="welcome-card"]')).toBeNull();
+    const div = renderWith({
+      showWelcome: true,
+      documentIsEmpty: true,
+      onDismissWelcome: () => {},
+      onLoadExample: () => {},
+    });
+    expect(div.querySelector('[data-testid="welcome-card"]')).not.toBeNull();
+    // While the welcome card is up, the quiet empty state must not also render.
+    expect(div.querySelector(".sidecar-empty")).toBeNull();
+  });
+
+  it("dismissing the welcome card calls onDismissWelcome (no observation side effects)", () => {
+    let dismissed = 0;
+    const div = renderWith({
+      showWelcome: true,
+      documentIsEmpty: true,
+      onDismissWelcome: () => (dismissed += 1),
+      onLoadExample: () => {},
+    });
+    act(() => {
+      div.querySelector('[data-testid="welcome-dismiss"]')?.dispatchEvent(
+        new MouseEvent("click", { bubbles: true })
+      );
+    });
+    expect(dismissed).toBe(1);
+  });
+
+  it("offers 'See it in action' only on an empty document (never clobbers text)", () => {
+    const onEmpty = renderWith({
+      showWelcome: true,
+      documentIsEmpty: true,
+      onDismissWelcome: () => {},
+      onLoadExample: () => {},
+    });
+    expect(onEmpty.querySelector('[data-testid="see-example"]')).not.toBeNull();
+
+    const withText = renderWith({
+      showWelcome: true,
+      documentIsEmpty: false,
+      onDismissWelcome: () => {},
+      onLoadExample: () => {},
+    });
+    expect(withText.querySelector('[data-testid="see-example"]')).toBeNull();
+  });
+
+  it("clicking 'See it in action' loads the example", () => {
+    let loaded = 0;
+    const div = renderWith({
+      showWelcome: true,
+      documentIsEmpty: true,
+      onDismissWelcome: () => {},
+      onLoadExample: () => (loaded += 1),
+    });
+    act(() => {
+      div.querySelector('[data-testid="see-example"]')?.dispatchEvent(
+        new MouseEvent("click", { bubbles: true })
+      );
+    });
+    expect(loaded).toBe(1);
+  });
+
+  it("a returning user (welcome dismissed) still finds the example in the empty feed", () => {
+    const div = renderWith({
+      showWelcome: false,
+      documentIsEmpty: true,
+      onLoadExample: () => {},
+    });
+    expect(div.querySelector(".sidecar-empty")).not.toBeNull();
+    expect(div.querySelector('[data-testid="see-example"]')).not.toBeNull();
+  });
+});

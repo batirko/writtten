@@ -1,5 +1,5 @@
 ---
-status: idea
+status: in-progress
 kind: spec
 phases: [6]
 summary: The first-run experience for a brand-new user — a single dismissible welcome moment that frames the inversion, an optional one-click "See it in action" example doc (planted contradiction) so the hero capability is witnessable immediately, the quiet-by-design empty states, and the first-settle micro-moment — all without a tour, a setup form, or a key gate.
@@ -34,8 +34,8 @@ Consumes the three prior product-feel specs:
 
 Anchor files: `src/sidecar/SidecarFeed.tsx` (welcome card, empty state, example affordance), `src/App.tsx` (first-run flag, example load/clear), `src/editor/Editor.tsx` (placeholder copy), a new example fixture (e.g. `src/services/exampleDoc.ts`), `src/styles.css` (visual_style tokens).
 
-- [ ] **Welcome moment** — a dismissible welcome card at the top of the feed, shown only when a persisted `hasSeenWelcome` flag (localStorage) is unset; dismissing sets it. Copy + styling per § The welcome moment. Reuses the card/dismiss visual language (no new component vocabulary).
-- [ ] **"See it in action" example** — an example-doc fixture (short PRD, one planted `contradiction` + ideally one `unsupported_claim`) and a one-click affordance (in the welcome card and the empty feed) that loads it into the editor and lets the live pipeline react. A "clear" path returns to a blank doc. Guard the replace-current-doc case (§ The example).
+- [x] **Welcome moment** — a dismissible welcome card at the top of the feed, shown only when a persisted `hasSeenWelcome` flag (localStorage `writtten_has_seen_welcome`) is unset; dismissing sets it. Copy + styling per § The welcome moment. Reuses the card/dismiss visual language (no new component vocabulary). Shipped in `SidecarFeed.tsx` (`WelcomeCard`) + `App.tsx`.
+- [x] **"See it in action" example** — an example-doc fixture (`src/services/exampleDoc.ts`: short PRD, one planted `contradiction` + one `unsupported_claim`) and a one-click affordance (in the welcome card and the empty feed) that loads it into the editor via the existing `importContent` path and lets the live pipeline react. Guard: offered **only on a blank doc** (`blockOrder.length <= 1`) so it never clobbers the user's own text; clearing the workspace returns to blank.
 - [ ] **Empty states** — editor placeholder + empty-feed copy that frame the silence as intentional (§ Empty states), visually distinct from the "working" state (`sidecar-status`). Co-owned with `visual_style`; this spec owns the copy + intent, `visual_style` owns the look.
 - [ ] **First-settle micro-moment** — ensure the very first observation a user ever sees is unmistakable but calm; the arrival animation is **R3c** — this item only guarantees the hand-off and that the empty→first-card transition isn't change-blind (§ First-settle).
 - [ ] **No upfront setup** — confirm first-run shows _no_ stage form (inference handles it) and _no_ API-key gate (free tier runs keyless); any BYO-key nudge is quiet and deferred (§ No upfront setup).
