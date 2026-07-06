@@ -76,7 +76,7 @@ describe("Evaluator quality ratchet — Tier 1 (deterministic replay)", () => {
 
   for (const fixture of corpus) {
     it(`${fixture.id}: ${fixture.description}`, async () => {
-      const produced = await runner.run(fixture);
+      const produced = fixture.sweep ? await runner.runSweep(fixture) : await runner.run(fixture);
 
       const sectionTexts = new Map(fixture.sections.map((s) => [s.id, s.text]));
 
@@ -142,7 +142,21 @@ describe("Evaluator quality ratchet — Tier 1 (deterministic replay)", () => {
           ).toBe(false);
         }
 
-        // 5. Length soft cap: ≤ 240 chars, ≤ 2 sentences.
+        // 5. No evaluator-internal claim index labels in contradiction/tension copy (UX-017).
+        //    The contradiction/sweep prompts number claims `[Claim #N]` / `[Existing
+        //    Claim #N]` for their own bookkeeping (→ structured claimAId/claimBId).
+        //    That numbered label must never leak into the user-facing `message`; the
+        //    model must name a claim by its words. Matches "Claim #1", "claim 2",
+        //    "existing claim 0" — but not the bare phrase "the existing claim", which
+        //    is ordinary English, not a label. Pairs with the OBS-031 fidelity fix.
+        if (o.type === "contradiction" || o.type === "strategic_tension") {
+          expect(
+            /\bclaim\s*#?\s*\d+/i.test(o.text),
+            `UX-017 violation: contradiction/tension message references a claim by its internal index label. Must quote or restate the claim's own words.\n  Message: "${o.text}"`
+          ).toBe(false);
+        }
+
+        // 6. Length soft cap: ≤ 240 chars, ≤ 2 sentences.
         // Warns but does not fail — a 250-char contradiction that names both anchors
         // is better than a truncated one (emotional_register.md § Voice & copy guide).
         if (o.text.length > 240) {

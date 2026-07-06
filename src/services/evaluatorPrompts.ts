@@ -84,10 +84,12 @@ A) CONTRADICTION — a genuine logical incompatibility: one claim simply cannot 
 
 B) STRATEGIC TENSION — two claims that are each intended or desirable but pull in opposite directions: a deliberate tradeoff the author is reasoning about, not a logical impossibility. ("Notify users on every fraud block" — reduces support load — vs "Minimize friction for legitimate users" — notifications add friction.) Both can be true at once; they are simply in tension. Do NOT report these as contradictions.
 
+NOT A CONFLICT — if two claims are compatible and simply leave unspecified *how* they combine (e.g. a percentage rollout and a separate threshold gate that can both apply at once), do NOT report them in either bucket. An unstated interaction between compatible claims is a clarity gap, not a contradiction or a tension.
+
 Return a JSON object with two keys, 'contradictions' and 'tensions', each an array of objects. Each object must have:
 - 'newClaimText' (the text of the new claim involved)
 - 'existingClaimId' (the index number shown in [Existing Claim #N] for the other claim)
-- 'message' (a short, confident observation. For a contradiction: "This contradicts the Q3 target date set in the project overview." For a tension: "This goal is in tension with the friction-minimization objective in §2." Never hedge with "might" or "possibly".)
+- 'message' (a short, confident observation. For a contradiction: "This contradicts the Q3 target date set in the project overview." For a tension: "This goal is in tension with the friction-minimization objective in §2." Never hedge with "might" or "possibly". When you refer to the other claim, quote or closely restate its own words — never re-describe or reinterpret what it means (do not, e.g., turn a stated metric condition into an audience segment). Never name a claim by its index or bookkeeping label — no "Claim #1", "Existing Claim #2" — refer to it by its wording.)
 
 If a bucket has no items, return an empty array for it.
 Do NOT include any text other than the raw JSON.
@@ -109,10 +111,12 @@ A) CONTRADICTION — only when one claim genuinely cannot be true if the other i
 
 B) STRATEGIC TENSION — two claims that are each intended or desirable but pull in opposite directions: a deliberate tradeoff, not a logical impossibility. Both can be true at once. Prefer this bucket over 'contradiction' whenever the conflict is about competing goals or priorities rather than incompatible facts.
 
+NOT A CONFLICT — if two claims are compatible and simply leave unspecified *how* they combine (e.g. a percentage rollout and a separate threshold gate that can both apply at once), do NOT report them in either bucket. An unstated interaction between compatible claims is a clarity gap, not a contradiction or a tension.
+
 Return a JSON object with two keys, 'contradictions' and 'tensions', each an array of objects. Each object must have:
 - 'newClaimText' (the text of the new claim involved)
 - 'existingClaimId' (the index number shown in [Existing Claim #N] for the other claim)
-- 'message' (a short observation. Cautious language such as "may conflict with", "appears to contradict", or "may be in tension with" is appropriate here.)
+- 'message' (a short observation. Cautious language such as "may conflict with", "appears to contradict", or "may be in tension with" is appropriate here. When you refer to the other claim, quote or closely restate its own words — never re-describe or reinterpret what it means (do not, e.g., turn a stated metric condition into an audience segment). Never name a claim by its index or bookkeeping label — no "Claim #1", "Existing Claim #2" — refer to it by its wording.)
 
 If a bucket has no items, return an empty array for it.
 Do NOT include any text other than the raw JSON.
@@ -133,9 +137,11 @@ A) CONTRADICTION — a genuine logical incompatibility: the two claims cannot bo
 
 B) STRATEGIC TENSION — two claims each intended or desirable but pulling in opposite directions: a deliberate tradeoff, not a logical impossibility. Both can be true at once; they are simply in tension. Do NOT report these as contradictions.
 
+NOT A CONFLICT — if two claims are compatible and simply leave unspecified *how* they combine (e.g. a percentage rollout and a separate threshold gate that can both apply at once), do NOT report them in either bucket. An unstated interaction between compatible claims is a clarity gap, not a contradiction or a tension.
+
 Return a JSON object with two keys, 'contradictions' and 'tensions', each an array of objects. Each object must have:
 - 'claimAId' and 'claimBId' (the two [Claim #N] index numbers that conflict)
-- 'message' (a short, confident observation phrased about the *later* claim — e.g. "This contradicts the Q3 target date set earlier." Never hedge with "might" or "possibly".)
+- 'message' (a short, confident observation phrased about the *later* claim — e.g. "This contradicts the Q3 target date set earlier." Never hedge with "might" or "possibly". Quote or closely restate the other claim's own words — never re-describe or reinterpret what it means (do not, e.g., turn a stated metric condition into an audience segment). Never name a claim by its [Claim #N] index or bookkeeping label in the message — refer to it by its wording.)
 
 Report each conflicting pair once. If a bucket has no items, return an empty array for it.
 Do NOT include any text other than the raw JSON.
@@ -151,9 +157,11 @@ A) CONTRADICTION — only when the two claims genuinely cannot both be true: a d
 
 B) STRATEGIC TENSION — two claims each intended or desirable but pulling in opposite directions: a deliberate tradeoff, not a logical impossibility. Both can be true at once. Prefer this bucket whenever the conflict is about competing goals rather than incompatible facts.
 
+NOT A CONFLICT — if two claims are compatible and simply leave unspecified *how* they combine (e.g. a percentage rollout and a separate threshold gate that can both apply at once), do NOT report them in either bucket. An unstated interaction between compatible claims is a clarity gap, not a contradiction or a tension.
+
 Return a JSON object with two keys, 'contradictions' and 'tensions', each an array of objects. Each object must have:
 - 'claimAId' and 'claimBId' (the two [Claim #N] index numbers that conflict)
-- 'message' (a short observation; cautious language such as "may conflict with" or "appears to contradict" is appropriate here.)
+- 'message' (a short observation; cautious language such as "may conflict with" or "appears to contradict" is appropriate here. Quote or closely restate the other claim's own words — never re-describe or reinterpret what it means (do not, e.g., turn a stated metric condition into an audience segment). Never name a claim by its [Claim #N] index or bookkeeping label in the message — refer to it by its wording.)
 
 Report each conflicting pair once. If a bucket has no items, return an empty array for it.
 Do NOT include any text other than the raw JSON.

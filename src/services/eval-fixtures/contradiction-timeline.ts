@@ -18,8 +18,8 @@ const fixture: EvalFixture = {
   ],
   recordings: {
     "r1p8pg52_6834": "{\n  \"summary\": \"The feature is scheduled for release in the third quarter.\",\n  \"claims\": [\n    {\n      \"text\": \"This will ship in Q3.\",\n      \"kind\": \"commitment\"\n    }\n  ],\n  \"clarity_observations\": [\n    {\n      \"text\": \"The specific date or month within the quarter is not specified, making the timeline ambiguous.\",\n      \"substring\": \"Q3\"\n    }\n  ],\n  \"unsupported_claim_observations\": [],\n  \"undefined_jargon_observations\": []\n}",
-    "r1rsin2t_3458": "{\n  \"contradictions\": [\n    {\n      \"newClaimText\": \"This will ship in Q3.\",\n      \"existingClaimId\": 0,\n      \"message\": \"The new claim sets a Q3 launch date, while the existing claim commits to Q2.\"\n    }\n  ],\n  \"tensions\": []\n}",
-    "r1sbiiw5_6230": "{\n  \"summary\": \"The project is scheduled for release in the second quarter.\",\n  \"claims\": [\n    {\n      \"text\": \"We'll launch this in Q2.\",\n      \"kind\": \"commitment\"\n    }\n  ],\n  \"clarity_observations\": [\n    {\n      \"text\": \"The commitment lacks a specific year, making the timeline ambiguous.\",\n      \"substring\": \"Q2\"\n    }\n  ],\n  \"unsupported_claim_observations\": [],\n  \"undefined_jargon_observations\": []\n}",
+    "r1g8uv57_4095": "{\n  \"contradictions\": [\n    {\n      \"newClaimText\": \"This will ship in Q3.\",\n      \"existingClaimId\": 0,\n      \"message\": \"The new claim sets a Q3 launch date, while the existing claim commits to Q2.\"\n    }\n  ],\n  \"tensions\": []\n}",
+    "r1sbiiw5_6230": "{\n  \"summary\": \"The project is scheduled for release in the second quarter.\",\n  \"claims\": [\n    {\n      \"text\": \"We'll launch this in Q2.\",\n      \"kind\": \"commitment\"\n    }\n  ],\n  \"clarity_observations\": [\n    {\n      \"text\": \"The commitment lacks a specific year, making the timeline ambiguous.\",\n      \"substring\": \"Q2\"\n    }\n  ],\n  \"unsupported_claim_observations\": [],\n  \"undefined_jargon_observations\": []\n}"
   },
   expected: [
     {

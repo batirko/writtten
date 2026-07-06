@@ -20,7 +20,7 @@
  */
 
 import { vi } from "vitest";
-import { evaluateSection } from "../evaluator";
+import { evaluateSection, evaluateLedgerContradictions } from "../evaluator";
 import * as db from "../../store/db";
 import { loadRecordings, setLlmMode, clearRecordings } from "../../model/mock";
 import type { ClaimLedgerEntry, Observation } from "../../store/db";
@@ -49,6 +49,13 @@ export interface FixtureRunner {
    * Returns the active observations produced (auto_closed/superseded excluded).
    */
   run(fixture: EvalFixture): Promise<Observation[]>;
+  /**
+   * Run a `sweep` fixture (Tier 1): seed `seedClaims` straight into the ledger,
+   * then run the ledger-internal contradiction sweep in mock mode. Exercises the
+   * all-pairs `CONTRADICTION_SWEEP_SYSTEM_PROMPT[_HEDGED]` path that per-section
+   * `run` never touches. Returns the active observations produced.
+   */
+  runSweep(fixture: EvalFixture): Promise<Observation[]>;
   /**
    * Run a fixture's sections through the evaluator in live mode (Tier 2).
    * Makes real API calls using the provided key.
@@ -166,6 +173,32 @@ export function createFixtureRunner(): FixtureRunner {
     return savedObservations.filter((o) => o.status === "active" && !supersededIds.has(o.id));
   }
 
+  async function runSweep(fixture: EvalFixture): Promise<Observation[]> {
+    if (fixture.recordings && Object.keys(fixture.recordings).length > 0) {
+      loadRecordings(fixture.recordings);
+    }
+
+    const docId = `fixture-${fixture.id}`;
+
+    // Seed claims straight into the ledger (no extraction round-trip). The sweep
+    // sorts by text then sourceBlockId, so [Claim #N] indices follow that order.
+    claimsStore.length = 0;
+    for (const c of fixture.seedClaims ?? []) {
+      claimsStore.push({
+        id: claimIdCounter++,
+        docId,
+        sourceBlockId: c.sourceBlockId,
+        text: c.text,
+        kind: c.kind,
+        status: "active",
+      });
+    }
+
+    await evaluateLedgerContradictions(docId, fixture.stage, "mock-key", undefined);
+
+    return savedObservations.filter((o) => o.status === "active" && !supersededIds.has(o.id));
+  }
+
   async function runLive(
     fixture: EvalFixture,
     apiKey: string,
@@ -198,5 +231,5 @@ export function createFixtureRunner(): FixtureRunner {
     return savedObservations.filter((o) => o.status === "active" && !supersededIds.has(o.id));
   }
 
-  return { setup, teardown, run, runLive };
+  return { setup, teardown, run, runSweep, runLive };
 }
