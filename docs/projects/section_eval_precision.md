@@ -1,8 +1,8 @@
 ---
-status: in-progress
+status: done
 kind: quality
 phases: [6]
-summary: Precision costs of the section-as-eval-unit isolation — the contradiction sweep silently drops intra-section conflicts (OBS-026), section-eval span checks false-positive on references defined in sibling sections (OBS-027), and a heading-only section (no body) hallucinates a fabricated section (OBS-029). Surface intra-block conflicts with single-block anchoring; inject sibling summaries + the active claim ledger + heading-intent as established context; and make bodyless-heading sections inert.
+summary: Precision costs of the section-as-eval-unit isolation, all three shipped — intra-section conflicts now surface via single-block anchoring (OBS-026); section-eval span checks receive sibling summaries + the active claim ledger + heading-intent as established context so they no longer false-positive on references defined elsewhere (OBS-027); and bodyless-heading sections are inert so they can't hallucinate a fabricated section (OBS-029). Two out-of-floor follow-ups remain deferred (OBS-027 behavioural discrimination fixtures; OBS-026 real-offset two-span disambiguation).
 ---
 
 # Section-eval precision (intra-section conflicts + cross-section context)
@@ -11,7 +11,7 @@ summary: Precision costs of the section-as-eval-unit isolation — the contradic
 
 > Canonical status lives in the frontmatter above and is mirrored in the Projects Index in `docs/plan.md`. This block carries the human-readable scope only.
 
-**In-progress — Phase 6 (design settled 2026-06-26; OBS-029 added 2026-07-02). OBS-029 shipped 2026-07-02; OBS-027 shipped 2026-07-05; OBS-026 remains.** All three findings are precision follow-ons to `section_as_eval_unit.md` (done, Phase 4): once the **section** became the atomic eval unit, its isolation and grain produced distinct costs — the first two observed in the live `gemini-2.5-pro [paid]` session of 2026-06-25, the third (OBS-029) in the 2026-07-02 toggle→revert session:
+**Done — Phase 6 (design settled 2026-06-26; OBS-029 added 2026-07-02). All three shipped: OBS-029 2026-07-02, OBS-026 2026-07-02 (self-pair guard follow-up 2026-07-05), OBS-027 2026-07-05.** Two out-of-floor follow-ups stay deferred (see _Deferred_ in each design section): OBS-027's behavioural a/b/d discrimination fixtures (need a live-recording session) and OBS-026's real-offset two-span disambiguation. All three findings are precision follow-ons to `section_as_eval_unit.md` (done, Phase 4): once the **section** became the atomic eval unit, its isolation and grain produced distinct costs — the first two observed in the live `gemini-2.5-pro [paid]` session of 2026-06-25, the third (OBS-029) in the 2026-07-02 toggle→revert session:
 
 - **OBS-026 — intra-section contradictions never reach the feed.** The contradiction-sweep consumer drops any conflict whose two claims share a source block, because whole-block anchoring can't render two spans inside one block as the A↔B cross-highlight. Related conflicting claims most often live in the _same_ section, so this swallows the sharpest issues (in that session, a 60s challenge window vs a 60s transaction expiry — twice).
 - **OBS-027 — span checks false-positive on cross-section references.** Section-eval judges each section in isolation (payload = one section's `combinedText` + stage + glossary), so reference-resolving span checks (`clarity` / `undefined_jargon` / `unsupported_claim`) flag anything defined or asserted in a _sibling_ section ("this notification pattern" flagged undefined when §Solution defines it), and ignore a governing heading ("Multiple retries" flagged ambiguous when it sits under **Out of scope**).
