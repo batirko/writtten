@@ -17,14 +17,19 @@ PR merged to main ─► CI (ci.yml) green
 
   … more PRs merge, the release PR keeps growing …
 
-Merge the release PR ─► release-please tags  vX.Y.Z  + publishes the GitHub Release
-                     └► deploy.yml fires on the  v*  tag
+Merge the release PR ─► release-please tags  writtten-vX.Y.Z  + publishes the GitHub Release
+                     └► deploy.yml fires on the  writtten-v*  tag
                           └► npm ci → lint → test → build → wrangler pages deploy dist
                                └► live at writtten.com
 ```
 
 Ordinary merges to `main` do **not** touch production. They get a Cloudflare **preview** build (a
 `*.pages.dev` URL) for dogfooding. Only the tag reaches the production domain.
+
+> **Tag format:** release-please prefixes the tag with the package component, so releases tag as
+> `writtten-v0.2.0`, not `v0.2.0` — `deploy.yml`'s trigger matches that. A plain `v0.2.0` also works as a
+> fallback for manually-pushed tags. `deploy.yml` additionally has a **`workflow_dispatch`** trigger, so you
+> can force a deploy of current `main` from the Actions tab without cutting a version.
 
 ## Who owns what
 
