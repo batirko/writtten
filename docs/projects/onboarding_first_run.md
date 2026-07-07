@@ -1,5 +1,5 @@
 ---
-status: done
+status: in-progress
 kind: spec
 phases: [6]
 summary: The first-run experience for a brand-new user — a single dismissible welcome moment that frames the inversion, an optional one-click "See it in action" example doc (planted contradiction) so the hero capability is witnessable immediately, the quiet-by-design empty states, and the first-settle micro-moment — all without a tour, a setup form, or a key gate.
@@ -24,6 +24,33 @@ Consumes the three prior product-feel specs:
 1. **One-time welcome moment** — a single calm, dismissible welcome card in the feed on first open that frames the inversion in 2–3 lines, then gets out of the way. Not a tour, not coachmarks. Shown once (a persisted first-run flag).
 2. **Optional "See it in action" example** — a clearly-labeled, one-click sample doc (a short PRD with a planted contradiction) the user can load to _watch_ the feed catch it live, then clear. The sample is pre-written; the user only observes — so it lands the hero without violating the inversion, and it's never forced on anyone.
 
+## Revision (2026-07-07) — First-run activation: the key requirement is now explicit
+
+**Status: reopened.** The first-run above shipped, but a field session found it fails its actual job — activation. This section **supersedes** the "no key gate / never block the blank page / keyless is a real tier" posture; where it conflicts with the decisions and principles below, this wins.
+
+**Why (the diagnosis).** A first-time user has no way to tell that an API key is required. Keyless, the evaluator logs a `console.warn` and **skips every check** (`src/services/evaluator.ts:181`; there is **no bundled/default key**), so the user's own writing produces **nothing** — and the "quiet by design" empty state (§ Empty states) is **visually identical** to that silent skip. The calm design therefore actively **masks a hard requirement**: the user cannot distinguish "working as intended, quietly" from "broken / needs a key." The only keyless value is the hash-matched recorded replay of the "See it in action" example. Confirmed a **launch blocker** — writtten.com is BYOK-only (proxy was NO-GO). Conclusion: keyless is a **demo, not a usable tier**, and the first-run must say so honestly.
+
+**Decisions (owner, 2026-07-07):**
+
+1. **Welcome becomes a blocking modal pop-up** (was: an unintrusive in-feed `WelcomeCard`). On first open, a centered modal (reuse the settings/clear-confirm modal primitive — scrim, focus-trap, `Escape`) frames the inversion **and** makes the key requirement explicit. **Supersedes** Decision #1 (welcome-as-card) and Principle #2 ("never block the blank page") — the block is real, so first-run names it up front.
+2. **Preserve "See it in action" (the mock) from inside the modal.** The witnessing path is kept: the user can load the recorded example and watch the feed react **with no key** (the existing keyless `mock` replay). Value-first survives; it's simply no longer disguised as live analysis.
+3. **Standing "this is a mock" card + Settings link.** While the demo/mock (keyless) example is showing, a **persistent card sits at the top of the feed** stating the session is a mock running on recorded responses and that analyzing your own writing needs a key — with a link that **opens the Settings modal** directly (deep-link to the BYOK field). _Recommended generalization (flag):_ show this standing keyless banner in **any** keyless state, not only after the example — a user who skips the example and just writes should get the same honest banner instead of silent nothing.
+4. **Key entry is one click into the existing BYOK Settings modal.** No new key UI; the modal CTA and the standing card both deep-link to the current settings key field.
+
+**What this resolves / touches.**
+
+- Answers the strategic open question **"free tier: real or demo?"** _for onboarding_ → **demo** (keyless does literally nothing on the user's own text). The separate free-vs-paid **quality** delta — whether a key on the free tier meets the fidelity bar — stays a V1 question (`field_validation.md`).
+- Sharpens the launch **"Hosted live demo"** milestone's vague "a calm Settings prompt walks the visitor through pasting a free Gemini key" into this concrete modal + standing card. (`oss_launch_readiness.md`.)
+- The **empty-state copy** (§ Empty states) must now be reserved for the **keyed** quiet state; when keyless, the honest "add a key" banner replaces it so quiet-by-design never again masks needs-a-key.
+
+**Still faithful.** The mock example only ever shows the AI _reacting to_ pre-written text (Hard Invariant 1 intact). "One interruption maximum" holds — the welcome modal is the single interruption; the mock-label card is a standing banner, not a nag.
+
+**Sub-decisions settled 2026-07-07 (build-ready):**
+
+- **Closable to "just look around."** The modal **can** be dismissed with no key and no example (an explicit × / "Maybe later"). Autonomy is preserved; the **standing keyless banner** (Decision #3) is what keeps the key requirement visible after dismissal — so a bare close never strands the user in silent-nothing.
+- **Copy order: value first, key second.** The modal leads with the inversion framing (what the product is / that it never rewrites you), _then_ names that analyzing your own writing needs a key, _then_ offers the two actions ("See it in action" / "Add your key"). The key ask never opens cold.
+- **Re-entry = the standing banner, not a modal re-opener.** The one-time modal is not re-openable (consistent with the removed reset path); the **standing keyless "add your key → Settings" banner** is the persistent re-entry surface for the key ask (always present while keyless). The "See it in action" example stays reachable **from the modal only** (as before) — acceptable, since the banner covers the load-bearing path (getting a key), and the example is a one-time witnessing aid, not a recurring need.
+
 ## Phased Plan
 
 | Phase | Contributes                                                                                                                                                                                                                                                              |
@@ -46,7 +73,7 @@ Anchor files: `src/sidecar/SidecarFeed.tsx` (welcome card, empty state, example 
 ### Principles
 
 1. **One interruption, maximum.** The welcome card is the single permitted first-run interruption. After it's dismissed, the product is silent until the user's own text earns an observation. No second modal, no nudges, no badges.
-2. **Never block the blank page.** Onboarding is additive to an immediately-usable editor. The user can ignore the welcome card and start typing; nothing gates writing.
+2. **Never block the blank page.** Onboarding is additive to an immediately-usable editor. The user can ignore the welcome card and start typing; nothing gates writing. **⚠ Superseded 2026-07-07 (§ Revision):** writing is not gated, but the value _is_ (keyless = zero analysis), and hiding that was the failure — first-run now leads with a blocking welcome modal that names the key requirement.
 3. **Quiet is a feature, shown not told.** The empty feed doesn't apologize for being empty or look like it's loading. It states the contract calmly and confidently (R3.5).
 4. **Witnessing, not forcing.** The example is offered, never auto-run. The hero proves itself when the user chooses to look.
 
@@ -93,7 +120,7 @@ First-run asks for nothing:
 
   > **Resolved 2026-06-18 — the always-visible context chip.** "No first-run form" must not mean "permanently hidden." Today the combined **Document Context / Stage** field (it's already _one_ input, not two — `SidecarFeed.tsx:643`) lives only behind the settings gear, and the inferred-context suggestion is a _separate_ transient chip (`stage-suggestion`, `SidecarFeed.tsx:675`). The decision: replace both with **one quiet, persistent context affordance** at the top of the feed panel — never a setup gate, always legible. See § The context chip (stage discoverability) below for the full spec.
 
-- **No API-key gate.** The free tier runs keyless. BYO-key lives in settings; any nudge toward it is quiet and surfaces only _after_ the user has seen value, never as a first-run blocker.
+- **No API-key gate.** The free tier runs keyless. BYO-key lives in settings; any nudge toward it is quiet and surfaces only _after_ the user has seen value, never as a first-run blocker. **⚠ Superseded 2026-07-07 (§ Revision):** "free tier runs keyless" is false in practice — keyless the evaluator skips every check (no bundled key), so the user's own writing produces nothing. First-run now surfaces the key requirement up front (blocking welcome modal) and persistently (a standing "this is a mock — add your key" card). Keyless is a **demo**.
 
 > **Open dependency (not resolved here):** whether the free tier is a _real tier_ or a _demo_ is a strategic open question (`docs/plan.md`; `field_validation.md` V1 measures the free-vs-paid delta). If evidence later shows BYO-key is effectively required to meet the fidelity bar, the first-run posture above (keyless, no nudge) is the thing that changes — the welcome/example/empty-state design holds either way. Flagged so the build doesn't hard-code an assumption that a later decision may overturn.
 

@@ -98,3 +98,11 @@ The guard belongs in `evaluateSection`, not the resolver: the resolver's job is 
 - OBS-027 touches **only** the fast-tier `evaluateSection` prompt input + `MERGED_SYSTEM_PROMPT`. It does not touch the doc-level strong call (that's `doc_level_anchoring`) or the contradiction check.
 - Neither needs a DB migration; both reuse existing fields and artifacts.
 - Free tier: OBS-027's context injection applies on both tiers (it's prompt content, not reasoning-gated); OBS-026 is sweep-only and the sweep already runs paid-preferred. Both degrade gracefully on weaker models.
+
+## Follow-up (field-discovered 2026-07-07) — OBS-032: cross-claim highlight paints the section heading
+
+**Symptom.** A `contradiction` / `strategic_tension` card highlights the section's **heading block** (e.g. the whole "Proposed solution" title lights up) instead of the body sentence that states the compared claim (2026-07-07 screenshot). Recurring — a repeat of the "highlight lands on the wrong block" class.
+
+**Root cause (confirmed in code).** The sweep emit anchors each side with a **whole-block fallback**: `blockId: a.anchorBlockId ?? a.sourceBlockId`, `endOffset: a.anchorEndOffset ?? 9999` (`evaluator.ts:974–980`), and the section-eval contradiction path falls back to `members[0]` when no exact span matches (`const fallback = members[0] ?? {…}`, `evaluator.ts:542`; `blockId: exact?.blockId ?? fallback.blockId`, `:564`). **`members[0]` is the section's first block — the heading.** So when a claim's exact span isn't matched inside the section, the anchor defaults to the heading block and the `0:9999` range paints the entire heading.
+
+**Fix direction.** When falling back, prefer a **body** member (skip heading blocks; pick the member whose text contains/best-matches the claim), and only whole-block-highlight a body block — never a bare heading. A heading should never be the sole highlighted span for a body-originating claim. Couples with the OBS-026 real-offset two-span work (both are anchoring precision on the section grain) and with C9 in `ui_interaction_mechanics.md` (which fixes _hover targeting_ over these spans, a different layer). Scheduled as its own Phase-6 milestone in `docs/plan.md`.
