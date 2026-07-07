@@ -143,6 +143,12 @@ export interface ClaimAnchor {
    *  paraphrase-residual counter reads this (an approximate anchor still has an
    *  `anchorBlockId`, so `!anchorBlockId` would no longer measure the residual). */
   anchorExact?: boolean;
+  /** UX-008: the user's *verbatim* words at the resolved offsets — the exact
+   *  source-text slice, which may be a mid-sentence, lowercase clause. Only set on
+   *  a precise (exact) anchor; absent on the whole-body-block paraphrase fallback
+   *  (no faithful excerpt available). Lets the card quote the user's own words with
+   *  a leading `…` instead of the model-normalized, capitalized claim text. */
+  anchorQuote?: string;
 }
 
 /**
@@ -185,12 +191,19 @@ export function anchorClaimsToMembers<T extends { text: string }>(
       anchorSubstring(members, c.text) ??
       anchorSubstring(members, c.text.replace(/[.,;:!?]+$/, ""));
     if (a) {
+      // UX-008: the exact source slice at these offsets is the user's verbatim
+      // words (may be a mid-sentence, lowercase clause) — distinct from the
+      // normalized claim `text`. Slice the member's flat text so the quote is
+      // faithful to the document, not to the extractor's rendering.
+      const member = members.find((m) => m.blockId === a.blockId);
+      const anchorQuote = member?.text.slice(a.startOffset, a.endOffset);
       return {
         ...c,
         anchorBlockId: a.blockId,
         anchorStartOffset: a.startOffset,
         anchorEndOffset: a.endOffset,
         anchorExact: true,
+        anchorQuote,
       };
     }
     // Reworded claim → whole-body-block fallback (never the heading). If the

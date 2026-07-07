@@ -546,6 +546,12 @@ export async function evaluateSection(
           const exact = anchorSubstring(members, con.newClaimText);
           const fallback = firstBodyMember(members) ?? { blockId: sectionId, text: cleanText };
 
+          // UX-008: verbatim excerpt for the card — the exact source slice at the
+          // resolved offsets, only when we anchored precisely. Absent on the
+          // whole-body-block fallback (the card then quotes the normalized claim).
+          const exactMember = exact ? members.find((m) => m.blockId === exact.blockId) : undefined;
+          const newAnchorQuote = exactMember?.text.slice(exact!.startOffset, exact!.endOffset);
+
           // Resolve the new claim's kind for commitment×commitment escalation.
           const newClaimKind = extractedClaims.find((c) => c.text === con.newClaimText)?.kind;
 
@@ -570,6 +576,7 @@ export async function evaluateSection(
             startOffset: exact?.startOffset ?? 0,
             endOffset: exact?.endOffset ?? fallback.text.length,
             anchorText: con.newClaimText,
+            anchorQuote: newAnchorQuote,
             // Conflicting side: anchor to the existing claim's precise block +
             // offsets when resolved at extraction; else its section block + whole-block.
             conflictingBlockId: matchingExisting.anchorBlockId ?? matchingExisting.sourceBlockId,
@@ -980,6 +987,9 @@ export async function evaluateLedgerContradictions(
         startOffset: a.anchorStartOffset ?? 0,
         endOffset: a.anchorEndOffset ?? 9999,
         anchorText: a.text,
+        // UX-008: the primary side's verbatim excerpt (set at extraction on a
+        // precise anchor; absent on the paraphrase fallback → card quotes `text`).
+        anchorQuote: a.anchorQuote,
         conflictingBlockId: b.anchorBlockId ?? b.sourceBlockId,
         conflictingStartOffset: b.anchorStartOffset ?? 0,
         conflictingEndOffset: b.anchorEndOffset ?? 9999,
