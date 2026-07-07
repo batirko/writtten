@@ -366,6 +366,14 @@ class LLMLogger {
   // append-only log.
   private producedByCall = new Map<string, CallProduced>();
 
+  // In-flight calls' real (served) tier, keyed by callId. A logical call logs a
+  // `request` (set) then a terminal `response`/`error` (delete); rotation retries
+  // reuse the same callId, so repeated sets/one delete stay balanced. Powers the
+  // activity dot's weak/strong tier cue (feed_surface.md §5a). We track the tier
+  // that ACTUALLY served — on the free tier a "strong" request runs on a fast
+  // model, so the dot must not claim strong when a fast model answered.
+  private inflightTier = new Map<string, "fast" | "strong">();
+
   // Session-level accumulators
   private _fastCalls = 0;
   private _strongCalls = 0;
@@ -409,6 +417,19 @@ class LLMLogger {
 
   getActiveProvider(): string {
     return this.activeProvider;
+  }
+
+  /**
+   * The tier of the highest-capability call currently in flight, or null if idle.
+   * "strong" dominates: while any strong adjudication is running the dot goes
+   * indigo; fast-only in-flight is blue. Reflects the tier that actually served.
+   */
+  getInflightTier(): "fast" | "strong" | null {
+    if (this.inflightTier.size === 0) return null;
+    for (const t of this.inflightTier.values()) {
+      if (t === "strong") return "strong";
+    }
+    return "fast";
   }
 
   getSessionStats(): SessionStats {
@@ -494,6 +515,7 @@ class LLMLogger {
     this._totalCost = 0;
     this._apiStats.clear();
     this.producedByCall.clear();
+    this.inflightTier.clear();
     // Clear the persisted mirror immediately (don't wait for the debounce) so an
     // explicit "clear" survives a reload as an empty log, not the stale evidence.
     if (this.persistTimer) {
@@ -588,6 +610,16 @@ class LLMLogger {
       id: nanoid(10),
       timestamp: new Date(),
     };
+
+    // Track in-flight calls by callId for the activity-dot tier cue: a request
+    // enters the set, its terminal (response/error) removes it.
+    if (fullEntry.callId) {
+      if (fullEntry.type === "request" && fullEntry.tier) {
+        this.inflightTier.set(fullEntry.callId, fullEntry.tier);
+      } else if (fullEntry.type === "response" || fullEntry.type === "error") {
+        this.inflightTier.delete(fullEntry.callId);
+      }
+    }
 
     // Accumulate session stats on successful response entries
     if (fullEntry.type === "response") {
