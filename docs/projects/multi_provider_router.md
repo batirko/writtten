@@ -24,8 +24,8 @@ summary: Expand BYOK from Gemini-only to Gemini + OpenAI + Anthropic at launch b
 
 ## Phased Plan
 
-| Phase | Contributes |
-| ----- | ----------- |
+| Phase | Contributes                                                                                                                                                                                                                                                                                                 |
+| ----- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **6** | Provider-agnostic resilience seam + provider registry; Gemini refactored onto it (no behavior change); OpenAI and Anthropic reference adapters; Settings UX for provider + key + model selection; per-provider model tables; docs (`architecture.md` seam section, README "how to get a key" per provider). |
 
 _No Phase-7 slice is currently scoped here; multi-key rotation (`byok_capability_model.md` Phase 7) is orthogonal and stays in that doc._
@@ -46,9 +46,13 @@ _No Phase-7 slice is currently scoped here; multi-key rotation (`byok_capability
     /** Extract the model's text output from a 2xx body. */
     parseResponse(body: unknown): string;
     /** Map a non-2xx response to the rotation machinery's common vocabulary. */
-    classifyError(status: number, headers: Headers, body: unknown): {
+    classifyError(
+      status: number,
+      headers: Headers,
+      body: unknown
+    ): {
       retryable: boolean;
-      coolDownMs: number;           // how long to bench this (key,model)
+      coolDownMs: number; // how long to bench this (key,model)
       quotaKind?: "perDay" | "perMinute" | "inputTokens" | "other";
     };
   }
@@ -69,9 +73,18 @@ _No Phase-7 slice is currently scoped here; multi-key rotation (`byok_capability
 
 ### D — Settings UX (per-provider key + model)
 
+**Two design goals set 2026-07-07: make it as easy as possible (1) to know how to get a key, and (2) to control what models are in the rotation.** The controls below are ordered legible-before-configurable, and the pool-editing / multi-key power surface is explicitly deferred to Phase 7 (see §_Control the rotation_ note).
+
 - [ ] Extend the Settings panel (`src/sidecar/ControlCenter.tsx`): a provider selector (Gemini / OpenAI / Anthropic), the key field re-labeled per provider, and — replacing the single "capable model (paid tier)" checkbox — a **model picker per tier** driven by the active provider's pools. Keep `data-testid="api-key-input"` stable; add `data-testid="provider-select"`.
-- [ ] Per-provider help text with the honest free-tier line: Gemini → "free key available"; OpenAI/Anthropic → "paid API account required". Link the key-issuance page for each.
+- [ ] **"Know how to get the key" — kill the three moments of doubt:**
+  - _Getting there:_ deep-link the exact key-creation page per provider (Gemini → AI Studio; OpenAI → `platform.openai.com/api-keys`; Anthropic → `console.anthropic.com/settings/keys`), with the honest free/paid one-liner inline (Gemini "free tier available" vs OpenAI/Anthropic "paid API account required"), plus the key **shape** (`sk-ant-…`, `sk-…`) so a user can eyeball a correct paste.
+  - _Did it work?:_ extend the existing "Ping model" test to **every** provider and **decode the failure** through the adapter's `classifyError` — "invalid key" vs "valid but needs billing / no quota" vs "CORS / network". Surfacing the plain-language verdict (not a raw status code) is the single biggest confidence win; it turns a silent dead-end into an actionable next step.
+  - _What will it cost?:_ for paid providers, an honest **static** cost line now (e.g. "a typical PRD session ≈ N calls, mostly on the cheap model"); live per-key metering is Phase 7 (`byok_capability_model.md`).
+  - _Trust:_ surface Anthropic's `anthropic-dangerous-direct-browser-access` requirement as a plain trust note (same posture as key-in-`localStorage`), not hidden.
+- [ ] **"Control the rotation" — legibility card + per-tier picker (Phase 6 slice).** A read-first **"what's running and why" card**: per tier, the model name + one plain-English line on its job ("Haiku watches for contradictions as you write; Sonnet does the deeper adjudication when checks conflict"). Most users want to _understand_, not tweak — this makes the black box legible before offering the per-tier dropdown as the actual control. Note the two meanings of "rotation": **paid providers do not rotate** (one model per tier, two dropdowns); the ordered rotation _pool_ is a Gemini-free-tier concept only.
 - [ ] Empty/first-run copy stays provider-neutral until a key is set; the zero-config example (`onboarding_first_run.md`) is unaffected (it's a canned replay, no live provider).
+
+> **Legibility card + per-tier picker ship in Phase 6; pool editing and multi-key rotation stay Phase 7.** Editing the Gemini free _pool_ (add/remove/reorder models) and adding multiple keys for RPD spreading land on the same surface `byok_capability_model.md` already scopes as the Phase-7 "BYOK management UX". Keeping the Phase-6 control to "show what's running + pick one model per tier" preserves the quiet, non-config-dump feel the management-UX note in `CLAUDE.md` warns to protect.
 
 ### E — Docs
 
@@ -83,11 +96,11 @@ _No Phase-7 slice is currently scoped here; multi-key rotation (`byok_capability
 
 Map the two router tiers (`fast` = cheap/frequent, `strong` = capable/rare) to concrete models. Anthropic IDs and prices are pinned (verified against the Claude API reference, 2026-07-06); Gemini is the existing pool; OpenAI IDs are the intent and should be confirmed against OpenAI's current lineup at build time.
 
-| Provider  | `fast` (cheap, frequent)        | `strong` (capable, rare)                 | Endpoint / auth                                                                 | Free tier?              |
-| --------- | ------------------------------- | ---------------------------------------- | ------------------------------------------------------------------------------- | ----------------------- |
-| Gemini    | flash-lite (rotation pool)      | pro / flash (rotation pool)              | `generativelanguage.googleapis.com` · `?key=`                                   | ✅ — the zero-key on-ramp |
-| OpenAI    | a small/`mini` model (confirm)  | a flagship model (confirm)               | `https://api.openai.com/v1/chat/completions` · `Authorization: Bearer`          | ❌ paid only             |
-| Anthropic | `claude-haiku-4-5` ($1/$5 /Mtok)| `claude-sonnet-5` ($3/$15 /Mtok)         | `https://api.anthropic.com/v1/messages` · `x-api-key` + browser-access header   | ❌ paid only             |
+| Provider  | `fast` (cheap, frequent)         | `strong` (capable, rare)         | Endpoint / auth                                                               | Free tier?                |
+| --------- | -------------------------------- | -------------------------------- | ----------------------------------------------------------------------------- | ------------------------- |
+| Gemini    | flash-lite (rotation pool)       | pro / flash (rotation pool)      | `generativelanguage.googleapis.com` · `?key=`                                 | ✅ — the zero-key on-ramp |
+| OpenAI    | a small/`mini` model (confirm)   | a flagship model (confirm)       | `https://api.openai.com/v1/chat/completions` · `Authorization: Bearer`        | ❌ paid only              |
+| Anthropic | `claude-haiku-4-5` ($1/$5 /Mtok) | `claude-sonnet-5` ($3/$15 /Mtok) | `https://api.anthropic.com/v1/messages` · `x-api-key` + browser-access header | ❌ paid only              |
 
 > **Anthropic specifics (pinned):** `anthropic-version: 2023-06-01` on every call; add `anthropic-dangerous-direct-browser-access: true` for the direct-from-browser call; set `thinking: {type: "disabled"}` on the Sonnet 5 `strong` request (adaptive thinking is on-by-default when omitted — unwanted for deterministic eval). Sonnet 5 has an introductory $2/$10 per-Mtok price through 2026-08-31.
 > **OpenAI:** IDs move fast — confirm the current small and flagship model names against OpenAI's docs when writing `openai.ts`, rather than hard-coding from memory.
@@ -100,6 +113,15 @@ The existing `ModelCapability` descriptor (`{ tier, adjudicateConfidently, drive
 - **After:** the active provider + selected model implies the capability. Gemini keeps its free-pool `weak` default. For a paid-only provider, the user's chosen `strong` model maps to strong capability; a chosen small/`fast` model maps to weak. The App boundary still decides capability **once** and threads it via `EvalContext.capability` exactly as it does now — no evaluator changes.
 
 This keeps the invariant that reconciliation branches on **capability, not credential**, while removing the Gemini-free-tier assumption baked into the toggle's meaning.
+
+### Paid-provider default: the capable split, `strong` on (decided 2026-07-07)
+
+When a user first adds a **paid** provider (OpenAI/Anthropic), the default is the **capable split** — `fast` = the cheap model (Haiku 4.5 / a `mini`), `strong` = the capable model (Sonnet 5 / a flagship), with `strong` **enabled**. Rationale:
+
+- The reason to bring a paid key is "I want better signal than the free tier." Defaulting a paying user to an all-`fast` (weak-capability) setup would hand them the hedged-prompt, resolution-aware-Tier-2-off experience while they pay their provider — the wrong first impression.
+- Cost stays bounded **by design, not by neutering capability**: `strong` is the rare adjudicator (invariant #3 — cross-doc checks run against the claim ledger, not full re-reads), so most calls hit the cheap model and only the occasional adjudication hits the flagship. All-Sonnet/all-flagship would be overkill for span classification; all-Haiku would regress a paying user to weak capability.
+
+Gemini's default is unchanged: free-pool `weak`. The capability descriptor stays truthful in both cases; only the _default selection_ differs by provider.
 
 ## Non-goals / guardrails
 
