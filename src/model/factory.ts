@@ -7,7 +7,10 @@
  */
 
 import type { LLMRequest, LLMResponse, ModelRouter } from "./router";
+import type { ProviderId } from "./provider";
 import { createGeminiRouter } from "./gemini";
+import { createRouterForAdapter } from "./rotation";
+import { resolveProvider, withSelection } from "./registry";
 import {
   getLlmMode,
   reqHash,
@@ -59,6 +62,42 @@ function wrap(call: (req: LLMRequest) => Promise<LLMResponse>) {
 
 export function createRouter(apiKey: string, paidKey?: string): ModelRouter {
   const live = createGeminiRouter(apiKey, paidKey);
+  return {
+    fast: wrap(live.fast),
+    strong: wrap(live.strong),
+  };
+}
+
+/** How the App picks a provider + per-tier models (persisted in localStorage; the
+ *  UI to set it lands in PR 3). Gemini uses its rotation pools; paid providers
+ *  route the single chosen model per tier. */
+export interface ProviderSelection {
+  providerId: ProviderId;
+  /** Override the routed model per tier; omit → the provider's catalog default. */
+  fastModel?: string;
+  strongModel?: string;
+}
+
+/**
+ * Build a wrapped `ModelRouter` for a chosen provider. Gemini reuses the existing
+ * `createRouter` path (rotation pools + free→paid fallback, and the mock/record
+ * wrap around `createGeminiRouter` that the tests depend on). Paid providers are
+ * driven through the generic engine with a single selected model per tier.
+ *
+ * For a paid-only provider the user's one key is the `paidKey`; `apiKey` (the
+ * free key) is empty, so the free attempt exhausts instantly and the paid pool
+ * carries the call.
+ */
+export function createRouterForSelection(
+  selection: ProviderSelection,
+  apiKey: string,
+  paidKey?: string
+): ModelRouter {
+  if (selection.providerId === "gemini") {
+    return createRouter(apiKey, paidKey);
+  }
+  const adapter = withSelection(resolveProvider(selection.providerId), selection);
+  const live = createRouterForAdapter(adapter, apiKey, paidKey);
   return {
     fast: wrap(live.fast),
     strong: wrap(live.strong),

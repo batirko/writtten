@@ -147,6 +147,13 @@ export const geminiAdapter: ProviderAdapter = {
     paidFast: PAID_FAST_POOL,
     paidStrong: PAID_STRONG_POOL,
   },
+  // The free rotation pool isn't user-editable in Phase 6 (RPD spreading is
+  // load-bearing); the picker surfaces meaningfully only for a paid Gemini key,
+  // so the catalog mirrors the paid pools.
+  catalog: {
+    fast: PAID_FAST_POOL,
+    strong: PAID_STRONG_POOL,
+  },
   buildRequest,
   parseResponse,
   classifyError,

@@ -31,7 +31,8 @@ vi.mock("../store/db", () => ({
 
 const mockFast = vi.fn();
 const mockStrong = vi.fn();
-vi.mock("../model/gemini", () => ({
+vi.mock("../model/gemini", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../model/gemini")>()),
   createGeminiRouter: vi.fn(() => ({ fast: mockFast, strong: mockStrong })),
 }));
 

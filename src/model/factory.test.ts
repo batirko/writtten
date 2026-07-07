@@ -3,7 +3,8 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 // Control the underlying Gemini router so we can make live calls succeed or throw.
 const fastCall = vi.fn();
 const strongCall = vi.fn();
-vi.mock("./gemini", () => ({
+vi.mock("./gemini", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("./gemini")>()),
   createGeminiRouter: () => ({ fast: fastCall, strong: strongCall }),
 }));
 

@@ -28,7 +28,8 @@ import { corpus } from "./eval-fixtures/index";
 // Module-level mocks (hoisted by Vitest — must be at top level)
 // ---------------------------------------------------------------------------
 
-vi.mock("../model/gemini", () => ({
+vi.mock("../model/gemini", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../model/gemini")>()),
   createGeminiRouter: vi.fn(() => ({
     fast: () => {
       throw new Error("[ratchet] Gemini fast reached — mock mode should intercept");

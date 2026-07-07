@@ -22,7 +22,8 @@ import contradictionTimeline from "./eval-fixtures/contradiction-timeline";
 // Module-level mocks (hoisted by Vitest)
 // ---------------------------------------------------------------------------
 
-vi.mock("../model/gemini", () => ({
+vi.mock("../model/gemini", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../model/gemini")>()),
   createGeminiRouter: vi.fn(() => ({
     fast: () => {
       throw new Error("[test] Gemini fast reached — mock mode should have intercepted this call");

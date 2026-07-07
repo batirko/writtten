@@ -41,6 +41,7 @@ const fakeAdapter: ProviderAdapter = {
     paidFast: ["cheap-a", "cheap-b"],
     paidStrong: ["big-a", "big-b"],
   },
+  catalog: { fast: ["cheap-a"], strong: ["big-a"] },
   buildRequest: (model, _r, key) => ({
     url: `https://fake/${model}?key=${key}`,
     init: { method: "POST", body: "{}" },
