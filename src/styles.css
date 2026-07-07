@@ -1275,7 +1275,7 @@ body,
   display: flex;
   align-items: center;
   justify-content: center;
-  cursor: default;
+  cursor: pointer;
   margin-left: 2px;
   position: relative;
 }
@@ -2119,6 +2119,13 @@ body,
     border-left: none;
     border-top: 0.5px solid var(--color-border);
     border-bottom: 0.5px solid var(--color-border);
+  }
+
+  /* The control-center anchor is the tap-to-open target on touch (no hover to
+     reveal the actions) — give it the >=44px touch floor. */
+  .control-anchor {
+    width: 44px;
+    height: 44px;
   }
 
   /* Floating popovers/menus can't exceed the viewport when opened. Their desktop

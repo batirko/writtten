@@ -52,7 +52,7 @@ Each item is build-scoped and independently verifiable. Anchor files: `src/sidec
 - [x] **Collapse/expand affordance** — slim edge handle + `⌘\` shortcut; state survives reload; reduced-motion honoured.
 - [x] **Borderless floating cards** — panel background retired; cards `--color-surface` on `--color-paper` with token elevation. testids + C1/C2/C3 preserved.
 - [x] **Tag-carries-colour severity** — left-border removed; filled/tinted type-tag (HIGH solid / MED tint / LOW outline; contradiction orange, tension teal) + `HIGH/MED/LOW` label. `impact-badge` + R7a popover kept.
-- [x] **Unified control center** — fixed bottom-right, always visible; dot anchor, ← actions, ↑ process. Header chips + button row retired. testids preserved.
+- [x] **Unified control center** — fixed bottom-right, always visible; dot anchor, ← actions, ↑ process. Header chips + button row retired. testids preserved. **Reveal:** hover / `:focus-within` on desktop; **tap-to-open on touch** (2026-07-07) — the anchor (`data-testid="control-anchor"`, a 44px target on mobile) toggles `is-open`, tap-outside closes. Added because a phone has no hover, which left Settings (and the BYOK panel behind it) unreachable on iOS.
 - [x] **Activity/model indicator** — dot state colour + working pulse (static under reduced-motion); process panel is the hover detail (redundant dot tooltip removed).
 - [x] **Floating settings modal** — key / tier / (dev) debug in a shared scrim/modal primitive. testids kept.
 - [x] **Context affordance relocation** — moved to the document-attached `DocumentContext` (top of the writing column); onboarding_first_run § The context chip reconciled.
