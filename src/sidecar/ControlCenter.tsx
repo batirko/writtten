@@ -2,7 +2,13 @@ import { useState, useRef, useEffect } from "react";
 import { llmLogger, type LLMLogEntry, type SessionStats } from "../model/logger";
 import type { ModelTier } from "../model/capability";
 import type { ProviderId } from "../model/provider";
-import { catalogFor, defaultModels, pingModelFor, PROVIDER_IDS } from "../model/registry";
+import {
+  catalogFor,
+  defaultModels,
+  geminiRunningModels,
+  pingModelFor,
+  PROVIDER_IDS,
+} from "../model/registry";
 import { pingProvider, detectGeminiTier, type PingResult, type GeminiTier } from "../model/ping";
 import { buildEnvelope } from "../model/debugLog";
 import { getLlmMode } from "../model/mock";
@@ -188,6 +194,7 @@ export function ControlCenter({
   documentIsEmpty = false,
   apiKey,
   onApiKeyChange,
+  keyTier = "weak",
   onKeyTierChange,
   providerId = "gemini",
   onProviderChange,
@@ -260,7 +267,21 @@ export function ControlCenter({
 
   const meta = PROVIDER_META[providerId];
   const catalog = catalogFor(providerId);
-  const selectedModels = models[providerId] ?? defaultModels(providerId);
+  // Is the active Gemini key on the paid tier? Prefer the live detection; before
+  // it resolves (or on a network failure) fall back to the persisted keyTier.
+  const geminiPaid =
+    geminiTier === "paid"
+      ? true
+      : geminiTier === "free" || geminiTier === "invalid"
+        ? false
+        : keyTier === "strong";
+  // The "what's running" card must reflect what actually runs. For Gemini that's
+  // tier-dependent (free = one model; paid = flash-lite + gemini-2.5-pro), so
+  // derive it from the router's real pools rather than the free-only catalog.
+  const selectedModels =
+    providerId === "gemini"
+      ? geminiRunningModels(geminiPaid)
+      : (models[providerId] ?? defaultModels(providerId));
   // Collapse the legibility card to one row when both tiers run the same model
   // (Gemini free), so it never shows a duplicated name.
   const runningRows =
