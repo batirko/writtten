@@ -1,8 +1,28 @@
+import { execSync } from "node:child_process";
 import { defineConfig } from "vitest/config";
 import react from "@vitejs/plugin-react";
 import { VitePWA } from "vite-plugin-pwa";
+import pkg from "./package.json" with { type: "json" };
+
+// Build-stamp: the semver from package.json (release-please owns it) plus the
+// short git SHA of the built commit, so a bug report can be pinned to an exact
+// build. On a hosted CI build the SHA comes from the checked-out commit; if git
+// isn't available (rare) we degrade to "unknown" rather than fail the build.
+function gitSha(): string {
+  if (process.env.CF_PAGES_COMMIT_SHA) return process.env.CF_PAGES_COMMIT_SHA.slice(0, 7);
+  if (process.env.GITHUB_SHA) return process.env.GITHUB_SHA.slice(0, 7);
+  try {
+    return execSync("git rev-parse --short HEAD").toString().trim();
+  } catch {
+    return "unknown";
+  }
+}
 
 export default defineConfig({
+  define: {
+    __APP_VERSION__: JSON.stringify(pkg.version),
+    __GIT_SHA__: JSON.stringify(gitSha()),
+  },
   plugins: [
     react(),
     VitePWA({

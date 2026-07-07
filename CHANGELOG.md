@@ -4,10 +4,18 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims to
 follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+> From here on this changelog is maintained automatically by **release-please** from
+> conventional-commit PR titles; a new version section is prepended when a release PR merges.
+> See `docs/mechanics/release_and_deploy.md`.
+
 ## [Unreleased]
 
 ### Added
 
+- **Release-gated deploys + versioning.** Merges to `main` accumulate on a standing
+  release PR (release-please) instead of shipping on every push; merging that PR tags a
+  version and triggers the single public deploy to `writtten.com` via `wrangler`. The
+  running build now shows `writtten vX.Y.Z · <git-sha>` at the foot of Settings.
 - Open-source launch scaffolding: `LICENSE` (Apache-2.0), `README`, `CONTRIBUTING`,
   `SECURITY` (with an honest data-egress disclosure), `CODE_OF_CONDUCT`, and GitHub
   issue/PR templates — including a signal-quality (false-positive/negative) issue path.

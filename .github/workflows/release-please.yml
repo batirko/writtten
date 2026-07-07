@@ -1,0 +1,24 @@
+name: Release Please
+
+# Watches conventional-commit merges to main and maintains a standing
+# "chore(main): release x.y.z" PR that accumulates the changelog and bumps the
+# version. Merging THAT PR is the single act that cuts a release: it tags
+# `vX.Y.Z`, which is what deploy.yml listens for. No production deploy happens
+# on ordinary merges to main — only on the tag.
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  release-please:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: googleapis/release-please-action@v4
+        with:
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
