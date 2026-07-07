@@ -13,6 +13,7 @@
 import type { ProviderId } from "./provider";
 import type { LLMRequest } from "./router";
 import { resolveProvider } from "./registry";
+import { parse429 } from "./logger";
 
 export type PingStatus = "ok" | "invalid" | "billing" | "rate_limited" | "network" | "error";
 
@@ -54,6 +55,55 @@ export async function pingProvider(
 
   const body = (await res.text().catch(() => "")).toLowerCase();
   return decode(res.status, body);
+}
+
+/**
+ * Whether a Gemini key is on the free or paid tier — a property the key string
+ * can't reveal (it's server-side billing on the Google Cloud project). We infer
+ * it: `gemini-2.5-pro` has **0 requests/day on the free tier**, so a one-shot
+ * probe is decisive. 200 → billing is on (paid); a 429 with a *per-day* quota
+ * violation → valid key but 0 pro quota (free); 401/403 → the key itself is bad.
+ * This replaces the manual "capable model (paid tier)" checkbox — the product
+ * answers the question the user can't. See docs/projects/multi_provider_router.md
+ * and docs/projects/byok_capability_model.md.
+ */
+export type GeminiTier = "free" | "paid" | "invalid" | "unknown";
+
+export async function detectGeminiTier(key: string): Promise<GeminiTier> {
+  if (!key.trim()) return "unknown";
+  const adapter = resolveProvider("gemini");
+  const { url, init } = adapter.buildRequest("gemini-2.5-pro", PING_REQUEST, key);
+
+  let res: Response;
+  try {
+    res = await fetch(url, init);
+  } catch {
+    return "unknown"; // network / CORS — can't tell; don't claim a tier
+  }
+  if (res.ok) return "paid"; // pro answered → billing enabled
+
+  const body = await res.text().catch(() => "");
+  const lower = body.toLowerCase();
+  if (
+    res.status === 401 ||
+    res.status === 403 ||
+    lower.includes("api_key_invalid") ||
+    lower.includes("api key not valid")
+  ) {
+    return "invalid";
+  }
+  if (res.status === 429) {
+    const parsed = parse429(body);
+    // Free tier: pro's 0-RPD cap surfaces as a PerDay quota violation.
+    if (parsed?.kinds.includes("perDay")) return "free";
+    // A per-minute-only 429 means the key *reached* pro (has access) but is
+    // momentarily rate-limited → paid.
+    if (parsed && parsed.kinds.length > 0) return "paid";
+    // Unparseable 429 on pro: default to the conservative free reading (never
+    // over-claim the strong tier without a clear signal).
+    return "free";
+  }
+  return "unknown";
 }
 
 function decode(status: number, body: string): PingResult {

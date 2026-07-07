@@ -3,7 +3,7 @@ import { llmLogger, type LLMLogEntry, type SessionStats } from "../model/logger"
 import type { ModelTier } from "../model/capability";
 import type { ProviderId } from "../model/provider";
 import { catalogFor, defaultModels, pingModelFor, PROVIDER_IDS } from "../model/registry";
-import { pingProvider, type PingResult } from "../model/ping";
+import { pingProvider, detectGeminiTier, type PingResult, type GeminiTier } from "../model/ping";
 import { buildEnvelope } from "../model/debugLog";
 import { getLlmMode } from "../model/mock";
 import { subscribeStall } from "../model/stallSignal";
@@ -188,7 +188,6 @@ export function ControlCenter({
   documentIsEmpty = false,
   apiKey,
   onApiKeyChange,
-  keyTier = "weak",
   onKeyTierChange,
   providerId = "gemini",
   onProviderChange,
@@ -218,6 +217,33 @@ export function ControlCenter({
   const [pinging, setPinging] = useState(false);
   useEffect(() => setPing(null), [providerId, apiKey]);
 
+  // Auto-detected Gemini tier (replaces the manual "paid tier" checkbox). We
+  // probe `gemini-2.5-pro` once — debounced — whenever a Gemini key is present,
+  // and set the capability tier from the result. See ping.ts → detectGeminiTier.
+  const [geminiTier, setGeminiTier] = useState<GeminiTier | "detecting" | "idle">("idle");
+  useEffect(() => {
+    if (providerId !== "gemini" || !apiKey.trim()) {
+      setGeminiTier("idle");
+      return;
+    }
+    let cancelled = false;
+    setGeminiTier("detecting");
+    const t = setTimeout(async () => {
+      const tier = await detectGeminiTier(apiKey);
+      if (cancelled) return;
+      setGeminiTier(tier);
+      // Only set capability on a decisive read — never over/under-claim on a
+      // network failure or a bad key.
+      if (tier === "paid") onKeyTierChange?.("strong");
+      else if (tier === "free") onKeyTierChange?.("weak");
+    }, 700);
+    return () => {
+      cancelled = true;
+      clearTimeout(t);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [providerId, apiKey]);
+
   const meta = PROVIDER_META[providerId];
   const catalog = catalogFor(providerId);
   const selectedModels = models[providerId] ?? defaultModels(providerId);
@@ -236,8 +262,30 @@ export function ControlCenter({
   const runPing = async () => {
     setPinging(true);
     setPing(null);
-    const result = await pingProvider(providerId, apiKey, pingModelFor(providerId));
-    setPing(result);
+    if (providerId === "gemini") {
+      // Gemini's ping doubles as the tier probe (pro-model), so the verdict is
+      // tier-aware and the capability tier is (re)set from the same call.
+      setGeminiTier("detecting");
+      const tier = await detectGeminiTier(apiKey);
+      setGeminiTier(tier);
+      if (tier === "paid") {
+        onKeyTierChange?.("strong");
+        setPing({ status: "ok", label: "Key works — paid tier." });
+      } else if (tier === "free") {
+        onKeyTierChange?.("weak");
+        setPing({ status: "ok", label: "Key works — free tier." });
+      } else if (tier === "invalid") {
+        setPing({ status: "invalid", label: "Invalid key." });
+      } else {
+        setPing({
+          status: "network",
+          label: "Couldn't reach the provider — check your network or CORS.",
+        });
+      }
+    } else {
+      const result = await pingProvider(providerId, apiKey, pingModelFor(providerId));
+      setPing(result);
+    }
     setPinging(false);
   };
 
@@ -390,31 +438,29 @@ export function ControlCenter({
                 Decodes failures too: invalid key · needs billing · network / CORS
               </span>
 
-              {providerId === "gemini" && apiKey && (
-                <label
-                  className="setting-checkbox"
-                  data-testid="key-tier-toggle"
-                  style={{
-                    display: "flex",
-                    alignItems: "flex-start",
-                    gap: "8px",
-                    cursor: "pointer",
-                    marginTop: "10px",
-                  }}
-                >
-                  <input
-                    type="checkbox"
-                    checked={keyTier === "strong"}
-                    onChange={(e) => onKeyTierChange?.(e.target.checked ? "strong" : "weak")}
-                  />
-                  <span>
-                    This is a capable model (paid tier)
-                    <span className="setting-help" style={{ display: "block" }}>
-                      Enables confident contradiction calls and resolution-aware reconciliation.
-                      Leave off for free/lightweight models.
+              {providerId === "gemini" && apiKey && geminiTier !== "idle" && (
+                <div className={`gemini-tier gemini-tier-${geminiTier}`} data-testid="gemini-tier">
+                  {geminiTier === "detecting" && <span>Detecting your tier…</span>}
+                  {geminiTier === "paid" && (
+                    <span>
+                      <strong>Paid key detected.</strong> The stronger adjudicator (
+                      <code className="key-shape">gemini-2.5-pro</code>) is enabled for the deeper
+                      checks.
                     </span>
-                  </span>
-                </label>
+                  )}
+                  {geminiTier === "free" && (
+                    <span>
+                      <strong>Free key detected.</strong> Runs the flash-lite pool. Enable billing
+                      on your Google Cloud project for the stronger adjudicator.
+                    </span>
+                  )}
+                  {geminiTier === "invalid" && (
+                    <span>Key not recognized — double-check the paste.</span>
+                  )}
+                  {geminiTier === "unknown" && (
+                    <span>Couldn&apos;t detect your tier — Ping to retry.</span>
+                  )}
+                </div>
               )}
             </div>
 

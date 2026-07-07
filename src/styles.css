@@ -636,6 +636,35 @@ body,
   background: oklch(95% 0.04 25);
   color: oklch(47% 0.16 25);
 }
+.gemini-tier {
+  margin-top: 11px;
+  padding: 9px 10px;
+  border-radius: var(--radius-md);
+  font-size: var(--text-label);
+  line-height: 1.5;
+}
+.gemini-tier strong {
+  font-weight: 500;
+}
+.gemini-tier-detecting {
+  color: var(--color-muted);
+  background: var(--color-paper);
+  border: 0.5px solid var(--color-border);
+}
+.gemini-tier-paid {
+  background: oklch(95% 0.03 155);
+  color: oklch(40% 0.09 155);
+}
+.gemini-tier-free {
+  background: var(--color-paper);
+  border: 0.5px solid var(--color-border);
+  color: var(--color-ink-2);
+}
+.gemini-tier-invalid,
+.gemini-tier-unknown {
+  background: oklch(95% 0.04 25);
+  color: oklch(47% 0.16 25);
+}
 .running-card {
   margin-top: var(--space-md);
   background: var(--color-sidecar);
