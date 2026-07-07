@@ -1,0 +1,3 @@
+# SPA fallback: any path without a matching static file serves the app shell.
+# Cloudflare Pages serves real files first, so this only catches deep links.
+/*  /index.html  200
