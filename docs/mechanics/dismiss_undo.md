@@ -51,7 +51,7 @@ Also: reloading the app within the pending window cancels the pending dismiss (t
 
 ## Scope boundaries
 
-- **Welcome card** dismissal is chrome, not an observation — no placeholder, no suppression (`SidecarFeed` `WelcomeCard`).
+- **Welcome modal** dismissal is chrome, not an observation — no placeholder, no suppression (`WelcomeModal`; it just sets the `writtten_has_seen_welcome` flag). Same for the standing **keyless banner** (`SidecarFeed` `KeylessBanner`), which has no dismiss at all — it stands while keyless.
 - **SpanPeek** (collapsed-feed reverse-hover float) has no in-place slot, so it dismisses per-id straight through to `App.handleDismissObservation` — immediate, no placeholder. Long-term recovery for any dismissal still lives in the **archive**.
 - The placeholder never applies a fix to the user's prose — it only defers/cancels a lifecycle write (Hard Invariant #1).
 
