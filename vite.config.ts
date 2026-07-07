@@ -11,17 +11,40 @@ export default defineConfig({
         name: 'writtten',
         short_name: 'writtten',
         description: 'An un-AI-slop editor',
-        theme_color: '#ffffff',
+        theme_color: '#fafaf8',
+        background_color: '#fafaf8',
         icons: [
           {
             src: 'pwa-192x192.png',
             sizes: '192x192',
-            type: 'image/png'
+            type: 'image/png',
+            purpose: 'any'
           },
           {
             src: 'pwa-512x512.png',
             sizes: '512x512',
-            type: 'image/png'
+            type: 'image/png',
+            purpose: 'any'
+          },
+          {
+            src: 'pwa-maskable-512x512.png',
+            sizes: '512x512',
+            type: 'image/png',
+            purpose: 'maskable'
+          }
+        ],
+        screenshots: [
+          {
+            src: 'screenshots/screenshot-wide.png',
+            sizes: '1280x800',
+            type: 'image/png',
+            form_factor: 'wide'
+          },
+          {
+            src: 'screenshots/screenshot-narrow.png',
+            sizes: '390x844',
+            type: 'image/png',
+            form_factor: 'narrow'
           }
         ]
       }
