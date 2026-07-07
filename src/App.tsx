@@ -165,6 +165,16 @@ export default function App() {
   // every card sharing the span lights up — not just the primary. The primary is
   // still `spanFocusObsId`; this is the co-covering set (includes the primary).
   const [spanFocusRelatedIds, setSpanFocusRelatedIds] = useState<string[]>([]);
+  // C8: pin-on-click. Clicking a highlighted span pins its card as a persistent
+  // peek (dismiss on Escape / click-away / ×). While pinned, the reverse-hover
+  // channel is suppressed so the pointer can travel freely without the float
+  // jumping or closing. `spanPinnedRef` mirrors it for the (ref-based) hover
+  // guard and the Editor's suppression.
+  const [spanPinnedObsId, setSpanPinnedObsId] = useState<string | null>(null);
+  const spanPinnedRef = useRef<string | null>(null);
+  useEffect(() => {
+    spanPinnedRef.current = spanPinnedObsId;
+  }, [spanPinnedObsId]);
   const spanCloseTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [clearTrigger, setClearTrigger] = useState(0);
   const [stageSuggestion, setStageSuggestion] = useState<string | null>(null);
@@ -228,6 +238,9 @@ export default function App() {
   }, []);
   const handleSpanHover = useCallback(
     (rawId: string | null, relatedIds?: string[]) => {
+      // C8: while a card is pinned, hover is inert — the pin owns the focus and
+      // must not be cleared by the pointer leaving the span.
+      if (spanPinnedRef.current) return;
       cancelSpanClose();
       if (rawId == null) {
         spanCloseTimer.current = setTimeout(() => {
@@ -254,6 +267,57 @@ export default function App() {
     () => (spanFocusObsId ? (findGroupForObs(groups, spanFocusObsId) ?? null) : null),
     [groups, spanFocusObsId]
   );
+
+  // C8: pin the covering set (resolved by the Editor's C9 hit-test) as a
+  // persistent peek. Drives the same focus channels as hover so the feed dims +
+  // the primary floats via SpanPeek, but stays put until explicitly dismissed.
+  const handleSpanPin = useCallback(
+    (rawId: string, relatedIds?: string[]) => {
+      cancelSpanClose();
+      const primaryId = findGroupForObs(groups, rawId)?.primary.id ?? rawId;
+      const related = relatedIds?.length ? relatedIds : [rawId];
+      const relatedPrimaries = [
+        ...new Set(related.map((id) => findGroupForObs(groups, id)?.primary.id ?? id)),
+      ];
+      setSpanPinnedObsId(primaryId);
+      setSpanFocusObsId(primaryId);
+      setHoveredObservationId(primaryId);
+      setSpanFocusRelatedIds(relatedPrimaries);
+    },
+    [groups, cancelSpanClose]
+  );
+  const dismissPin = useCallback(() => {
+    cancelSpanClose();
+    setSpanPinnedObsId(null);
+    setSpanFocusObsId(null);
+    setHoveredObservationId(null);
+    setSpanFocusRelatedIds([]);
+  }, [cancelSpanClose]);
+  const spanPinnedGroup = useMemo(
+    () => (spanPinnedObsId ? (findGroupForObs(groups, spanPinnedObsId) ?? null) : null),
+    [groups, spanPinnedObsId]
+  );
+  // Dismiss the pin on Escape or a click-away — a pointer-down outside the peek
+  // and off any highlighted span (clicking another highlight re-pins via the
+  // Editor; clicking inside the peek keeps it). Only active while pinned.
+  useEffect(() => {
+    if (spanPinnedObsId == null) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") dismissPin();
+    };
+    const onDown = (e: MouseEvent) => {
+      const t = e.target as HTMLElement | null;
+      if (t?.closest?.(".span-peek")) return;
+      if (t?.closest?.(".obs-highlight[data-obs-id]")) return;
+      dismissPin();
+    };
+    window.addEventListener("keydown", onKey);
+    document.addEventListener("mousedown", onDown, true);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      document.removeEventListener("mousedown", onDown, true);
+    };
+  }, [spanPinnedObsId, dismissPin]);
 
   const [logs, setLogs] = useState<LLMLogEntry[]>([]);
   const [activeProvider, setActiveProvider] = useState<string>("gemini-2.0-flash");
@@ -551,6 +615,8 @@ export default function App() {
             surfacedIds={surfacedIds}
             hoveredObservationId={hoveredObservationId}
             onSpanHover={handleSpanHover}
+            onSpanPin={handleSpanPin}
+            isPinned={spanPinnedObsId != null}
             onObservationCollapsed={handleObservationCollapsed}
             onEvaluationComplete={handleEvaluationComplete}
             onStageSuggestion={setStageSuggestion}
@@ -607,10 +673,12 @@ export default function App() {
           only thing shown. Always top-anchored so it's on-screen even if the feed
           is scrolled. */}
       <SpanPeek
-        group={spanFocusGroup}
+        group={spanPinnedGroup ?? spanFocusGroup}
+        pinned={spanPinnedObsId != null}
         onDismiss={handleDismissObservation}
         onKeepOpen={cancelSpanClose}
         onClose={() => handleSpanHover(null)}
+        onClosePin={dismissPin}
       />
       {/* Control center is always visible — independent of feed collapse. */}
       <ControlCenter
