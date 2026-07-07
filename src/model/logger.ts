@@ -299,6 +299,52 @@ class LLMLogger {
   private listeners: Set<LogCallback> = new Set();
   private syncHook?: EventSyncHook;
 
+  // L9 (lifecycle_integrity.md § L9): the debug log lived only in memory, so ANY
+  // remount (an HMR reload, a crash, a genuine refresh) wiped it — worst exactly
+  // when you're mid-diagnosis. Mirror the raw entries into sessionStorage (per-tab,
+  // survives a reload; cleared on tab close) so the evidence survives a remount.
+  // DEV-only: the panel is DEV-gated and the entries carry the user's prompt text,
+  // so we don't add a data-at-rest surface to production. Only the entries are
+  // persisted — the derived session/quota counters are live-session aggregates and
+  // intentionally reset (the per-call rows are the diagnostic value).
+  private static readonly STORAGE_KEY = "writtten_debug_log_v1";
+  private persistTimer: ReturnType<typeof setTimeout> | null = null;
+
+  constructor() {
+    this.hydrate();
+  }
+
+  private canPersist(): boolean {
+    return import.meta.env.DEV && typeof sessionStorage !== "undefined";
+  }
+
+  private hydrate(): void {
+    if (!this.canPersist()) return;
+    try {
+      const raw = sessionStorage.getItem(LLMLogger.STORAGE_KEY);
+      if (!raw) return;
+      const parsed = JSON.parse(raw) as LLMLogEntry[];
+      // Revive Date — JSON round-trips timestamps to ISO strings, but the panel
+      // calls `timestamp.toLocaleTimeString()`.
+      this.logs = parsed.map((e) => ({ ...e, timestamp: new Date(e.timestamp) }));
+    } catch {
+      // Corrupt / unavailable storage — diagnostics are best-effort, never fatal.
+    }
+  }
+
+  /** Debounced mirror of the entries to sessionStorage (coalesces chatty logs). */
+  private schedulePersist(): void {
+    if (!this.canPersist() || this.persistTimer) return;
+    this.persistTimer = setTimeout(() => {
+      this.persistTimer = null;
+      try {
+        sessionStorage.setItem(LLMLogger.STORAGE_KEY, JSON.stringify(this.logs));
+      } catch {
+        // Quota exceeded / unavailable — drop silently; the in-memory log stands.
+      }
+    }, 500);
+  }
+
   setEventSyncHook(hook: EventSyncHook) {
     this.syncHook = hook;
   }
@@ -448,6 +494,19 @@ class LLMLogger {
     this._totalCost = 0;
     this._apiStats.clear();
     this.producedByCall.clear();
+    // Clear the persisted mirror immediately (don't wait for the debounce) so an
+    // explicit "clear" survives a reload as an empty log, not the stale evidence.
+    if (this.persistTimer) {
+      clearTimeout(this.persistTimer);
+      this.persistTimer = null;
+    }
+    if (this.canPersist()) {
+      try {
+        sessionStorage.removeItem(LLMLogger.STORAGE_KEY);
+      } catch {
+        // best-effort
+      }
+    }
     this.notify();
   }
 
@@ -594,6 +653,7 @@ class LLMLogger {
 
     this.logs.unshift(fullEntry);
     this.trim();
+    this.schedulePersist();
 
     this.notify();
     if (this.syncHook) {
