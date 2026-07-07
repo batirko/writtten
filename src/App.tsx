@@ -70,6 +70,17 @@ export default function App() {
   );
   useEffect(() => localStorage.setItem("writtten_key_anthropic", anthropicKey), [anthropicKey]);
 
+  // A second, optional Gemini key: a *billed* key that carries the stronger
+  // adjudicator (gemini-2.5-pro, 0-RPD on free) and absorbs overflow once the
+  // free key's daily budget runs out. The free key above stays the everyday
+  // workhorse; this rides the router's separate `paidKey` slot (free→paid
+  // fallback already lives in rotation.ts). An env `VITE_GEMINI_PAID_KEY` still
+  // wins for local dev. See docs/projects/byok_capability_model.md.
+  const [geminiPaidKey, setGeminiPaidKey] = useState<string>(
+    () => localStorage.getItem("writtten_gemini_paid_key") || ""
+  );
+  useEffect(() => localStorage.setItem("writtten_gemini_paid_key", geminiPaidKey), [geminiPaidKey]);
+
   // Per-provider model choice ({ openai: {fast,strong}, ... }). Empty for a
   // provider = use its catalog default (the "capable split" for paid providers).
   const [models, setModels] = useState<Record<string, { fast: string; strong: string }>>(() => {
@@ -107,23 +118,30 @@ export default function App() {
   // Credential ≠ capability. Both are derived here, once, from the active
   // provider's configuration; the evaluator branches on capability, never on a
   // credential. See docs/projects/byok_capability_model.md.
-  //   - Gemini: an env paid key, or a UI-declared "strong" key → strong; else weak.
+  //   - Gemini: an env paid key, a UI paid key, or a UI-declared "strong" free
+  //     key → strong; else weak.
   //   - A paid provider (OpenAI/Anthropic): the capable split → strong.
   const envPaidKey: string | undefined =
     (import.meta.env.VITE_GEMINI_PAID_KEY as string) || undefined;
-  const geminiStrong = Boolean(envPaidKey) || keyTier === "strong";
+  // The resolved Gemini paid key: an explicit env key, the UI paid field, or —
+  // for backward compat with the single-key era — a free-field key that
+  // auto-detect found to be paid tier (keyTier "strong").
+  const geminiPaidResolved: string | undefined =
+    envPaidKey ??
+    (geminiPaidKey || undefined) ??
+    (keyTier === "strong" && apiKey ? apiKey : undefined);
+  const geminiStrong = Boolean(geminiPaidResolved);
   const effectiveTier: ModelTier =
     providerId === "gemini" ? (geminiStrong ? "strong" : "weak") : "strong";
   const capability = capabilityForTier(effectiveTier);
   // Keys threaded to the eval path. For a paid provider the single key rides the
   // `paidKey` slot; it's also passed as the free key purely to satisfy the
   // evaluator's "has a key" guard — the free pool is empty, so it never reaches
-  // the network. Gemini's free/paid split is unchanged.
-  const apiKeyForEval = providerId === "gemini" ? apiKey : activeKey;
+  // the network. For Gemini the free field feeds the free pool; if only a paid
+  // key is set it feeds both slots (one key does everything, billed).
+  const apiKeyForEval = providerId === "gemini" ? apiKey || geminiPaidKey : activeKey;
   const paidKey: string | undefined =
-    providerId === "gemini"
-      ? (envPaidKey ?? (keyTier === "strong" && apiKey ? apiKey : undefined))
-      : activeKey || undefined;
+    providerId === "gemini" ? geminiPaidResolved : activeKey || undefined;
 
   const [stage, setStage] = useState<string>(() => {
     return localStorage.getItem("writtten_stage") || "";
@@ -577,6 +595,8 @@ export default function App() {
         onApiKeyChange={setActiveKey}
         keyTier={keyTier}
         onKeyTierChange={setKeyTier}
+        geminiPaidKey={geminiPaidKey}
+        onGeminiPaidKeyChange={setGeminiPaidKey}
         providerId={providerId}
         onProviderChange={setProviderId}
         models={models}

@@ -9,7 +9,13 @@ import {
   pingModelFor,
   PROVIDER_IDS,
 } from "../model/registry";
-import { pingProvider, detectGeminiTier, type PingResult, type GeminiTier } from "../model/ping";
+import {
+  pingProvider,
+  detectGeminiTier,
+  type PingResult,
+  type PingStatus,
+  type GeminiTier,
+} from "../model/ping";
 import { buildEnvelope } from "../model/debugLog";
 import { getLlmMode } from "../model/mock";
 import { subscribeStall } from "../model/stallSignal";
@@ -84,6 +90,115 @@ const PROVIDER_META: Record<ProviderId, ProviderMeta> = {
       "Your key goes straight from this browser to Anthropic, and is stored only on this device.",
   },
 };
+
+// The combined honest read of a two-field Gemini setup. Returned as a
+// {cls, node} pair so the panel can style it with the existing `.gemini-tier-*`
+// classes. Exported for unit testing of the copy-selection matrix.
+type GeminiKeyState = { cls: "paid" | "free" | "invalid" | "detecting"; node: React.ReactNode };
+export function geminiKeyStatus(args: {
+  hasFree: boolean;
+  hasPaid: boolean;
+  geminiTier: GeminiTier | "detecting" | "idle";
+  geminiPaidTier: GeminiTier | "detecting" | "idle";
+  keyTier: ModelTier;
+}): GeminiKeyState {
+  const { hasFree, hasPaid, geminiTier, geminiPaidTier, keyTier } = args;
+  // Paid-field problems first — the strong adjudicator depends on that key.
+  if (hasPaid && geminiPaidTier === "invalid") {
+    return { cls: "invalid", node: <span>Paid key not recognized — double-check the paste.</span> };
+  }
+  if (hasPaid && geminiPaidTier === "free") {
+    return {
+      cls: "invalid",
+      node: (
+        <span>
+          That paid key looks like a <strong>free-tier</strong> key — the stronger adjudicator (
+          <code className="key-shape">gemini-2.5-pro</code>) needs a billed key.
+        </span>
+      ),
+    };
+  }
+  if (hasFree && hasPaid) {
+    return {
+      cls: "paid",
+      node: (
+        <span>
+          <strong>Free + paid.</strong> Cheap checks stay on the free daily budget; the deeper
+          adjudication and any overflow ride the paid key.
+        </span>
+      ),
+    };
+  }
+  if (hasPaid) {
+    return {
+      cls: "paid",
+      node: (
+        <span>
+          <strong>Paid key only.</strong> One key does everything — every check bills to it,
+          including the frequent cheap ones. Add a free key to offload those.
+        </span>
+      ),
+    };
+  }
+  // Free field only — lean on its live detection.
+  if (geminiTier === "detecting")
+    return { cls: "detecting", node: <span>Detecting your tier…</span> };
+  if (
+    geminiTier === "paid" ||
+    (geminiTier !== "free" && geminiTier !== "invalid" && keyTier === "strong")
+  ) {
+    return {
+      cls: "paid",
+      node: (
+        <span>
+          <strong>Paid key.</strong> The stronger adjudicator (
+          <code className="key-shape">gemini-2.5-pro</code>) is enabled for the deeper checks.
+        </span>
+      ),
+    };
+  }
+  if (geminiTier === "invalid") {
+    return { cls: "invalid", node: <span>Key not recognized — double-check the paste.</span> };
+  }
+  return {
+    cls: "free",
+    node: (
+      <span>
+        <strong>Free key only.</strong> Runs the flash-lite pool. Add a paid key for the stronger
+        adjudicator and to keep working past the daily budget.
+      </span>
+    ),
+  };
+}
+
+// One attributable verdict for a "Ping model" that may have checked one or both
+// Gemini keys. Names each field's outcome and picks the worst status for color.
+// Exported for unit testing.
+export function summarizePing(checks: { field: "free" | "paid"; tier: GeminiTier }[]): PingResult {
+  if (checks.length === 0) return { status: "invalid", label: "Enter a key first." };
+  const word = (t: GeminiTier) =>
+    t === "paid"
+      ? "reachable"
+      : t === "free"
+        ? "reachable (free tier)"
+        : t === "invalid"
+          ? "not recognized"
+          : "unreachable";
+  const label =
+    checks.map((c) => `${c.field === "free" ? "Free" : "Paid"} key ${word(c.tier)}`).join(" · ") +
+    ".";
+  const hasInvalid = checks.some((c) => c.tier === "invalid");
+  const hasUnknown = checks.some((c) => c.tier === "unknown");
+  const paidIsFree = checks.some((c) => c.field === "paid" && c.tier === "free");
+  const status: PingStatus = hasInvalid
+    ? "invalid"
+    : hasUnknown
+      ? "network"
+      : paidIsFree
+        ? "billing"
+        : "ok";
+  return { status, label };
+}
 
 // ---------------------------------------------------------------------------
 // Icons
@@ -174,6 +289,10 @@ interface ControlCenterProps {
   onApiKeyChange: (key: string) => void;
   keyTier?: ModelTier;
   onKeyTierChange?: (tier: ModelTier) => void;
+  /** Optional second Gemini key — a billed key for the stronger adjudicator +
+   *  overflow. Only surfaced when the active provider is Gemini. */
+  geminiPaidKey?: string;
+  onGeminiPaidKeyChange?: (key: string) => void;
   providerId?: ProviderId;
   onProviderChange?: (id: ProviderId) => void;
   models?: Record<string, { fast: string; strong: string }>;
@@ -196,6 +315,8 @@ export function ControlCenter({
   onApiKeyChange,
   keyTier = "weak",
   onKeyTierChange,
+  geminiPaidKey = "",
+  onGeminiPaidKeyChange,
   providerId = "gemini",
   onProviderChange,
   models = {},
@@ -236,7 +357,7 @@ export function ControlCenter({
   // verdict never lingers over a different key.
   const [ping, setPing] = useState<PingResult | null>(null);
   const [pinging, setPinging] = useState(false);
-  useEffect(() => setPing(null), [providerId, apiKey]);
+  useEffect(() => setPing(null), [providerId, apiKey, geminiPaidKey]);
 
   // Auto-detected Gemini tier (replaces the manual "paid tier" checkbox). We
   // probe `gemini-2.5-pro` once — debounced — whenever a Gemini key is present,
@@ -265,16 +386,41 @@ export function ControlCenter({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [providerId, apiKey]);
 
+  // The paid field is meant for a *billed* key. Probe it the same way, purely to
+  // give an honest inline check — if the user pastes a free-tier key here we say
+  // so, rather than silently under-serving the strong adjudicator. It does not
+  // drive capability (a paid key present already does that at the App boundary).
+  const [geminiPaidTier, setGeminiPaidTier] = useState<GeminiTier | "detecting" | "idle">("idle");
+  useEffect(() => {
+    if (providerId !== "gemini" || !geminiPaidKey.trim()) {
+      setGeminiPaidTier("idle");
+      return;
+    }
+    let cancelled = false;
+    setGeminiPaidTier("detecting");
+    const t = setTimeout(async () => {
+      const tier = await detectGeminiTier(geminiPaidKey);
+      if (!cancelled) setGeminiPaidTier(tier);
+    }, 700);
+    return () => {
+      cancelled = true;
+      clearTimeout(t);
+    };
+  }, [providerId, geminiPaidKey]);
+
   const meta = PROVIDER_META[providerId];
   const catalog = catalogFor(providerId);
-  // Is the active Gemini key on the paid tier? Prefer the live detection; before
-  // it resolves (or on a network failure) fall back to the persisted keyTier.
+  // Is a paid Gemini tier in play? A key in the paid field settles it outright;
+  // otherwise fall back to the free field's live detection (a paid key pasted
+  // there still counts) and finally the persisted keyTier.
   const geminiPaid =
-    geminiTier === "paid"
+    geminiPaidKey.trim().length > 0
       ? true
-      : geminiTier === "free" || geminiTier === "invalid"
-        ? false
-        : keyTier === "strong";
+      : geminiTier === "paid"
+        ? true
+        : geminiTier === "free" || geminiTier === "invalid"
+          ? false
+          : keyTier === "strong";
   // The "what's running" card must reflect what actually runs. For Gemini that's
   // tier-dependent (free = one model; paid = flash-lite + gemini-2.5-pro), so
   // derive it from the router's real pools rather than the free-only catalog.
@@ -294,29 +440,41 @@ export function ControlCenter({
   const setModel = (tier: "fast" | "strong", value: string) => {
     onModelsChange?.({ ...models, [providerId]: { ...selectedModels, [tier]: value } });
   };
+
+  // One honest read of the whole Gemini key setup — replaces the single-key tier
+  // line now that there are two fields. Paid-field problems take priority (the
+  // strong adjudicator depends on it); otherwise we describe the free/paid split.
+  const hasFree = apiKey.trim().length > 0;
+  const hasPaid = geminiPaidKey.trim().length > 0;
+  const geminiStatus =
+    providerId !== "gemini" || (!hasFree && !hasPaid)
+      ? null
+      : geminiKeyStatus({ hasFree, hasPaid, geminiTier, geminiPaidTier, keyTier });
+  const canPing = hasFree || (providerId === "gemini" && hasPaid);
+
   const runPing = async () => {
     setPinging(true);
     setPing(null);
     if (providerId === "gemini") {
-      // Gemini's ping doubles as the tier probe (pro-model), so the verdict is
-      // tier-aware and the capability tier is (re)set from the same call.
-      setGeminiTier("detecting");
-      const tier = await detectGeminiTier(apiKey);
-      setGeminiTier(tier);
-      if (tier === "paid") {
-        onKeyTierChange?.("strong");
-        setPing({ status: "ok", label: "Key works — paid tier." });
-      } else if (tier === "free") {
-        onKeyTierChange?.("weak");
-        setPing({ status: "ok", label: "Key works — free tier." });
-      } else if (tier === "invalid") {
-        setPing({ status: "invalid", label: "Invalid key." });
-      } else {
-        setPing({
-          status: "network",
-          label: "Couldn't reach the provider — check your network or CORS.",
-        });
+      // Gemini's ping doubles as the tier probe (pro-model). With two fields we
+      // check whichever keys are set and report one attributable verdict; the
+      // capability tier is (re)set from the free field's read.
+      const checks: { field: "free" | "paid"; tier: GeminiTier }[] = [];
+      if (hasFree) {
+        setGeminiTier("detecting");
+        const tier = await detectGeminiTier(apiKey);
+        setGeminiTier(tier);
+        if (tier === "paid") onKeyTierChange?.("strong");
+        else if (tier === "free") onKeyTierChange?.("weak");
+        checks.push({ field: "free", tier });
       }
+      if (hasPaid) {
+        setGeminiPaidTier("detecting");
+        const tier = await detectGeminiTier(geminiPaidKey);
+        setGeminiPaidTier(tier);
+        checks.push({ field: "paid", tier });
+      }
+      setPing(summarizePing(checks));
     } else {
       const result = await pingProvider(providerId, apiKey, pingModelFor(providerId));
       setPing(result);
@@ -431,7 +589,9 @@ export function ControlCenter({
             </div>
 
             <div className="setting-group" style={{ marginTop: "var(--space-sm)" }}>
-              <label htmlFor="api-key-input">{meta.keyLabel}</label>
+              <label htmlFor="api-key-input">
+                {providerId === "gemini" ? "Gemini free key" : meta.keyLabel}
+              </label>
               <input
                 id="api-key-input"
                 data-testid="api-key-input"
@@ -442,19 +602,53 @@ export function ControlCenter({
               />
               <span className="setting-help">
                 {apiKey ? "✓ Key set. " : "No key set. "}
+                {providerId === "gemini" &&
+                  "Handles the frequent, lightweight checks — the free daily budget carries them. "}
                 Get a key{" "}
                 <a className="setting-link" href={meta.keyUrl} target="_blank" rel="noreferrer">
                   {meta.keyUrlText} ↗
                 </a>{" "}
                 · starts with <code className="key-shape">{meta.shape}</code>
               </span>
+            </div>
 
+            {providerId === "gemini" && (
+              <div className="setting-group" style={{ marginTop: "var(--space-sm)" }}>
+                <label htmlFor="gemini-paid-key-input">
+                  Gemini paid key <span className="model-tier-note">· optional</span>
+                </label>
+                <input
+                  id="gemini-paid-key-input"
+                  data-testid="gemini-paid-key-input"
+                  type="password"
+                  placeholder="Paste a billed Gemini key…"
+                  value={geminiPaidKey}
+                  onChange={(e) => onGeminiPaidKeyChange?.(e.target.value)}
+                />
+                <span className="setting-help">
+                  {geminiPaidKey ? "✓ Key set. " : "Optional. "}
+                  Unlocks the stronger adjudicator (
+                  <code className="key-shape">gemini-2.5-pro</code>) and keeps you working after the
+                  free daily budget runs out.{" "}
+                  <a
+                    className="setting-link"
+                    href="https://aistudio.google.com/app/apikey"
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    Enable billing ↗
+                  </a>
+                </span>
+              </div>
+            )}
+
+            <div className="setting-group" style={{ marginTop: "var(--space-sm)" }}>
               <div className="ping-row">
                 <button
                   type="button"
                   className="ping-btn"
                   data-testid="ping-model"
-                  disabled={pinging || !apiKey}
+                  disabled={pinging || !canPing}
                   onClick={runPing}
                 >
                   {pinging ? "Pinging…" : "Ping model"}
@@ -473,28 +667,12 @@ export function ControlCenter({
                 Decodes failures too: invalid key · needs billing · network / CORS
               </span>
 
-              {providerId === "gemini" && apiKey && geminiTier !== "idle" && (
-                <div className={`gemini-tier gemini-tier-${geminiTier}`} data-testid="gemini-tier">
-                  {geminiTier === "detecting" && <span>Detecting your tier…</span>}
-                  {geminiTier === "paid" && (
-                    <span>
-                      <strong>Paid key detected.</strong> The stronger adjudicator (
-                      <code className="key-shape">gemini-2.5-pro</code>) is enabled for the deeper
-                      checks.
-                    </span>
-                  )}
-                  {geminiTier === "free" && (
-                    <span>
-                      <strong>Free key detected.</strong> Runs the flash-lite pool. Enable billing
-                      on your Google Cloud project for the stronger adjudicator.
-                    </span>
-                  )}
-                  {geminiTier === "invalid" && (
-                    <span>Key not recognized — double-check the paste.</span>
-                  )}
-                  {geminiTier === "unknown" && (
-                    <span>Couldn&apos;t detect your tier — Ping to retry.</span>
-                  )}
+              {geminiStatus && (
+                <div
+                  className={`gemini-tier gemini-tier-${geminiStatus.cls}`}
+                  data-testid="gemini-tier"
+                >
+                  {geminiStatus.node}
                 </div>
               )}
             </div>
