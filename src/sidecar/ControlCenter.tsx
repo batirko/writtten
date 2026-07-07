@@ -351,6 +351,47 @@ export function ControlCenter({
   const [copySuccess, setCopySuccess] = useState(false);
   const [stalled, setStalled] = useState(false);
   useEffect(() => subscribeStall(setStalled), []);
+
+  // Activity-dot tier cue (feed_surface.md §5a): reflect the real tier of the
+  // in-flight call on the dot while it works. The logger tags each call's served
+  // tier; subscribing re-reads it on every log event.
+  const [inflightTier, setInflightTier] = useState<"fast" | "strong" | null>(null);
+  useEffect(
+    () => llmLogger.subscribe(() => setInflightTier(llmLogger.getInflightTier())),
+    []
+  );
+  // Strong calls are brief and rare (contradiction adjudication), so hold the
+  // strong hue for a min-visible floor once shown — otherwise a quick burst reads
+  // as a flicker rather than a deliberate colour change. `displayTier` is the
+  // floored view of `inflightTier`.
+  const STRONG_FLOOR_MS = 600;
+  const [displayTier, setDisplayTier] = useState<"fast" | "strong" | null>(null);
+  const inflightTierRef = useRef(inflightTier);
+  inflightTierRef.current = inflightTier;
+  const strongHoldRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  useEffect(() => {
+    if (inflightTier === "strong") {
+      // Strong is live — show it now, cancel any pending drop.
+      if (strongHoldRef.current) clearTimeout(strongHoldRef.current);
+      strongHoldRef.current = undefined;
+      setDisplayTier("strong");
+    } else {
+      // Not strong (fast-only or idle): if we're currently showing strong, hold
+      // it for the floor, then fall to whatever is in flight *then*.
+      setDisplayTier((prev) => {
+        if (prev === "strong") {
+          if (strongHoldRef.current) clearTimeout(strongHoldRef.current);
+          strongHoldRef.current = setTimeout(() => {
+            strongHoldRef.current = undefined;
+            setDisplayTier(inflightTierRef.current);
+          }, STRONG_FLOOR_MS);
+          return "strong";
+        }
+        return inflightTier;
+      });
+    }
+  }, [inflightTier]);
+  useEffect(() => () => strongHoldRef.current && clearTimeout(strongHoldRef.current), []);
   // Deep-link seam: the first-run welcome modal + the standing keyless banner
   // open Settings without owning its state. See sidecar/settingsGate.ts.
   useEffect(() => subscribeOpenSettings(() => setShowSettings(true)), []);
@@ -538,10 +579,13 @@ export function ControlCenter({
     }
   };
 
-  const isPaid = activeProvider.includes("[paid]");
   const modelName = activeProvider.replace(" [paid]", "") || "…";
   const anchorState = stalled ? "stalled" : pending > 0 ? "working" : "idle";
   const statusText = stalled ? "still working…" : pending > 0 ? `evaluating · ${pending}` : "idle";
+  // Tier only colours the *working* state (idle/stalled carry no tier). The
+  // brand-indigo "strong" hue supersedes the old free-vs-paid marker.
+  const dotTier = anchorState === "working" ? displayTier : null;
+  const tierLabel = dotTier === "strong" ? "deeper adjudication" : dotTier === "fast" ? "quick checks" : null;
 
   // Keep the cluster revealed while any menu/modal is open (so it doesn't
   // collapse out from under the pointer).
@@ -852,7 +896,13 @@ export function ControlCenter({
           <div className="control-process-label">process</div>
           <div className="control-process-row">
             <span data-testid="provider-chip">{modelName}</span>
-            {isPaid && <span className="paid">paid</span>}
+            {/* Names the in-flight tier so the dot's hue is never the only signal
+                (a11y): "strong" adjudication reads on the tier-indigo dot. */}
+            {tierLabel && (
+              <span className={`tier-chip tier-${dotTier}`} data-testid="tier-chip">
+                {tierLabel}
+              </span>
+            )}
           </div>
           <div className="control-process-row">
             <span>status</span>
@@ -1093,11 +1143,11 @@ export function ControlCenter({
             className="control-anchor"
             data-testid="control-anchor"
             data-state={anchorState}
-            data-paid={isPaid ? "true" : undefined}
+            data-tier={dotTier === "strong" ? "strong" : undefined}
             tabIndex={0}
             role="button"
             aria-expanded={forceOpen || tapOpen}
-            aria-label={`Model ${modelName}${isPaid ? " (paid)" : ""} — ${statusText}. Tap to open controls.`}
+            aria-label={`Model ${modelName} — ${statusText}${tierLabel ? ` (${tierLabel})` : ""}. Tap to open controls.`}
             onClick={() => setTapOpen((o) => !o)}
             onKeyDown={(e) => {
               if (e.key === "Enter" || e.key === " ") {

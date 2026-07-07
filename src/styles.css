@@ -39,8 +39,12 @@
   /* System-activity (Control Center dot) — a SEPARATE vocabulary from --sem-*.
      "Working" must not borrow the contradiction hue: amber reads as a document
      problem, not the machine thinking. Amber/red stays reserved for `stalled`. */
-  --activity-working: oklch(64% 0.13 240); /* calm blue — thinking, not "done/go" */
+  --activity-working: oklch(64% 0.13 240); /* calm blue — weak/fast working */
   --activity-idle: oklch(72% 0.035 160); /* grey-green — alive, at rest */
+  /* Strong/adjudicator working — vivid violet, deliberately far from the
+     working-blue (240°) so the tier reads at a glance on a 13px dot, and clear
+     of semantic amber (contradiction) and stalled-red. See feed_surface.md §5a. */
+  --activity-strong: oklch(52% 0.22 305);
 
   /* Typography — dual voice: serif writing-canvas / sans feed+chrome, mono for code
      (docs/projects/visual_style.md § Typography). The serif is *your* prose; the
@@ -1436,9 +1440,16 @@ body,
   justify-content: space-between;
   gap: 12px;
 }
-.control-process-row .paid {
-  color: #b06000;
+/* Names the in-flight tier next to the model, mirroring the dot's hue — so the
+   tier is conveyed by text too, never colour alone (feed_surface.md §5a). */
+.tier-chip {
   font-weight: 500;
+}
+.tier-chip.tier-fast {
+  color: var(--activity-working);
+}
+.tier-chip.tier-strong {
+  color: var(--activity-strong);
 }
 .control-process-row .working {
   /* Match the calm-blue activity dot — the status text is part of the same
@@ -1517,15 +1528,17 @@ body,
   background: var(--activity-idle);
 }
 .control-anchor[data-state="working"] .control-dot {
-  /* Working = calm blue (system activity), NOT the contradiction amber. */
+  /* Weak/fast working = calm blue (system activity), NOT the contradiction amber. */
   background: var(--activity-working);
   animation: dotPulse var(--dur-pulse) var(--ease-in-out) infinite;
 }
+/* Strong adjudication in flight — vivid violet supersedes the blue while working.
+   Transient (only in the working state); idle/stalled carry no tier. */
+.control-anchor[data-state="working"][data-tier="strong"] .control-dot {
+  background: var(--activity-strong);
+}
 .control-anchor[data-state="stalled"] .control-dot {
   background: var(--sem-problem-high);
-}
-.control-anchor[data-paid="true"] {
-  border-color: color-mix(in oklch, var(--color-accent) 45%, var(--color-border));
 }
 @keyframes dotPulse {
   0%,

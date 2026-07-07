@@ -259,3 +259,60 @@ describe("llmLogger archive + produced", () => {
     expect(llmLogger.getProducedByCall().size).toBe(0);
   });
 });
+
+describe("llmLogger.getInflightTier (activity-dot tier cue)", () => {
+  beforeEach(() => {
+    llmLogger.clearLogs();
+  });
+
+  const req = (callId: string, tier: "fast" | "strong") =>
+    llmLogger.log({ type: "request", tier, model: "m", endpoint: "x", callId, payload: { system: "", user: "" } });
+  const done = (callId: string, tier: "fast" | "strong", type: "response" | "error" = "response") =>
+    llmLogger.log({ type, tier, model: "m", endpoint: "x", callId, statusCode: type === "response" ? 200 : 500, payload: { system: "", user: "" } });
+
+  it("is null when idle", () => {
+    expect(llmLogger.getInflightTier()).toBeNull();
+  });
+
+  it("reports the in-flight tier between request and its terminal", () => {
+    req("c1", "fast");
+    expect(llmLogger.getInflightTier()).toBe("fast");
+    done("c1", "fast");
+    expect(llmLogger.getInflightTier()).toBeNull();
+  });
+
+  it("strong dominates while fast + strong run concurrently", () => {
+    req("c1", "fast");
+    req("c2", "strong");
+    expect(llmLogger.getInflightTier()).toBe("strong");
+    // strong finishes first → falls back to the still-running fast
+    done("c2", "strong");
+    expect(llmLogger.getInflightTier()).toBe("fast");
+    done("c1", "fast");
+    expect(llmLogger.getInflightTier()).toBeNull();
+  });
+
+  it("clears on an error terminal, not just a response", () => {
+    req("c1", "strong");
+    expect(llmLogger.getInflightTier()).toBe("strong");
+    done("c1", "strong", "error");
+    expect(llmLogger.getInflightTier()).toBeNull();
+  });
+
+  it("rotation retries reuse one callId → one terminal balances it", () => {
+    // A logical call may log multiple `request`s (one per rotation attempt) under
+    // the same callId, plus a `retry`; a single terminal must clear it.
+    req("c1", "strong");
+    llmLogger.log({ type: "retry", tier: "strong", model: "m", endpoint: "x", callId: "c1", payload: { system: "", user: "" } });
+    req("c1", "strong"); // next rotation attempt, same callId
+    expect(llmLogger.getInflightTier()).toBe("strong");
+    done("c1", "strong");
+    expect(llmLogger.getInflightTier()).toBeNull();
+  });
+
+  it("clearLogs() empties the in-flight set", () => {
+    req("c1", "strong");
+    llmLogger.clearLogs();
+    expect(llmLogger.getInflightTier()).toBeNull();
+  });
+});
