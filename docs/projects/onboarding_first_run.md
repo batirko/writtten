@@ -2,7 +2,7 @@
 status: in-progress
 kind: spec
 phases: [6]
-summary: The first-run experience for a brand-new user — a single dismissible welcome moment that frames the inversion, an optional one-click "See it in action" example doc (planted contradiction) so the hero capability is witnessable immediately, the quiet-by-design empty states, and the first-settle micro-moment — all without a tour, a setup form, or a key gate.
+summary: The first-run experience for a brand-new user — a one-time blocking welcome modal that frames the inversion AND names the API-key requirement (keyless does nothing on the user's own text), a one-click "See it in action" recorded example (planted contradiction) witnessable with no key, a standing "add your key" banner in any keyless state, and the quiet-by-design empty states reserved for the keyed state.
 ---
 
 # Onboarding & First-Run
@@ -11,7 +11,9 @@ summary: The first-run experience for a brand-new user — a single dismissible 
 
 > Canonical status lives in the frontmatter above and is mirrored in the Projects Index in `docs/plan.md`. This block carries the human-readable scope only.
 
-**Done — Phase 6 (shipped).** The fourth leg of the "product feel" pass, and the most philosophically delicate: the product defines itself by _being quiet_, so onboarding must orient without contradicting that. It also must solve a real tension — the hero (contradiction-at-distance) needs settled text before it can fire, so a blank first session risks feeling like nothing happens (the "time-to-first-wow" problem). All legs shipped: the welcome moment + "See it in action" example incl. keyless/keyed replay (#67/#72/#75), the quiet empty states (#46 + editor placeholder), the first-settle hand-off + no-upfront-setup posture + reset path (#79). See the Todo below for the per-item landing map.
+**Done — Phase 6 (shipped).** The fourth leg of the "product feel" pass, and the most philosophically delicate: the product defines itself by _being quiet_, so onboarding must orient without contradicting that. It also must solve a real tension — the hero (contradiction-at-distance) needs settled text before it can fire, so a blank first session risks feeling like nothing happens (the "time-to-first-wow" problem). All legs shipped: the welcome moment + "See it in action" example incl. keyless/keyed replay (#67/#72/#75), the quiet empty states (#46 + editor placeholder), the first-settle hand-off + no-upfront-setup posture + reset path (#79).
+
+**Reopened then re-shipped as _First-run activation_ (§ Revision 2026-07-07).** A field session found the shipped first-run failed its actual job: keyless, the evaluator does nothing on the user's own text, and the quiet empty state masked that hard requirement. The activation rework shipped — a **blocking welcome modal** that names the key requirement, the **standing keyless banner** (any keyless state), the **empty-state split** (quiet copy reserved for keyed), and the **Settings deep-link** (`settingsGate`). See the _First-run activation_ Todo subsection below for the per-item landing map.
 
 Consumes the three prior product-feel specs:
 
@@ -67,6 +69,13 @@ Anchor files: `src/sidecar/SidecarFeed.tsx` (welcome card, empty state, example 
 - [x] **First-settle micro-moment** — the empty→first-card transition is marked by R3c (arriving animation + the quiet `obs-new-badge` "new" pill) and stays calm (no toast/confetti; the batch "+N new" indicator only fires for ≥3). Hand-off verified + guarded by `SidecarFeed.test.tsx` ("first-settle micro-moment").
 - [x] **No upfront setup** — verified: first-run shows **no API-key gate** (the key input lives behind the settings gear; free tier + keyless example replay run without it — `App.tsx`/`ControlCenter.tsx`) and **no stage form** (the `DocumentContext` Empty state is a muted "Add context" button; its textarea `autoFocus`es only after the user clicks — never a first-run focused field).
 - [x] **Reset path** — ~~a settings affordance ("First-run intro → Show it again", `data-testid="reset-first-run"`) that clears the persisted `hasSeenWelcome` flag and un-collapses the feed so the welcome card returns~~ **Removed 2026-07-06** (owner call). The welcome is now a genuinely one-time moment: the settings reactivation control (and `handleResetFirstRun`) are gone. Accepted consequence — once the welcome is dismissed (explicitly, via "See it in action", or on first-eval settle), the welcome card and its "See it in action" example are no longer reachable from the UI. (Clearing localStorage `writtten_has_seen_welcome` still re-shows it — dev/manual only.)
+
+### First-run activation (§ Revision 2026-07-07) — shipped
+
+- [x] **Blocking welcome modal** — the in-feed `WelcomeCard` is replaced by a centered, closable `WelcomeModal` (`src/sidecar/WelcomeModal.tsx`) reusing the shared `.modal-scrim` / `.modal-card` primitive, with a focus-trap + `Escape`. Value-first copy: headline "You write. I notice." → the inversion → the rhythm → a brand-tint key-ask block → two actions. **"Add your key"** is the accent, activation-first primary (owner call 2026-07-07); **"See it in action"** is the outline secondary (disabled off a blank doc). Dismiss (× / "Maybe later" / Escape / See-it / first-eval settle) sets `writtten_has_seen_welcome`; not re-openable. Rendered from `App.tsx` at the app root.
+- [x] **Standing keyless banner** — a brand-tint (not severity) `KeylessBanner` at the top of the feed in **any keyless state** (during the demo _and_ when a keyless user just writes — the recommended any-keyless generalization, owner-confirmed). Its "Add your key in Settings →" link deep-links into the BYOK Settings modal. Copy tunes on `demoActive` (recorded-demo vs. general keyless). `SidecarFeed.tsx` (`KeylessBanner`).
+- [x] **Empty-state split** — the quiet-by-design `.sidecar-empty` copy is now reserved for the **keyed** state; keyless, the banner replaces it so quiet-by-design never masks needs-a-key. Gated on `hasKey` in `SidecarFeed.tsx`.
+- [x] **Settings deep-link (no new key UI)** — a typed `openSettings()` / `subscribeOpenSettings()` seam (`src/sidecar/settingsGate.ts`, a `window` CustomEvent) lets the modal + banner open the ControlCenter-owned Settings modal without owning its state. ControlCenter subscribes in one `useEffect`. Both the modal's "Add your key" and the banner link route here.
 
 ## Design
 

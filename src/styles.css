@@ -797,24 +797,10 @@ body,
   display: block;
 }
 
-/* First-run welcome moment (onboarding_first_run.md). A calm brand variant of
-   the observation card — accent-tint wash, no semantic border/tag/impact dot —
-   so it reads as the product introducing itself, not a flag. */
-.welcome-card {
-  background: var(--color-accent-tint);
-  border: 0.5px solid var(--color-border);
-  border-radius: var(--radius-lg);
-  padding: var(--space-sm) var(--space-md) calc(var(--space-sm) + 2px);
-  margin-bottom: var(--space-sm);
-  box-shadow: var(--elev-rest);
-}
-
-.welcome-card-head {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-}
-
+/* First-run welcome modal (onboarding_first_run.md § Revision 2026-07-07). A
+   blocking, closable modal that frames the inversion and names the key
+   requirement. Extends the shared .modal-card primitive; a touch wider so the
+   value-first copy breathes. */
 .welcome-eyebrow {
   font-size: var(--text-label);
   font-weight: 600;
@@ -823,40 +809,169 @@ body,
   color: var(--color-accent);
 }
 
-.welcome-voice {
+.welcome-modal {
+  width: 400px;
+}
+
+.welcome-modal-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: var(--space-xs);
+}
+
+.welcome-modal-title {
+  font-family: var(--font-serif);
+  font-weight: 500;
+  font-size: var(--text-h2);
+  line-height: 1.25;
+  color: var(--color-ink);
+  margin: 0 0 10px;
+}
+
+.welcome-modal-voice {
   font-family: var(--font-sans);
   font-size: var(--text-ui);
-  line-height: 1.5;
-  color: var(--color-ink);
-  margin: var(--space-xs) 0 0;
+  line-height: 1.55;
+  color: var(--color-ink-2);
+  margin: 0 0 10px;
 }
 
-.welcome-rhythm {
+.welcome-modal-rhythm {
   font-size: var(--text-ui-sm);
   line-height: 1.45;
-  color: var(--color-ink-2);
-  margin: 7px 0 0;
+  color: var(--color-muted);
+  margin: 0 0 var(--space-md);
 }
 
-/* Quiet "See it in action →" text link — lives on the welcome card only.
-   A plain accent link, never a button-looking CTA. */
-.see-example-link {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  margin-top: 11px;
-  padding: 0;
+/* The key ask, held in a brand-tint block — after the value framing, never
+   opening cold. */
+.welcome-modal-keynote {
+  background: var(--color-accent-tint);
+  border-radius: var(--radius-lg);
+  padding: 10px var(--space-sm);
+  margin: 0 0 var(--space-md);
+}
+
+.welcome-modal-keynote p {
+  font-size: var(--text-ui-sm);
+  line-height: 1.5;
+  color: var(--color-ink-2);
+  margin: 0;
+}
+
+.welcome-modal-actions {
+  display: flex;
+  gap: var(--space-xs);
+}
+
+.welcome-modal-primary,
+.welcome-modal-secondary {
+  flex: 1;
+  padding: 9px var(--space-md);
+  border-radius: var(--radius-md);
+  font-family: var(--font-sans);
+  font-size: var(--text-ui-sm);
+  font-weight: 500;
+  cursor: pointer;
+  transition:
+    background var(--dur-fast) var(--ease-out),
+    border-color var(--dur-fast) var(--ease-out);
+}
+
+/* Accent, activation-first: "Add your key" is the modal's actual job. */
+.welcome-modal-primary {
+  background: var(--color-accent);
+  color: var(--color-surface);
+  border: 0.5px solid var(--color-accent);
+}
+.welcome-modal-primary:hover {
+  background: var(--color-accent-strong);
+  border-color: var(--color-accent-strong);
+}
+
+/* The witnessing path — a quieter outline button. */
+.welcome-modal-secondary {
+  background: transparent;
+  color: var(--color-ink-2);
+  border: 0.5px solid var(--color-border-strong);
+}
+.welcome-modal-secondary:hover {
+  background: color-mix(in oklch, var(--color-ink) 4%, transparent);
+}
+.welcome-modal-secondary:disabled {
+  color: var(--color-muted);
+  border-color: var(--color-border);
+  cursor: default;
+}
+
+.welcome-modal-later {
+  display: block;
+  margin: var(--space-sm) auto 0;
+  padding: 4px 8px;
   background: none;
   border: none;
   cursor: pointer;
   font: inherit;
   font-size: var(--text-ui-sm);
+  color: var(--color-muted);
+  transition: color var(--dur-fast) var(--ease-out);
+}
+.welcome-modal-later:hover {
+  color: var(--color-ink-2);
+}
+
+/* Standing keyless banner (onboarding_first_run.md § Revision, Decision #3).
+   Brand-tint (not severity) — the product being honest, not flagging a defect.
+   Sits atop the feed in any keyless state. */
+.keyless-banner {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  background: var(--color-accent-tint);
+  border: 0.5px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: 10px var(--space-sm);
+  margin-bottom: var(--space-sm);
+  box-shadow: var(--elev-rest);
+}
+
+.keyless-banner-icon {
+  color: var(--color-accent);
+  margin-top: 1px;
+  flex-shrink: 0;
+  line-height: 0;
+}
+
+.keyless-banner-lead {
+  font-family: var(--font-sans);
+  font-size: var(--text-ui-sm);
+  font-weight: 500;
+  line-height: 1.45;
+  color: var(--color-ink);
+  margin: 0 0 3px;
+}
+
+.keyless-banner-sub {
+  font-size: var(--text-ui-sm);
+  line-height: 1.45;
+  color: var(--color-ink-2);
+  margin: 0;
+}
+
+/* The Settings deep-link — a plain accent text link, never a button-looking CTA
+   (it opens Settings; it is not an apply/fix affordance). */
+.keyless-banner-link {
+  padding: 0;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font: inherit;
   font-weight: 500;
   color: var(--color-accent);
   transition: color var(--dur-fast) var(--ease-out);
 }
-
-.see-example-link:hover {
+.keyless-banner-link:hover {
   color: var(--color-accent-strong);
   text-decoration: underline;
   text-underline-offset: 2px;
@@ -2093,9 +2208,9 @@ body,
 
 /* ── Mobile courtesy note (docs/projects/mobile_responsive.md § M4) ──────────
    A quiet, dismissible "best on desktop" strip. Hidden entirely on desktop so
-   it never flashes; the narrow @media block below reveals it. Echoes the calm
-   .welcome-card chrome voice but flatter — sidecar wash, no eyebrow, sans copy
-   in ink-2, a muted × with a 44px touch target. Never a modal. */
+   it never flashes; the narrow @media block below reveals it. Calm chrome voice
+   but flat — sidecar wash, no eyebrow, sans copy in ink-2, a muted × with a 44px
+   touch target. Never a modal. */
 .mobile-note {
   display: none;
 }
@@ -2213,5 +2328,11 @@ body,
   .mobile-note-dismiss:focus-visible {
     outline: 2px solid var(--color-accent-strong);
     outline-offset: 1px;
+  }
+
+  /* Welcome modal: stack the two actions so neither CTA wraps to two lines on a
+     narrow phone (Hallmark gate 59). Both stay full-width and tappable. */
+  .welcome-modal-actions {
+    flex-direction: column;
   }
 }

@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { Editor } from "./editor/Editor";
 import { SidecarFeed } from "./sidecar/SidecarFeed";
+import { WelcomeModal } from "./sidecar/WelcomeModal";
+import { openSettings } from "./sidecar/settingsGate";
 import { SpanPeek } from "./sidecar/SpanPeek";
 import { ControlCenter } from "./sidecar/ControlCenter";
 import { DocumentContext } from "./sidecar/DocumentContext";
@@ -178,15 +180,21 @@ export default function App() {
     localStorage.setItem("writtten_feed_collapsed", feedCollapsed ? "1" : "0");
   }, [feedCollapsed]);
 
-  // First-run welcome moment: shown once at the top of the feed until dismissed.
-  // Chrome, not an observation — persisted like the other UI flags (localStorage,
-  // no DB schema). Clearing the workspace does NOT re-show it (reset is separate).
+  // First-run welcome moment: a one-time blocking modal (onboarding_first_run.md
+  // § Revision 2026-07-07). Chrome, not an observation — persisted like the other
+  // UI flags (localStorage, no DB schema). Not re-openable once dismissed; the
+  // standing keyless banner is the persistent re-entry point for the key ask.
   const [hasSeenWelcome, setHasSeenWelcome] = useState<boolean>(
     () => localStorage.getItem("writtten_has_seen_welcome") === "1"
   );
   useEffect(() => {
     localStorage.setItem("writtten_has_seen_welcome", hasSeenWelcome ? "1" : "0");
   }, [hasSeenWelcome]);
+
+  // Whether the recorded "See it in action" example is loaded — tunes the
+  // keyless banner copy (demo vs. general keyless). Session-only (not persisted):
+  // the example never survives a reload.
+  const [demoActive, setDemoActive] = useState(false);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === "\\") {
@@ -328,6 +336,7 @@ export default function App() {
   const handleClearWorkspace = async () => {
     // Leaving the example demo — restore the live router.
     deactivateExampleReplay();
+    setDemoActive(false);
     await clearDocumentData(DOC_ID);
     clearSnapshotsForDocument(DOC_ID);
     setObservations([]);
@@ -344,6 +353,7 @@ export default function App() {
     const text = await file.text();
     // The user is bringing their own document — always evaluate it for real.
     deactivateExampleReplay();
+    setDemoActive(false);
     await clearDocumentData(DOC_ID);
     clearSnapshotsForDocument(DOC_ID);
     setObservations([]);
@@ -358,6 +368,14 @@ export default function App() {
   // First-run welcome: dismissing is chrome — set the persisted flag, no
   // suppression write and no Undo toast (it isn't an observation).
   const handleDismissWelcome = () => setHasSeenWelcome(true);
+
+  // "Add your key" (the modal's accent, activation-first CTA): deep-link into the
+  // BYOK Settings modal and retire the welcome. The standing keyless banner keeps
+  // the key ask visible afterward if they close Settings without a key.
+  const handleAddKey = () => {
+    setHasSeenWelcome(true);
+    openSettings();
+  };
 
   // The welcome card retires itself once the user is clearly engaged — not only
   // on an explicit ×. First trigger: their first evaluation settles (this hook,
@@ -381,8 +399,9 @@ export default function App() {
   // recording (mock mode). Keyed, the live pipeline runs — but we still arm the
   // recording as an error-fallback so a spent quota (429) can't blank the demo.
   const handleLoadExample = async () => {
-    // Clicking the CTA retires the welcome card (it's done its job).
+    // Clicking the CTA retires the welcome modal (it's done its job).
     setHasSeenWelcome(true);
+    setDemoActive(true);
     activateExampleReplay({ keyless: !activeKey });
     await clearDocumentData(DOC_ID);
     clearSnapshotsForDocument(DOC_ID);
@@ -566,13 +585,8 @@ export default function App() {
           spanFocusObsId={feedCollapsed ? null : spanFocusObsId}
           onHoverObservation={setHoveredObservationId}
           onDismissObservation={handleDismissObservation}
-          showWelcome={!hasSeenWelcome}
-          // A blank editor still holds one empty paragraph block, so "brand-new,
-          // nothing to clobber" is <= 1 block (not === 0). This gates the
-          // "See it in action" example off the user's own multi-block text.
-          documentIsEmpty={blockOrder.length <= 1}
-          onDismissWelcome={handleDismissWelcome}
-          onLoadExample={handleLoadExample}
+          hasKey={Boolean(activeKey)}
+          demoActive={demoActive}
         />
       </div>
       {/* Reverse hover floats the hovered span's card(s) at the top of the gutter
@@ -609,6 +623,20 @@ export default function App() {
         onCopyRichText={handleCopyRichText}
         logs={logs}
       />
+      {/* First-run interruption: a blocking, closable welcome modal that frames
+          the inversion and names the key requirement. Rendered at the app root
+          (above the feed) so it overlays the whole surface. */}
+      {!hasSeenWelcome && (
+        <WelcomeModal
+          onClose={handleDismissWelcome}
+          onAddKey={handleAddKey}
+          onLoadExample={handleLoadExample}
+          // A blank editor still holds one empty paragraph block, so "brand-new,
+          // nothing to clobber" is <= 1 block (not === 0). Gates the example off
+          // the user's own multi-block text.
+          canLoadExample={blockOrder.length <= 1}
+        />
+      )}
     </div>
   );
 }

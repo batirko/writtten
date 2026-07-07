@@ -19,6 +19,7 @@ import {
 import { buildEnvelope } from "../model/debugLog";
 import { getLlmMode } from "../model/mock";
 import { subscribeStall } from "../model/stallSignal";
+import { subscribeOpenSettings } from "./settingsGate";
 
 // Per-provider settings copy: how to get a key, the key shape, and the one-line
 // plain-English job of each tier for the "what's running" card. See
@@ -338,6 +339,9 @@ export function ControlCenter({
   const [copySuccess, setCopySuccess] = useState(false);
   const [stalled, setStalled] = useState(false);
   useEffect(() => subscribeStall(setStalled), []);
+  // Deep-link seam: the first-run welcome modal + the standing keyless banner
+  // open Settings without owning its state. See sidecar/settingsGate.ts.
+  useEffect(() => subscribeOpenSettings(() => setShowSettings(true)), []);
 
   // Touch open: the actions reveal on hover / focus-within on desktop, but a
   // phone has neither — tapping the anchor pins the control-center open so its

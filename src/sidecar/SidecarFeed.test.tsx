@@ -18,6 +18,7 @@ import { createRoot } from "react-dom/client";
 import { act } from "react";
 import { SidecarFeed } from "./SidecarFeed";
 import { ControlCenter } from "./ControlCenter";
+import { openSettings } from "./settingsGate";
 import type { Observation } from "../store/db";
 
 const minProps = {
@@ -30,6 +31,9 @@ const minProps = {
   onHoverObservation: () => {},
   onDismissObservation: async () => undefined,
   onClearWorkspace: () => {},
+  // Default to the keyed state so the quiet empty state renders as before; the
+  // keyless-banner tests opt into hasKey: false explicitly.
+  hasKey: true,
 };
 
 describe("SidecarFeed debug panel (L7 — prod prompt-leak)", () => {
@@ -62,6 +66,34 @@ describe("SidecarFeed debug panel (L7 — prod prompt-leak)", () => {
     // The debug panel renders with className="debug-panel" only when debugMode=true.
     // Regression: if this fails, someone set useState(true) again.
     expect(div.querySelector(".debug-panel")).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Settings deep-link (settingsGate) — the welcome modal + keyless banner open
+// the BYOK Settings modal without owning ControlCenter's state. This guards the
+// event seam end-to-end: an openSettings() call reveals ControlCenter's panel.
+// ---------------------------------------------------------------------------
+
+describe("ControlCenter — opens Settings on the open-settings event", () => {
+  const containers: HTMLDivElement[] = [];
+
+  afterEach(() => {
+    for (const c of containers) act(() => c.remove());
+    containers.length = 0;
+  });
+
+  it("reveals the settings panel when openSettings() fires", () => {
+    const div = document.createElement("div");
+    document.body.appendChild(div);
+    containers.push(div);
+    act(() => {
+      createRoot(div).render(createElement(ControlCenter, minProps));
+    });
+    // Settings modal is closed by default.
+    expect(document.querySelector('[data-testid="settings-panel"]')).toBeNull();
+    act(() => openSettings());
+    expect(document.querySelector('[data-testid="settings-panel"]')).not.toBeNull();
   });
 });
 
@@ -341,10 +373,13 @@ describe("SidecarFeed — click-to-locate (C2)", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Onboarding & first-run — the welcome moment + "See it in action" example.
+// First-run activation — the standing keyless banner + the empty-state split.
+// The welcome MODAL itself lives in WelcomeModal.tsx (WelcomeModal.test.tsx);
+// the feed's job here is the standing banner and reserving the quiet empty
+// state for the keyed state. (onboarding_first_run.md § Revision 2026-07-07.)
 // ---------------------------------------------------------------------------
 
-describe("SidecarFeed — first-run welcome moment", () => {
+describe("SidecarFeed — keyless banner + empty-state split", () => {
   const containers: HTMLDivElement[] = [];
 
   function renderWith(props: Record<string, unknown>): HTMLDivElement {
@@ -362,77 +397,45 @@ describe("SidecarFeed — first-run welcome moment", () => {
     containers.length = 0;
   });
 
-  it("shows the welcome card only when showWelcome is set", () => {
-    expect(renderWith({ showWelcome: false }).querySelector('[data-testid="welcome-card"]')).toBeNull();
-    const div = renderWith({
-      showWelcome: true,
-      documentIsEmpty: true,
-      onDismissWelcome: () => {},
-      onLoadExample: () => {},
-    });
-    expect(div.querySelector('[data-testid="welcome-card"]')).not.toBeNull();
-    // While the welcome card is up, the quiet empty state must not also render.
-    expect(div.querySelector(".sidecar-empty")).toBeNull();
+  it("shows the standing keyless banner only when there is no key", () => {
+    expect(renderWith({ hasKey: true }).querySelector('[data-testid="keyless-banner"]')).toBeNull();
+    expect(
+      renderWith({ hasKey: false }).querySelector('[data-testid="keyless-banner"]')
+    ).not.toBeNull();
   });
 
-  it("dismissing the welcome card calls onDismissWelcome (no observation side effects)", () => {
-    let dismissed = 0;
-    const div = renderWith({
-      showWelcome: true,
-      documentIsEmpty: true,
-      onDismissWelcome: () => (dismissed += 1),
-      onLoadExample: () => {},
-    });
+  it("reserves the quiet empty state for the keyed state (keyless shows the banner instead)", () => {
+    // Keyed + no observations → the calm empty state.
+    const keyed = renderWith({ hasKey: true, observations: [] });
+    expect(keyed.querySelector(".sidecar-empty")).not.toBeNull();
+    expect(keyed.querySelector('[data-testid="keyless-banner"]')).toBeNull();
+
+    // Keyless + no observations → the honest banner, NOT the quiet empty copy.
+    const keyless = renderWith({ hasKey: false, observations: [] });
+    expect(keyless.querySelector(".sidecar-empty")).toBeNull();
+    expect(keyless.querySelector('[data-testid="keyless-banner"]')).not.toBeNull();
+  });
+
+  it("the banner's Settings link deep-links into Settings (fires the open-settings event)", () => {
+    const div = renderWith({ hasKey: false });
+    let opened = 0;
+    const handler = () => (opened += 1);
+    window.addEventListener("writtten:open-settings", handler);
     act(() => {
-      div.querySelector('[data-testid="welcome-dismiss"]')?.dispatchEvent(
+      div.querySelector('[data-testid="keyless-banner-settings"]')?.dispatchEvent(
         new MouseEvent("click", { bubbles: true })
       );
     });
-    expect(dismissed).toBe(1);
+    window.removeEventListener("writtten:open-settings", handler);
+    expect(opened).toBe(1);
   });
 
-  it("offers 'See it in action' only on an empty document (never clobbers text)", () => {
-    const onEmpty = renderWith({
-      showWelcome: true,
-      documentIsEmpty: true,
-      onDismissWelcome: () => {},
-      onLoadExample: () => {},
-    });
-    expect(onEmpty.querySelector('[data-testid="see-example"]')).not.toBeNull();
+  it("tunes the banner copy for the demo vs. the general keyless state", () => {
+    const demo = renderWith({ hasKey: false, demoActive: true });
+    expect(demo.querySelector(".keyless-banner-lead")?.textContent).toMatch(/demo/i);
 
-    const withText = renderWith({
-      showWelcome: true,
-      documentIsEmpty: false,
-      onDismissWelcome: () => {},
-      onLoadExample: () => {},
-    });
-    expect(withText.querySelector('[data-testid="see-example"]')).toBeNull();
-  });
-
-  it("clicking 'See it in action' loads the example", () => {
-    let loaded = 0;
-    const div = renderWith({
-      showWelcome: true,
-      documentIsEmpty: true,
-      onDismissWelcome: () => {},
-      onLoadExample: () => (loaded += 1),
-    });
-    act(() => {
-      div.querySelector('[data-testid="see-example"]')?.dispatchEvent(
-        new MouseEvent("click", { bubbles: true })
-      );
-    });
-    expect(loaded).toBe(1);
-  });
-
-  it("the empty feed carries no 'See it in action' link — it lives on the welcome card only", () => {
-    const div = renderWith({
-      showWelcome: false,
-      documentIsEmpty: true,
-      onLoadExample: () => {},
-    });
-    expect(div.querySelector(".sidecar-empty")).not.toBeNull();
-    expect(div.querySelector('[data-testid="see-example"]')).toBeNull();
+    const plain = renderWith({ hasKey: false, demoActive: false });
+    expect(plain.querySelector(".keyless-banner-lead")?.textContent).toMatch(/add a key/i);
   });
 });
 

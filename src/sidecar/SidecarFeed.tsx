@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import type { Observation } from "../store/db";
 import { partitionFeed, DEFAULT_FEED_BUDGET } from "./feedBudget";
 import type { GroupedObservation } from "./feedBudget";
+import { openSettings } from "./settingsGate";
 
 // Stable per-group key for the pending-dismiss map — mirrors obsAggregation's
 // grouping key (span coords, or a per-obs doc-scope key). Deliberately NOT
@@ -35,55 +36,63 @@ function DismissIcon() {
 }
 
 // ---------------------------------------------------------------------------
-// SeeExampleLink — the quiet "See it in action →" affordance. Lives on the
-// welcome card only. Loading the example replaces the document, so it's only
-// offered on a blank doc (guarded by the caller) — never clobbers the user's
-// own text. Not a fix affordance: it plants pre-written text the live pipeline
-// reacts to (Hard Invariant #1).
+// KeylessBanner — the standing "add your key" card at the top of the feed, shown
+// in ANY keyless state (onboarding_first_run.md § Revision 2026-07-07, Decision
+// #3 + the recommended any-keyless generalization). Keyless, the evaluator does
+// nothing on the user's own text; without this the quiet empty state would mask
+// a hard requirement. Brand-tint (not severity) — it's the product being honest,
+// not flagging a defect. Its link deep-links into the BYOK Settings modal.
+//
+// Not a nag: it's a single standing banner, not a second interruption — the
+// welcome modal is the one permitted first-run interruption.
 // ---------------------------------------------------------------------------
 
-function SeeExampleLink({ onLoadExample }: { onLoadExample: () => void }) {
+function KeyIcon() {
   return (
-    <button type="button" className="see-example-link" data-testid="see-example" onClick={onLoadExample}>
-      See it in action <span aria-hidden="true">→</span>
-    </button>
+    <svg
+      width="15"
+      height="15"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <circle cx="7.5" cy="15.5" r="4.5"></circle>
+      <path d="M10.7 12.3 21 2"></path>
+      <path d="m16 6 3 3"></path>
+    </svg>
   );
 }
 
-// ---------------------------------------------------------------------------
-// WelcomeCard — the one-time first-run moment. A calm brand-tinted card that
-// frames the inversion, then gets out of the way. Deliberately NOT an
-// observation: no severity border, type tag, or impact dot. Dismissing is
-// chrome (no suppression, no undo). See docs/projects/onboarding_first_run.md.
-// ---------------------------------------------------------------------------
-
-interface WelcomeCardProps {
-  showExample: boolean;
-  onDismiss: () => void;
-  onLoadExample: () => void;
-}
-
-function WelcomeCard({ showExample, onDismiss, onLoadExample }: WelcomeCardProps) {
+function KeylessBanner({ demoActive }: { demoActive: boolean }) {
   return (
-    <div className="welcome-card" data-testid="welcome-card" role="note">
-      <div className="welcome-card-head">
-        <span className="welcome-eyebrow">Welcome</span>
-        <button
-          className="dismiss-btn"
-          data-testid="welcome-dismiss"
-          onClick={onDismiss}
-          title="Dismiss"
-          aria-label="Dismiss welcome"
-        >
-          <DismissIcon />
-        </button>
+    <div className="keyless-banner" data-testid="keyless-banner" role="note">
+      <span className="keyless-banner-icon">
+        <KeyIcon />
+      </span>
+      <div className="keyless-banner-body">
+        <p className="keyless-banner-lead">
+          {demoActive
+            ? "This is a demo running on recorded responses."
+            : "Add a key to read your own writing."}
+        </p>
+        <p className="keyless-banner-sub">
+          {demoActive
+            ? "Analyzing your own writing needs an API key. "
+            : "writtten needs an API key to read your text — it stays on this device. "}
+          <button
+            type="button"
+            className="keyless-banner-link"
+            data-testid="keyless-banner-settings"
+            onClick={openSettings}
+          >
+            Add your key in Settings <span aria-hidden="true">→</span>
+          </button>
+        </p>
       </div>
-      <p className="welcome-voice">
-        This page is yours. I sit alongside and notice what&rsquo;s worth a second look &mdash; I&rsquo;ll
-        never write for you.
-      </p>
-      <p className="welcome-rhythm">Quiet while you draft. Sharper as you revise.</p>
-      {showExample && <SeeExampleLink onLoadExample={onLoadExample} />}
     </div>
   );
 }
@@ -272,13 +281,13 @@ interface Props {
    *  before then cancels locally and never calls this, so no rollback is
    *  needed. See docs/mechanics/dismiss_undo.md. */
   onDismissObservation: (id: string) => void | Promise<unknown>;
-  /** First-run welcome moment: show the one-time welcome card until dismissed. */
-  showWelcome?: boolean;
-  /** Whether the editor is empty — gates the "See it in action" example so it
-   *  never replaces the user's own text. */
-  documentIsEmpty?: boolean;
-  onDismissWelcome?: () => void;
-  onLoadExample?: () => void;
+  /** Whether an API key is set. Keyless, the evaluator does nothing on the
+   *  user's own text, so the standing keyless banner replaces the quiet empty
+   *  state (which is reserved for the keyed "working, quietly" state). */
+  hasKey?: boolean;
+  /** Whether the recorded "See it in action" example is currently loaded — tunes
+   *  the keyless banner copy (demo vs. general keyless). */
+  demoActive?: boolean;
 }
 
 export function SidecarFeed({
@@ -289,10 +298,8 @@ export function SidecarFeed({
   spanFocusObsId = null,
   onHoverObservation,
   onDismissObservation,
-  showWelcome = false,
-  documentIsEmpty = false,
-  onDismissWelcome,
-  onLoadExample,
+  hasKey = false,
+  demoActive = false,
 }: Props) {
   const [showArchive, setShowArchive] = useState(false);
   const [showAlsoNoticed, setShowAlsoNoticed] = useState(false);
@@ -446,24 +453,22 @@ export function SidecarFeed({
     <aside className="sidecar-panel" aria-label="Observations">
       <div className="feed-container">
         <div style={{ flex: 1 }}>
-          {showWelcome && onDismissWelcome && onLoadExample && (
-            <WelcomeCard
-              showExample={documentIsEmpty}
-              onDismiss={onDismissWelcome}
-              onLoadExample={onLoadExample}
-            />
-          )}
+          {/* Standing keyless banner: shown in any keyless state (during the demo
+              and when a keyless user just writes), so quiet-by-design never masks
+              the key requirement. */}
+          {!hasKey && <KeylessBanner demoActive={demoActive} />}
           {observations.length === 0 ? (
-            // While the welcome card is up on a blank doc, it already carries the
-            // framing + example link — don't stack the quiet empty state under it.
-            showWelcome ? null : (
+            // The quiet empty state is reserved for the KEYED "working, quietly"
+            // state. Keyless, the banner above carries the honest message instead
+            // — the calm empty copy must never stand in for silent-nothing.
+            hasKey ? (
               <div className="sidecar-empty">
                 <p>Quiet while you draft — I'll speak up as you revise.</p>
                 <span className="empty-subtext">
                   Observations appear here as the document matures.
                 </span>
               </div>
-            )
+            ) : null
           ) : (
             <div className="observations-list" role="list">
               {arrivalBatchCount >= 3 && (
