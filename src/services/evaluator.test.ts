@@ -168,7 +168,8 @@ describe("evaluator - evaluateBlock", () => {
     });
 
     expect(db.saveClaimsForBlock).toHaveBeenCalledWith(docId, blockId, [
-      { text: "We plan to launch in Q3.", kind: "commitment" },
+      // Anchor fields (OBS-032) asserted in evaluatorAnchoring.test.ts.
+      expect.objectContaining({ text: "We plan to launch in Q3.", kind: "commitment" }),
     ]);
 
     // Clarity observation saved.
@@ -1427,7 +1428,8 @@ describe("evaluator - bodyless-heading section is inert (OBS-029)", () => {
 
     expect(mockFast).toHaveBeenCalledTimes(1);
     expect(db.saveClaimsForBlock).toHaveBeenCalledWith(docId, sectionId, [
-      { text: "AI use erodes writing skill.", kind: "fact" },
+      // Anchor fields (OBS-032) asserted in evaluatorAnchoring.test.ts.
+      expect.objectContaining({ text: "AI use erodes writing skill.", kind: "fact" }),
     ]);
   });
 });

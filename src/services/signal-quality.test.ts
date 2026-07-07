@@ -89,7 +89,9 @@ describe("Tier A — meta-claim guard", () => {
     );
 
     expect(db.saveClaimsForBlock).toHaveBeenCalledWith(docId, "sec1", [
-      { text: "We will launch in Q3.", kind: "commitment" },
+      // Anchor fields (OBS-032 body-block fallback) are asserted in
+      // evaluatorAnchoring.test.ts; here only the meta-claim filtering matters.
+      expect.objectContaining({ text: "We will launch in Q3.", kind: "commitment" }),
     ]);
   });
 });
