@@ -35,6 +35,13 @@ export function defaultModels(id: string): { fast: string; strong: string } {
   return { fast: c.fast[0], strong: c.strong[0] };
 }
 
+/** The model a "Ping model" test should hit — the one the user reaches first.
+ *  Gemini pings its free-tier primary; paid providers ping the fast default. */
+export function pingModelFor(id: string): string {
+  if (resolveProvider(id).id === "gemini") return "gemini-3.1-flash-lite";
+  return defaultModels(id).fast;
+}
+
 /**
  * Return a copy of the adapter whose paid pools route the user's selected model
  * per tier (a single-model pool — paid providers don't rotate). Omitted

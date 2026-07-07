@@ -39,7 +39,19 @@ cp .env.local.example .env.local   # optional — add a free Gemini key for live
 npm run dev                          # → http://localhost:5173
 ```
 
-You can explore the interface with **zero configuration**. To get live AI observations, drop a free [Google AI Studio](https://aistudio.google.com/app/apikey) key into `.env.local`, or paste your own key in the app (bring-your-own-key uses stronger models).
+You can explore the interface with **zero configuration**. To get live AI observations, drop a free [Google AI Studio](https://aistudio.google.com/app/apikey) key into `.env.local`, or paste your own key in the app (**Settings** → gear icon, bottom-right).
+
+## Bring your own key
+
+writtten talks to three providers, each called **directly from your browser** with your own key — your document never passes through a writtten server. Pick a provider in **Settings**, paste a key, and use **Ping model** to confirm it works (it decodes the result into plain language — "invalid key", "billing not enabled", "network / CORS"). Paid providers let you pick the model per tier; the "what's running" card always shows what's actually in use.
+
+| Provider  | Get a key | Free tier? | Key looks like |
+| --------- | --------- | ---------- | -------------- |
+| Gemini    | [aistudio.google.com/app/apikey](https://aistudio.google.com/app/apikey) | ✅ free tier available | `AIza…` |
+| OpenAI    | [platform.openai.com/api-keys](https://platform.openai.com/api-keys) | ❌ paid API account | `sk-…` |
+| Anthropic | [console.anthropic.com/settings/keys](https://console.anthropic.com/settings/keys) | ❌ paid API account | `sk-ant-…` |
+
+Gemini is the zero-config on-ramp (the only one with a free tier). **Keys are stored only in your browser's `localStorage`** (plaintext — the honest trade-off for a local-first BYO-key tool) and sent only to the provider you chose. Anthropic is reached with the `anthropic-dangerous-direct-browser-access` header — the same trust posture as any browser-stored key. Note that evaluation itself is not local: a settled block's text and extracted claims are sent to your provider to produce observations (see [`docs/architecture.md` § Privacy](docs/architecture.md)).
 
 ## How it works
 

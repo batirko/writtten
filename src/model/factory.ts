@@ -60,7 +60,25 @@ function wrap(call: (req: LLMRequest) => Promise<LLMResponse>) {
   };
 }
 
+/**
+ * The active provider selection — a single app-global choice (one provider is
+ * active at a time, exactly what the provider-chip reflects). The App sets it
+ * from localStorage; `createRouter` consults it so the evaluator's call sites
+ * (`createRouter(apiKey, paidKey)`) need no new parameters. Capability is *not*
+ * read from here — it stays threaded explicitly via `EvalContext` (see
+ * docs/projects/byok_capability_model.md). Defaults to Gemini, so every existing
+ * call site and test behaves exactly as before until the App sets otherwise.
+ */
+let activeSelection: ProviderSelection = { providerId: "gemini" };
+
+export function setActiveProviderSelection(selection: ProviderSelection): void {
+  activeSelection = selection;
+}
+
 export function createRouter(apiKey: string, paidKey?: string): ModelRouter {
+  if (activeSelection.providerId !== "gemini") {
+    return createRouterForSelection(activeSelection, apiKey, paidKey);
+  }
   const live = createGeminiRouter(apiKey, paidKey);
   return {
     fast: wrap(live.fast),
