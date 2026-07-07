@@ -42,7 +42,7 @@ This is **model-router / capability-gating** work — client-side, no server/tel
 
 ### Phase 7 — BYOK management UX (the surface multi-key enables)
 
-The rotation plumbing above is invisible to the user; this is the UI over it. Today the BYO surface is one key field + one "this is a capable model" checkbox (`SidecarFeed.tsx`). The richer surface:
+The rotation plumbing above is invisible to the user; this is the UI over it. Today the BYO surface is one key field + one "this is a capable model" checkbox (`SidecarFeed.tsx`). Its **Phase-6 precursor is the legibility card + per-tier model picker** in `multi_provider_router.md` (todo D) — "show what's running and why + pick one model per tier"; the pool-editing and multi-key power controls below are the Phase-7 layer on top of it. The richer surface:
 
 - [ ] **Multiple keys.** Let the user add/remove several keys (entry + validation), persisted client-side.
 - [ ] **"Here are your models, here's how we use them."** Show, per key, which models it grants and how the router uses each (which check runs fast vs strong, what each tier means for observation quality). This is the "want to change something?" view — readable, not a raw config dump.
