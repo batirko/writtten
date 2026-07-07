@@ -1,8 +1,8 @@
 ---
 status: idea
 kind: research
-phases: [6]
-summary: The 2026-06-10 due-diligence audit's headline work — falsify (or confirm) the central bet with evidence from outside the founder's own head. A base-rate corpus study over real PRDs, structured sessions with external PMs on their own drafts, and instrumentation that can finally see the hero capability's *misses* (not just its false positives). Scheduled as a parallel track that does not gate the Phase 6 UX polish.
+phases: [7]
+summary: The 2026-06-10 due-diligence audit's headline work — falsify (or confirm) the central bet with evidence from outside the founder's own head. A base-rate corpus study over real PRDs, structured sessions with external PMs on their own drafts, and instrumentation that can finally see the hero capability's *misses* (not just its false positives). Deferred to Phase 7 (post-traction) on 2026-07-07 by the project owner; the V1 machinery + a hand-labeled corpus already exist.
 ---
 
 # Field validation — close the n=0 gap
@@ -11,7 +11,7 @@ summary: The 2026-06-10 due-diligence audit's headline work — falsify (or conf
 
 ## Status
 
-**Idea — Phase 6, parallel track. Protocols settled 2026-06-18 (V1/V2/V3 all 🟢, ready to execute).** The run procedures, labeling rubric, session format, and instrumentation design are fully specified below; what remains is _running_ them (assembling the corpus, the five sessions, the recall harness build) — not further design. Scheduled, but it **does not gate** the existing Phase 6 UX-polish milestones (visual style, onboarding, emotional register) — those proceed concurrently. The decision to run validation in parallel rather than as a hard gate is deliberate (2026-06-13); the audit argued for a gate, the project owner chose a parallel track so polish isn't blocked while evidence accrues. Every Phase 6 item is nonetheless better-aimed once V1/V2 produce data, so do these early in the phase.
+**Idea — Phase 7 (deferred from Phase 6 on 2026-07-07 by the project owner). Protocols settled 2026-06-18 (V1/V2/V3 all 🟢); V1 machinery + a stratified 21-doc corpus + human-verified labels landed 2026-07-06/07.** The run procedures, labeling rubric, session format, and instrumentation design are fully specified below; what remains is _running_ them (the keyed V1 free+paid run, the five sessions, the recall harness build) — not further design. **Was** scheduled as a Phase-6 parallel track (2026-06-13, over the audit's argument for a hard gate); the owner has now parked the whole track to Phase 7 (post-traction), so nothing here gates Phase-6 polish. Everything below is build-ready when it's picked up; the V1 base rate is already partly readable from the verified labels (see the snapshot).
 
 Read alongside:
 
@@ -19,15 +19,14 @@ Read alongside:
 - `docs/product-requirements.md` (§3 — the silence/rhythm bet is "a bet, not a settled truth"; R4.4/R4.6 — the precision asymmetry and the load-bearing hero) — the theories this work tests.
 - `docs/logs/prompt_quality_observations.md` (OBS-010) — the one register-discipline field datum, which _contradicts_ the register; V2 is its falsification.
 - `docs/projects/quality_remediation_synthesis.md` (R2 — severity ∝ maturity) — the hypothesis V2 confirms or kills.
-- `docs/projects/observation_taxonomy_and_priority.md` (Milestone C) — the Phase-6 decision-rigor taxonomy whose research gate **is** V1 (pulled forward).
+- `docs/projects/observation_taxonomy_and_priority.md` (Milestone C) — the Phase-7 decision-rigor taxonomy whose research gate **is** V1.
 - `docs/projects/evaluator_quality_ratchet.md` — the corpus/scorer machinery V1 and V3 run on; the per-type-floor tightening (audit #7) is a new milestone there.
 
 ## Phased Plan
 
 | Phase | Contributes                                                                                                                                                                                                                                                                                                                                         |
 | ----- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **6** | **V1** base-rate corpus study (un-planted true contradictions, per-type precision in the wild, free-vs-paid delta). **V2** five external-PM sessions on real drafts (write-vs-paste behavior; located-critique as respect-or-cold; second-session return). **V3** hero-miss instrumentation so recall — not just false positives — becomes visible. |
-| **7** | Feeds the decision-rigor taxonomy expansion (its corpus gate is V1) and any retention/positioning decisions that survive contact with real users.                                                                                                                                                                                                   |
+| **7** | **V1** base-rate corpus study (un-planted true contradictions, per-type precision in the wild, free-vs-paid delta). **V2** five external-PM sessions on real drafts (write-vs-paste behavior; located-critique as respect-or-cold; second-session return). **V3** hero-miss instrumentation so recall — not just false positives — becomes visible. Also feeds the decision-rigor taxonomy expansion (its corpus gate is V1) and any retention/positioning decisions that survive contact with real users. _(Deferred from Phase 6 → 7 on 2026-07-07.)_ |
 
 ## Why this, and why now
 
@@ -57,7 +56,7 @@ If the hero fires rarely and the daily experience is the noisy supporting cast (
   - **Hero base rate** — Bucket-1 contradictions per document (and Bucket-2 separately), un-planted, found by hand-labeling.
   - **Per-type precision in the wild** — for each observation type, tool emissions matched against labels / total emissions (feeds the ratchet's per-type floors, audit #7).
   - **Free-tier vs paid-tier delta** — the confident-false-contradiction count and any per-type precision gap.
-- [ ] **Output:** a `docs/snapshots/` entry with the numbers and the implications for (a) the **free-tier-real-or-demo** decision, (b) the **per-type ratchet floors**, (c) whether contradiction-at-distance is **frequent enough to be the hero**. **This is the gate the Phase-6 decision-rigor taxonomy was already specified to wait behind** — pulled forward here. The labeling sheet is handed to **V3** (recall ground truth) and the **ratchet** (independent labels — see `evaluator_quality_ratchet.md` audit #7).
+- [ ] **Output:** a `docs/snapshots/` entry with the numbers and the implications for (a) the **free-tier-real-or-demo** decision, (b) the **per-type ratchet floors**, (c) whether contradiction-at-distance is **frequent enough to be the hero**. **This is the gate the Phase-7 decision-rigor taxonomy was specified to wait behind.** The labeling sheet is handed to **V3** (recall ground truth) and the **ratchet** (independent labels — see `evaluator_quality_ratchet.md` audit #7).
 
 ### V2 — External-PM sessions (×5) — 🟢 Med · 🧠 (audit #1, #4, #6) — protocol settled 2026-06-18
 
@@ -78,7 +77,7 @@ If the hero fires rarely and the daily experience is the noisy supporting cast (
 - [ ] **Second-session return (retention):** "Would you open it again on your next draft? What would have to be true?" — the missing first-week-retention story.
 - [ ] Also capture: which observations they **acted on / ignored / dismissed**, whether the feed felt calm or noisy, and whether they trusted the contradiction calls.
 
-- [ ] **Output:** five session notes + a synthesis that explicitly marks each strategic open question (**free-tier**, **paste-vs-ambient**, **OBS-010/maturity-severity**) as _moved-toward-resolved_ or _still-open_, with the evidence. Land in `docs/snapshots/`. This is the cheapest falsification of the central bet; every Phase 6 polish item is better-aimed after it.
+- [ ] **Output:** five session notes + a synthesis that explicitly marks each strategic open question (**free-tier**, **paste-vs-ambient**, **OBS-010/maturity-severity**) as _moved-toward-resolved_ or _still-open_, with the evidence. Land in `docs/snapshots/`. This is the cheapest falsification of the central bet; the polish and positioning items are better-aimed after it.
 
 ### V3 — Hero-miss instrumentation — 🟢 Med–High · 🧠 (audit #2) — design settled 2026-06-18
 
