@@ -1,8 +1,8 @@
 ---
 status: in-progress
 kind: infra
-phases: [5, 7]
-summary: Decouple model *capability* from the *credential* for BYOK — `paidKey` conflated "I have a second key" with "my model can reason well enough." Phase 5 shipped (2026-06-06): explicit `ModelCapability` descriptor threaded via EvalContext, evaluator re-gated, UI key-tier toggle. Phase 7 (multi-key rotation) remains.
+phases: [5, 6, 7]
+summary: Decouple model *capability* from the *credential* for BYOK — `paidKey` conflated "I have a second key" with "my model can reason well enough." Phase 5 shipped (2026-06-06): explicit `ModelCapability` descriptor threaded via EvalContext, evaluator re-gated, UI key-tier toggle. Phase 6 shipped (2026-07-07): the two-field Gemini free+paid key UI, surfacing the existing free→paid fallback. Phase 7 (multi-free-key RPD rotation + free-pool editing) remains.
 ---
 
 # BYOK capability model
@@ -13,7 +13,7 @@ summary: Decouple model *capability* from the *credential* for BYOK — `paidKey
 
 > Canonical status lives in the frontmatter above and is mirrored in the Projects Index in `docs/plan.md`. This block carries the human-readable scope only.
 
-**Status: `in-progress`** (Phase 5 shipped 2026-06-06; Phase 7 remaining). The credential→capability decoupling is done: an explicit `ModelCapability` descriptor (`src/model/capability.ts`) is decided once at the App boundary and threaded through `EvalContext`; the evaluator branches on it, never on `paidKey` presence; a UI toggle lets a BYO key declare itself capable. The architecture now _takes BYOK without major refactoring_ — confirmed by doing it. Phase 7 (multi-key rotation) is the remaining, additive piece (contained in `gemini.ts`).
+**Status: `in-progress`** (Phase 5 shipped 2026-06-06; Phase 6 dual-key UI shipped 2026-07-07; Phase 7 remaining). The credential→capability decoupling is done: an explicit `ModelCapability` descriptor (`src/model/capability.ts`) is decided once at the App boundary and threaded through `EvalContext`; the evaluator branches on it, never on `paidKey` presence; a UI toggle lets a BYO key declare itself capable. The architecture now _takes BYOK without major refactoring_ — confirmed by doing it. **Phase 6 (2026-07-07)** added the two-field Gemini setup — a free key + an optional billed key — surfacing the free→paid fallback `rotation.ts` already runs (the setup the dev had only via env vars). Phase 7 (multi-*free*-key RPD rotation + free-pool editing) is the remaining, additive piece.
 
 This is **model-router / capability-gating** work — client-side, no server/telemetry/egress (standing rule 5). BYOK is the privacy-respecting heavy-user path already assumed by `docs/concept.md` ("BYO-key design already means heavy users pay their own inference costs").
 
@@ -42,9 +42,9 @@ This is **model-router / capability-gating** work — client-side, no server/tel
 
 ### Phase 7 — BYOK management UX (the surface multi-key enables)
 
-The rotation plumbing above is invisible to the user; this is the UI over it. Today the BYO surface is one key field + one "this is a capable model" checkbox (`SidecarFeed.tsx`). Its **Phase-6 precursor is the legibility card + per-tier model picker** in `multi_provider_router.md` (todo D) — "show what's running and why + pick one model per tier"; the pool-editing and multi-key power controls below are the Phase-7 layer on top of it. The richer surface:
+The rotation plumbing above is invisible to the user; this is the UI over it. Its **Phase-6 precursors** are the legibility card + per-tier model picker in `multi_provider_router.md` (todo D) — "show what's running and why + pick one model per tier" — **and the two-field Gemini free+paid key UI (shipped 2026-07-07)**, which brought the free→paid fallback (previously env-only) into the product for any user. The pool-editing and multi-*free*-key power controls below are the Phase-7 layer on top of that. The richer surface:
 
-- [ ] **Multiple keys.** Let the user add/remove several keys (entry + validation), persisted client-side.
+- [ ] **Multiple keys.** _(Partially shipped 2026-07-07: the Gemini free+paid **pair** is in the Settings panel — two fields, each tier-validated, `writtten_gemini_paid_key`; combined honest status note; one attributable "Ping model" verdict.)_ Remaining: **N free keys** for RPD spreading (needs the `{key, model}` pool work above), general add/remove for other providers.
 - [ ] **"Here are your models, here's how we use them."** Show, per key, which models it grants and how the router uses each (which check runs fast vs strong, what each tier means for observation quality). This is the "want to change something?" view — readable, not a raw config dump.
 - [ ] **Optional routing override.** Let an advanced user pin a model to a tier, on top of the `capability.ts` descriptor (which already decouples credential from capability — so this is UI over an existing seam, not a re-architecture).
 - [ ] **Provider scope decision.** Which providers this surface offers — Gemini today; OpenAI / Anthropic / local adapters are an **unspecced open question** (the `ModelRouter` seam permits them but no adapter is written — see plan Discovered/unscheduled). Decide whether the management UX is Gemini-only or multi-provider before building it.
