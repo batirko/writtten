@@ -4,6 +4,7 @@ import { SidecarFeed } from "./sidecar/SidecarFeed";
 import { SpanPeek } from "./sidecar/SpanPeek";
 import { ControlCenter } from "./sidecar/ControlCenter";
 import { DocumentContext } from "./sidecar/DocumentContext";
+import { MobileNote } from "./sidecar/MobileNote";
 import { groupObservations, findGroupForObs } from "./sidecar/obsAggregation";
 import { surfacedObservationIds, DEFAULT_FEED_BUDGET } from "./sidecar/feedBudget";
 import {
@@ -88,9 +89,14 @@ export default function App() {
 
   // Companion surface: the feed column reflows the canvas (never overlays it).
   // Collapsed → canvas reclaims full editorial measure. Persisted per session.
-  const [feedCollapsed, setFeedCollapsed] = useState<boolean>(
-    () => localStorage.getItem("writtten_feed_collapsed") === "1"
-  );
+  // On a narrow viewport with no stored preference, default collapsed so the
+  // editor leads on a phone (docs/projects/mobile_responsive.md § M2); a stored
+  // preference always wins, and desktop keeps its expanded default.
+  const [feedCollapsed, setFeedCollapsed] = useState<boolean>(() => {
+    const stored = localStorage.getItem("writtten_feed_collapsed");
+    if (stored != null) return stored === "1";
+    return typeof window !== "undefined" && window.matchMedia("(max-width: 720px)").matches;
+  });
   useEffect(() => {
     localStorage.setItem("writtten_feed_collapsed", feedCollapsed ? "1" : "0");
   }, [feedCollapsed]);
@@ -416,6 +422,7 @@ export default function App() {
     <div className="app">
       <main className="editor-panel">
         <div className="editor-column">
+          <MobileNote />
           <DocumentContext
             stage={stage}
             onStageChange={setStage}

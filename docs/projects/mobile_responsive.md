@@ -1,5 +1,5 @@
 ---
-status: idea
+status: in-progress
 kind: spec
 phases: [6, 7]
 summary: The project's never-designed narrow-viewport / touch dimension. Split into a small Phase-6 "courtesy pass" (don't ship a broken layout to phone visitors of the first public release) and a Phase-7 "mobile review companion" (the real touch interaction model — feed-first review, tap-to-locate-span — reframed to fit the product instead of forcing a cramped phone editor).
@@ -11,9 +11,9 @@ summary: The project's never-designed narrow-viewport / touch dimension. Split i
 
 ## Status
 
-**Idea — Phases 6 (courtesy) & 7 (companion).** Two clearly separated bodies of work:
+**In-progress — Phase 6 courtesy pass shipped (2026-07-07); Phase 7 (companion) still a design sketch.** Two clearly separated bodies of work:
 
-- **Phase 6 — Mobile courtesy pass (small, in-scope).** The first public release means people *will* open the link on a phone. Today that's a broken, sideways-scrolling squish (see _Ground truth_ below). The courtesy pass makes a narrow viewport *not embarrassing and usably read-only-ish*, and is honest that the tool is built for desktop. A few hours of responsive CSS + graceful degradation of hover-only affordances. **Does not** attempt to make the hero interaction work on touch.
+- **Phase 6 — Mobile courtesy pass (small, in-scope). ✅ Shipped 2026-07-07.** The first public release means people *will* open the link on a phone. That was a broken, sideways-scrolling squish (see _Ground truth_ below). The courtesy pass makes a narrow viewport *not embarrassing and usably read-only-ish*, and is honest that the tool is built for desktop: a `@media (max-width: 720px)` stack, feed default-collapsed on narrow, hover-only affordances degraded, and a quiet dismissible "best on desktop" note. **Does not** attempt to make the hero interaction work on touch.
 - **Phase 7 — Mobile review companion (big, post-traction).** The real touch interaction model for the span↔card relationship, reframed: on a phone you *review* observations (feed-first, tap-to-locate-span, dismiss/keep), you don't thumb-type a PRD. This is a genuine second interaction surface and gets its own design; don't pre-build it.
 
 Read alongside `docs/projects/accessibility.md` (its keyboard/AT equivalence for the hover-only hero interaction is the sibling of this work — a touch equivalent is the same underlying gap) and `docs/projects/feed_surface.md` (the companion-surface metaphor this must re-express on narrow screens).
@@ -57,27 +57,33 @@ Verified against the running layout and `src/styles.css`:
 
 Anchor file: `src/styles.css` (this is Visual-lane territory — it edits the shared style hub; sequence it so it doesn't collide with other UI work). Minimal, additive JSX only if a stack requires reordering.
 
-### M1 — Kill the overflow & stack (mechanical)
+**Shipped 2026-07-07** (PR: `feat(mobile): Phase-6 courtesy pass`). One appended `@media (max-width: 720px)` block in `src/styles.css` + a viewport-aware `feedCollapsed` initializer in `src/App.tsx` + a new `src/sidecar/MobileNote.tsx`. No new tokens, no new colours/fonts — the pass is layout + one calm chrome strip on the existing system. Editor.tsx and other lane hubs untouched.
 
-- [ ] Add a narrow breakpoint (`@media (max-width: ~font/px TBD, ~720px)`). Below it: `.app` becomes `flex-direction: column` (or the feed drops below the editor), and the feed `min-width` floors (280/210/184px) are relaxed to `min-width: 0` / `100%` so nothing forces horizontal scroll.
-- [ ] Ensure `overflow-x` is contained — no element wider than the viewport. Test at 375px (iPhone) and 360px (common Android).
-- [ ] The editor keeps its reading measure but fills the narrow width; padding shrinks to a mobile-appropriate gutter.
+### M1 — Kill the overflow & stack (mechanical) — done
 
-### M2 — Feed made reachable-not-broken on narrow (mechanical + one small call)
+- [x] Added the narrow breakpoint `@media (max-width: 720px)`. Below it `.app` becomes `flex-direction: column` (editor leads, feed stacks full-width below), and the fixed-width / min-width floors that forced overflow are relaxed. _(Correction to the earlier draft: the "280/210/184px feed floors" are actually on `.link-popover` (280) / `.slash-menu` (210) / `.control-process` (184) — `position:absolute` popovers, **not** the feed column. The real overflow driver was `.feed-slot { width: 320px; flex-shrink: 0 }`. Both handled: feed → `width: 100%`; popovers → `min-width: 0` + `max-width: calc(100vw - 2*var(--space-md))`.)_
+- [x] `overflow-x: clip` on `html, body` inside the breakpoint. **Verified overflow-free at 320 / 360 / 375px** (`scrollWidth === clientWidth` at each).
+- [x] Editor keeps its `66ch` reading measure but fills the narrow width; padding shrinks to `var(--space-lg) var(--space-md)`.
 
-- [ ] With the feed stacked below (or collapsed by default on narrow), it's *scrollable and readable* even if its interactions are degraded. Cards render, quoted-text subtitles render, dismiss works by tap.
-- [ ] **Default the feed collapsed on first load at narrow widths** (so the editor is what a phone visitor sees first), with the tap `feed-handle` to reveal it. Persist as today.
+### M2 — Feed made reachable-not-broken on narrow (mechanical + one small call) — done
 
-### M3 — Degrade hover-only affordances gracefully (small judgment)
+- [x] Feed stacks below the editor at full width, scrollable/readable; the whole column scrolls as one document (editor + sidecar `overflow-y: visible` on narrow). Card markup and tap-dismiss are unchanged, so they work as-is.
+- [x] **Feed defaults collapsed on first load at narrow widths** — `feedCollapsed` initializer falls back to `matchMedia("(max-width: 720px)").matches` when there is no stored preference (a stored preference always wins; desktop stays expanded). The `.feed-handle` becomes a **full-width ≥44px tap bar** to reveal it. Verified: fresh load at 375px → feed collapsed, tap handle → feed reveals full-width.
 
-- [ ] Audit every hover-only path (reverse-hover span→card, `SpanPeek`/`ContradictionPeek`, bubble/slash/table menus) and ensure **nothing is *only* reachable by hover** on touch. Courtesy bar: no dead-end — either the affordance has a tap fallback that already exists, or its absence is acceptable for the read-only-ish courtesy scope (document that per affordance; the real touch model is Phase 7, not here).
-- [ ] Highlights (the `ObservationHighlighter` decorations) still render statically — the span colouring is not hover-dependent, so the text still *shows* it's been observed even if tapping it does nothing yet.
+### M3 — Degrade hover-only affordances gracefully (small judgment) — done
 
-### M4 — The honesty note (small)
+- [x] Hover-only audit (courtesy bar = no dead-end for the core read loop):
+  - **Feed cards / dismiss** — reachable by tap (handle → scroll → tap dismiss). The observation _content_ is fully reachable without hover.
+  - **SpanPeek / ContradictionPeek (reverse-hover)** — don't surface on touch. Accepted: they're a _shortcut_ to content already reachable in the feed; the span↔card **linking** is the Phase-7 gap, not a Phase-6 dead-end. Widths capped so they can't overflow if ever shown.
+  - **Bubble / slash menus** — trigger on selection / "/" typing (touch-supported); `min-width` capped so they fit a phone.
+  - **Table menu** — hover-gated controls are a known Phase-7 gap (mobile formatting is review-first/minimal by design); no dead-end for the core loop.
+- [x] `ObservationHighlighter` decorations still render statically (not hover-dependent), so observed spans still _show_ colour on touch even though tapping them does nothing yet.
 
-- [ ] A quiet, dismissible one-liner on narrow viewports: writtten is built for focused desktop writing; the review experience is best on a laptop. Calm, non-blocking, matches the visual system (coordinate with `onboarding_first_run` empty-state voice). Not a modal wall.
+### M4 — The honesty note (small) — done
 
-**Phase-6 verification:** load at 375px and 360px in devtools — no horizontal scroll; editor is usable (type a sentence, it renders at the reading measure); feed is reachable (tap the handle, cards render and scroll, dismiss works); the honesty note appears once and dismisses; no console errors; nothing is *only* reachable by hover.
+- [x] `MobileNote.tsx`: a quiet, dismissible one-liner shown only on narrow viewports — _"writtten is built for focused desktop writing — the observation feed is best on a laptop."_ Slim non-blocking strip at the top of the editor column (sidecar wash, `--radius-md`, sans `--text-ui-sm` in `--color-ink-2`, muted `×` with a 44px touch target), **not** a modal wall. Display-gated to ≤720px in CSS (no desktop flash) and dismissal persists to `localStorage` (`writtten_mobile_note_dismissed`).
+
+**Phase-6 verification (done 2026-07-07, chrome-devtools CDP viewport override on the worktree dev server):** 320 / 360 / 375px — no horizontal scroll; editor usable at the reading measure; feed default-collapsed on narrow, reveals on tap-handle, scrolls full-width; honesty note appears once and dismisses (flag persists); **no console errors/warnings**; nothing in the core read loop is _only_ reachable by hover. Desktop (1280px) unregressed — two-pane row, feed expanded at 320px, note hidden.
 
 ## Phase 7 — Mobile review companion (design sketch, not build-ready)
 
