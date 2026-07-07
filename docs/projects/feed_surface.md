@@ -133,6 +133,28 @@ Folded into the control-center anchor (§ 2) — a single dot, icon-only at firs
 - **Motion:** a gentle opacity pulse while `pending > 0` (`--dur-pulse`, ease-in-out). Under `prefers-reduced-motion`, no pulse — a static distinct state (e.g. a ring) conveys "working."
 - **Detail on demand:** hover/focus shows a small tooltip — model name, tier, and status (idle / N pending / still working) — the content the old `provider-chip` + `sidecar-status` chips carried, now quiet until asked. Keep `data-testid="sidecar-status"` and `provider-chip` on the tooltip/anchor so harness selectors survive.
 
+#### 5a. Weak/strong tier colour cue (field-decided 2026-07-07 — supersedes the paid-tier accent)
+
+**Decision (user):** the indicator should differentiate the **running model tier** (weak/fast vs strong/adjudicator) by colour — not just show the model name as text. This **supersedes** the current free-vs-paid signal (the `data-paid` border tint + the `paid` text chip, `ControlCenter.tsx:596/1301`), which was flagged as redundant chrome — instead of a paid marker, the same visual budget carries a _meaningful_ tier cue.
+
+**What's shipped today (baseline).** The dot encodes **activity only** — `idle` (grey-green `--activity-idle`), `working` (calm blue `--activity-working` + pulse), `stalled` (red `--sem-problem-high`); `anchorState` derives from `stalled`/`pending` (`ControlCenter.tsx:351`) and never sees the tier. The only tier signal is `data-paid` (free-vs-paid, not weak-vs-strong).
+
+**The signal exists.** The logger already records per-call `tier: "fast" | "strong"` and `keyTier: "free" | "paid"` (`src/model/logger.ts:18–19`); it's just not threaded to the anchor (which gets only the model name + `[paid]`). The build surfaces the **active/in-flight call's real tier** into a prop the ControlCenter reads.
+
+**Recommended design (confirm at build):**
+
+- **Encode tier on the dot _while working_, not at rest.** Tier is a property of a _running_ call, so the split lives inside the `working` state: **weak-working** keeps the calm blue (`--activity-working`); **strong-working** takes the **brand ink-indigo** accent (visual_style brand ramp — reads "the capable adjudicator is thinking"). `idle`/`stalled` are unchanged. This keeps one dot and adds meaning only when it's relevant, rather than a persistent second channel.
+- **Colour discipline (visual_style):** the strong hue must be a **brand/meta** colour, distinct from activity-blue, semantic-amber (contradiction/problem) and stalled-red — same de-collision rule §5 already states for the working state. Convey tier by **hue + the on-demand tooltip text**, never hue alone (a11y: the tooltip already names the tier).
+- **Free-tier honesty (important).** On the free tier a "strong" check actually runs on a _fast_ model (`gemini-2.5-pro` is RPD=0). The cue must reflect the **model/tier that actually served** (from the log entry), not the tier _requested_ — otherwise it lies about capability. This is the whole point of colouring from the logger's real `tier`, not from the router's intent.
+
+**Sub-decisions settled 2026-07-07 (build-ready):**
+
+- **Transient — colour the tier only while a call is in-flight.** Idle and stalled show **no** tier hue (idle stays grey-green, stalled stays red); the tier splits only the `working` state. Persisting the last tier at rest was declined (adds standing chrome to a resting dot).
+- **Concurrent tiers → strong dominates.** The pipeline runs fast + strong calls concurrently across sections; while any **strong** call is in-flight the dot is indigo, otherwise (fast-only in-flight) blue. Derive from the set of in-flight calls' tiers (the logger already tags each).
+- **Min-visible-duration floor.** Strong calls are brief and rare (contradiction adjudication), so hold the strong hue for a floor of ~**600 ms** once shown, so a quick strong burst registers as a deliberate colour change rather than a flicker. (Value provisional — tune at build.)
+
+**Process:** per the project's standing norm (§ Prototype-first), prototype the dot's weak/strong/idle/stalled states and taste them before implementing. Removing the `paid` chip + `data-paid` tint is part of this change (resolves the redundant-tag item).
+
 ---
 
 ## Card execution — kind×severity without the stripe

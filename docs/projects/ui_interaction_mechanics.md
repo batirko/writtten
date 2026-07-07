@@ -44,6 +44,15 @@ Anchor files: `src/sidecar/SidecarFeed.tsx` (feed, cards, drawers, dismiss), `sr
 - [x] **Highlight density / auto-highlight decision (§ C7)** — **settled 2026-07-06 (option a′, gentle always-on).** Surfaced spans stay tinted at rest but much fainter (~4–6% wash vs. the old 10–15%); the strong lift now lives on interaction (the `.obs-highlight-hovered` 22–30% boosts), a ~4–5× contrast jump on hover. Discoverability survives without the marked-up feel. Pure `styles.css` change — `ObservationHighlighter.ts` logic (`showMark = surfaced || isHovered || isPulsing`) is unchanged, so dual-span contradiction/`strategic_tension` behaviour is preserved verbatim. Options (b) on-interaction and (c) user-toggle were declined (b risks the feed feeling disconnected from the text; c adds a setting to a zero-config product).
 - [ ] **Consistency pass** — one hover/transition language across all of the above: only the visual_style `--dur-*`/`--ease-*` tokens, `transform`/`opacity` only, reduced-motion honored (§ Consistency rules).
 
+### Field-discovered refinements (2026-07-07 session)
+
+Three interaction defects surfaced in real use, all against the shipped mechanics (the "UI/UX mechanics pass" milestone is `[x]`, so these are follow-ups). Captured here; scheduled as their own Phase-6 milestones in `docs/plan.md`.
+
+- [ ] **C8 — Span→card reachability / pin-on-click** — dwelling on a span floats its card, but the float is hard to _reach_: it jumps or closes when the pointer travels toward it, so an in-card affordance (notably the folded "N more on this passage" drawer, C5) can't be opened. Fix direction (user steer): **clicking a highlighted span pins its card** as a persistent peek. Decision open (§ C8).
+- [ ] **C9 — Overlapping / co-located-highlight targeting** — one root cause, two symptoms: reverse hover resolves a single `data-obs-id` per hovered point, so **(i)** a substring covered by a _different_ (nested) highlight primes only the outer/bigger card, and **(ii)** when _several_ observations cover the **same** span (e.g. one claim in multiple contradictions — screenshot 2026-07-07), hovering primes only **one** of their cards. Hovering should target _all_ observations covering the point (and, for nesting, prefer the most-specific) (§ C9).
+- [ ] **Mid-sentence quote: ellipsis prefix, no forced capital (UX-008 refinement)** — the `.card-anchor` quote reads as a standalone capitalized sentence even when it's a mid-sentence excerpt; a mid-sentence quote should lead with `…` and not force a capital first word (§ UX-008 note).
+- [ ] **C10 — Drop the redundant canvas focus outline** — the keyboard-first pass left a full-canvas sky-blue focus ring (`.tiptap:focus-visible`) that shows during normal writing; it's redundant with the caret and visually noisy. Remove for the writing case; keep keyboard-into-editor discoverability in mind (§ C10).
+
 ## Design
 
 ### Audit — current state (what to make intentional)
@@ -115,6 +124,77 @@ The decision (unresolved — settle in this pass):
 - **(c) User toggle** — a quiet control ("show highlights: always / on hover") defaulting to one of the above. Honest, but adds a setting to a deliberately zero-config product (cross-ref the R2c smart-feed-vs-manual-control tension).
 
 **Recommendation (for debate, not decided):** default to a _gentler always-on_ (much lower-contrast at-rest wash than today, strong boost on interaction) so discoverability survives without the marked-up feeling; reserve a toggle for later only if dogfooding shows the at-rest wash still distracts. Whatever is chosen, it must honor the contradiction/strategic_tension dual-span behaviour (C1) and the visual_style highlight tokens. → tracked on the **UI/UX mechanics pass** milestone in `docs/plan.md`.
+
+### Field-discovered refinements (2026-07-07) — C8 · C9 · C10
+
+Three defects observed in real use, all sitting on top of the shipped mechanics above (UX-006 reverse hover, the overlapping-decoration highlighter, and the keyboard-first a11y outline). They are refinements, not rebuilds; each is scheduled as its own Phase-6 milestone.
+
+#### C8 — Span → card reachability (pin-on-click)
+
+**The problem.** Reverse hover (UX-006) surfaces the dwelled span's card as a float: `SpanPeek` (`src/sidecar/SpanPeek.tsx`), pinned to the **top of the gutter** so it's always on-screen, with the rest of the feed dimmed. Reaching it is bridged by a **150ms close grace** (`App.tsx:203`) plus the peek's own `onMouseEnter` → `onKeepOpen` (cancels the close). In practice the bridge is too fragile for its geometry: the float sits at the gutter top while the dwelled span can be anywhere in the document, so the pointer must travel a long diagonal to reach it — and on the way it frequently either **(a)** exceeds the 150ms grace (float closes), or **(b)** crosses _another_ highlighted span, which re-arms the dwell for a different id and **swaps the float's content — the "jump."** The concrete cost: a card with a **folded second observation** (the "N more on this passage" group drawer, C5) is nearly impossible to expand, because expanding it requires landing on the float _and_ then clicking inside it, and the hover model keeps yanking it away.
+
+**Fix direction (user steer, 2026-07-07).** Give the span a **stable, non-hover way to open its card**: **clicking a highlighted span pins its card** as a persistent peek — the same `mode: "pinned"` treatment the contradiction peek already uses (`Editor.tsx` — dismiss on Escape / click-away / ×, _not_ on pointer-leave). Once pinned, the pointer can travel freely and the folded drawer becomes trivially openable. This reuses the pinned-peek channel rather than inventing a new surface.
+
+**Settled 2026-07-07 — build (a) click-to-pin; (b)/(c) deferred.**
+
+- **(a) Click-to-pin the span's card** _(chosen)_ — a click on a highlighted span pins its group card as a persistent `mode:"pinned"` peek (dismiss on Escape / click-away / ×), giving a stable target for the folded drawer. Reuses the pinned contradiction-peek machinery; leaves the 600ms dwell→transient-float as the lightweight glance. **Caret-safety rule (build):** pin **on `click` (pointer-up) only when the gesture did not start/extend a selection** (`view.state.selection.empty` and no drag between down/up), and only when the pointer-up target is inside a `.obs-highlight[data-obs-id]`. Ordinary click-to-place-caret and text selection are untouched; a plain click that lands on a highlight both places the caret _and_ pins the card (the two don't conflict). If multiple observations cover the click point, pin the set resolved by C9 (most-specific primary).
+- **(b) Anchor the float near the span + widen the grace** _(deferred)_ — would render `SpanPeek` adjacent to the dwelled span so travel is short; sacrifices the "gutter-top → always on-screen when scrolled" property (§ R7b UX-006) and gives no _persistent_ target. Not needed once (a) provides a pinned target; revisit only if the transient dwell-float still feels fiddly after (a) ships.
+- **(c) Both** _(deferred)_ — the union of (a)+(b); pin alone is expected to suffice.
+
+**Invariants.** No fix-application affordance. Reuse the existing `hoveredObservationId` / `spanFocusObsId` / pinned-peek state — the two hover directions must stay unified (C1). Keyboard path: ProseMirror inline-decoration spans aren't tab-focusable, so the card→span direction already serves keyboard users; click-to-pin is a mouse enrichment, not the a11y path.
+
+#### C9 — Overlapping / co-located-highlight targeting
+
+**One root cause, two symptoms.** Reverse hover resolves the dwelled span with `closest(".obs-highlight[data-obs-id]")` (`Editor.tsx:936`), which walks up to the **nearest ancestor highlight element** and reads **exactly one** `data-obs-id`. So whenever more than one observation decorates the same text, only one card can prime:
+
+- **(i) Nested / substring.** A highlighted span **contains a substring** that a _different_ observation also highlights (overlapping / nested inline decorations); hovering the overlap primes only the **outer (bigger)** observation's card. The substring's own card can't be reached from the text.
+- **(ii) Co-located (multiple cards, same span).** _Several_ observations cover the **same** span, so the feed shows several cards for it — most visibly a claim that participates in **multiple contradictions** (the 2026-07-07 screenshot: "Push notification arrives within 10 seconds…" is one side of three separate contradiction cards, each its own group because grouping keys on `blockId:startOffset:endOffset` and each contradiction's other side differs). Hovering the shared span primes only **one** of the three cards. (Note: truly identical-span observations _do_ aggregate into one group — `groupObservations`, `obsAggregation.ts:44` — so this symptom is specifically observations whose spans _coincide but aren't identical_, e.g. the same text is the `blockId` side of one contradiction and the `conflictingBlockId` side of another.)
+
+**Root-cause hypotheses (confirm at build):**
+
+- **(a) The substring observation is downgraded** ("also noticed", outside the feed budget) → it renders as an **invisible anchor** with no `obs-highlight` class (`showMark = surfaced || isHovered || isPulsing`, `ObservationHighlighter.ts:211`). So `closest(".obs-highlight[data-obs-id]")` **skips it** and lands on the visible outer span. This fits "always only the bigger highlight was primed" if the bigger one is the surfaced/visible one.
+- **(b) Decoration overlap DOM/attribute collision** — where two inline decorations overlap, ProseMirror may render a single element for the overlap region; a single `data-obs-id` attribute can't hold two ids, so one wins (likely the outer/earlier).
+- **(c) `closest` returns an ancestor, not the most-specific mark** — even with correct nesting, the first `.obs-highlight` ancestor may be the outer wrapper depending on render order.
+
+**Fix direction.** Collect **every** observation whose decoration covers the hovered coordinate (not just the first `closest` ancestor), then:
+
+- **(ii) Co-located:** prime **all** their cards — the reverse-hover focus mode (UX-006) already surfaces one card; extend it to surface/emphasise the whole set covering the point (e.g. resolve a _set_ of ids at the position, drive the highlight + card emphasis for each). A hovered span that is one side of N contradictions should light up all N cards.
+- **(i) Nested:** where the covering set nests, **prefer the most-specific** (innermost / smallest span) as the primary while still exposing the others — so hovering the substring reaches _its_ card.
+
+If a target is a downgraded substring (hypothesis a), the surfaced-only reverse-hover invariant (R7b/UX-006) must still allow it to be _targeted_ — e.g. treat a directly-hovered invisible anchor as hoverable, or ensure the substring carries a resolvable id at the hovered coordinate. Preserve cross-claim dual-span behaviour (C1) and the delete-detection anchor spec (`data-obs-id` on `spec`, `ObservationHighlighter.ts:223`).
+
+**Confirmed approach (2026-07-07, build-ready).** Stop reading a single ancestor id off the DOM; resolve the covering set from **model state at the hovered position**:
+
+1. In the dwell handler (`Editor.tsx`), map the pointer to a document position — `view.posAtCoords({left,top})` (fall back to `posAtDOM` on the highlight element). Call it `pos`.
+2. Resolve **all** active span observations whose anchored range covers `pos`: for each obs with `scope==="span"`, map its `(blockId,startOffset,endOffset)` (and, for cross-claim, `conflictingBlockId`) to PM positions the same way the highlighter does, and test `from ≤ pos ≤ to`. (Reuse the highlighter's offset→pos mapping so hit-testing and rendering can't disagree.) This inherently includes **downgraded invisible-anchor** substrings — they still carry a resolvable range even with no visible class — fixing hypothesis (a) without making them visible at rest.
+3. **Primary = most-specific:** pick the covering obs with the **smallest `(to−from)` range** as the primary (innermost/substring wins); the rest are the co-covering set.
+4. Drive the existing channels for the **whole set**: set `hoveredObservationId`/`spanFocusObsId` to the primary, and emphasise every co-covering card (extend the reverse-hover focus mode to accept a _set_ of related ids rather than one). Forward hover (card→span) is unchanged; the two directions still share `hoveredObservationId` (C1 invariant) — the reverse direction just resolves a set and names the primary.
+
+This is a pure hit-testing change on the reverse (span→card) path; no new decorations, no schema change. Preserve the cross-claim dual-span behaviour (a contradiction's two ranges both count as covering their side) and the delete-detection anchor spec. Bumps C9 to build-ready (🟢); the earlier "needs a root-cause confirm" is now specified — the confirm is step 2 (the downgraded-invisible-anchor case, hypothesis a) plus a check that overlapping PM decorations don't collapse the id (hypothesis b), both observable in a two-overlapping-obs fixture.
+
+**Not owned here:** whether two _distinct_ overlapping observations should also both be _visible_ at rest (that's the C7 density call and the surfaced-budget rule) — C9 is only about which card(s) the **pointer targets** when they overlap or coincide.
+
+#### UX-008 note — mid-sentence anchor quote (ellipsis + no forced capital)
+
+**The problem.** The `.card-anchor` quote (UX-008) renders `“{anchorText}”` verbatim (`SidecarFeed.tsx:194`; no CSS `text-transform`). For **span** checks `anchorText` is the exact source substring (`obs.substring`), but for **contradiction / strategic_tension** it's the model-normalized **claim text** (`a.text` / `con.newClaimText`, `evaluator.ts:977`/`:567`) — a standalone, capitalized clause. So a card quoting a fragment of a longer sentence reads as its own capitalized sentence, which looks **redundantly capitalized** and hides that it's an excerpt.
+
+**Fix direction.** When the quoted anchor is a **mid-sentence excerpt**, lead with `…` and don't force a capital first word — i.e. render `“…push notification arrives within 10 seconds…”` rather than `“Push notification arrives within 10 seconds…”`.
+
+**Settled 2026-07-07 — store a verbatim excerpt (option c).** The card should quote the user's **actual words**, not the normalized claim, so a mid-sentence excerpt can be shown faithfully with a leading `…`. Build:
+
+- **Source the verbatim span from the claim's existing anchor offsets.** Contradiction/tension claims already carry optional anchor coordinates (`anchorBlockId` / `anchorEndOffset`, used by the highlighter — see OBS-032). When present, derive the verbatim excerpt by slicing the anchored block's flat text at those offsets and **persist it on the observation** as a dedicated field (e.g. `anchorQuote`) distinct from `anchorText` (which stays the normalized claim used for matching/suppression — don't repurpose it). This **reuses OBS-032's "anchor to the right (body) span" work**, so sequence C-after/with OBS-032.
+- **Fallback:** when a claim has no usable anchor offsets (whole-block `0:9999`), keep quoting the normalized `anchorText` (no verbatim available) — degrade to option (a) for that card only.
+- **Render:** the card quotes `anchorQuote ?? anchorText`; prefix `…` when the excerpt starts mid-sentence (its start offset isn't at a sentence boundary in the block), don't force-capitalize the lead, and append `…` on truncation. Span checks already have a verbatim `anchorText` (`obs.substring`), so they get the same mid-sentence treatment with no new field.
+
+Scope note: this is **no longer a pure card-render change** — it adds an observation field + an emit-time excerpt derivation (small, offset-slice; no prompt/re-record needed since it reads offsets we already compute). DB field addition (migration). Couples with OBS-032.
+
+#### C10 — Drop the redundant canvas focus outline
+
+**The problem.** The keyboard-first / tabbable a11y pass added `.tiptap:focus-visible { outline: 2px solid #0ea5e9; outline-offset: 8px }` (`styles.css:1827`), which paints a sky-blue ring around the **entire writing canvas** whenever it's focused. For a `contenteditable`, keyboard interaction makes it `:focus-visible` essentially **the whole time the user is writing**, so the ring is almost always on. It's **redundant** (the text caret already signals focus) and reads as chrome against the calm editorial canvas (`visual_style`).
+
+**Fix direction.** Remove the canvas-wide focus ring for the normal writing case — a text editor's caret is the conventional, sufficient focus signal, and `:focus-visible` on a large `contenteditable` is an anti-pattern.
+
+**Settled 2026-07-07 — remove the ring entirely (option a).** Delete the `.tiptap:focus-visible` outline (`styles.css:1827`); rely on the text caret as the focus signal, as most editors do. The considered alternatives — (b) a subtler keyboard-only edge tint, (c) show-on-tab-in-then-fade — were declined: the caret is a sufficient, conventional signal and a large `contenteditable` shouldn't carry a `:focus-visible` ring at all. Accepted a11y trade: a minor WCAG 2.4.7 tab-in-moment regression (the editor no longer flashes a ring when tabbed into) — acceptable because the caret appears and the editor is the dominant surface. Pure `styles.css` change (Visual lane, runs solo). Leaves the global `:focus-visible` rule (`styles.css:1816`) and the discrete-control rings (buttons, cards, handles) intact — this is only about the canvas.
 
 ### Scope boundaries (what this pass does NOT own)
 

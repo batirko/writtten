@@ -104,6 +104,18 @@ The audit's one-line verdict: _"a promising prototype with unusually good archit
 - [ ] Profile first. Every `onUpdate` runs `getBlockIds` + `getWordCount` + `emitBlockOrderIfChanged` + `resolveSection` → `resolveSections`, which materializes `combinedText` for **every section** (`src/editor/section.ts:71–80`) per keystroke; `onSelectionUpdate` does another full resolve. The LLM-side "no full-document scan" invariant holds; this is CPU-side and degrades on long docs. Also: `refreshObservations` full-table scans after every eval; the archive list is unbounded/unvirtualized.
 - [ ] Lower priority than L1–L5 — schedule only if dogfooding shows real lag.
 
+### L9 — Unexpected full remount/reload wipes diagnostics (field-discovered 2026-07-07) — 🟠 Med · 🧠
+
+**Symptom.** During normal use (observed while exercising the live Claude/Anthropic API), **the whole screen "blinks" like a quick refresh**, seemingly unconnected to any user action. Side effects: the **LLM debug log is fully wiped** and the **debug switches reset to off**. Persisted state (IndexedDB) survives; only in-memory React state is lost — so this is a **full remount / page reload**, not a normal re-render.
+
+**Cause — largely confirmed environmental (2026-07-07).** The user confirmed **a parallel session was running** at the time. That matches the top hypothesis: **Vite HMR full-reload** triggered by a source file changing under the shared `:5173` dev server — a parallel session/agent editing the same working tree reloads the page whenever any watched module changes (see CLAUDE.md → _Working alongside parallel sessions_ and the per-session-worktree rule). This is a **workflow issue, not an app bug** — the standing fix is procedural: each session gets its own git worktree + alt port so nobody's edits reload another session's app. There is no app-code "reload" to remove (`grep` finds no `location.reload()` in `src/`).
+
+**Two remaining items — worth doing anyway (robustness, independent of the parallel-session cause):**
+
+- [ ] **Make diagnostics survive a remount.** The LLM debug log + debug-switch state live in in-memory React state, so *any* remount (HMR reload, a crash, a genuine refresh) wipes them — worst exactly when you're mid-diagnosis. Persist the debug log (bounded ring) and the switch state to `sessionStorage`/IndexedDB so a reload doesn't destroy the evidence. This is the durable value here; do it regardless.
+- [ ] **Add a top-level ErrorBoundary** (secondary — *not* the confirmed cause). There is no React error boundary in the tree (`main.tsx` wraps only `StrictMode`), so an uncaught error in a live provider call or a card render would blank/remount the app. Good hygiene now that the multi-provider adapters ship live calls, but it addresses a *different* remount path than the HMR one above. StrictMode's double-invoke is mount-only — a red herring for a mid-session blink.
+- [ ] **If it recurs with no parallel session:** confirm by watching the Vite dev-server console for `[vite] hmr` / `page reload` lines and a `beforeunload` log when it happens — distinguishes an HMR/file-watch reload from an in-app error remount.
+
 ## Notes / non-goals
 
 - This file **schedules** the fixes; it does not perform them. Each L-ID is a follow-up session's unit of work.
