@@ -15,7 +15,14 @@ name: Deploy to Cloudflare Pages
 
 on:
   push:
-    tags: ["v*"]
+    # release-please tags the release as "writtten-v0.2.0" (component-prefixed);
+    # match that, and plain "v*" as a fallback for any manually-pushed tag.
+    tags:
+      - "writtten-v[0-9]*.[0-9]*.[0-9]*"
+      - "v[0-9]*.[0-9]*.[0-9]*"
+  # Manual re-deploy of current main without cutting a version (Actions → Deploy
+  # to Cloudflare Pages → Run workflow). Handy for a forced/artificial deploy.
+  workflow_dispatch:
 
 permissions:
   contents: read
