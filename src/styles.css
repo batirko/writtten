@@ -2018,10 +2018,14 @@ body,
   border-radius: 8px;
 }
 
+/* C10 (2026-07-07): no focus ring on the writing canvas. A contenteditable is
+   :focus-visible essentially the whole time the user writes, so the ring was
+   almost always on and redundant with the caret (the conventional, sufficient
+   focus signal). This overrides the global `:focus-visible` rule above to
+   `none` for the canvas ONLY — the global rule and the discrete-control rings
+   (buttons, cards, handles) stay intact. See ui_interaction_mechanics.md § C10. */
 .tiptap:focus-visible {
-  outline: 2px solid #0ea5e9;
-  outline-offset: 8px;
-  border-radius: 4px;
+  outline: none;
 }
 
 @media (prefers-reduced-motion: reduce) {
