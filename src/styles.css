@@ -2420,3 +2420,70 @@ body,
     flex-direction: column;
   }
 }
+
+/* Top-level ErrorBoundary fallback (lifecycle_integrity.md § L9). Calm recovery
+   surface on a render crash — warm paper, not a raw white screen. */
+.error-boundary {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-lg);
+  background: var(--color-paper);
+  z-index: 2000;
+}
+.error-boundary-card {
+  max-width: 420px;
+  width: 100%;
+  text-align: center;
+}
+.error-boundary-title {
+  font-family: var(--font-serif);
+  font-weight: 500;
+  font-size: var(--text-h2);
+  color: var(--color-ink);
+  margin: 0 0 var(--space-sm);
+}
+.error-boundary-body {
+  font-family: var(--font-sans);
+  font-size: var(--text-ui);
+  line-height: 1.55;
+  color: var(--color-ink-2);
+  margin: 0 0 var(--space-md);
+}
+.error-boundary-btn {
+  padding: 9px var(--space-lg);
+  border-radius: var(--radius-md);
+  background: var(--color-accent);
+  color: var(--color-surface);
+  border: 0.5px solid var(--color-accent);
+  font-family: var(--font-sans);
+  font-size: var(--text-ui-sm);
+  font-weight: 500;
+  cursor: pointer;
+}
+.error-boundary-btn:hover {
+  background: var(--color-accent-strong);
+  border-color: var(--color-accent-strong);
+}
+.error-boundary-details {
+  margin-top: var(--space-md);
+  text-align: left;
+  font-size: var(--text-ui-sm);
+  color: var(--color-muted);
+}
+.error-boundary-details summary {
+  cursor: pointer;
+}
+.error-boundary-details pre {
+  margin-top: var(--space-xs);
+  padding: var(--space-sm);
+  background: var(--color-sidecar);
+  border-radius: var(--radius-md);
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: var(--font-mono);
+  font-size: var(--text-label);
+  color: var(--color-ink-2);
+}

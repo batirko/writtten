@@ -328,7 +328,24 @@ export function ControlCenter({
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
-  const [debugMode, setDebugMode] = useState(false);
+  // Debug switch persisted (L9, lifecycle_integrity.md § L9): a remount must not
+  // reset it to off mid-diagnosis, alongside the persisted LLM debug log. The
+  // panel is DEV-gated, so this flag only matters in dev; localStorage keeps it
+  // sticky across a reload.
+  const [debugMode, setDebugMode] = useState(() => {
+    try {
+      return localStorage.getItem("writtten_debug_mode") === "1";
+    } catch {
+      return false;
+    }
+  });
+  useEffect(() => {
+    try {
+      localStorage.setItem("writtten_debug_mode", debugMode ? "1" : "0");
+    } catch {
+      // storage unavailable — the switch just isn't sticky
+    }
+  }, [debugMode]);
   const [debugExpanded, setDebugExpanded] = useState(false);
   const [expandedLogId, setExpandedLogId] = useState<string | null>(null);
   const [copySuccess, setCopySuccess] = useState(false);
