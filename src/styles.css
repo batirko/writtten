@@ -1860,3 +1860,121 @@ body,
   background: transparent;
 }
 
+/* ── Mobile courtesy note (docs/projects/mobile_responsive.md § M4) ──────────
+   A quiet, dismissible "best on desktop" strip. Hidden entirely on desktop so
+   it never flashes; the narrow @media block below reveals it. Echoes the calm
+   .welcome-card chrome voice but flatter — sidecar wash, no eyebrow, sans copy
+   in ink-2, a muted × with a 44px touch target. Never a modal. */
+.mobile-note {
+  display: none;
+}
+
+/* ── Mobile courtesy pass (docs/projects/mobile_responsive.md § Phase 6) ─────
+   The only layout media query in the app. Below 720px the hard two-pane flex
+   row (Invariant: desktop-native) reflows to a vertical stack: editor leads,
+   feed stacks below (default-collapsed via App.tsx), and every fixed width /
+   min-width floor that forced horizontal overflow is relaxed. Bounded courtesy
+   scope — NOT the Phase-7 touch hero interaction. Tokens only; no new identity. */
+@media (max-width: 720px) {
+  /* Contain any stray wide child so nothing scrolls sideways (Hallmark gate 36).
+     clip, never hidden — hidden would create a scroll container. */
+  html,
+  body {
+    overflow-x: clip;
+  }
+
+  /* Stack the panes. The page scrolls as one column instead of two independent
+     overflow regions, so editor + feed read as a single vertical document. */
+  .app {
+    flex-direction: column;
+    height: auto;
+    min-height: 100%;
+  }
+  .editor-panel {
+    overflow-y: visible;
+    padding: var(--space-lg) var(--space-md);
+    justify-content: flex-start;
+  }
+
+  /* Feed spans the full width below the editor instead of a fixed 320px column. */
+  .feed-slot {
+    width: 100%;
+  }
+  .sidecar-panel {
+    width: 100%;
+    overflow-y: visible;
+  }
+  /* Collapsed on narrow = removed from the stack (no 0-width sliver / no reserved
+     height). The tap handle re-reveals it. */
+  .feed-slot.is-collapsed {
+    display: none;
+  }
+
+  /* The 16px vertical hover-rail becomes a full-width horizontal bar with a
+     >=44px touch target (a phone has no ⌘\ and no hover). */
+  .feed-handle {
+    align-self: auto;
+    width: 100%;
+    min-height: 44px;
+    border-left: none;
+    border-top: 0.5px solid var(--color-border);
+    border-bottom: 0.5px solid var(--color-border);
+  }
+
+  /* Floating popovers/menus can't exceed the viewport when opened. Their desktop
+     min-width floors (280/210/184px) would force horizontal overflow at 360px. */
+  .link-popover,
+  .slash-menu,
+  .control-process {
+    min-width: 0;
+    max-width: calc(100vw - 2 * var(--space-md));
+  }
+  /* SpanPeek is fixed top-right at gutter width; cap it to the viewport too
+     (reverse-hover won't fire on touch, but this guards any width overflow). */
+  .span-peek {
+    width: calc(100vw - 2 * var(--space-md));
+  }
+
+  /* Reveal the honesty note — slim, non-blocking strip at the top of the column. */
+  .mobile-note {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: var(--space-sm);
+    margin-bottom: var(--space-md);
+    padding: var(--space-xs) var(--space-sm);
+    background: var(--color-sidecar);
+    border: 0.5px solid var(--color-border);
+    border-radius: var(--radius-md);
+  }
+  .mobile-note-text {
+    font-family: var(--font-sans);
+    font-size: var(--text-ui-sm);
+    line-height: 1.45;
+    color: var(--color-ink-2);
+  }
+  .mobile-note-dismiss {
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    /* 44px hit area, pulled back with negative margins so the strip stays slim. */
+    width: 44px;
+    height: 44px;
+    margin: -10px -8px -10px 0;
+    border: none;
+    background: none;
+    cursor: pointer;
+    color: var(--color-muted);
+    border-radius: var(--radius-sm);
+    transition: color var(--dur-fast) var(--ease-out);
+  }
+  .mobile-note-dismiss:hover {
+    color: var(--color-ink-2);
+  }
+  .mobile-note-dismiss:focus-visible {
+    outline: 2px solid var(--color-accent-strong);
+    outline-offset: 1px;
+  }
+}
+
