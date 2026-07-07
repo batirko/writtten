@@ -142,6 +142,33 @@ The repo carries a large, unusually candid internal docs tree: quality-observati
 
 **Metrics — keep them honest and privacy-respecting.** GitHub-side signals (stars, forks, issues, PRs, signal-quality reports) need no instrumentation. Any demo-usage analytics would touch invariant #5 (local-first / no telemetry) — if wanted, it's an explicit logged decision in `docs/plan.md`, privacy-respecting only, not a default. For a pet project, GitHub signals + qualitative demo feedback are enough; don't build an analytics stack.
 
+## Deployment runbook — Cloudflare Pages
+
+Concrete steps for the **Hosted live demo** milestone above. The repo-side artifacts landed in
+`feat/hosted-demo-cloudflare` (`public/_redirects` SPA fallback, `public/_headers` cache + security
+headers, `public/favicon.svg`, `public/og.png`, and `index.html` meta/OG tags). Deploy via **Git
+integration** (Cloudflare builds on push — no CI tokens, no `wrangler.toml`, no CD workflow in the repo).
+
+**Owner steps in the Cloudflare dashboard (one-time):**
+
+1. Workers & Pages → Create → Pages → **Connect to Git** → authorize the Cloudflare GitHub App on the
+   repo (works while the repo is still private).
+2. Build settings: framework preset **None** (or Vite) · build command **`npm run build`** · output
+   directory **`dist`** · set `NODE_VERSION=20` in the project's env vars.
+3. **Leave application env vars empty — do NOT set `VITE_GEMINI_API_KEY`.** This is a `VITE_*` var, so it
+   would be baked into the public JS bundle (harvestable, one shared free-tier RPD budget). The bundle
+   ships **key-free** by design — this is what keeps the demo BYOK-only (invariant #5, and the logged
+   NO-GO on any shared key). The keyless "See it in action" example plays via mock replay with no network.
+4. First deploy builds from `main`; smoke-test the generated `*.pages.dev` URL.
+5. Custom domain: Pages project → Custom domains → add **writtten.com** (+ optional `www`). DNS is already
+   on Cloudflare, so it auto-creates the CNAME and provisions HTTPS.
+6. **Preview deployments:** Git integration auto-builds every branch/PR to a public `*.pages.dev` URL. With
+   parallel feature branches this is noisy — restrict preview branches to `main` (or None) if unwanted.
+7. Enable **branch protection** on `main` (required check `verify`) right after flipping the repo public —
+   GitHub's free tier blocks it while private (see § Pre-flight cleanup).
+
+Flip the plan.md milestone to `[x]` only once `writtten.com` actually resolves.
+
 ## The tiers at a glance
 
 | Tier            | Definition                                                                                                                              | Roughly                                |
