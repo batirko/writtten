@@ -33,6 +33,8 @@ describe("anchorClaimsToMembers", () => {
     expect(c.anchorEndOffset).toBe(
       start + "every enterprise activation requires a solutions engineer".length
     );
+    // UX-008: verbatim excerpt = the exact source slice at those offsets.
+    expect(c.anchorQuote).toBe("every enterprise activation requires a solutions engineer");
   });
 
   it("falls back to the body block whole-block (never the heading) when reworded (OBS-032)", () => {
@@ -45,6 +47,8 @@ describe("anchorClaimsToMembers", () => {
     expect(c.anchorStartOffset).toBe(0);
     expect(c.anchorEndOffset).toBe(members[1].text.length);
     expect(c.anchorExact).toBe(false);
+    // UX-008: no faithful excerpt on the paraphrase fallback → absent.
+    expect(c.anchorQuote).toBeUndefined();
     // Original fields are preserved untouched.
     expect(c.text).toBe("activation needs a human in the loop");
     expect(c.kind).toBe("fact_claim");
@@ -66,6 +70,8 @@ describe("anchorClaimsToMembers", () => {
     expect(secs[1].text.slice(c.anchorStartOffset, c.anchorEndOffset)).toBe(
       "The rollout will ship to all customers in Q3"
     );
+    // UX-008: the excerpt is the verbatim source clause (no trailing period).
+    expect(c.anchorQuote).toBe("The rollout will ship to all customers in Q3");
   });
 
   it("anchors a mix — verbatim precise, reworded to whole body block — independently", () => {
@@ -78,6 +84,24 @@ describe("anchorClaimsToMembers", () => {
     // Reworded still resolves to the body block (whole-block), not the heading.
     expect(out[1].anchorBlockId).toBe("b1");
     expect(out[1].anchorExact).toBe(false);
+  });
+
+  it("captures a mid-sentence, lowercase excerpt verbatim (UX-008 core case)", () => {
+    // The extractor lifted a mid-sentence clause; the source keeps it lowercase.
+    // The excerpt must be the user's actual words (so the card can lead with `…`),
+    // not a capitalized standalone rendering.
+    const secs: SectionMember[] = [
+      { blockId: "h", text: "Latency", isHeading: true },
+      { blockId: "b", text: "The push notification arrives within 10 seconds of the event." },
+    ];
+    const [c] = anchorClaimsToMembers(secs, [
+      { text: "push notification arrives within 10 seconds", kind: "constraint" },
+    ]);
+    expect(c.anchorExact).toBe(true);
+    expect(c.anchorQuote).toBe("push notification arrives within 10 seconds");
+    // Its start offset is mid-block (not 0), i.e. mid-sentence — the render uses
+    // this to decide the leading ellipsis.
+    expect(c.anchorStartOffset).toBeGreaterThan(0);
   });
 
   it("returns a new array without mutating the inputs", () => {

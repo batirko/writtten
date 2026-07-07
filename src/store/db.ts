@@ -43,6 +43,11 @@ export interface ClaimLedgerEntry {
    *  (OBS-032). Drives the dev paraphrase-residual counter and gates whether a
    *  verbatim `anchorQuote` excerpt can be derived (UX-008). */
   anchorExact?: boolean;
+  /** UX-008: the user's verbatim words at the anchor offsets (exact source slice),
+   *  set only on a precise anchor. The emit path copies it onto the observation so
+   *  the card can quote the user's own (possibly mid-sentence) words rather than
+   *  the normalized claim `text`. Absent on the paraphrase fallback. */
+  anchorQuote?: string;
 }
 
 export interface Observation {
@@ -94,6 +99,15 @@ export interface Observation {
    *  "to allow matching across edits, resolving OBS-003" claim was aspirational
    *  (2026-06-10 code audit, drift #3). */
   anchorText?: string;
+  /** UX-008: the user's verbatim words at the anchored offsets (exact source
+   *  slice), for cross-claim cards whose `anchorText` is the model-normalized,
+   *  capitalized claim. The card quotes `anchorQuote ?? anchorText` and, when the
+   *  excerpt starts mid-sentence, leads with `…` and doesn't force-capitalize.
+   *  Absent when the claim was reworded (whole-block fallback) → the card degrades
+   *  to quoting `anchorText`. Span checks already carry a verbatim `anchorText`, so
+   *  they need no separate field. Additive/optional (render falls back), so no DB
+   *  migration — old observations simply lack it and are refreshed on re-eval. */
+  anchorQuote?: string;
 
   // Contradiction specifics
   conflictingBlockId?: string;

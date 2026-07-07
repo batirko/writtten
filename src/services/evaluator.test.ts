@@ -519,6 +519,58 @@ describe("evaluator - evaluateLedgerContradictions (bootstrap sweep)", () => {
     expect(db.saveDocEvalState).toHaveBeenCalledWith(`${docId}::sweep`, expect.any(String));
   });
 
+  it("emits the primary claim's verbatim anchorQuote when the claim was precisely anchored (UX-008)", async () => {
+    // A precisely-anchored claim carries a verbatim excerpt distinct from its
+    // (normalized) text; the sweep emit copies it onto the observation.
+    const anchoredA = {
+      ...claimA,
+      anchorBlockId: "blockA",
+      anchorStartOffset: 4,
+      anchorEndOffset: 12,
+      anchorExact: true,
+      anchorQuote: "in q3, w", // the user's verbatim (mid-sentence, lowercase) words
+    };
+    vi.mocked(db.loadActiveClaimsForDocument).mockResolvedValue([anchoredA, claimB]);
+    vi.mocked(db.loadActiveObservationsForDocument).mockResolvedValueOnce([]);
+    mockStrong.mockResolvedValueOnce({
+      text: JSON.stringify({
+        contradictions: [{ claimAId: 0, claimBId: 1, message: "Q3 contradicts the Q4 launch." }],
+        tensions: [],
+      }),
+    });
+
+    await evaluateLedgerContradictions(docId, "Stage", apiKey);
+
+    expect(db.saveObservation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: "contradiction",
+        blockId: "blockA",
+        startOffset: 4,
+        endOffset: 12,
+        anchorText: "Launch in Q3.", // the normalized claim text
+        anchorQuote: "in q3, w", // the verbatim excerpt
+      })
+    );
+  });
+
+  it("leaves anchorQuote undefined for a reworded (whole-block) claim (UX-008 fallback)", async () => {
+    vi.mocked(db.loadActiveClaimsForDocument).mockResolvedValue([claimA, claimB]);
+    vi.mocked(db.loadActiveObservationsForDocument).mockResolvedValueOnce([]);
+    mockStrong.mockResolvedValueOnce({
+      text: JSON.stringify({
+        contradictions: [{ claimAId: 0, claimBId: 1, message: "Q3 contradicts the Q4 launch." }],
+        tensions: [],
+      }),
+    });
+
+    await evaluateLedgerContradictions(docId, "Stage", apiKey);
+
+    const call = vi
+      .mocked(db.saveObservation)
+      .mock.calls.find(([o]) => o.type === "contradiction");
+    expect(call?.[0].anchorQuote).toBeUndefined();
+  });
+
   it("emits nothing for a clean ledger", async () => {
     vi.mocked(db.loadActiveClaimsForDocument).mockResolvedValue([claimA, claimB]);
     vi.mocked(db.loadActiveObservationsForDocument).mockResolvedValueOnce([]);
