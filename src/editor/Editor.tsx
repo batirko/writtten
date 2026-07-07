@@ -77,6 +77,13 @@ interface Props {
    *  point — primary first (most-specific), the rest co-covering — so the feed
    *  can light up every card sharing the span, not just the primary. */
   onSpanHover?: (obsId: string | null, relatedIds?: string[]) => void;
+  /** C8: a click on a highlighted span (that didn't start/extend a selection)
+   *  pins its card. Fires the covering set resolved by the C9 hit-test — primary
+   *  first. */
+  onSpanPin?: (obsId: string, relatedIds?: string[]) => void;
+  /** C8: a card is pinned — suppress the reverse-hover dwell so the pointer can
+   *  travel to the pinned float without re-arming/closing it. */
+  isPinned?: boolean;
   onObservationCollapsed: (id: string) => void;
   onEvaluationComplete: () => void;
   onStageSuggestion?: (suggestion: string) => void;
@@ -142,6 +149,8 @@ export function Editor({
   surfacedIds,
   hoveredObservationId,
   onSpanHover,
+  onSpanPin,
+  isPinned = false,
   onObservationCollapsed,
   onEvaluationComplete,
   onStageSuggestion,
@@ -935,6 +944,15 @@ export function Editor({
   useEffect(() => {
     onSpanHoverRef.current = onSpanHover;
   }, [onSpanHover]);
+  // C8: pin-on-click plumbing, read from the [editor]-deps listener via refs.
+  const onSpanPinRef = useRef(onSpanPin);
+  useEffect(() => {
+    onSpanPinRef.current = onSpanPin;
+  }, [onSpanPin]);
+  const isPinnedRef = useRef(isPinned);
+  useEffect(() => {
+    isPinnedRef.current = isPinned;
+  }, [isPinned]);
 
   useEffect(() => {
     if (!editor || editor.isDestroyed) return;
@@ -997,6 +1015,14 @@ export function Editor({
     };
 
     const handleMove = (e: MouseEvent) => {
+      // C8: while a card is pinned the pointer travels freely — suppress the
+      // dwell so hover can't re-arm/close the pinned float. Forget any hover
+      // state so it re-resolves cleanly once the pin is dismissed.
+      if (isPinnedRef.current) {
+        clearDwell();
+        firedId = null;
+        return;
+      }
       const hit = resolveAt(e.clientX, e.clientY);
       if (!hit) {
         clearDwell();
@@ -1025,12 +1051,37 @@ export function Editor({
       clearFired();
     };
 
+    // C8: pin-on-click. A click that landed on a highlighted span — and did NOT
+    // start/extend a selection (empty selection, no drag between down/up) — pins
+    // the covering set (C9 resolution) as a persistent peek. Ordinary
+    // click-to-place-caret and text selection are untouched; a plain click on a
+    // highlight both places the caret and pins (the two don't conflict).
+    let downX = 0;
+    let downY = 0;
+    const handleDown = (e: MouseEvent) => {
+      downX = e.clientX;
+      downY = e.clientY;
+    };
+    const handleClick = (e: MouseEvent) => {
+      if (!editor || editor.isDestroyed) return;
+      const moved = Math.abs(e.clientX - downX) + Math.abs(e.clientY - downY) > 4;
+      if (moved) return; // a drag = a selection gesture, not a pin
+      if (!editor.state.selection.empty) return; // extended selection, not a caret
+      const hit = resolveAt(e.clientX, e.clientY);
+      if (!hit) return; // not on a (visible) highlight
+      onSpanPinRef.current?.(hit.id, hit.related);
+    };
+
     dom.addEventListener("mousemove", handleMove);
     dom.addEventListener("mouseleave", handleLeave);
+    dom.addEventListener("mousedown", handleDown);
+    dom.addEventListener("click", handleClick);
     return () => {
       clearDwell();
       dom.removeEventListener("mousemove", handleMove);
       dom.removeEventListener("mouseleave", handleLeave);
+      dom.removeEventListener("mousedown", handleDown);
+      dom.removeEventListener("click", handleClick);
     };
   }, [editor]);
 

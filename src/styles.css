@@ -1091,6 +1091,38 @@ body,
   animation: peekIn var(--dur-base) var(--ease-out);
 }
 
+/* C8 — pinned peek: a persistent click-to-pin float. Positioned so its × close
+   control can sit just outside the card's top-right without overlapping the
+   card's own dismiss affordance. */
+.span-peek-pinned {
+  position: fixed;
+}
+.span-peek-close {
+  position: absolute;
+  top: -10px;
+  right: -10px;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 0.5px solid var(--color-border-strong);
+  border-radius: 999px;
+  background: var(--color-surface);
+  color: var(--color-ink-2);
+  cursor: pointer;
+  box-shadow: var(--elev-active, 0 1px 3px rgba(0, 0, 0, 0.12));
+  transition:
+    background var(--dur-fast) var(--ease-out),
+    color var(--dur-fast) var(--ease-out);
+}
+.span-peek-close:hover {
+  background: color-mix(in oklch, var(--color-ink) 6%, var(--color-surface));
+  color: var(--color-ink);
+}
+
 @keyframes peekIn {
   from {
     opacity: 0;
