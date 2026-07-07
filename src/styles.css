@@ -596,6 +596,11 @@ body,
 }
 .provider-seg button {
   flex: 1;
+  /* inline-flex so the active checkmark sits on the label baseline, centered */
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
   border: 0;
   background: transparent;
   font: inherit;
@@ -606,6 +611,13 @@ body,
   transition:
     background var(--dur-fast) var(--ease-out),
     color var(--dur-fast) var(--ease-out);
+}
+/* The "active provider" affirmation mark — sized to the label, inherits the
+   active segment's accent colour via currentColor. */
+.provider-check {
+  width: 13px;
+  height: 13px;
+  flex: none;
 }
 .provider-seg button:hover {
   color: var(--color-ink-2);

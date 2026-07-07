@@ -590,17 +590,37 @@ export function ControlCenter({
                 role="group"
                 aria-label="Provider"
               >
-                {PROVIDER_IDS.map((id) => (
-                  <button
-                    key={id}
-                    type="button"
-                    className={id === providerId ? "is-active" : undefined}
-                    aria-pressed={id === providerId}
-                    onClick={() => onProviderChange?.(id)}
-                  >
-                    {PROVIDER_META[id].label}
-                  </button>
-                ))}
+                {PROVIDER_IDS.map((id) => {
+                  const active = id === providerId;
+                  return (
+                    <button
+                      key={id}
+                      type="button"
+                      className={active ? "is-active" : undefined}
+                      aria-pressed={active}
+                      onClick={() => onProviderChange?.(id)}
+                    >
+                      {/* Checkmark affirms the selection is committed & persisted,
+                          not a transient tab. Decorative — aria-pressed already
+                          carries the state to assistive tech. */}
+                      {active && (
+                        <svg
+                          className="provider-check"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="3"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          aria-hidden="true"
+                        >
+                          <polyline points="20 6 9 17 4 12"></polyline>
+                        </svg>
+                      )}
+                      {PROVIDER_META[id].label}
+                    </button>
+                  );
+                })}
               </div>
               <span className="setting-help">{meta.tierNote}</span>
             </div>
