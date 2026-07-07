@@ -39,7 +39,6 @@ type ProviderMeta = {
    *  legibility card reads as one honest row instead of a duplicated name. */
   sameModelJob: string;
   cost: string;
-  trust: string;
 };
 
 const PROVIDER_META: Record<ProviderId, ProviderMeta> = {
@@ -57,7 +56,6 @@ const PROVIDER_META: Record<ProviderId, ProviderMeta> = {
     sameModelJob:
       "Your free-tier workhorse — it watches as you write and handles the deeper checks too, rotated with 3 fallbacks to spread your daily quota. A paid key unlocks a stronger adjudicator.",
     cost: "",
-    trust: "",
   },
   openai: {
     label: "OpenAI",
@@ -72,7 +70,6 @@ const PROVIDER_META: Record<ProviderId, ProviderMeta> = {
     strongJob: "Steps in for the deeper adjudication when checks conflict.",
     sameModelJob: "Handles every check.",
     cost: "Roughly 20–40 calls per PRD session, mostly on the cheap model.",
-    trust: "",
   },
   anthropic: {
     label: "Anthropic",
@@ -87,8 +84,6 @@ const PROVIDER_META: Record<ProviderId, ProviderMeta> = {
     strongJob: "Steps in for the deeper adjudication when checks conflict.",
     sameModelJob: "Handles every check.",
     cost: "Roughly 20–40 calls per PRD session, mostly on the cheap model.",
-    trust:
-      "Your key goes straight from this browser to Anthropic, and is stored only on this device.",
   },
 };
 
@@ -611,9 +606,21 @@ export function ControlCenter({
             </div>
 
             <div className="setting-group" style={{ marginTop: "var(--space-sm)" }}>
-              <label htmlFor="api-key-input">
-                {providerId === "gemini" ? "Gemini free key" : meta.keyLabel}
-              </label>
+              <div className="setting-label-row">
+                <label htmlFor="api-key-input">
+                  {providerId === "gemini" ? "Gemini free key" : meta.keyLabel}
+                </label>
+                {apiKey && (
+                  <button
+                    type="button"
+                    className="key-remove"
+                    data-testid="remove-key"
+                    onClick={() => onApiKeyChange("")}
+                  >
+                    Remove
+                  </button>
+                )}
+              </div>
               <input
                 id="api-key-input"
                 data-testid="api-key-input"
@@ -636,9 +643,21 @@ export function ControlCenter({
 
             {providerId === "gemini" && (
               <div className="setting-group" style={{ marginTop: "var(--space-sm)" }}>
-                <label htmlFor="gemini-paid-key-input">
-                  Gemini paid key <span className="model-tier-note">· optional</span>
-                </label>
+                <div className="setting-label-row">
+                  <label htmlFor="gemini-paid-key-input">
+                    Gemini paid key <span className="model-tier-note">· optional</span>
+                  </label>
+                  {geminiPaidKey && (
+                    <button
+                      type="button"
+                      className="key-remove"
+                      data-testid="remove-paid-key"
+                      onClick={() => onGeminiPaidKeyChange?.("")}
+                    >
+                      Remove
+                    </button>
+                  )}
+                </div>
                 <input
                   id="gemini-paid-key-input"
                   data-testid="gemini-paid-key-input"
@@ -753,11 +772,14 @@ export function ControlCenter({
             )}
 
             {meta.paid && meta.cost && <div className="pay-note">{meta.cost}</div>}
-            {meta.trust && (
-              <div className="trust-note" data-testid="trust-note">
-                {meta.trust}
-              </div>
-            )}
+            {/* The privacy fact is equally true for every provider: the key rides
+                straight from this browser to the provider and lives only in this
+                device's localStorage — never a server of ours. One shared line,
+                not a per-provider field. */}
+            <div className="trust-note" data-testid="trust-note">
+              Your {meta.label} key goes straight from this browser to {meta.label}, and is stored
+              only on this device — never on a server of ours.
+            </div>
             {import.meta.env.DEV && (
               <div className="setting-group" style={{ marginTop: "var(--space-sm)" }}>
                 <label

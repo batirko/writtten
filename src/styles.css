@@ -528,6 +528,42 @@ body,
   color: var(--text-muted);
 }
 
+/* Label row that carries a right-aligned affordance (the Remove-key control) —
+   the label stays left, the action sits at the far right on the same baseline. */
+.setting-label-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-sm);
+}
+/* Remove-key: a quiet text button, shown only when a key is present, so the user
+   can see they hold — and can delete — the credential at will. A real <button>,
+   so it's keyboard- and touch-reachable (no hover/focus-only affordance). */
+.key-remove {
+  flex: none;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  font-size: var(--text-label);
+  font-weight: 500;
+  color: var(--color-muted);
+  cursor: pointer;
+  /* Roomy enough to tap on touch, negative-margined back so it still sits on the
+     label's baseline without enlarging the row. */
+  padding: 5px 6px;
+  margin: -5px -6px -5px 0;
+  border-radius: var(--radius-sm);
+  transition: color var(--dur-fast) var(--ease-out);
+}
+.key-remove:hover {
+  color: var(--sem-problem-high);
+}
+.key-remove:focus-visible {
+  outline: 2px solid var(--color-accent-strong);
+  outline-offset: 1px;
+  color: var(--sem-problem-high);
+}
+
 .setting-group input,
 .setting-group textarea {
   padding: 6px 10px;
