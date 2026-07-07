@@ -671,6 +671,11 @@ body,
   border-radius: var(--radius-lg);
   padding: 12px;
 }
+/* Keyless: nothing actually runs, so the card is a muted preview of what *will*
+   run once a key is added — dimmed to read as inert, not a live readout. */
+.running-card.is-preview {
+  opacity: 0.62;
+}
 .running-head {
   display: flex;
   align-items: baseline;
@@ -701,9 +706,18 @@ body,
 .running-model {
   flex: none;
   min-width: 92px;
+  /* Cap the mono column so the Gemini-free rotation suffix wraps within it
+     instead of pushing the job text into horizontal overflow on narrow modals. */
+  max-width: 52%;
   font-family: var(--font-mono);
   font-size: var(--text-label);
   color: var(--color-accent-strong);
+}
+/* The " · +3 fallbacks" rotation suffix on the Gemini-free row — a quiet aside
+   to the primary model id, not part of the id itself. Selector is scoped under
+   .running-model so it out-specifies the `.running-row span` colour rule. */
+.running-model .running-rotation {
+  color: var(--color-muted);
 }
 .model-tier-note {
   font-weight: 400;

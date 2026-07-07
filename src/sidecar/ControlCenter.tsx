@@ -54,7 +54,7 @@ const PROVIDER_META: Record<ProviderId, ProviderMeta> = {
     fastJob: "Watches for contradictions and unclear passages as you write.",
     strongJob: "The deeper adjudication when checks conflict.",
     sameModelJob:
-      "Your free-tier workhorse — it watches as you write and handles the deeper checks too. A paid key unlocks a stronger adjudicator.",
+      "Your free-tier workhorse — it watches as you write and handles the deeper checks too, rotated with 3 fallbacks to spread your daily quota. A paid key unlocks a stronger adjudicator.",
     cost: "",
     trust: "",
   },
@@ -428,14 +428,32 @@ export function ControlCenter({
     providerId === "gemini"
       ? geminiRunningModels(geminiPaid)
       : (models[providerId] ?? defaultModels(providerId));
+  // Does the active provider have a key that can actually run a check? Keyless,
+  // nothing runs (the evaluator skips), so the legibility card must not assert a
+  // live model — it becomes a muted "what *will* run" preview instead. Gemini can
+  // be keyed via either the free or the paid field.
+  const hasActiveKey =
+    providerId === "gemini"
+      ? apiKey.trim().length > 0 || geminiPaidKey.trim().length > 0
+      : apiKey.trim().length > 0;
+  // On Gemini free, the single "running" model is really the primary of a rotated
+  // pool (flash-lite + 3 fallbacks) that spreads the daily quota. Signal that on
+  // the row itself so it can't contradict a separate pool note (which is removed).
+  const geminiFreeRotating = providerId === "gemini" && !geminiPaid;
   // Collapse the legibility card to one row when both tiers run the same model
   // (Gemini free), so it never shows a duplicated name.
   const runningRows =
     selectedModels.fast === selectedModels.strong
-      ? [{ model: selectedModels.fast, job: meta.sameModelJob }]
+      ? [
+          {
+            model: selectedModels.fast,
+            job: meta.sameModelJob,
+            rotation: geminiFreeRotating ? "+3 fallbacks" : undefined,
+          },
+        ]
       : [
-          { model: selectedModels.fast, job: meta.fastJob },
-          { model: selectedModels.strong, job: meta.strongJob },
+          { model: selectedModels.fast, job: meta.fastJob, rotation: undefined },
+          { model: selectedModels.strong, job: meta.strongJob, rotation: undefined },
         ];
   const setModel = (tier: "fast" | "strong", value: string) => {
     onModelsChange?.({ ...models, [providerId]: { ...selectedModels, [tier]: value } });
@@ -677,20 +695,23 @@ export function ControlCenter({
               )}
             </div>
 
-            <div className="running-card">
+            <div className={`running-card${hasActiveKey ? "" : " is-preview"}`}>
               <div className="running-head">
-                <span>What&apos;s running</span>
-                <span className="running-why">and why</span>
+                <span>{hasActiveKey ? "What's running" : "What will run"}</span>
+                {hasActiveKey && <span className="running-why">and why</span>}
               </div>
               {runningRows.map((row) => (
                 <div className="running-row" key={row.model}>
-                  <code className="running-model">{row.model}</code>
+                  <code className="running-model">
+                    {row.model}
+                    {row.rotation && <span className="running-rotation"> · {row.rotation}</span>}
+                  </code>
                   <span>{row.job}</span>
                 </div>
               ))}
             </div>
 
-            {meta.paid ? (
+            {meta.paid && (
               <div className="setting-group" style={{ marginTop: "var(--space-md)" }}>
                 <label htmlFor="model-select-fast">
                   Fast model <span className="model-tier-note">· frequent</span>
@@ -724,14 +745,6 @@ export function ControlCenter({
                     </option>
                   ))}
                 </select>
-              </div>
-            ) : (
-              <div className="setting-group" style={{ marginTop: "var(--space-md)" }}>
-                <label>Models</label>
-                <div className="model-note">
-                  Free tier rotates a fixed pool to spread your daily quota. Picking a single model
-                  comes later.
-                </div>
               </div>
             )}
 
