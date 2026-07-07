@@ -2,7 +2,13 @@ import { describe, it, expect } from "vitest";
 import { openaiAdapter } from "./openai";
 import { anthropicAdapter } from "./anthropic";
 import { geminiAdapter } from "./gemini";
-import { resolveProvider, defaultModels, withSelection, PROVIDER_IDS } from "./registry";
+import {
+  resolveProvider,
+  defaultModels,
+  geminiRunningModels,
+  withSelection,
+  PROVIDER_IDS,
+} from "./registry";
 import type { LLMRequest } from "./router";
 
 const req: LLMRequest = { system: "SYS", user: "USER", json: true };
@@ -106,6 +112,19 @@ describe("registry", () => {
     expect(defaultModels("anthropic")).toEqual({
       fast: "claude-haiku-4-5",
       strong: "claude-sonnet-5",
+    });
+  });
+
+  it("geminiRunningModels reflects the actual tier — one model free, pro on paid", () => {
+    // Free: fast + strong both ride the free pool primary (flash-lite).
+    expect(geminiRunningModels(false)).toEqual({
+      fast: "gemini-3.1-flash-lite",
+      strong: "gemini-3.1-flash-lite",
+    });
+    // Paid: fast still rides flash-lite; strong is gemini-2.5-pro.
+    expect(geminiRunningModels(true)).toEqual({
+      fast: "gemini-3.1-flash-lite",
+      strong: "gemini-2.5-pro",
     });
   });
 
