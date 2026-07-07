@@ -1,5 +1,5 @@
 ---
-status: idea
+status: in-progress
 kind: infra
 phases: [6]
 summary: Expand BYOK from Gemini-only to Gemini + OpenAI + Anthropic at launch by lifting the Gemini-shaped resilience layer (pools, cool-down, 429/quota parsing) into a provider-agnostic seam, adding two reference adapters, and reworking the global weak/strong toggle into per-provider model selection. Turns the "non-Gemini reference adapter" OSS Superb-tier item into a first-party three-provider launch feature.
@@ -13,7 +13,7 @@ summary: Expand BYOK from Gemini-only to Gemini + OpenAI + Anthropic at launch b
 
 > Canonical status is the frontmatter above, mirrored in the Projects Index in `docs/plan.md`. This block is human-readable scope only.
 
-**Status: `idea` — Phase 6. Launch blocker.** Decision locked 2026-07-06: **support Gemini + OpenAI + Anthropic at launch** (user call, this session), and the launch bar is "Good-enough **plus** multi-provider" — the repo does not go public until all three ship. Design is specced here to 🟢 (the adapter interface, the resilience abstraction boundary, the concrete model IDs, and the browser-CORS question are all resolved below); not yet started. This is **model-router / platform** work — client-side, no server/telemetry/egress (standing rule 5); each provider is called direct-from-browser with the user's own key, exactly as Gemini is today.
+**Status: `in-progress` — Phase 6. Launch blocker.** Decision locked 2026-07-06: **support Gemini + OpenAI + Anthropic at launch** (user call, this session), and the launch bar is "Good-enough **plus** multi-provider" — the repo does not go public until all three ship. Design is specced here to 🟢 (the adapter interface, the resilience abstraction boundary, the concrete model IDs, and the browser-CORS question are all resolved below). Being built across 4 PRs (2026-07-07): **PR 1 — provider-agnostic resilience seam** (§A) is done — `ProviderAdapter` (`src/model/provider.ts`) + generic engine (`src/model/rotation.ts`); Gemini reduced to an adapter (`src/model/gemini.ts`) with `createGeminiRouter` preserved as a thin shim; zero behavior change, all tests green. Remaining: PR 2 adapters + registry (§B/§C), PR 3 Settings UX (§D), PR 4 docs (§E). This is **model-router / platform** work — client-side, no server/telemetry/egress (standing rule 5); each provider is called direct-from-browser with the user's own key, exactly as Gemini is today.
 
 ### The load-bearing fact that shapes everything
 
@@ -34,7 +34,7 @@ _No Phase-7 slice is currently scoped here; multi-key rotation (`byok_capability
 
 ### A — Provider-agnostic resilience seam (do first; no behavior change)
 
-- [ ] Define a `ProviderAdapter` interface (new `src/model/provider.ts`) that captures everything `gemini.ts` currently hard-codes:
+- [x] Define a `ProviderAdapter` interface (new `src/model/provider.ts`) that captures everything `gemini.ts` currently hard-codes:
   ```ts
   export interface ProviderAdapter {
     id: "gemini" | "openai" | "anthropic";
@@ -57,8 +57,14 @@ _No Phase-7 slice is currently scoped here; multi-key rotation (`byok_capability
     };
   }
   ```
-- [ ] Lift `callWithRotation`, `CoolDownRegistry`, the retry/stall handling, and `trackCall`/logging out of `gemini.ts` into a provider-agnostic `src/model/rotation.ts` that drives any `ProviderAdapter`. The Gemini-specific bits (`parse429`, `parseRetryDelay`, `msTilPacificMidnight`, pool constants) move **into** the Gemini adapter's `classifyError`/`pools`.
-- [ ] Reduce `src/model/gemini.ts` to a `ProviderAdapter` implementation. `createGeminiRouter(freeKey, paidKey)` becomes `createRouter(geminiAdapter, {freeKey, paidKey})`, or a thin shim over the generic factory. **Acceptance: zero change to eval behavior, all existing tests green, the Gemini rate-limit tests still pass.**
+- [x] Lift `callWithRotation`, `CoolDownRegistry`, the retry/stall handling, and `trackCall`/logging out of `gemini.ts` into a provider-agnostic `src/model/rotation.ts` that drives any `ProviderAdapter`. The Gemini-specific bits (`parse429`, `parseRetryDelay`, `msTilPacificMidnight`, pool constants) move **into** the Gemini adapter's `classifyError`/`pools`.
+- [x] Reduce `src/model/gemini.ts` to a `ProviderAdapter` implementation. `createGeminiRouter(freeKey, paidKey)` is now a thin shim over the generic `createRouterForAdapter(geminiAdapter, freeKey, paidKey)`. **Acceptance met: zero change to eval behavior, all 716 tests green.**
+
+> **Interface refinements made while building (vs. the sketch above), carried into PR 2:**
+> - `buildRequest` returns `{ url, init }` only — key redaction for logs is done generically in `rotation.ts` (`url.split(key).join('<free|paid>')`), so header-auth providers (OpenAI/Anthropic) get a clean logged endpoint for free and adapters never format a log string.
+> - `parseResponse(body)` returns `{ text, usage? }` (not bare `string`) — `usage` preserves the session/cost accounting the Gemini path already fed to `logger.ts`.
+> - `classifyError(status, headers, body)` takes `body: string` (raw response text) — matches Gemini's `parse429(string)` and keeps the per-model 429 stats in `logger.ts` computing independently from the raw error body.
+> - Retryability is carried by an internal `ProviderCallError { retryable }` thrown from the attempt; the pool loop advances on `retryable`, aborts otherwise. Router-level free→paid fallback (`fast`/`strong`) still swallows a paid-pool error and retries the free pool, exactly as before. Covered by `src/model/rotation.test.ts`.
 
 ### B — Reference adapters (OpenAI, Anthropic)
 

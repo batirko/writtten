@@ -1,20 +1,14 @@
-import type { LLMRequest, LLMResponse, ModelRouter } from "./router";
-import { llmLogger, parse429 } from "./logger";
-import { trackCall } from "./rpmBudget";
-import { reportStall, reportProgress } from "./stallSignal";
-import { nanoid } from "nanoid";
+import type { LLMRequest, ModelRouter } from "./router";
+import type {
+  ProviderAdapter,
+  BuiltRequest,
+  ParsedResponse,
+  ErrorClassification,
+} from "./provider";
+import { parse429 } from "./logger";
+import { createRouterForAdapter } from "./rotation";
 
 const GEMINI_API_BASE = "https://generativelanguage.googleapis.com/v1beta/models";
-
-/**
- * Per-request timeout. A real call observed at 40.6s justifies a hard cap: past
- * this we abort, mark the call as a (retryable) failure so rotation moves to the
- * next model, and raise the stall signal so the UI stops looking frozen.
- */
-const REQUEST_TIMEOUT_MS: Record<"fast" | "strong", number> = {
-  fast: 30_000,
-  strong: 45_000,
-};
 
 /**
  * Model pools — free-tier ordering by RPD budget.
@@ -47,27 +41,6 @@ const FREE_STRONG_POOL = [
 const PAID_FAST_POOL = ["gemini-2.5-flash", "gemini-3.5-flash", "gemini-3.1-flash-lite"];
 const PAID_STRONG_POOL = ["gemini-2.5-pro", "gemini-2.5-flash", "gemini-3.5-flash"];
 
-class CoolDownRegistry {
-  private coolDowns = new Map<string, number>();
-
-  markUnavailable(model: string, delayMs: number) {
-    // Only extend the cool-down — never shorten an existing one.
-    const current = this.coolDowns.get(model) ?? 0;
-    const proposed = Date.now() + delayMs;
-    if (proposed > current) this.coolDowns.set(model, proposed);
-  }
-
-  isAvailable(model: string): boolean {
-    const expiresAt = this.coolDowns.get(model);
-    if (!expiresAt) return true;
-    return Date.now() > expiresAt;
-  }
-}
-
-// Separate registries: a free-tier PerDay cool-down must not block the paid key.
-const freeRegistry = new CoolDownRegistry();
-const paidRegistry = new CoolDownRegistry();
-
 function parseRetryDelay(headers: Headers): number | null {
   const delayStr = headers.get("retry-delay");
   if (!delayStr) return null;
@@ -98,20 +71,8 @@ function msTilPacificMidnight(): number {
   return msInDay - elapsedMs + 60_000;
 }
 
-const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
-
-async function callGemini(
-  model: string,
-  req: LLMRequest,
-  apiKey: string,
-  tier: "fast" | "strong",
-  keyTier: "free" | "paid",
-  callId: string
-): Promise<LLMResponse> {
-  const url = `${GEMINI_API_BASE}/${model}:generateContent?key=${apiKey}`;
-  const loggedUrl = `${GEMINI_API_BASE}/${model}:generateContent?key=<${keyTier}>`;
-  const evalId = req.meta?.evalId;
-  const promptRef = req.meta?.promptRef;
+function buildRequest(model: string, req: LLMRequest, key: string): BuiltRequest {
+  const url = `${GEMINI_API_BASE}/${model}:generateContent?key=${key}`;
 
   const generationConfig: {
     temperature: number;
@@ -119,7 +80,6 @@ async function callGemini(
   } = {
     temperature: 0.2,
   };
-
   if (req.json) {
     generationConfig.responseMimeType = "application/json";
   }
@@ -130,194 +90,71 @@ async function callGemini(
     generationConfig,
   };
 
-  const startTime = Date.now();
-  llmLogger.log({
-    type: "request",
-    tier,
-    model,
-    endpoint: loggedUrl,
-    payload: { system: req.system, user: req.user },
-    keyTier,
-    callId,
-    evalId,
-    promptRef,
-  });
-
-  const controller = new AbortController();
-  const timeoutMs = REQUEST_TIMEOUT_MS[tier];
-  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
-
-  let res: Response;
-  try {
-    res = await fetch(url, {
+  return {
+    url,
+    init: {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
-      signal: controller.signal,
-    });
-  } catch (e) {
-    clearTimeout(timeoutId);
-    if (controller.signal.aborted) {
-      // Surface the stall to the UI and report a retryable error (503) so the
-      // rotation pool tries the next model rather than aborting the whole eval.
-      reportStall();
-      const latencyMs = Date.now() - startTime;
-      llmLogger.log({
-        type: "error",
-        model,
-        endpoint: loggedUrl,
-        latencyMs,
-        statusCode: 503,
-        payload: { system: req.system, user: req.user },
-        errorMessage: `Request timeout (503) after ${timeoutMs}ms`,
-        keyTier,
-        callId,
-        evalId,
-        promptRef,
-      });
-      throw new Error(`Gemini timeout (503) after ${timeoutMs}ms`);
-    }
-    throw e;
-  }
-  clearTimeout(timeoutId);
-
-  const latencyMs = Date.now() - startTime;
-
-  if (!res.ok) {
-    const err = await res.text();
-    if (res.status === 429) {
-      const parsed = parse429(err);
-      const isPerDay = parsed?.kinds.includes("perDay") ?? false;
-      // PerDay exhaustion: cool down until Pacific midnight — the retry-delay header
-      // only gives RPM back-off (5–45 s) and is useless once the daily cap is hit.
-      const waitTime = isPerDay ? msTilPacificMidnight() : (parseRetryDelay(res.headers) ?? 45_000);
-      const reg = keyTier === "paid" ? paidRegistry : freeRegistry;
-      reg.markUnavailable(model, waitTime);
-    }
-
-    llmLogger.log({
-      type: "error",
-      model,
-      endpoint: loggedUrl,
-      latencyMs,
-      statusCode: res.status,
-      payload: { system: req.system, user: req.user },
-      errorMessage: err,
-      keyTier,
-      callId,
-      evalId,
-      promptRef,
-    });
-    throw new Error(`Gemini error ${res.status}: ${err}`);
-  }
-
-  const data = await res.json();
-  const text: string = data.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
-  const usageMetadata = data.usageMetadata;
-  const usage = usageMetadata
-    ? {
-        promptTokens: usageMetadata.promptTokenCount ?? 0,
-        candidateTokens: usageMetadata.candidatesTokenCount ?? 0,
-        totalTokens: usageMetadata.totalTokenCount ?? 0,
-      }
-    : undefined;
-
-  llmLogger.log({
-    type: "response",
-    tier,
-    model,
-    endpoint: loggedUrl,
-    latencyMs,
-    statusCode: res.status,
-    payload: { system: req.system, user: req.user },
-    response: text,
-    keyTier,
-    callId,
-    evalId,
-    promptRef,
-    usage,
-  });
-
-  // Record call completion for RPM budget tracking.
-  trackCall();
-  // A good response clears any prior stall state.
-  reportProgress();
-
-  return { text, callId };
-}
-
-async function callWithRotation(
-  pool: string[],
-  req: LLMRequest,
-  apiKey: string,
-  tier: "fast" | "strong",
-  keyTier: "free" | "paid"
-): Promise<LLMResponse> {
-  const reg = keyTier === "paid" ? paidRegistry : freeRegistry;
-  // One callId spans the whole logical call, including every rotation attempt,
-  // so the export projection folds request/retry/response/error into one record.
-  const callId = nanoid(10);
-  let attempt = 0;
-
-  for (const model of pool) {
-    if (!reg.isAvailable(model)) continue;
-
-    try {
-      llmLogger.setActiveProvider(keyTier === "paid" ? `${model} [paid]` : model);
-      if (attempt > 0) {
-        const backoff = 500 * Math.pow(2, attempt - 1);
-        llmLogger.log({
-          type: "retry",
-          tier,
-          model,
-          endpoint: "",
-          latencyMs: backoff,
-          payload: { system: req.system, user: req.user },
-          errorMessage: `Retrying with ${model} after ${backoff}ms`,
-          keyTier,
-          callId,
-          evalId: req.meta?.evalId,
-          promptRef: req.meta?.promptRef,
-        });
-        await delay(backoff);
-      }
-
-      return await callGemini(model, req, apiKey, tier, keyTier, callId);
-    } catch (e) {
-      const err = e as Error;
-      if (
-        !err.message.includes("429") &&
-        !err.message.includes("503") &&
-        !err.message.includes("404")
-      ) {
-        throw err;
-      }
-    }
-    attempt++;
-  }
-
-  throw new Error(`Pool exhausted (${keyTier})`);
-}
-
-export function createGeminiRouter(freeKey: string, paidKey?: string): ModelRouter {
-  return {
-    async fast(req) {
-      try {
-        return await callWithRotation(FREE_FAST_POOL, req, freeKey, "fast", "free");
-      } catch {
-        if (!paidKey) throw new Error("All models exhausted and no paid key configured.");
-        return callWithRotation(PAID_FAST_POOL, req, paidKey, "fast", "paid");
-      }
-    },
-    async strong(req) {
-      if (paidKey) {
-        try {
-          return await callWithRotation(PAID_STRONG_POOL, req, paidKey, "strong", "paid");
-        } catch {
-          return callWithRotation(FREE_STRONG_POOL, req, freeKey, "strong", "free");
-        }
-      }
-      return callWithRotation(FREE_STRONG_POOL, req, freeKey, "strong", "free");
     },
   };
+}
+
+function parseResponse(body: unknown): ParsedResponse {
+  const data = body as {
+    candidates?: { content?: { parts?: { text?: string }[] } }[];
+    usageMetadata?: {
+      promptTokenCount?: number;
+      candidatesTokenCount?: number;
+      totalTokenCount?: number;
+    };
+  };
+  const text = data.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
+  const um = data.usageMetadata;
+  const usage = um
+    ? {
+        promptTokens: um.promptTokenCount ?? 0,
+        candidateTokens: um.candidatesTokenCount ?? 0,
+        totalTokens: um.totalTokenCount ?? 0,
+      }
+    : undefined;
+  return { text, usage };
+}
+
+function classifyError(status: number, headers: Headers, body: string): ErrorClassification {
+  if (status === 429) {
+    const parsed = parse429(body);
+    const isPerDay = parsed?.kinds.includes("perDay") ?? false;
+    // PerDay exhaustion: cool down until Pacific midnight — the retry-delay header
+    // only gives RPM back-off (5–45 s) and is useless once the daily cap is hit.
+    const coolDownMs = isPerDay ? msTilPacificMidnight() : (parseRetryDelay(headers) ?? 45_000);
+    return { retryable: true, coolDownMs, quotaKind: parsed?.kinds[0] };
+  }
+  // 503 (incl. our own timeout) and 404 rotate to the next model; other statuses
+  // abort the logical call (matches the pre-refactor behavior exactly).
+  if (status === 503 || status === 404) {
+    return { retryable: true, coolDownMs: 0 };
+  }
+  return { retryable: false, coolDownMs: 0 };
+}
+
+export const geminiAdapter: ProviderAdapter = {
+  id: "gemini",
+  label: "Gemini",
+  pools: {
+    freeFast: FREE_FAST_POOL,
+    freeStrong: FREE_STRONG_POOL,
+    paidFast: PAID_FAST_POOL,
+    paidStrong: PAID_STRONG_POOL,
+  },
+  buildRequest,
+  parseResponse,
+  classifyError,
+};
+
+/** Thin shim preserving the original public surface: build a Gemini `ModelRouter`
+ *  by driving the generic rotation engine with the Gemini adapter. Every existing
+ *  call site and test mock (`../model/gemini` → `createGeminiRouter`) is unchanged. */
+export function createGeminiRouter(freeKey: string, paidKey?: string): ModelRouter {
+  return createRouterForAdapter(geminiAdapter, freeKey, paidKey);
 }
