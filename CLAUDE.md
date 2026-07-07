@@ -221,6 +221,8 @@ window.__sidecar__.setLlmMode('live'); // reset when done
 
 For any new UI component, new screen/panel, or substantive layout change, invoke the Hallmark skill before building. For pure logic changes or single-property CSS fixes, it's not needed.
 
+**Check mobile (~375px) before shipping any UI/UX change.** The product is desktop-first (there's a `MobileNote` honesty strip), but "desktop-first" is not "broken on a phone." Verify any new or changed surface at **375px** — no horizontal overflow, controls reflow, and critically **the surface is reachable by touch** (a phone has no hover and no `⌘`-shortcuts). Hover-gated reveals (`:hover` / `:focus-within`) need a touch equivalent — e.g. the feed handle and the control-center anchor are tap-to-open on touch; a `<div tabindex>` is **not** reliably focusable by tap on iOS, so don't hang a load-bearing affordance off focus alone. The mobile responsiveness rules live in the Hallmark skill (`references/responsive.md`); the app's mobile layout is the `@media (max-width: 720px)` block in `src/styles.css`.
+
 ## Hard invariants (do not violate)
 
 1. **No fix-application affordances.** (See the principle above.)

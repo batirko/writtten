@@ -211,6 +211,20 @@ export function ControlCenter({
   const [stalled, setStalled] = useState(false);
   useEffect(() => subscribeStall(setStalled), []);
 
+  // Touch open: the actions reveal on hover / focus-within on desktop, but a
+  // phone has neither — tapping the anchor pins the control-center open so its
+  // actions (Settings, export, clear) are reachable. Tapping outside closes it.
+  const [tapOpen, setTapOpen] = useState(false);
+  const controlCenterRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!tapOpen) return;
+    const onOutside = (e: PointerEvent) => {
+      if (!controlCenterRef.current?.contains(e.target as Node)) setTapOpen(false);
+    };
+    document.addEventListener("pointerdown", onOutside);
+    return () => document.removeEventListener("pointerdown", onOutside);
+  }, [tapOpen]);
+
   // "Ping model" verdict. Reset whenever the provider or key changes so a stale
   // verdict never lingers over a different key.
   const [ping, setPing] = useState<PingResult | null>(null);
@@ -546,7 +560,10 @@ export function ControlCenter({
         </div>
       )}
 
-      <div className={`control-center${forceOpen ? " is-open" : ""}`}>
+      <div
+        ref={controlCenterRef}
+        className={`control-center${forceOpen || tapOpen ? " is-open" : ""}`}
+      >
         {/* Reserved seam: the future R2c noisiness switch (Key issues / Balanced /
             Everything) drops in here — the process/up axis is an extensible stack,
             not a fixed list. No filter UI is shipped now (feed_surface.md § Reserved
@@ -794,10 +811,20 @@ export function ControlCenter({
           </div>
           <div
             className="control-anchor"
+            data-testid="control-anchor"
             data-state={anchorState}
             data-paid={isPaid ? "true" : undefined}
             tabIndex={0}
-            aria-label={`Model ${modelName}${isPaid ? " (paid)" : ""} — ${statusText}`}
+            role="button"
+            aria-expanded={forceOpen || tapOpen}
+            aria-label={`Model ${modelName}${isPaid ? " (paid)" : ""} — ${statusText}. Tap to open controls.`}
+            onClick={() => setTapOpen((o) => !o)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                setTapOpen((o) => !o);
+              }
+            }}
           >
             <span className="control-dot" />
           </div>
