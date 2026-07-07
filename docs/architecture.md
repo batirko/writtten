@@ -137,6 +137,26 @@ interface ModelRouter {
 - **BYO-key** wires `strong` (and optionally `fast`) to the user's chosen provider/key.
 - Keys are stored **locally** and used to call providers directly from the client wherever CORS allows, keeping document content off any server. Where a provider can't be called from the browser, that's a constraint to solve per-provider — not a reason to centralize document data.
 
+### The `ProviderAdapter` seam — the canonical extension point
+
+`ModelRouter` is what call sites depend on; **`ProviderAdapter` (`src/model/provider.ts`) is where a provider is defined**. Everything provider-specific lives in one adapter file:
+
+```ts
+interface ProviderAdapter {
+  id: "gemini" | "openai" | "anthropic";
+  label: string;
+  pools: { freeFast; freeStrong; paidFast; paidStrong };      // ordered rotation models per tier
+  catalog: { fast; strong };                                   // user-selectable models (Settings picker)
+  buildRequest(model, req, key): { url; init };                // one HTTP attempt
+  parseResponse(body): { text; usage? };                       // read a 2xx body
+  classifyError(status, headers, body): { retryable; coolDownMs; quotaKind? };
+}
+```
+
+The generic engine (`src/model/rotation.ts`) drives any adapter through cool-down registries, pool rotation, retry/backoff, stall + timeout handling, logging, and the free→paid fallback — it knows nothing about any one provider. Key redaction for logs is done there generically. The registry (`src/model/registry.ts`) lists the shipped adapters and resolves selection → routing; `factory.ts` wraps the result in the mock/record layer and holds the app-global active-provider selection.
+
+**A fourth provider is one new adapter file — zero changes to `rotation.ts`, `ModelRouter`, or any call site.** Gemini, OpenAI, and Anthropic ship first-party (`gemini.ts` / `openai.ts` / `anthropic.ts`); a local/Ollama adapter is the natural next one (see _Local-app evolution path_). See `docs/projects/multi_provider_router.md` for the full design.
+
 ## Privacy
 
 Local-first is a feature, but be precise about what it does and doesn't cover today — the 2026-06-10 due-diligence audit (#5) flagged this section as over-claiming, and it's worth stating plainly:

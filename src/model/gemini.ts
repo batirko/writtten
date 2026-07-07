@@ -148,11 +148,13 @@ export const geminiAdapter: ProviderAdapter = {
     paidStrong: PAID_STRONG_POOL,
   },
   // The free rotation pool isn't user-editable in Phase 6 (RPD spreading is
-  // load-bearing); the picker surfaces meaningfully only for a paid Gemini key,
-  // so the catalog mirrors the paid pools.
+  // load-bearing), so Gemini shows a read-only pool note, not a picker. The
+  // catalog therefore only feeds the "what's running" legibility card — point it
+  // at the *free* pools so the card names what actually runs by default
+  // (flash-lite), not the paid `pro` model that has 0 free-tier RPD.
   catalog: {
-    fast: PAID_FAST_POOL,
-    strong: PAID_STRONG_POOL,
+    fast: FREE_FAST_POOL,
+    strong: FREE_STRONG_POOL,
   },
   buildRequest,
   parseResponse,

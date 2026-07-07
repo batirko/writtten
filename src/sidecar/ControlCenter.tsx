@@ -1,9 +1,83 @@
 import { useState, useRef, useEffect } from "react";
 import { llmLogger, type LLMLogEntry, type SessionStats } from "../model/logger";
 import type { ModelTier } from "../model/capability";
+import type { ProviderId } from "../model/provider";
+import { catalogFor, defaultModels, pingModelFor, PROVIDER_IDS } from "../model/registry";
+import { pingProvider, type PingResult } from "../model/ping";
 import { buildEnvelope } from "../model/debugLog";
 import { getLlmMode } from "../model/mock";
 import { subscribeStall } from "../model/stallSignal";
+
+// Per-provider settings copy: how to get a key, the key shape, and the one-line
+// plain-English job of each tier for the "what's running" card. See
+// docs/projects/multi_provider_router.md §D.
+type ProviderMeta = {
+  label: string;
+  keyLabel: string;
+  placeholder: string;
+  keyUrl: string;
+  keyUrlText: string;
+  shape: string;
+  tierNote: string;
+  paid: boolean;
+  fastJob: string;
+  strongJob: string;
+  /** Shown when both tiers resolve to the same model (e.g. Gemini free), so the
+   *  legibility card reads as one honest row instead of a duplicated name. */
+  sameModelJob: string;
+  cost: string;
+  trust: string;
+};
+
+const PROVIDER_META: Record<ProviderId, ProviderMeta> = {
+  gemini: {
+    label: "Gemini",
+    keyLabel: "Gemini API key",
+    placeholder: "Paste your Gemini API key…",
+    keyUrl: "https://aistudio.google.com/app/apikey",
+    keyUrlText: "aistudio.google.com",
+    shape: "AIza…",
+    tierNote: "Free tier available — no card needed",
+    paid: false,
+    fastJob: "Watches for contradictions and unclear passages as you write.",
+    strongJob: "The deeper adjudication when checks conflict.",
+    sameModelJob:
+      "Your free-tier workhorse — it watches as you write and handles the deeper checks too. A paid key unlocks a stronger adjudicator.",
+    cost: "",
+    trust: "",
+  },
+  openai: {
+    label: "OpenAI",
+    keyLabel: "OpenAI API key",
+    placeholder: "Paste your OpenAI API key…",
+    keyUrl: "https://platform.openai.com/api-keys",
+    keyUrlText: "platform.openai.com/api-keys",
+    shape: "sk-…",
+    tierNote: "Paid API account required",
+    paid: true,
+    fastJob: "Watches for contradictions and unclear passages as you write.",
+    strongJob: "Steps in for the deeper adjudication when checks conflict.",
+    sameModelJob: "Handles every check.",
+    cost: "Roughly 20–40 calls per PRD session, mostly on the cheap model.",
+    trust: "",
+  },
+  anthropic: {
+    label: "Anthropic",
+    keyLabel: "Anthropic API key",
+    placeholder: "Paste your Anthropic API key…",
+    keyUrl: "https://console.anthropic.com/settings/keys",
+    keyUrlText: "console.anthropic.com",
+    shape: "sk-ant-…",
+    tierNote: "Paid API account required",
+    paid: true,
+    fastJob: "Watches for contradictions and unclear passages as you write.",
+    strongJob: "Steps in for the deeper adjudication when checks conflict.",
+    sameModelJob: "Handles every check.",
+    cost: "Roughly 20–40 calls per PRD session, mostly on the cheap model.",
+    trust:
+      "Your key goes straight from this browser to Anthropic, and is stored only on this device.",
+  },
+};
 
 // ---------------------------------------------------------------------------
 // Icons
@@ -94,6 +168,10 @@ interface ControlCenterProps {
   onApiKeyChange: (key: string) => void;
   keyTier?: ModelTier;
   onKeyTierChange?: (tier: ModelTier) => void;
+  providerId?: ProviderId;
+  onProviderChange?: (id: ProviderId) => void;
+  models?: Record<string, { fast: string; strong: string }>;
+  onModelsChange?: (m: Record<string, { fast: string; strong: string }>) => void;
   onImportFile?: (file: File) => void;
   onClearWorkspace: () => void;
   onExportMarkdown?: () => void;
@@ -112,6 +190,10 @@ export function ControlCenter({
   onApiKeyChange,
   keyTier = "weak",
   onKeyTierChange,
+  providerId = "gemini",
+  onProviderChange,
+  models = {},
+  onModelsChange,
   onImportFile,
   onClearWorkspace,
   onExportMarkdown,
@@ -129,6 +211,35 @@ export function ControlCenter({
   const [copySuccess, setCopySuccess] = useState(false);
   const [stalled, setStalled] = useState(false);
   useEffect(() => subscribeStall(setStalled), []);
+
+  // "Ping model" verdict. Reset whenever the provider or key changes so a stale
+  // verdict never lingers over a different key.
+  const [ping, setPing] = useState<PingResult | null>(null);
+  const [pinging, setPinging] = useState(false);
+  useEffect(() => setPing(null), [providerId, apiKey]);
+
+  const meta = PROVIDER_META[providerId];
+  const catalog = catalogFor(providerId);
+  const selectedModels = models[providerId] ?? defaultModels(providerId);
+  // Collapse the legibility card to one row when both tiers run the same model
+  // (Gemini free), so it never shows a duplicated name.
+  const runningRows =
+    selectedModels.fast === selectedModels.strong
+      ? [{ model: selectedModels.fast, job: meta.sameModelJob }]
+      : [
+          { model: selectedModels.fast, job: meta.fastJob },
+          { model: selectedModels.strong, job: meta.strongJob },
+        ];
+  const setModel = (tier: "fast" | "strong", value: string) => {
+    onModelsChange?.({ ...models, [providerId]: { ...selectedModels, [tier]: value } });
+  };
+  const runPing = async () => {
+    setPinging(true);
+    setPing(null);
+    const result = await pingProvider(providerId, apiKey, pingModelFor(providerId));
+    setPing(result);
+    setPinging(false);
+  };
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const handleImportClick = () => fileInputRef.current?.click();
@@ -155,11 +266,7 @@ export function ControlCenter({
   const isPaid = activeProvider.includes("[paid]");
   const modelName = activeProvider.replace(" [paid]", "") || "…";
   const anchorState = stalled ? "stalled" : pending > 0 ? "working" : "idle";
-  const statusText = stalled
-    ? "still working…"
-    : pending > 0
-      ? `evaluating · ${pending}`
-      : "idle";
+  const statusText = stalled ? "still working…" : pending > 0 ? `evaluating · ${pending}` : "idle";
 
   // Keep the cluster revealed while any menu/modal is open (so it doesn't
   // collapse out from under the pointer).
@@ -218,21 +325,72 @@ export function ControlCenter({
               </button>
             </div>
             <div className="setting-group">
-              <label htmlFor="api-key-input">Gemini API key</label>
+              <label>Provider</label>
+              <div
+                className="provider-seg"
+                data-testid="provider-select"
+                role="group"
+                aria-label="Provider"
+              >
+                {PROVIDER_IDS.map((id) => (
+                  <button
+                    key={id}
+                    type="button"
+                    className={id === providerId ? "is-active" : undefined}
+                    aria-pressed={id === providerId}
+                    onClick={() => onProviderChange?.(id)}
+                  >
+                    {PROVIDER_META[id].label}
+                  </button>
+                ))}
+              </div>
+              <span className="setting-help">{meta.tierNote}</span>
+            </div>
+
+            <div className="setting-group" style={{ marginTop: "var(--space-sm)" }}>
+              <label htmlFor="api-key-input">{meta.keyLabel}</label>
               <input
                 id="api-key-input"
                 data-testid="api-key-input"
                 type="password"
-                placeholder="Paste your Gemini API key…"
+                placeholder={meta.placeholder}
                 value={apiKey}
                 onChange={(e) => onApiKeyChange(e.target.value)}
               />
               <span className="setting-help">
-                {apiKey
-                  ? "✓ BYO key active — using your quota and model tier."
-                  : "No key set — free tier (rate-limited). Get one at aistudio.google.com."}
+                {apiKey ? "✓ Key set. " : "No key set. "}
+                Get a key{" "}
+                <a className="setting-link" href={meta.keyUrl} target="_blank" rel="noreferrer">
+                  {meta.keyUrlText} ↗
+                </a>{" "}
+                · starts with <code className="key-shape">{meta.shape}</code>
               </span>
-              {apiKey && (
+
+              <div className="ping-row">
+                <button
+                  type="button"
+                  className="ping-btn"
+                  data-testid="ping-model"
+                  disabled={pinging || !apiKey}
+                  onClick={runPing}
+                >
+                  {pinging ? "Pinging…" : "Ping model"}
+                </button>
+                {ping && (
+                  <span
+                    className={`ping-verdict ping-${ping.status}`}
+                    data-testid="ping-verdict"
+                    role="status"
+                  >
+                    {ping.label}
+                  </span>
+                )}
+              </div>
+              <span className="setting-help">
+                Decodes failures too: invalid key · needs billing · network / CORS
+              </span>
+
+              {providerId === "gemini" && apiKey && (
                 <label
                   className="setting-checkbox"
                   data-testid="key-tier-toggle"
@@ -241,7 +399,7 @@ export function ControlCenter({
                     alignItems: "flex-start",
                     gap: "8px",
                     cursor: "pointer",
-                    marginTop: "8px",
+                    marginTop: "10px",
                   }}
                 >
                   <input
@@ -259,6 +417,71 @@ export function ControlCenter({
                 </label>
               )}
             </div>
+
+            <div className="running-card">
+              <div className="running-head">
+                <span>What&apos;s running</span>
+                <span className="running-why">and why</span>
+              </div>
+              {runningRows.map((row) => (
+                <div className="running-row" key={row.model}>
+                  <code className="running-model">{row.model}</code>
+                  <span>{row.job}</span>
+                </div>
+              ))}
+            </div>
+
+            {meta.paid ? (
+              <div className="setting-group" style={{ marginTop: "var(--space-md)" }}>
+                <label htmlFor="model-select-fast">
+                  Fast model <span className="model-tier-note">· frequent</span>
+                </label>
+                <select
+                  id="model-select-fast"
+                  className="model-select"
+                  data-testid="model-select-fast"
+                  value={selectedModels.fast}
+                  onChange={(e) => setModel("fast", e.target.value)}
+                >
+                  {catalog.fast.map((m) => (
+                    <option key={m} value={m}>
+                      {m}
+                    </option>
+                  ))}
+                </select>
+                <label htmlFor="model-select-strong" style={{ marginTop: "var(--space-sm)" }}>
+                  Strong model <span className="model-tier-note">· rare adjudicator</span>
+                </label>
+                <select
+                  id="model-select-strong"
+                  className="model-select"
+                  data-testid="model-select-strong"
+                  value={selectedModels.strong}
+                  onChange={(e) => setModel("strong", e.target.value)}
+                >
+                  {catalog.strong.map((m) => (
+                    <option key={m} value={m}>
+                      {m}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            ) : (
+              <div className="setting-group" style={{ marginTop: "var(--space-md)" }}>
+                <label>Models</label>
+                <div className="model-note">
+                  Free tier rotates a fixed pool to spread your daily quota. Picking a single model
+                  comes later.
+                </div>
+              </div>
+            )}
+
+            {meta.paid && meta.cost && <div className="pay-note">{meta.cost}</div>}
+            {meta.trust && (
+              <div className="trust-note" data-testid="trust-note">
+                {meta.trust}
+              </div>
+            )}
             {import.meta.env.DEV && (
               <div className="setting-group" style={{ marginTop: "var(--space-sm)" }}>
                 <label

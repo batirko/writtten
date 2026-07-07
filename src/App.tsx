@@ -25,6 +25,8 @@ import {
 import { clearSnapshotsForDocument } from "./services/evalSnapshot";
 import type { EvalContext } from "./services/types";
 import { capabilityForTier, type ModelTier } from "./model/capability";
+import { setActiveProviderSelection } from "./model/factory";
+import type { ProviderId } from "./model/provider";
 import { llmLogger, type LLMLogEntry, type SessionStats } from "./model/logger";
 import { harness } from "./debug/harness";
 import { nanoid } from "nanoid";
@@ -42,8 +44,8 @@ export default function App() {
     );
   });
 
-  // The user's declaration of their BYO key's capability tier. Persisted so a
-  // capable BYO key keeps driving the strong path across sessions. Default weak:
+  // The user's declaration of their BYO Gemini key's capability tier. Persisted so
+  // a capable BYO key keeps driving the strong path across sessions. Default weak:
   // never assume a pasted key is a reasoning model without an explicit say-so.
   const [keyTier, setKeyTier] = useState<ModelTier>(() => {
     return (localStorage.getItem("writtten_key_tier") as ModelTier) || "weak";
@@ -52,19 +54,76 @@ export default function App() {
     localStorage.setItem("writtten_key_tier", keyTier);
   }, [keyTier]);
 
-  // Credential ≠ capability. Capability is decided here, once, from the key
-  // configuration; the evaluator branches on it (never on `paidKey` presence).
-  // See docs/projects/byok_capability_model.md.
-  //   - An env paid key (default Gemini pack) → strong.
-  //   - A UI-entered BYO key the user declared "strong" → strong (routes to the
-  //     paid pool using that very key).
-  //   - Otherwise → weak (free pool, hedged prompts, lexical/additive fallback).
+  // Active provider (multi-provider BYOK). Gemini is the free on-ramp + example-
+  // replay tier; OpenAI/Anthropic are paid, each with its own key.
+  const [providerId, setProviderId] = useState<ProviderId>(() => {
+    return (localStorage.getItem("writtten_provider") as ProviderId) || "gemini";
+  });
+  useEffect(() => localStorage.setItem("writtten_provider", providerId), [providerId]);
+
+  const [openaiKey, setOpenaiKey] = useState<string>(
+    () => localStorage.getItem("writtten_key_openai") || ""
+  );
+  useEffect(() => localStorage.setItem("writtten_key_openai", openaiKey), [openaiKey]);
+  const [anthropicKey, setAnthropicKey] = useState<string>(
+    () => localStorage.getItem("writtten_key_anthropic") || ""
+  );
+  useEffect(() => localStorage.setItem("writtten_key_anthropic", anthropicKey), [anthropicKey]);
+
+  // Per-provider model choice ({ openai: {fast,strong}, ... }). Empty for a
+  // provider = use its catalog default (the "capable split" for paid providers).
+  const [models, setModels] = useState<Record<string, { fast: string; strong: string }>>(() => {
+    try {
+      return JSON.parse(localStorage.getItem("writtten_model_selections") || "{}");
+    } catch {
+      return {};
+    }
+  });
+  useEffect(
+    () => localStorage.setItem("writtten_model_selections", JSON.stringify(models)),
+    [models]
+  );
+
+  // The active provider's key — drives the settings key field + example replay.
+  const activeKey =
+    providerId === "gemini" ? apiKey : providerId === "openai" ? openaiKey : anthropicKey;
+  const setActiveKey = (v: string) => {
+    if (providerId === "gemini") setApiKey(v);
+    else if (providerId === "openai") setOpenaiKey(v);
+    else setAnthropicKey(v);
+  };
+
+  // Point the model router at the active provider + chosen models. Provider choice
+  // is a single global setting; capability stays threaded explicitly (below) and
+  // is never read from the router. See docs/projects/byok_capability_model.md.
+  useEffect(() => {
+    setActiveProviderSelection({
+      providerId,
+      fastModel: models[providerId]?.fast,
+      strongModel: models[providerId]?.strong,
+    });
+  }, [providerId, models]);
+
+  // Credential ≠ capability. Both are derived here, once, from the active
+  // provider's configuration; the evaluator branches on capability, never on a
+  // credential. See docs/projects/byok_capability_model.md.
+  //   - Gemini: an env paid key, or a UI-declared "strong" key → strong; else weak.
+  //   - A paid provider (OpenAI/Anthropic): the capable split → strong.
   const envPaidKey: string | undefined =
     (import.meta.env.VITE_GEMINI_PAID_KEY as string) || undefined;
-  const effectiveTier: ModelTier = envPaidKey || keyTier === "strong" ? "strong" : "weak";
-  const paidKey: string | undefined =
-    envPaidKey ?? (keyTier === "strong" && apiKey ? apiKey : undefined);
+  const geminiStrong = Boolean(envPaidKey) || keyTier === "strong";
+  const effectiveTier: ModelTier =
+    providerId === "gemini" ? (geminiStrong ? "strong" : "weak") : "strong";
   const capability = capabilityForTier(effectiveTier);
+  // Keys threaded to the eval path. For a paid provider the single key rides the
+  // `paidKey` slot; it's also passed as the free key purely to satisfy the
+  // evaluator's "has a key" guard — the free pool is empty, so it never reaches
+  // the network. Gemini's free/paid split is unchanged.
+  const apiKeyForEval = providerId === "gemini" ? apiKey : activeKey;
+  const paidKey: string | undefined =
+    providerId === "gemini"
+      ? (envPaidKey ?? (keyTier === "strong" && apiKey ? apiKey : undefined))
+      : activeKey || undefined;
 
   const [stage, setStage] = useState<string>(() => {
     return localStorage.getItem("writtten_stage") || "";
@@ -183,10 +242,10 @@ export default function App() {
     editorRef.current && (await copyRichText(editorRef.current));
 
   // Stable refs for stage-change trigger
-  const apiKeyRef = useRef(apiKey);
+  const apiKeyRef = useRef(apiKeyForEval);
   useEffect(() => {
-    apiKeyRef.current = apiKey;
-  }, [apiKey]);
+    apiKeyRef.current = apiKeyForEval;
+  }, [apiKeyForEval]);
   const stageRef = useRef(stage);
   useEffect(() => {
     stageRef.current = stage;
@@ -224,8 +283,8 @@ export default function App() {
   // pastes a BYO key mid-demo), stop full mock replay so their real edits run
   // live instead of replaying the example fixture.
   useEffect(() => {
-    if (apiKey) onKeyBecameAvailable();
-  }, [apiKey]);
+    if (activeKey) onKeyBecameAvailable();
+  }, [activeKey]);
 
   useEffect(() => {
     localStorage.setItem("writtten_stage", stage);
@@ -306,7 +365,7 @@ export default function App() {
   const handleLoadExample = async () => {
     // Clicking the CTA retires the welcome card (it's done its job).
     setHasSeenWelcome(true);
-    activateExampleReplay({ keyless: !apiKey });
+    activateExampleReplay({ keyless: !activeKey });
     await clearDocumentData(DOC_ID);
     clearSnapshotsForDocument(DOC_ID);
     setObservations([]);
@@ -431,25 +490,25 @@ export default function App() {
             onDismissStageSuggestion={handleDismissStageSuggestion}
           />
           <Editor
-          apiKey={apiKey}
-          paidKey={paidKey}
-          capability={capability}
-          stage={stage}
-          jargonAllowlist={jargonAllowlist
-            .split("\n")
-            .map((s) => s.trim())
-            .filter(Boolean)}
-          observations={observations}
-          surfacedIds={surfacedIds}
-          hoveredObservationId={hoveredObservationId}
-          onSpanHover={handleSpanHover}
-          onObservationCollapsed={handleObservationCollapsed}
-          onEvaluationComplete={handleEvaluationComplete}
-          onStageSuggestion={setStageSuggestion}
-          onBlockOrderChange={setBlockOrder}
-          clearTrigger={clearTrigger}
-          importContent={importContent}
-          onReady={(e) => (editorRef.current = e)}
+            apiKey={apiKeyForEval}
+            paidKey={paidKey}
+            capability={capability}
+            stage={stage}
+            jargonAllowlist={jargonAllowlist
+              .split("\n")
+              .map((s) => s.trim())
+              .filter(Boolean)}
+            observations={observations}
+            surfacedIds={surfacedIds}
+            hoveredObservationId={hoveredObservationId}
+            onSpanHover={handleSpanHover}
+            onObservationCollapsed={handleObservationCollapsed}
+            onEvaluationComplete={handleEvaluationComplete}
+            onStageSuggestion={setStageSuggestion}
+            onBlockOrderChange={setBlockOrder}
+            clearTrigger={clearTrigger}
+            importContent={importContent}
+            onReady={(e) => (editorRef.current = e)}
           />
         </div>
       </main>
@@ -514,10 +573,14 @@ export default function App() {
         activeProvider={activeProvider}
         sessionStats={sessionStats}
         documentIsEmpty={blockOrder.length === 0}
-        apiKey={apiKey}
-        onApiKeyChange={setApiKey}
+        apiKey={activeKey}
+        onApiKeyChange={setActiveKey}
         keyTier={keyTier}
         onKeyTierChange={setKeyTier}
+        providerId={providerId}
+        onProviderChange={setProviderId}
+        models={models}
+        onModelsChange={setModels}
         onImportFile={handleImportFile}
         onClearWorkspace={handleClearWorkspace}
         onExportMarkdown={handleExportMarkdown}
