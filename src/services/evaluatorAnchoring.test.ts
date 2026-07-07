@@ -6,7 +6,7 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { anchorClaimsToMembers, blockPairKey } from "./evaluatorAnchoring";
+import { anchorClaimsToMembers, firstBodyMember, blockPairKey } from "./evaluatorAnchoring";
 import type { SectionMember } from "./types";
 
 // A section: heading block + one body block (the common headed-document shape
@@ -25,6 +25,7 @@ describe("anchorClaimsToMembers", () => {
       { text: "every enterprise activation requires a solutions engineer", kind: "fact_claim" },
     ]);
     expect(c.anchorBlockId).toBe("b1");
+    expect(c.anchorExact).toBe(true);
     const start = members[1].text.indexOf(
       "every enterprise activation requires a solutions engineer"
     );
@@ -34,13 +35,16 @@ describe("anchorClaimsToMembers", () => {
     );
   });
 
-  it("leaves anchor fields undefined when the claim was reworded (no verbatim match)", () => {
+  it("falls back to the body block whole-block (never the heading) when reworded (OBS-032)", () => {
     const [c] = anchorClaimsToMembers(members, [
       { text: "activation needs a human in the loop", kind: "fact_claim" },
     ]);
-    expect(c.anchorBlockId).toBeUndefined();
-    expect(c.anchorStartOffset).toBeUndefined();
-    expect(c.anchorEndOffset).toBeUndefined();
+    // Anchored to the body block, whole-block — NOT the heading, NOT undefined.
+    expect(c.anchorBlockId).toBe("b1");
+    expect(c.anchorBlockId).not.toBe("h1");
+    expect(c.anchorStartOffset).toBe(0);
+    expect(c.anchorEndOffset).toBe(members[1].text.length);
+    expect(c.anchorExact).toBe(false);
     // Original fields are preserved untouched.
     expect(c.text).toBe("activation needs a human in the loop");
     expect(c.kind).toBe("fact_claim");
@@ -64,13 +68,16 @@ describe("anchorClaimsToMembers", () => {
     );
   });
 
-  it("anchors a mix — some verbatim, some reworded — independently", () => {
+  it("anchors a mix — verbatim precise, reworded to whole body block — independently", () => {
     const out = anchorClaimsToMembers(members, [
       { text: "requires a solutions engineer", kind: "constraint" },
       { text: "onboarding is fully automated", kind: "commitment" },
     ]);
     expect(out[0].anchorBlockId).toBe("b1");
-    expect(out[1].anchorBlockId).toBeUndefined();
+    expect(out[0].anchorExact).toBe(true);
+    // Reworded still resolves to the body block (whole-block), not the heading.
+    expect(out[1].anchorBlockId).toBe("b1");
+    expect(out[1].anchorExact).toBe(false);
   });
 
   it("returns a new array without mutating the inputs", () => {
@@ -78,6 +85,37 @@ describe("anchorClaimsToMembers", () => {
     const out = anchorClaimsToMembers(members, claims);
     expect(out[0]).not.toBe(claims[0]);
     expect(claims[0]).not.toHaveProperty("anchorBlockId");
+  });
+});
+
+describe("firstBodyMember (OBS-032)", () => {
+  it("skips heading and table members, returning the first body block", () => {
+    const secs: SectionMember[] = [
+      { blockId: "h", text: "Proposed solution", isHeading: true },
+      { blockId: "t", text: "col1col2", isTable: true },
+      { blockId: "body", text: "We will ship in Q3." },
+      { blockId: "body2", text: "A later paragraph." },
+    ];
+    expect(firstBodyMember(secs)?.blockId).toBe("body");
+  });
+
+  it("skips an empty body paragraph to the first non-empty body member", () => {
+    const secs: SectionMember[] = [
+      { blockId: "h", text: "Heading", isHeading: true },
+      { blockId: "empty", text: "   " },
+      { blockId: "body", text: "Real content here." },
+    ];
+    expect(firstBodyMember(secs)?.blockId).toBe("body");
+  });
+
+  it("falls back to members[0] when there is no body member (defensive)", () => {
+    const secs: SectionMember[] = [{ blockId: "h", text: "Just a heading", isHeading: true }];
+    expect(firstBodyMember(secs)?.blockId).toBe("h");
+  });
+
+  it("returns the intro block for a headingless section (members[0] is body)", () => {
+    const secs: SectionMember[] = [{ blockId: "intro", text: "An intro paragraph." }];
+    expect(firstBodyMember(secs)?.blockId).toBe("intro");
   });
 });
 

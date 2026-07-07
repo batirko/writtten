@@ -28,16 +28,21 @@ export interface ClaimLedgerEntry {
   text: string;
   kind: "commitment" | "fact_claim" | "definition" | "constraint" | "metric";
   status: "active" | "orphaned";
-  /** The *precise* block + offsets where this claim's text actually appears,
-   *  resolved from the section members at extraction time (`anchorClaimsToMembers`).
-   *  Lets contradiction/tension observations anchor to the real clause instead of
-   *  the section heading. Absent when the claim text isn't a verbatim substring of
-   *  any member (the LLM reworded it) — emit then falls back to `sourceBlockId` +
-   *  whole-block. Optional/additive: existing (pre-fix) claims lack it and are
-   *  re-derived on the next eval, so no DB migration is needed. */
+  /** The block + offsets where this claim's text is anchored, resolved from the
+   *  section members at extraction time (`anchorClaimsToMembers`). A verbatim
+   *  substring match (`anchorExact: true`) points at the real clause; when the
+   *  LLM reworded the claim, it falls back to the section's first **body** block,
+   *  whole-block (`anchorExact: false`) — never the heading (OBS-032). Absent only
+   *  when the section has no member at all; emit then uses `sourceBlockId`.
+   *  Optional/additive: existing (pre-fix) claims lack these and are re-derived on
+   *  the next eval, so no DB migration is needed. */
   anchorBlockId?: string;
   anchorStartOffset?: number;
   anchorEndOffset?: number;
+  /** True = verbatim clause anchor; false = whole-body-block paraphrase fallback
+   *  (OBS-032). Drives the dev paraphrase-residual counter and gates whether a
+   *  verbatim `anchorQuote` excerpt can be derived (UX-008). */
+  anchorExact?: boolean;
 }
 
 export interface Observation {

@@ -137,36 +137,72 @@ export interface ClaimAnchor {
   anchorBlockId?: string;
   anchorStartOffset?: number;
   anchorEndOffset?: number;
+  /** True when the anchor is a *verbatim* substring match (precise clause);
+   *  false when the claim was reworded and we fell back to a whole **body**
+   *  block (OBS-032). Absent on hand-built fixtures that skip anchoring. The dev
+   *  paraphrase-residual counter reads this (an approximate anchor still has an
+   *  `anchorBlockId`, so `!anchorBlockId` would no longer measure the residual). */
+  anchorExact?: boolean;
+}
+
+/**
+ * The first **body** member of a section — skipping heading and table blocks —
+ * used as the whole-block anchor fallback so a reworded claim never lights the
+ * section's heading (OBS-032). Mirrors the `hasBody` predicate in `evaluateSection`.
+ * Falls back to `members[0]` defensively (unreachable for claim-bearing sections:
+ * a bodyless heading section is short-circuited inert before extraction — OBS-029).
+ */
+export function firstBodyMember(members: SectionMember[]): SectionMember | undefined {
+  return (
+    members.find((m) => !m.isHeading && !m.isTable && m.text.trim().length > 0) ?? members[0]
+  );
 }
 
 /**
  * Resolve each claim to the precise member block + offsets that contain its text
- * (via `anchorSubstring`), so contradiction/tension observations later anchor to
- * the real clause instead of the section's representative (heading) block. Claims
- * whose text isn't a verbatim substring of any member — the LLM reworded it — are
- * returned unchanged (no anchor fields); the emit path then falls back to
- * `sourceBlockId` + whole-block. Pure; the caller counts the unanchored (fallback)
- * ones for the dev measurement. See docs/mechanics/evaluation-triggers.md.
+ * (via `anchorSubstring`), so contradiction/tension observations anchor to the
+ * real clause. When the claim text isn't a verbatim substring of any member — the
+ * LLM reworded it — fall back to the section's first **body** block, whole-block
+ * (`0..text.length`), marked `anchorExact: false`, so the conflict lights the body
+ * sentence rather than the section heading (OBS-032). This resolved body block is
+ * carried on the ledger, so both the per-section conflicting side and the doc-wide
+ * sweep (which only see ledger rows, not `members`) inherit it. Pure; the caller
+ * counts the approximate anchors for the dev measurement.
+ * See docs/mechanics/evaluation-triggers.md.
  */
 export function anchorClaimsToMembers<T extends { text: string }>(
   members: SectionMember[],
   claims: T[]
 ): (T & ClaimAnchor)[] {
+  const body = firstBodyMember(members);
   return claims.map((c) => {
     // Exact match first; then tolerate a trailing sentence punctuation the
     // extractor commonly appends when it lifts a *mid-sentence* clause into a
     // standalone claim (e.g. claim "…ship in Q3." vs source "…ship in Q3, giving…").
     // Without this that one trailing char fails the substring match and the
-    // conflict falls back to the section heading.
+    // conflict falls back to whole-block.
     const a =
       anchorSubstring(members, c.text) ??
       anchorSubstring(members, c.text.replace(/[.,;:!?]+$/, ""));
-    if (!a) return c;
+    if (a) {
+      return {
+        ...c,
+        anchorBlockId: a.blockId,
+        anchorStartOffset: a.startOffset,
+        anchorEndOffset: a.endOffset,
+        anchorExact: true,
+      };
+    }
+    // Reworded claim → whole-body-block fallback (never the heading). If the
+    // section somehow has no member at all, leave it unanchored (emit's own
+    // `sourceBlockId` fallback then applies).
+    if (!body) return c;
     return {
       ...c,
-      anchorBlockId: a.blockId,
-      anchorStartOffset: a.startOffset,
-      anchorEndOffset: a.endOffset,
+      anchorBlockId: body.blockId,
+      anchorStartOffset: 0,
+      anchorEndOffset: body.text.length,
+      anchorExact: false,
     };
   });
 }

@@ -43,6 +43,7 @@ import {
   hashCode,
   anchorSubstring,
   anchorClaimsToMembers,
+  firstBodyMember,
   normalizeText,
   type NewObservation,
 } from "./evaluatorAnchoring";
@@ -369,11 +370,13 @@ export async function evaluateSection(
       (parsedMerged.claims || []).filter((c) => !isDocumentMetaClaim(c.text))
     );
     if (import.meta.env.DEV && extractedClaims.length > 0) {
-      const unanchored = extractedClaims.filter((c) => !c.anchorBlockId).length;
+      // Paraphrase residual: claims that weren't a verbatim substring and fell
+      // back to the whole **body** block (OBS-032). `anchorExact === false` marks
+      // them — every approximate claim still carries an `anchorBlockId` now, so
+      // the old `!anchorBlockId` count would read zero.
+      const unanchored = extractedClaims.filter((c) => c.anchorExact === false).length;
       if (unanchored > 0) {
-        // Dev "measure" for the paraphrase residual: how many claims couldn't be
-        // anchored verbatim and fell back to whole-block. Gauge before investing
-        // in an extraction-quote prompt change.
+        // Gauge before investing in an extraction-quote prompt change.
         console.debug(
           `[anchor] section ${sectionId}: ${unanchored}/${extractedClaims.length} claims unanchored (paraphrase fallback)`
         );
@@ -537,9 +540,11 @@ export async function evaluateSection(
           if (!matchingExisting) return;
 
           // Anchor the new side to the member block holding the claim if we can
-          // find it; otherwise fall back to the section's representative block.
+          // find it; otherwise fall back to the section's first **body** block —
+          // never `members[0]`, which is the heading (OBS-032). A bare heading
+          // must never be the sole highlighted span for a body-originating claim.
           const exact = anchorSubstring(members, con.newClaimText);
-          const fallback = members[0] ?? { blockId: sectionId, text: cleanText };
+          const fallback = firstBodyMember(members) ?? { blockId: sectionId, text: cleanText };
 
           // Resolve the new claim's kind for commitment×commitment escalation.
           const newClaimKind = extractedClaims.find((c) => c.text === con.newClaimText)?.kind;
