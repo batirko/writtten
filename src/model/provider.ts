@@ -42,6 +42,12 @@ export interface BuiltRequest {
   init: RequestInit;
 }
 
+/** User-selectable models per tier for the Settings picker. `[0]` is the default. */
+export interface ModelCatalog {
+  fast: string[];
+  strong: string[];
+}
+
 /** How `rotation.ts` should treat a non-2xx response. */
 export interface ErrorClassification {
   /** Move on to the next model in the pool (vs. abort the whole logical call). */
@@ -60,6 +66,13 @@ export interface ProviderAdapter {
    * `paid*`. Order matters — first available (non-cooled-down) model wins.
    */
   pools: { freeFast: string[]; freeStrong: string[]; paidFast: string[]; paidStrong: string[] };
+  /**
+   * User-selectable models per tier for the Settings picker (PR 3). `[0]` is the
+   * default that seeds the routing pool. For paid-only providers this is a
+   * superset of the routing pool — several models are *offered*, one *routes*
+   * (paid providers don't rotate; see docs/projects/multi_provider_router.md §D).
+   */
+  catalog: ModelCatalog;
   /** Build the HTTP call for one model attempt. */
   buildRequest(model: string, req: LLMRequest, key: string): BuiltRequest;
   /** Extract text (+ usage) from a parsed 2xx JSON body. */
