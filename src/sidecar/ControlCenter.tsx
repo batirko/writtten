@@ -755,6 +755,11 @@ export function ControlCenter({
                 </label>
               </div>
             )}
+
+            <div className="settings-build" data-testid="build-version">
+              writtten v{__APP_VERSION__}
+              <span className="settings-build-sha"> · {__GIT_SHA__}</span>
+            </div>
           </div>
         </div>
       )}

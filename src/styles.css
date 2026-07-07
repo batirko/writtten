@@ -745,6 +745,23 @@ body,
   padding: 9px 10px;
 }
 
+/* Build stamp at the foot of Settings — deliberately quiet; it exists so a bug
+   report can be pinned to an exact version + commit, not to draw the eye. */
+.settings-build {
+  margin-top: var(--space-md);
+  padding-top: var(--space-sm);
+  border-top: 0.5px solid var(--color-border);
+  font-size: var(--text-label);
+  font-variant-numeric: tabular-nums;
+  color: var(--color-muted);
+  text-align: center;
+}
+
+.settings-build-sha {
+  font-family: var(--font-mono, monospace);
+  opacity: 0.75;
+}
+
 .feed-container {
   flex: 1;
   display: flex;

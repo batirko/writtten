@@ -146,8 +146,16 @@ The repo carries a large, unusually candid internal docs tree: quality-observati
 
 Concrete steps for the **Hosted live demo** milestone above. The repo-side artifacts landed in
 `feat/hosted-demo-cloudflare` (`public/_redirects` SPA fallback, `public/_headers` cache + security
-headers, `public/favicon.svg`, `public/og.png`, and `index.html` meta/OG tags). Deploy via **Git
-integration** (Cloudflare builds on push — no CI tokens, no `wrangler.toml`, no CD workflow in the repo).
+headers, `public/favicon.svg`, `public/og.png`, and `index.html` meta/OG tags).
+
+> **Production deploys are release-gated (2026-07-07).** The original "Cloudflare builds on every push"
+> model is superseded: pushing to `main` no longer ships to production. Instead
+> `.github/workflows/deploy.yml` runs `wrangler pages deploy` and fires **only on a `v*` git tag**, which
+> `release-please` creates when its accumulated release PR is merged. Merges to `main` still get a preview
+> build; only a cut version reaches `writtten.com`. See `docs/mechanics/release_and_deploy.md` for the full
+> flow. This needs three repo settings — secrets `CLOUDFLARE_API_TOKEN` + `CLOUDFLARE_ACCOUNT_ID` and
+> variable `CLOUDFLARE_PROJECT_NAME` — and **automatic production deployments turned OFF** in the Pages
+> project (step 6 below).
 
 **Owner steps in the Cloudflare dashboard (one-time):**
 
@@ -162,8 +170,11 @@ integration** (Cloudflare builds on push — no CI tokens, no `wrangler.toml`, n
 4. First deploy builds from `main`; smoke-test the generated `*.pages.dev` URL.
 5. Custom domain: Pages project → Custom domains → add **writtten.com** (+ optional `www`). DNS is already
    on Cloudflare, so it auto-creates the CNAME and provisions HTTPS.
-6. **Preview deployments:** Git integration auto-builds every branch/PR to a public `*.pages.dev` URL. With
-   parallel feature branches this is noisy — restrict preview branches to `main` (or None) if unwanted.
+6. **Turn OFF automatic production deployments** (Settings → Builds & deployments): production must come
+   only from the tag-triggered `deploy.yml`, not from `main` pushes. Keep **preview** builds on for `main`
+   so there's a live URL to dogfood between releases; restrict preview to `main` (or None) if the
+   per-feature-branch previews are noisy. Add the `CLOUDFLARE_API_TOKEN`/`CLOUDFLARE_ACCOUNT_ID` secrets
+   and `CLOUDFLARE_PROJECT_NAME` variable in GitHub (Settings → Secrets and variables → Actions).
 7. Enable **branch protection** on `main` (required check `verify`) right after flipping the repo public —
    GitHub's free tier blocks it while private (see § Pre-flight cleanup).
 

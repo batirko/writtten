@@ -1,0 +1,57 @@
+name: Deploy to Cloudflare Pages
+
+# Publishes the hosted demo at writtten.com. Fires ONLY on a version tag, which
+# release-please creates when its release PR is merged — so ordinary merges to
+# main never deploy. This is the "batch, then one public deploy" mechanism.
+#
+# Requires three repo settings (Settings → Secrets and variables → Actions):
+#   secret CLOUDFLARE_API_TOKEN   — token with "Cloudflare Pages: Edit"
+#   secret CLOUDFLARE_ACCOUNT_ID  — your account id
+#   variable CLOUDFLARE_PROJECT_NAME — the Pages project name (e.g. "writtten")
+#
+# And in the Cloudflare dashboard: turn OFF automatic production deployments for
+# the Git integration (Pages → project → Settings → Builds & deployments), so
+# this workflow is the only thing that ships to production.
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+      url: https://writtten.com
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Re-run the gate on the exact tagged commit before it goes public.
+      - name: Lint
+        run: npm run lint
+      - name: Test
+        run: npm test
+
+      - name: Build
+        run: npm run build
+
+      - name: Deploy to Cloudflare Pages
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: >-
+            pages deploy dist
+            --project-name=${{ vars.CLOUDFLARE_PROJECT_NAME }}
+            --branch=main
