@@ -265,13 +265,22 @@ describe("SidecarFeed — quoted-text subtitle (UX-008)", () => {
 describe("SidecarFeed — reverse-hover focus (UX-006)", () => {
   const containers: HTMLDivElement[] = [];
 
-  function renderWith(observations: Observation[], spanFocusObsId: string | null): HTMLDivElement {
+  function renderWith(
+    observations: Observation[],
+    spanFocusObsId: string | null,
+    spanFocusRelatedIds?: string[]
+  ): HTMLDivElement {
     const div = document.createElement("div");
     document.body.appendChild(div);
     containers.push(div);
     act(() => {
       createRoot(div).render(
-        createElement(SidecarFeed, { ...minProps, observations, spanFocusObsId })
+        createElement(SidecarFeed, {
+          ...minProps,
+          observations,
+          spanFocusObsId,
+          spanFocusRelatedIds,
+        })
       );
     });
     return div;
@@ -310,6 +319,19 @@ describe("SidecarFeed — reverse-hover focus (UX-006)", () => {
     const div = renderWith(three, null);
     expect(cardIds(div)).toEqual(["a", "b", "c"]);
     expect(div.querySelector(".observation-card-dimmed")).toBeNull();
+  });
+
+  it("keeps co-located cards lit (C9): only the primary floats + dims, the rest stay opaque", () => {
+    // Primary "c" (floats via SpanPeek → dimmed in column) with "a" co-covering
+    // the same span. "a" must NOT recede; "b" (unrelated) still dims.
+    const div = renderWith(three, "c", ["c", "a"]);
+    const dimmed = Array.from(div.querySelectorAll(".observation-card-dimmed"))
+      .map((el) => el.getAttribute("data-obs-id"))
+      .sort();
+    expect(dimmed).toEqual(["b", "c"]);
+    // The co-located card is not dimmed.
+    const aCard = div.querySelector('[data-obs-id="a"]');
+    expect(aCard?.classList.contains("observation-card-dimmed")).toBe(false);
   });
 });
 

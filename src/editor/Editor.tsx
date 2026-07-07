@@ -12,6 +12,8 @@ import {
   ObservationHighlighter,
   charOffsetToPmPos,
   reanchorOffset,
+  computeObservationRanges,
+  resolveCoveringSet,
 } from "./extensions/ObservationHighlighter";
 import { SlashMenu } from "./extensions/SlashMenu";
 import { EditorBubbleMenu } from "./menus/BubbleMenu";
@@ -70,8 +72,11 @@ interface Props {
   surfacedIds?: Set<string>;
   hoveredObservationId: string | null;
   /** Reverse hover (UX-006): fires the observation id of a highlighted span the
-   *  pointer has *dwelled* on (see SPAN_HOVER_DWELL_MS), or null on leave. */
-  onSpanHover?: (obsId: string | null) => void;
+   *  pointer has *dwelled* on (see SPAN_HOVER_DWELL_MS), or null on leave.
+   *  `relatedIds` (C9) is the full set of observations covering the hovered
+   *  point — primary first (most-specific), the rest co-covering — so the feed
+   *  can light up every card sharing the span, not just the primary. */
+  onSpanHover?: (obsId: string | null, relatedIds?: string[]) => void;
   onObservationCollapsed: (id: string) => void;
   onEvaluationComplete: () => void;
   onStageSuggestion?: (suggestion: string) => void;
@@ -679,6 +684,14 @@ export function Editor({
   useEffect(() => {
     observationsRef.current = observations;
   }, [observations]);
+  // Surfaced (visible-highlight) set, for the reverse-hover cue gate (C9): we
+  // only surface a card set when the pointer is over at least one *visible*
+  // highlight, so hovering plain text with only an invisible anchor stays inert
+  // (surfaced-only reverse-hover invariant, R7b/UX-006).
+  const surfacedIdsRef = useRef(surfacedIds);
+  useEffect(() => {
+    surfacedIdsRef.current = surfacedIds;
+  }, [surfacedIds]);
 
   const prefersReducedMotion = () =>
     typeof window !== "undefined" &&
@@ -839,7 +852,7 @@ export function Editor({
   // two spans can't share the viewport; if both fit, the card float + dual
   // highlight already show both. Complements the card float; both fade on out.
   const openHoverPeek = useCallback(
-    (id: string, spanEl: HTMLElement) => {
+    (id: string, hovPos: number) => {
       if (!editor || editor.isDestroyed) return;
       const obs = observationsRef.current.find((o) => o.id === id);
       if (!obs || !obs.blockId || !obs.conflictingBlockId) return;
@@ -860,7 +873,6 @@ export function Editor({
       const bTop = editor.view.coordsAtPos(conflictingStart).top;
       if (bothSpansFit(aTop, bTop, window.innerHeight)) return;
       // Which side is under the pointer? Anchor the glance there, quote the other.
-      const hovPos = editor.view.posAtDOM(spanEl, 0);
       const hoveredSide: "primary" | "conflicting" =
         Math.abs(hovPos - primaryStart) <= Math.abs(hovPos - conflictingStart)
           ? "primary"
@@ -910,11 +922,15 @@ export function Editor({
     };
   }, []);
 
-  // --- Reverse hover (UX-006): span → feed ---
+  // --- Reverse hover (UX-006) + overlapping-highlight targeting (C9): span → feed ---
   // Dwell on a highlighted span to surface its card. A fast sweep across the
   // document fires nothing; only resting on one span past SPAN_HOVER_DWELL_MS
   // emits. Leaving emits null immediately — the close *grace* (so the pointer
   // can travel onto a floating card) lives in App, where the float renders.
+  // The dwelled point is resolved by *coordinate* (`posAtCoords`) against every
+  // observation's mapped range, so overlapping / co-located / nested highlights
+  // resolve the full covering set (primary = most-specific), not a single
+  // `closest()` DOM ancestor.
   const onSpanHoverRef = useRef(onSpanHover);
   useEffect(() => {
     onSpanHoverRef.current = onSpanHover;
@@ -924,56 +940,97 @@ export function Editor({
     if (!editor || editor.isDestroyed) return;
     const dom = editor.view.dom;
     let dwellTimer: ReturnType<typeof setTimeout> | null = null;
-    let pendingId: string | null = null; // armed, not yet fired
-    let firedId: string | null = null; // currently surfaced
+    let pendingId: string | null = null; // armed primary, not yet fired
+    let pendingRelated: string[] = []; // co-covering set for the armed primary
+    let pendingPos = 0; // doc position under the pointer when armed
+    let firedId: string | null = null; // currently surfaced primary
+
+    // Range cache: the offset→position map is recomputed only when the doc or
+    // the observation set changes, so the per-move hit-test is a cheap
+    // point-in-range scan rather than a document walk on every mousemove.
+    let cachedDoc: typeof editor.state.doc | null = null;
+    let cachedObs: Observation[] | null = null;
+    let cachedRanges: ReturnType<typeof computeObservationRanges> = [];
+    const getRanges = () => {
+      const doc = editor.state.doc;
+      const obs = observationsRef.current;
+      if (doc === cachedDoc && obs === cachedObs) return cachedRanges;
+      cachedDoc = doc;
+      cachedObs = obs;
+      cachedRanges = computeObservationRanges(doc, obs);
+      return cachedRanges;
+    };
 
     const clearDwell = () => {
       if (dwellTimer) clearTimeout(dwellTimer);
       dwellTimer = null;
       pendingId = null;
+      pendingRelated = [];
     };
-    const spanOf = (t: EventTarget | null): HTMLElement | null =>
-      (t as HTMLElement | null)?.closest?.(".obs-highlight[data-obs-id]") ?? null;
 
-    const handleOver = (e: MouseEvent) => {
-      const el = spanOf(e.target);
-      if (!el) return;
-      const id = el.getAttribute("data-obs-id");
-      if (!id || id === firedId || id === pendingId) return;
+    // C9: resolve the covering set at a pointer coordinate from *model* state
+    // (not a single `closest()` DOM ancestor), so overlapping / co-located /
+    // nested highlights all resolve. Primary = the smallest covering range
+    // (innermost/substring wins); the rest co-cover. Returns null unless the
+    // point is over at least one *visible* highlight (surfaced-only cue) — this
+    // still lets a downgraded invisible-anchor substring be targeted when it
+    // sits inside a visible span, without making plain text hoverable.
+    const resolveAt = (
+      clientX: number,
+      clientY: number
+    ): { id: string; related: string[]; pos: number } | null => {
+      if (!editor || editor.isDestroyed) return null;
+      const at = editor.view.posAtCoords({ left: clientX, top: clientY });
+      if (!at) return null;
+      const set = resolveCoveringSet(getRanges(), at.pos, surfacedIdsRef.current);
+      if (!set) return null;
+      return { id: set.primaryId, related: set.related, pos: at.pos };
+    };
+
+    const clearFired = () => {
+      if (firedId === null) return;
+      firedId = null;
+      onSpanHoverRef.current?.(null);
+      // Fade the hover glance with the card float; a pinned (card-click) peek is
+      // dismissed only by Escape/scroll/×.
+      if (peekModeRef.current === "hover") dismissPeekRef.current();
+    };
+
+    const handleMove = (e: MouseEvent) => {
+      const hit = resolveAt(e.clientX, e.clientY);
+      if (!hit) {
+        clearDwell();
+        clearFired();
+        return;
+      }
+      const id = hit.id;
+      if (id === firedId || id === pendingId) return; // stable / already arming
       clearDwell();
+      clearFired();
       pendingId = id;
+      pendingRelated = hit.related;
+      pendingPos = hit.pos;
       dwellTimer = setTimeout(() => {
         dwellTimer = null;
         pendingId = null;
         firedId = id;
-        onSpanHoverRef.current?.(id);
+        onSpanHoverRef.current?.(id, pendingRelated);
         // …and, for a distant cross-claim span, glance the other side.
-        openHoverPeekRef.current?.(id, el);
+        openHoverPeekRef.current?.(id, pendingPos);
       }, SPAN_HOVER_DWELL_MS);
     };
 
-    const handleOut = (e: MouseEvent) => {
-      const el = spanOf(e.target);
-      if (!el) return;
-      // Ignore moves that stay within the same span (over its child text nodes).
-      const to = e.relatedTarget as Node | null;
-      if (to && el.contains(to)) return;
+    const handleLeave = () => {
       clearDwell();
-      if (firedId) {
-        firedId = null;
-        onSpanHoverRef.current?.(null);
-        // Fade the hover glance with the card float; leave a pinned (card-click)
-        // peek alone — only Escape/scroll/× dismiss that one.
-        if (peekModeRef.current === "hover") dismissPeekRef.current();
-      }
+      clearFired();
     };
 
-    dom.addEventListener("mouseover", handleOver);
-    dom.addEventListener("mouseout", handleOut);
+    dom.addEventListener("mousemove", handleMove);
+    dom.addEventListener("mouseleave", handleLeave);
     return () => {
       clearDwell();
-      dom.removeEventListener("mouseover", handleOver);
-      dom.removeEventListener("mouseout", handleOut);
+      dom.removeEventListener("mousemove", handleMove);
+      dom.removeEventListener("mouseleave", handleLeave);
     };
   }, [editor]);
 
