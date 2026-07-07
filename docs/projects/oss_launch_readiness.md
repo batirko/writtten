@@ -46,8 +46,15 @@ Read alongside:
 
 ### Good-enough — a credible, welcoming launch (Phase 6 → early 7)
 
-- [ ] **Hosted live demo** at `writtten.com` (or a static host) — the single biggest conversion asset; lets people _try_ before cloning. Ships as a static PWA (Phase 5 install work is done), no backend. Pair with the BYO-key + zero-config mock demo.
-- [ ] **Hero visual** — a screenshot + short GIF/video of the loop (write → observation appears → reverse-hover highlights the span → contradiction peek). Embed at the top of the README (placeholder `<!-- TODO(launch) -->` is in place).
+- [ ] **Hosted live demo** at `writtten.com` — the single biggest conversion asset; lets people _try_ before cloning. **Host decided 2026-07-06: Cloudflare Pages** (static PWA; no backend — the hosted-proxy idea is a decided NO-GO, see `docs/projects/hosted_proxy.md`). 🟢 build-ready spec:
+  - Connect the GitHub repo to a Cloudflare Pages project. Build command `npm run build`; output directory `dist/`; framework preset "None"/Vite. SPA fallback (serve `index.html` for unknown routes) so deep links work; the Phase-5 `vite-plugin-pwa` service worker precaches the shell for offline.
+  - Custom domain `writtten.com` via Cloudflare DNS (CNAME to the Pages project); automatic HTTPS.
+  - **First-run state (decided): BYOK-only.** No key ⇒ the canned "See it in action" example (`onboarding_first_run.md`) plays automatically — the visitor witnesses the hero contradiction with zero config. To analyze their _own_ document, a calm, low-friction Settings prompt walks them through pasting a free Gemini key (link to AI Studio, ~30s). No server, no shared key. This is the honest replacement for the README's earlier "works zero-key" overclaim.
+  - No analytics/telemetry (invariant #5); rely on GitHub signals + qualitative feedback (see § Metrics).
+- [ ] **Hero visual** — a short GIF of the loop, embedded at the top of the README (placeholder `<!-- TODO(launch) -->` is in place). 🟢 build-ready spec:
+  - **Storyboard (~20–30s, one take):** open on the writing canvas → type/paste a two-section doc containing a planted contradiction (reuse the `onboarding_first_run` example doc) → a companion-feed card settles in → reverse-hover the card to highlight the contradicting span in the editor → click the card to peek the earlier conflicting claim. End on the calm feed. No cursor thrash; deliberate pacing.
+  - **Capture:** run the app on a clean profile at a fixed viewport (1280×800), light theme; record with a screen recorder; trim; export to an optimized looping GIF (or MP4+GIF poster) ≤ ~5 MB so it renders inline on GitHub. Commit under `docs/launch/` (e.g. `docs/launch/hero-loop.gif`) and reference it from the README hero + reuse in launch posts.
+  - Depends on the zero-config example state existing (it does — `onboarding_first_run` shipped) and on the visual pass (shipped — `visual_style`). Mechanical once the storyboard is fixed; the one judgment call (pacing/framing) is settled above.
 - [ ] **Zero-config "See it in action"** — a one-click planted-contradiction example so a first-time visitor witnesses the hero with no key (`onboarding_first_run.md`). Doubles as the demo's opening state.
 - [x] **Update `concept.md` + `plan.md`** — flipped the "OSS real or decorative?" open question to resolved (real); rewrote the concept.md caveat. _(2026-07-05)_
 - [x] **CHANGELOG.md** added (Keep-a-Changelog, `0.1.0` first-release notes). _The tagged `v0.1.0` release + the `<owner>` compare links are done at publish time._
@@ -55,9 +62,11 @@ Read alongside:
 
 ### Superb — makes "a tool people want to contribute to" actually true (Phase 7)
 
-- [ ] **Documented extension API for the three seams** — observation types, model providers, export formats. Even a `docs/extending.md` that honestly maps each seam (where it lives, what to implement, what's stubbed) turns aspiration into an on-ramp. (Plan's existing Phase-7 milestone.)
-- [ ] **A non-Gemini model adapter as the reference contribution** (OpenAI or a local/Ollama adapter). The router is Gemini-shaped throughout; one clean second adapter proves the seam is real and is the archetypal "good first big issue." Also advances the privacy/egress open question (local model = no-egress true).
-- [ ] **A curated set of labeled "good first issue" / "help wanted"** — e.g. an export format, one new observation type behind the fixed-taxonomy rules, the second adapter. Turns drive-by interest into PRs.
+- [ ] **Documented extension API for the three seams** — observation types, model providers, export formats. 🟢 build-ready spec for `docs/extending.md` (one section per seam; each maps _where it lives · what interface to implement · what's stubbed · a worked example_):
+  - **Model providers** — the `ProviderAdapter` seam (`src/model/provider.ts`, landed by `multi_provider_router.md`). "Add a provider = one adapter file + a registry entry; zero call-site changes." Point at `gemini.ts`/`openai.ts`/`anthropic.ts` as the three reference adapters; Ollama/local as the archetypal next contribution (also the no-egress privacy win).
+  - **Observation types** — the fixed taxonomy in `docs/features.md` + per-type prompts in `src/services/evaluatorPrompts.ts`; document how a new type is added _within_ the invariant (typed kind, prompt, severity/voice wiring) and what the guardrail tests reject (hard invariant #2 — no free-form chatter, no fix-application).
+  - **Export formats** — the `src/services/export.ts` seam (from `egress.md`): implement a serializer, register it behind the format switch. Print-to-PDF is the reference; a new format is a self-contained PR.
+- [ ] **A curated set of labeled "good first issue" / "help wanted"** — 🟢 concrete starter list: (1) an Ollama/local `ProviderAdapter` (the no-egress privacy win); (2) a new export format behind `export.ts`; (3) a docs/typo/onboarding-copy sweep; (4) a signal-quality FP/FN report via the issue template (doubles as field data). File these as GitHub issues with the `good first issue` / `help wanted` labels at go-public. _(The first-party OpenAI + Anthropic adapters that used to sit here have moved to the launch-blocking `multi_provider_router.md` milestone — they now ship before launch, not as contributor bait.)_
 - [ ] **Contribution-quality guardrails documented** — how the fixed-taxonomy invariant and "no apply button" are enforced in code + CI (philosophy_guardrails), so contributors don't propose changes that violate the reason-to-exist.
 - [ ] **Post-launch operating cadence** — issue triage rhythm, how signal-quality reports feed `docs/logs/prompt_quality_observations.md` (community reports _are_ the field validation the project needs).
 
@@ -141,4 +150,10 @@ The repo carries a large, unusually candid internal docs tree: quality-observati
 | **Good-enough** | A credible, welcoming launch: live demo, hero visual, zero-config try, honest status, first release, launch post.                       | Phase 6 → early 7.                     |
 | **Superb**      | "Contribute to" is true: documented seams, a second model adapter, good-first-issues, enforced philosophy guardrails, a triage cadence. | Phase 7, 🧠, real engineering.         |
 
-**Recommended launch bar:** ship at **Good-enough**. Minimum alone reads as "code dump"; Superb can accrete _after_ launch as the first contributors arrive (the second adapter is a perfect first external PR, not a launch blocker).
+**Launch bar (decided 2026-07-06):** ship at **Good-enough _plus_ multi-provider BYOK.** Minimum alone reads as "code dump"; Good-enough (hosted demo + hero visual + honest status) is the credible bar — and the owner elected to also make **Gemini + OpenAI + Anthropic** (`multi_provider_router.md`) a hard pre-public blocker rather than a fast-follow. Everything else in **Superb** (the `docs/extending.md` seam guide, the good-first-issue pipeline, guardrail docs, triage cadence) is specced to 🟢 here but accretes _after_ launch as contributors arrive.
+
+**Decisions locked this session (2026-07-06):**
+
+> - **Hosted proxy → NO-GO.** No shared-key backend; the hosted demo is BYOK-only (canned example + paste-your-key). See `docs/projects/hosted_proxy.md` (parked, revisit post-launch if friction bites).
+> - **Demo host → Cloudflare Pages** (static PWA, custom domain `writtten.com`).
+> - **Provider breadth → all three at launch**, as a hard blocker. See `docs/projects/multi_provider_router.md`.
