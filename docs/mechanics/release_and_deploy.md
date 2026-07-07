@@ -38,7 +38,9 @@ Ordinary merges to `main` do **not** touch production. They get a Cloudflare **p
 
 ## Versioning scheme
 
-SemVer, pre-1.0 (`0.x`). Config sets `bump-minor-pre-major` + `bump-patch-for-minor-pre-major`, so:
+SemVer, pre-1.0 (`0.x`). Config sets `bump-minor-pre-major: true` (a breaking `feat!:` bumps the minor,
+not the major, so we stay in `0.x`) and leaves `bump-patch-for-minor-pre-major: false` (so a `feat:` still
+bumps the minor rather than being demoted to a patch). The result:
 
 - a `feat:` commit → **minor** bump (`0.1.0` → `0.2.0`) — the normal "release batch"
 - a `fix:` commit → **patch** bump (`0.2.0` → `0.2.1`) — a hotfix
