@@ -90,6 +90,111 @@ export function reanchorOffset(
   return { start: bestIdx, end: bestIdx + anchorText.length };
 }
 
+/** One resolved highlight range for an observation. `side` distinguishes the
+ *  primary span from a cross-claim's conflicting span. */
+export interface ObservationRange {
+  obs: Observation;
+  from: number;
+  to: number;
+  side: "primary" | "conflicting";
+}
+
+/**
+ * Resolve every active span observation to its absolute ProseMirror range(s),
+ * using the *exact same* offset→position mapping the decoration builder uses
+ * (`reanchorOffset` + `charOffsetToPmPos` + clamping) so reverse-hover
+ * hit-testing (Editor.tsx, C9) and rendering can never disagree. Cross-claim
+ * observations yield two entries (primary + conflicting), except the degenerate
+ * same-block conflict (OBS-026), which yields only the primary — mirroring the
+ * `conflictingBlockId !== blockId` guard in the builder below.
+ *
+ * Unlike rendering, this includes *downgraded* (invisible-anchor) observations:
+ * they carry a resolvable range even with no visible mark, which is what lets a
+ * nested/co-located substring be *targeted* by the pointer (C9). Callers gate on
+ * visibility themselves (surfaced-only reverse-hover cue).
+ */
+export function computeObservationRanges(
+  doc: PMNode,
+  observations: Observation[]
+): ObservationRange[] {
+  const blockPositions = new Map<string, number>();
+  doc.descendants((node, pos) => {
+    if (doc.resolve(pos).depth === 0 && node.isBlock && node.attrs.blockId) {
+      blockPositions.set(node.attrs.blockId, pos);
+    }
+  });
+
+  const ranges: ObservationRange[] = [];
+  for (const obs of observations) {
+    if (!(obs.scope === "span" && obs.blockId && obs.status === "active")) continue;
+    const blockPos = blockPositions.get(obs.blockId);
+    if (blockPos === undefined) continue;
+    const blockNode = doc.nodeAt(blockPos);
+    if (!blockNode) continue;
+    const textLength = blockNode.textContent.length;
+    const re = reanchorOffset(
+      blockNode.textContent,
+      obs.anchorText ?? "",
+      obs.startOffset ?? 0,
+      obs.endOffset ?? textLength
+    );
+    const rawStart = Math.max(0, Math.min(re.start, textLength));
+    const rawEnd = Math.max(0, Math.min(re.end, textLength));
+    const from = charOffsetToPmPos(blockNode, blockPos, rawStart, false);
+    const to = charOffsetToPmPos(blockNode, blockPos, rawEnd, true);
+    if (from < to) ranges.push({ obs, from, to, side: "primary" });
+
+    if (obs.conflictingBlockId && obs.conflictingBlockId !== obs.blockId) {
+      const conflictPos = blockPositions.get(obs.conflictingBlockId);
+      if (conflictPos === undefined) continue;
+      const conflictNode = doc.nodeAt(conflictPos);
+      if (!conflictNode) continue;
+      const cLen = conflictNode.textContent.length;
+      const cRe = reanchorOffset(
+        conflictNode.textContent,
+        obs.conflictingAnchorText ?? "",
+        obs.conflictingStartOffset ?? 0,
+        obs.conflictingEndOffset ?? cLen
+      );
+      const cRawStart = Math.max(0, Math.min(cRe.start, cLen));
+      const cRawEnd = Math.max(0, Math.min(cRe.end, cLen));
+      const cFrom = charOffsetToPmPos(conflictNode, conflictPos, cRawStart, false);
+      const cTo = charOffsetToPmPos(conflictNode, conflictPos, cRawEnd, true);
+      if (cFrom < cTo) ranges.push({ obs, from: cFrom, to: cTo, side: "conflicting" });
+    }
+  }
+  return ranges;
+}
+
+/**
+ * C9 primary-selection: given the resolved ranges and a document position, pick
+ * the covering set. Returns null unless the point is covered by at least one
+ * *visible* (surfaced) highlight — so a downgraded invisible anchor over plain
+ * text stays inert, but a downgraded substring nested inside a visible span is
+ * still targetable. `primaryId` is the smallest covering range (innermost /
+ * substring wins); `related` is the deduped set (primary first). `surfacedIds`
+ * null/undefined means "treat all as visible" (no budget in effect).
+ */
+export function resolveCoveringSet(
+  ranges: ObservationRange[],
+  pos: number,
+  surfacedIds: Set<string> | null | undefined
+): { primaryId: string; related: string[] } | null {
+  const covering = ranges.filter((r) => pos >= r.from && pos <= r.to);
+  if (covering.length === 0) return null;
+  const hasVisible = covering.some((r) => surfacedIds == null || surfacedIds.has(r.obs.id));
+  if (!hasVisible) return null;
+  let best = covering[0];
+  for (const r of covering) {
+    if (r.to - r.from < best.to - best.from) best = r;
+  }
+  const related: string[] = [];
+  for (const r of [best, ...covering]) {
+    if (!related.includes(r.obs.id)) related.push(r.obs.id);
+  }
+  return { primaryId: best.obs.id, related };
+}
+
 const pluginKey = new PluginKey("observationHighlighter");
 
 interface ObservationHighlighterOptions {

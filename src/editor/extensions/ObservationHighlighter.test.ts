@@ -7,7 +7,14 @@ import TableRow from "@tiptap/extension-table-row";
 import TableHeader from "@tiptap/extension-table-header";
 import TableCell from "@tiptap/extension-table-cell";
 import { BlockId } from "./BlockId";
-import { ObservationHighlighter, charOffsetToPmPos, reanchorOffset } from "./ObservationHighlighter";
+import {
+  ObservationHighlighter,
+  charOffsetToPmPos,
+  reanchorOffset,
+  computeObservationRanges,
+  resolveCoveringSet,
+  type ObservationRange,
+} from "./ObservationHighlighter";
 import type { Observation } from "../../store/db";
 
 const schema = getSchema([StarterKit, BlockId, Table, TableRow, TableHeader, TableCell]);
@@ -453,5 +460,100 @@ describe("intra-block conflict decoration (OBS-026)", () => {
     } finally {
       editor.destroy();
     }
+  });
+});
+
+describe("computeObservationRanges (C9 hit-testing)", () => {
+  const spanObs = (id: string, anchorText: string, over: Partial<Observation> = {}): Observation => ({
+    id,
+    docId: "doc-1",
+    type: "clarity",
+    scope: "span",
+    kind: "problem",
+    severity: "low",
+    confidence: "medium",
+    priority: 0.5,
+    text: "note",
+    status: "active",
+    blockId: "b1",
+    startOffset: 0,
+    endOffset: 0,
+    anchorText,
+    ...over,
+  });
+
+  // "Hello world this is text" — "world" at 6:11, "world this is" at 6:19.
+  const doc = () =>
+    schema.node("doc", null, [para("b1", "Hello world this is text"), para("b2", "Second block")]);
+
+  it("maps each active span obs to a from<to range regardless of visibility", () => {
+    const ranges = computeObservationRanges(doc(), [
+      spanObs("broad", "world this is"),
+      spanObs("narrow", "world"),
+    ]);
+    expect(ranges).toHaveLength(2);
+    for (const r of ranges) expect(r.from).toBeLessThan(r.to);
+    const narrow = ranges.find((r) => r.obs.id === "narrow")!;
+    const broad = ranges.find((r) => r.obs.id === "broad")!;
+    // The nested substring resolves to a strictly smaller range.
+    expect(narrow.to - narrow.from).toBeLessThan(broad.to - broad.from);
+  });
+
+  it("yields two ranges (primary + conflicting) for a cross-block conflict, one for same-block", () => {
+    const cross = spanObs("x", "", {
+      type: "contradiction",
+      startOffset: 0,
+      endOffset: 9999,
+      conflictingBlockId: "b2",
+      conflictingStartOffset: 0,
+      conflictingEndOffset: 9999,
+    });
+    expect(computeObservationRanges(doc(), [cross])).toHaveLength(2);
+    const same = { ...cross, conflictingBlockId: "b1" };
+    expect(computeObservationRanges(doc(), [same])).toHaveLength(1);
+  });
+
+  it("skips observations whose block is absent from the doc", () => {
+    const ghost = spanObs("g", "world", { blockId: "missing" });
+    expect(computeObservationRanges(doc(), [ghost])).toHaveLength(0);
+  });
+});
+
+describe("resolveCoveringSet (C9 primary selection)", () => {
+  const range = (id: string, from: number, to: number): ObservationRange => ({
+    obs: { id } as Observation,
+    from,
+    to,
+    side: "primary",
+  });
+
+  it("picks the smallest covering range as primary, rest co-cover (nested)", () => {
+    const ranges = [range("outer", 1, 20), range("inner", 5, 10)];
+    const res = resolveCoveringSet(ranges, 7, null);
+    expect(res).toEqual({ primaryId: "inner", related: ["inner", "outer"] });
+  });
+
+  it("returns every co-located card when several ranges coincide", () => {
+    const ranges = [range("a", 1, 10), range("b", 1, 10), range("c", 1, 10)];
+    const res = resolveCoveringSet(ranges, 5, null);
+    expect(res?.primaryId).toBe("a");
+    expect(new Set(res?.related)).toEqual(new Set(["a", "b", "c"]));
+  });
+
+  it("returns null when nothing covers the point", () => {
+    expect(resolveCoveringSet([range("a", 1, 5)], 9, null)).toBeNull();
+  });
+
+  it("targets a downgraded (invisible) substring when it nests inside a visible span", () => {
+    // 'inner' is not surfaced (invisible), 'outer' is — the point is over both,
+    // so the covering set is visible and the innermost still wins as primary.
+    const ranges = [range("outer", 1, 20), range("inner", 5, 10)];
+    const res = resolveCoveringSet(ranges, 7, new Set(["outer"]));
+    expect(res).toEqual({ primaryId: "inner", related: ["inner", "outer"] });
+  });
+
+  it("stays inert over plain text covered only by downgraded (invisible) anchors", () => {
+    const ranges = [range("hidden", 1, 20)];
+    expect(resolveCoveringSet(ranges, 7, new Set<string>())).toBeNull();
   });
 });

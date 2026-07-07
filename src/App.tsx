@@ -161,6 +161,10 @@ export default function App() {
   // dwelling on. Distinct from hoveredObservationId because *only* a span-origin
   // hover drives the spotlight (open feed) and the floating peek (collapsed feed).
   const [spanFocusObsId, setSpanFocusObsId] = useState<string | null>(null);
+  // C9: the full set of card (group-primary) ids covering the dwelled point, so
+  // every card sharing the span lights up — not just the primary. The primary is
+  // still `spanFocusObsId`; this is the co-covering set (includes the primary).
+  const [spanFocusRelatedIds, setSpanFocusRelatedIds] = useState<string[]>([]);
   const spanCloseTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [clearTrigger, setClearTrigger] = useState(0);
   const [stageSuggestion, setStageSuggestion] = useState<string | null>(null);
@@ -223,18 +227,26 @@ export default function App() {
     spanCloseTimer.current = null;
   }, []);
   const handleSpanHover = useCallback(
-    (rawId: string | null) => {
+    (rawId: string | null, relatedIds?: string[]) => {
       cancelSpanClose();
       if (rawId == null) {
         spanCloseTimer.current = setTimeout(() => {
           setSpanFocusObsId(null);
           setHoveredObservationId(null);
+          setSpanFocusRelatedIds([]);
         }, 150);
         return;
       }
       const primaryId = findGroupForObs(groups, rawId)?.primary.id ?? rawId;
       setSpanFocusObsId(primaryId);
       setHoveredObservationId(primaryId);
+      // C9: map every covering raw obs id to its rendered card (group primary)
+      // and dedupe, so co-located observations grouped into different cards all
+      // light up. Falls back to the primary alone when no set was provided.
+      const related = relatedIds?.length ? relatedIds : [rawId];
+      setSpanFocusRelatedIds([
+        ...new Set(related.map((id) => findGroupForObs(groups, id)?.primary.id ?? id)),
+      ]);
     },
     [groups, cancelSpanClose]
   );
@@ -583,6 +595,7 @@ export default function App() {
           blockOrder={blockOrder}
           hoveredObservationId={hoveredObservationId}
           spanFocusObsId={feedCollapsed ? null : spanFocusObsId}
+          spanFocusRelatedIds={feedCollapsed ? undefined : spanFocusRelatedIds}
           onHoverObservation={setHoveredObservationId}
           onDismissObservation={handleDismissObservation}
           hasKey={Boolean(activeKey)}
