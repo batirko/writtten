@@ -1,7 +1,7 @@
 ---
 status: idea
 kind: quality
-phases: [6]
+phases: [7]
 summary: Resolve the zero-config "smart feed" philosophy against the user desire for filters/sorting/"top 5" (UX-010). Decision (2026-06-18) — maturity-aware curation (R2) plus exactly ONE lightweight control, a three-step noisiness switch (Key issues / Balanced / Everything); per-type filters, sorting, and manual "top N" are deliberately refused. Draws the line so the feed never becomes a settings dashboard.
 ---
 
@@ -11,7 +11,7 @@ summary: Resolve the zero-config "smart feed" philosophy against the user desire
 
 ## Status
 
-**Idea — Phase 6 (design settled 2026-06-18; sequencing updated 2026-06-27).** The decision (the _line_: maturity-aware curation + one noisiness switch, refuse the rest) is made. **Two updates 2026-06-27:** (1) the maturity-aware-curation half is now its own tracked milestone, `maturity_aware_severity.md` (R2), which this design depends on — it is no longer an ambient principle; (2) the one conceded control (the noisiness switch) is **build-held until R2 ships + V2** confirms maturity-curation isn't already sufficient, rather than wired immediately. If V2 shows the maturity split dissolves the UX-010 friction, we may never need to add the control surface — which is the more zero-config outcome.
+**Idea — Phase 7 (design settled 2026-06-18; sequencing updated 2026-06-27; moved Phase 6→7 on 2026-07-08).** The decision (the _line_: maturity-aware curation + one noisiness switch, refuse the rest) is made. **Two updates 2026-06-27:** (1) the maturity-aware-curation half is now its own tracked milestone, `maturity_aware_severity.md` (R2), which this design depends on — it is no longer an ambient principle; (2) the one conceded control (the noisiness switch) is **build-held pending V2** confirms maturity-curation isn't already sufficient, rather than wired immediately. **Update 2026-07-08:** R2 has now **shipped**, so the only remaining gate is V2 — and since V2 was deferred to Phase 7, the owner moved this milestone to Phase 7 too (rather than leave a V2-blocked item in the current phase). If V2 shows the maturity split dissolves the UX-010 friction, we may never need to add the control surface — which is the more zero-config outcome.
 
 Read alongside:
 
@@ -26,12 +26,12 @@ Read alongside:
 
 | Phase | Contributes                                                                                                                                                                                                          |
 | ----- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **6** | The decision (this doc) + ship the **noisiness switch** (Milestone E build spec, pulled forward from Phase 7) as the single conceded control. Maturity-aware severity (R2) is its own milestone and lands alongside. |
+| **7** | The decision (this doc) + ship the **noisiness switch** (Milestone E build spec) as the single conceded control — **only if V2 shows maturity-aware curation (R2, shipped in Phase 6) doesn't already resolve UX-010.** Held here behind V2, which also lives in Phase 7. |
 
 ## Todo
 
 - [x] **Decide the line** (§ The decision) — maturity-aware curation + one noisiness switch; refuse per-type filters / sorting / manual "top N". _Settled 2026-06-18._
-- [ ] **Ship the noisiness control** per `observation_taxonomy_and_priority.md` Milestone E build spec (the `NOISINESS` map, `FeedPartitionOptions.noisiness`, `localStorage["writtten_noisiness"]`, the three-segment settings control, `feedBudget.test.ts` cases). **Held until R2 (`maturity_aware_severity.md`) ships + V2** — execute only if V2 shows maturity-aware curation alone doesn't resolve UX-010. No new design needed when it does proceed. _(The underlying kind-keyed budget machinery still lands with R2, which needs it to compose; this item is specifically the user-facing three-step **switch**.)_
+- [ ] **Ship the noisiness control** per `observation_taxonomy_and_priority.md` Milestone E build spec (the `NOISINESS` map, `FeedPartitionOptions.noisiness`, `localStorage["writtten_noisiness"]`, the three-segment settings control, `feedBudget.test.ts` cases). **Held pending V2** (R2 shipped 2026-07-06) — execute only if V2 shows maturity-aware curation alone doesn't resolve UX-010. No new design needed when it does proceed. _(The underlying kind-keyed budget machinery still lands with R2, which needs it to compose; this item is specifically the user-facing three-step **switch**.)_
 - [ ] **Confirm composition with G4** — the contradiction floor/ceiling (G4) and the noisiness budget must both apply without one silently overriding the other (e.g. "Key issues" must still honour the G4 ceiling, not dump all contradictions). Add a `feedBudget.test.ts` case crossing a noisiness mode with >`CONTRADICTION_CEILING` contradictions.
 - [ ] **Copy + placement** — the control reads as a calm "how much do you want to see," not a filter panel (§ How it must read).
 
@@ -65,7 +65,7 @@ The control lives in the settings panel (Milestone E places it near the jargon c
 
 ### Relationship to the Phase 7 "Noisiness control" backlog item
 
-The noisiness control was parked as a Phase 7 backlog line (`docs/plan.md` Phase 7 + Milestone E note). R2c **pulls it into Phase 6** as the single concession that resolves UX-010. The Phase 7 line is superseded by this milestone; Milestone E's "scheduled as a Phase 7 backlog item" note is updated to point here.
+The noisiness control was originally a Phase 7 backlog line (`docs/plan.md` Phase 7 + Milestone E note). It was pulled into Phase 6 (2026-06-18) as R2c's single conceded control, then **moved back to Phase 7 on 2026-07-08** — R2 shipped but the switch stays build-held behind V2, which is itself a Phase-7 item, so the milestone lives in Phase 7 rather than blocking on a later-phase gate from within Phase 6. The `docs/plan.md` Phase 7 line now carries this R2c milestone directly; Milestone E remains the executable "how."
 
 ### Out of scope
 
