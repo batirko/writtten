@@ -53,6 +53,43 @@ Consumes the three prior product-feel specs:
 - **Copy order: value first, key second.** The modal leads with the inversion framing (what the product is / that it never rewrites you), _then_ names that analyzing your own writing needs a key, _then_ offers the two actions ("See it in action" / "Add your key"). The key ask never opens cold.
 - **Re-entry = the standing banner, not a modal re-opener.** The one-time modal is not re-openable (consistent with the removed reset path); the **standing keyless "add your key → Settings" banner** is the persistent re-entry surface for the key ask (always present while keyless). The "See it in action" example stays reachable **from the modal only** (as before) — acceptable, since the banner covers the load-bearing path (getting a key), and the example is a one-time witnessing aid, not a recurring need.
 
+## Revision (2026-07-07) — The example undersells our range: curate for _variety_, not volume
+
+**Status: concept settled, build pending.** Field observation (owner): the "See it in action" replay _works_ — it lands the hero contradiction — but it **doesn't expose the full value of the product**. The gap is not volume (the doc is deliberately small and the ~handful of cards is the right count — we don't want a wall). The gap is **variety**: the recorded assessment clusters on a few capabilities and repeats them, so a first-timer sees the tool do the _same kind of thing_ several times instead of witnessing its **range**.
+
+**The diagnosis (what the current recording surfaces).** `src/services/exampleDocRecording.ts` replays ~10 observations across only 4–5 distinct types, lopsidedly:
+
+- `contradiction` ×1 — the Q2-vs-Q3 launch-date hero (good).
+- `structure_flow` ×2 — **one of which just re-flags the same Q2/Q3 contradiction** (reads as redundant/dumb, not sharp).
+- `clarity` ×3 — including surface-ish nits ("Q2 2026 lacks a specific month", "adoption metric lacks a target") that flirt with the anti-taxonomy.
+- `tension` ×1, `unsupported_claim` ×1, `missing_topic` ×1, `underexposed_topic` ×1.
+
+Of the **9-type taxonomy** (section: `clarity` · `unsupported_claim` · `undefined_jargon`; document: `missing_topic` · `underexposed_topic` · `audience_mismatch` · `structure_flow`; cross-document: `contradiction` · `tension`), the demo never once shows **`undefined_jargon`** or **`audience_mismatch`**, while spending three cards on clarity and double-flagging the contradiction. Big pile, narrow range.
+
+**The concept (one line).** Re-engineer the small demo doc so its handful of observations each demonstrate a **different** type — one clean exemplar per capability — instead of clustering on clarity and re-flagging the contradiction. Same card count, far wider spread.
+
+**Ambition: curate what's there (owner steer 2026-07-07).** Not a scripted temporal "reveal" (that fights § The example's proud principle that the demo is the _real pipeline on real recorded responses_, not a canned animation). The **doc is the only lever**: plant the signals that elicit the target types, then **re-record** the real model output at weak capability (the documented `record`-mode → `dumpRecordings()` process) and verify the spread landed. Stays honest — we never hand-author cards; we shape the text and record what the model genuinely catches.
+
+**Target roster — 6 distinct types, each appearing once (roster confirmed by owner 2026-07-07):**
+
+| Type                | Disposition | Notes                                                                                                                                                  |
+| ------------------- | ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `contradiction`     | keep (hero) | The Q2-vs-Q3 date conflict at document distance. Must appear **exactly once** — suppress the `structure_flow` duplicate.                              |
+| `tension`           | keep        | The 4-week pipeline vs. 6-week beta-lead tradeoff. Kept **beside** the contradiction deliberately: showing both teaches the discrimination (can't-both-be-true vs. competing-goals) — a flex no grammar tool makes. |
+| `unsupported_claim` | keep        | The "nearly a third of every week" stat attributed to vague "internal research".                                                                     |
+| `undefined_jargon`  | **add**     | Plant one crisp unexplained term/acronym aimed at the stated audience. Currently never demonstrated.                                                 |
+| `clarity`           | keep **one**| Reduce the three clarity nits to a single genuinely-worth-it one; drop the surface-level ones ("lacks a specific month", "lacks a target").          |
+| `missing_topic`     | keep        | One expected-but-absent topic.                                                                                                                        |
+
+**Dropped from the target spread:** `audience_mismatch` (owner declined — it would force a stated non-technical audience into doc-context just to elicit it; not worth the added artificiality for the demo), `underexposed_topic` (overlaps `missing_topic` conceptually — one "topic" card is enough), the second/third `clarity` nits, and the `structure_flow` **duplicate** of the contradiction.
+
+**Faithfulness & risks.**
+
+- **Still real pipeline output.** The recording remains captured model output, not authored fixtures (Hard Invariant 1 intact — the AI only reacts to pre-written text). Planting signals to elicit types is exactly what the doc already does for the contradiction + unsupported claim; this extends the plant set.
+- **Elicitation is empirical.** Which types a real weak-tier model emits on the engineered text isn't fully controllable — expect a write-doc → record → inspect → adjust loop until the spread is clean (each target type present once, no redundant re-flag, no surface-nit clutter). This is why the milestone is 🧠, not 🔧.
+- **Keep the doc small and (optionally) the meta framing.** Owner likes the small size; the self-referential "Sidecar Review" PRD framing is not in scope to replace here (it was flagged but the ambition is curation, not a rewrite of the doc's subject).
+- **Re-record both paths.** The recording keys on request hash at **weak** capability (keyless `mock` replay + keyed live-error fallback). After changing the doc text, **every** section/sweep/document-scan hash changes, so the whole `EXAMPLE_DOC_RECORDING` must be regenerated, and `src/services/exampleReplay.test.ts` re-greened.
+
 ## Phased Plan
 
 | Phase | Contributes                                                                                                                                                                                                                                                              |
