@@ -275,11 +275,6 @@ interface Props {
    *  span is being dwelled on. When set, that card rises to the top and stays
    *  opaque while the rest recede. Null when no span is focused. */
   spanFocusObsId?: string | null;
-  /** C9: every card (group-primary) id covering the dwelled point, so co-located
-   *  observations that grouped into different cards all light up — not just the
-   *  primary `spanFocusObsId`. Includes the primary. Undefined/empty → only the
-   *  single `hoveredObservationId` is active (prior behaviour). */
-  spanFocusRelatedIds?: string[];
   onHoverObservation: (id: string | null) => void;
   /** Finalize a dismissal: write the suppression + flip the observation to
    *  `dismissed`. Called only when a dismiss placeholder fades (~3s) — Undo
@@ -301,7 +296,6 @@ export function SidecarFeed({
   blockOrder = [],
   hoveredObservationId,
   spanFocusObsId = null,
-  spanFocusRelatedIds,
   onHoverObservation,
   onDismissObservation,
   hasKey = false,
@@ -421,17 +415,12 @@ export function SidecarFeed({
   const overflowContradictionCount = alsoNoticedObs.filter((g) => g.hasContradiction).length;
 
   // Reverse-hover focus (UX-006): when a span is focused, dim every card in
-  // place (no reorder) — the focused card is surfaced by the floating SpanPeek
-  // pinned to the top of the gutter, so it's always on-screen even if the feed
-  // is scrolled. Releasing the span restores full opacity.
+  // place (no reorder) — the focused card(s) are surfaced by the floating SpanPeek
+  // pinned to the top of the gutter, so they're always on-screen even if the feed
+  // is scrolled. For co-located spans (C9) the whole covering set stacks in that
+  // float, so the feed stays uniformly dimmed here (no loose un-dimmed cards that
+  // would collide with the float). Releasing the span restores full opacity.
   const feedFocused = spanFocusObsId != null;
-  // C9: when the reverse hover resolves several co-located observations, the
-  // *additional* covering cards (beyond the primary, which floats via SpanPeek)
-  // stay lit (un-dimmed) instead of receding — so a span shared by N cards lights
-  // them all. The primary keeps its existing float+dim treatment, so a single
-  // covering obs behaves exactly as before.
-  const relatedSet = new Set(spanFocusRelatedIds ?? []);
-  const isCoLit = (id: string) => relatedSet.has(id) && id !== spanFocusObsId;
 
   // Render a group's slot: while a dismissal is pending, the in-place
   // "Dismissed · Undo" placeholder stands where the card was; otherwise the card.
@@ -451,8 +440,8 @@ export function SidecarFeed({
       <GroupedObsCard
         key={group.id}
         group={group}
-        isActive={hoveredObservationId === group.primary.id || isCoLit(group.primary.id)}
-        isDimmed={feedFocused && !isCoLit(group.primary.id)}
+        isActive={hoveredObservationId === group.primary.id}
+        isDimmed={feedFocused}
         isArriving={
           arrivingIds.has(group.primary.id) || group.others.some((o) => arrivingIds.has(o.id))
         }

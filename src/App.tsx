@@ -263,10 +263,20 @@ export default function App() {
     },
     [groups, cancelSpanClose]
   );
-  const spanFocusGroup = useMemo(
-    () => (spanFocusObsId ? (findGroupForObs(groups, spanFocusObsId) ?? null) : null),
-    [groups, spanFocusObsId]
-  );
+  // The card(s) the float surfaces: the whole covering set (C9), primary first,
+  // resolved from `spanFocusRelatedIds` (populated for both hover and pin). A
+  // single covering obs → one card, exactly as before. They stack in the float
+  // over the dimmed feed, so co-located cards never collide with loose feed cards.
+  const spanPeekGroups = useMemo(() => {
+    const ids = spanFocusRelatedIds.length
+      ? spanFocusRelatedIds
+      : spanFocusObsId
+        ? [spanFocusObsId]
+        : [];
+    return ids
+      .map((id) => findGroupForObs(groups, id))
+      .filter((g): g is NonNullable<typeof g> => g != null);
+  }, [groups, spanFocusRelatedIds, spanFocusObsId]);
 
   // C8: pin the covering set (resolved by the Editor's C9 hit-test) as a
   // persistent peek. Drives the same focus channels as hover so the feed dims +
@@ -293,10 +303,6 @@ export default function App() {
     setHoveredObservationId(null);
     setSpanFocusRelatedIds([]);
   }, [cancelSpanClose]);
-  const spanPinnedGroup = useMemo(
-    () => (spanPinnedObsId ? (findGroupForObs(groups, spanPinnedObsId) ?? null) : null),
-    [groups, spanPinnedObsId]
-  );
   // Dismiss the pin on Escape or a click-away — a pointer-down outside the peek
   // and off any highlighted span (clicking another highlight re-pins via the
   // Editor; clicking inside the peek keeps it). Only active while pinned.
@@ -661,7 +667,6 @@ export default function App() {
           blockOrder={blockOrder}
           hoveredObservationId={hoveredObservationId}
           spanFocusObsId={feedCollapsed ? null : spanFocusObsId}
-          spanFocusRelatedIds={feedCollapsed ? undefined : spanFocusRelatedIds}
           onHoverObservation={setHoveredObservationId}
           onDismissObservation={handleDismissObservation}
           hasKey={Boolean(activeKey)}
@@ -669,11 +674,11 @@ export default function App() {
         />
       </div>
       {/* Reverse hover floats the hovered span's card(s) at the top of the gutter
-          — in the open feed the cards behind dim in place; when collapsed it's the
-          only thing shown. Always top-anchored so it's on-screen even if the feed
-          is scrolled. */}
+          — the feed behind dims; when collapsed it's the only thing shown. Always
+          top-anchored so it's on-screen even if the feed is scrolled. Co-located
+          (C9) cards stack here as one float. */}
       <SpanPeek
-        group={spanPinnedGroup ?? spanFocusGroup}
+        groups={spanPeekGroups}
         pinned={spanPinnedObsId != null}
         onDismiss={handleDismissObservation}
         onKeepOpen={cancelSpanClose}
