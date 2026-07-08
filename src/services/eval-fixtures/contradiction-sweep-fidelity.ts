@@ -28,10 +28,7 @@ const fixture: EvalFixture = {
     { text: "This will ship in Q3.", kind: "commitment", sourceBlockId: "b-timeline" },
   ],
   recordings: {
-    // Faithful, label-free sweep response: quotes the claims' own "Q2"/"Q3"
-    // language and never echoes the internal [Claim #N] label into `message`.
-    rhb4cr3_3954:
-      '{\n  "contradictions": [\n    {\n      "claimAId": 0,\n      "claimBId": 1,\n      "message": "This sets a Q3 ship date, which conflicts with the earlier commitment to ship in Q2."\n    }\n  ],\n  "tensions": []\n}',
+    "rhb4cr3_3954": "{\n  \"contradictions\": [\n    {\n      \"claimAId\": 0,\n      \"claimBId\": 1,\n      \"message\": \"This sets a Q3 ship date, which conflicts with the earlier commitment to ship in Q2.\"\n    }\n  ],\n  \"tensions\": []\n}"
   },
   expected: [
     {
