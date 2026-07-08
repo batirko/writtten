@@ -1,26 +1,49 @@
 /**
  * Recorded LLM responses for the "See it in action" example document.
  *
- * Captured once from a real Gemini run at WEAK capability (free key, no paid
- * key) — the same capability a keyless first-run user evaluates at — so the
- * request hashes match on replay. When the user loads the example with no
- * working key, App switches the router to `mock` mode and installs these
- * recordings, so the pipeline replays the real responses (claims → ledger →
- * the planted Q2-vs-Q3 contradiction) with zero network calls. With a key
- * present, the live pipeline runs instead.
+ * Hybrid fixture (owner-directed, docs/projects/onboarding_first_run.md
+ * § Revision 2026-07-07 — curate for variety, not volume):
  *
- * These are captured real model outputs, not hand-authored fixtures. Regenerate
- * by loading the example in `record` mode at weak capability and dumping
- * `window.__sidecar__.dumpRecordings()`. Keyed by `reqHash` (see model/mock.ts).
+ *   - The request KEYS + each response's `summary`/`claims` are captured from a
+ *     real Gemini run at WEAK capability (free key) — the same capability a
+ *     keyless first-run user evaluates at — so the request hashes match on
+ *     replay AND the downstream sweep/doc-scan prompts (built from summaries +
+ *     claims) hash identically.
+ *   - The OBSERVATION arrays are then curated to one clean exemplar per type, so
+ *     the demo shows the product's RANGE rather than clustering on clarity and
+ *     re-flagging the contradiction. Observations are output-only (never a
+ *     prompt input), so curating them cannot change any request hash.
  *
- * See docs/projects/onboarding_first_run.md § The example (keyless replay).
+ * The six cards, one per capability:
+ *   undefined_jargon (Overview: "BM25") · clarity (Success metrics: "feel
+ *   trustworthy") · unsupported_claim (Problem: "nearly a third") ·
+ *   contradiction + strategic_tension (cross-document sweep: Q2-vs-Q3 launch,
+ *   four-week build vs six-week beta lead) · missing_topic (doc scan: no
+ *   data-privacy topic).
+ *
+ * When the user loads the example with no working key, App switches the router
+ * to `mock` mode and installs these recordings; the pipeline replays them with
+ * zero network calls. With a key present, they arm the live-error fallback.
+ *
+ * Regenerate: rewrite src/services/exampleDoc.ts, re-run the weak-tier capture
+ * (the example load triggers section evals + the contradiction sweep + the
+ * doc-scan — see App.handleLoadExample `docScan`), dump window.__sidecar__
+ * .dumpRecordings(), then re-curate the observation arrays. Keyed by `reqHash`
+ * (see model/mock.ts). See docs/projects/onboarding_first_run.md § The example.
  */
 export const EXAMPLE_DOC_RECORDING: Record<string, string> = {
-  "r1l7h8i8_6539": "{\n  \"summary\": \"The document introduces Sidecar Review, a tool designed to provide feedback on document clarity and logic without modifying the original text.\",\n  \"claims\": [\n    {\n      \"text\": \"Sidecar Review is a companion panel that watches a working document and surfaces observations.\",\n      \"kind\": \"definition\"\n    },\n    {\n      \"text\": \"The goal is to sharpen the writer's own thinking, not to draft on their behalf.\",\n      \"kind\": \"commitment\"\n    }\n  ],\n  \"clarity_observations\": [],\n  \"unsupported_claim_observations\": [],\n  \"undefined_jargon_observations\": []\n}",
-  "rxqkwnr_6342": "{\n  \"summary\": \"This section outlines the specific boundaries and exclusions for the assistant's operational scope.\",\n  \"claims\": [\n    {\n      \"text\": \"The assistant will not generate or rewrite document text in any phase.\",\n      \"kind\": \"constraint\"\n    }\n  ],\n  \"clarity_observations\": [],\n  \"unsupported_claim_observations\": [],\n  \"undefined_jargon_observations\": []\n}",
-  "r10h0zfc_6476": "{\n  \"summary\": \"This section defines the success metrics for adoption and establishes the Q3 2026 launch timeline.\",\n  \"claims\": [\n    {\n      \"text\": \"We will measure adoption by weekly active documents and by the share of surfaced contradictions the author acts on.\",\n      \"kind\": \"commitment\"\n    },\n    {\n      \"text\": \"The public launch is firmly set for Q3 2026.\",\n      \"kind\": \"constraint\"\n    }\n  ],\n  \"clarity_observations\": [\n    {\n      \"text\": \"The metric for adoption lacks a target value or baseline to determine success.\",\n      \"substring\": \"measure adoption by weekly active documents and by the share of surfaced contradictions\"\n    }\n  ],\n  \"unsupported_claim_observations\": [],\n  \"undefined_jargon_observations\": []\n}",
-  "r3ngf22_6400": "{\n  \"summary\": \"The project targets a public launch in Q2 2026, preceded by a six-week private beta and a four-week engineering effort for the core pipeline.\",\n  \"claims\": [\n    {\n      \"text\": \"We are committing to a public launch in Q2 2026\",\n      \"kind\": \"commitment\"\n    },\n    {\n      \"text\": \"private beta for design partners six weeks earlier\",\n      \"kind\": \"commitment\"\n    },\n    {\n      \"text\": \"Engineering has sized the core pipeline at four weeks\",\n      \"kind\": \"fact_claim\"\n    }\n  ],\n  \"clarity_observations\": [\n    {\n      \"text\": \"The Q2 2026 date lacks a specific target month or day, creating ambiguity for the six-week beta lead time.\",\n      \"substring\": \"Q2 2026\"\n    }\n  ],\n  \"unsupported_claim_observations\": [],\n  \"undefined_jargon_observations\": []\n}",
-  "r3zf6lo_6487": "{\n  \"summary\": \"Product managers spend significant time manually reconciling inconsistencies in their own documentation due to limitations in current tooling.\",\n  \"claims\": [\n    {\n      \"text\": \"PMs spend nearly a third of every week hunting for inconsistencies in their own specs.\",\n      \"kind\": \"fact_claim\"\n    }\n  ],\n  \"clarity_observations\": [\n    {\n      \"text\": \"The phrase 'nearly a third' lacks a specific baseline or source for the time-tracking methodology.\",\n      \"substring\": \"nearly a third\"\n    }\n  ],\n  \"unsupported_claim_observations\": [\n    {\n      \"text\": \"The assertion that PMs spend nearly a third of their week reconciling documents is presented as a fact without providing the referenced internal research.\",\n      \"substring\": \"PMs spend nearly a third of every week hunting for inconsistencies in their own specs.\"\n    }\n  ],\n  \"undefined_jargon_observations\": []\n}",
-  "r6paxqw_4104": "{\n  \"contradictions\": [\n    {\n      \"claimAId\": 6,\n      \"claimBId\": 7,\n      \"message\": \"Claim #6 sets the public launch for Q3 2026, while Claim #7 commits to a Q2 2026 launch.\"\n    }\n  ],\n  \"tensions\": [\n    {\n      \"claimAId\": 0,\n      \"claimBId\": 2,\n      \"message\": \"Claim #0 sizes the pipeline at four weeks, while Claim #2 requires a six-week acceleration of the beta timeline.\"\n    }\n  ]\n}",
-  "r114ygbu_4643": "{\n  \"missing_topic_observations\": [\n    {\n      \"text\": \"The document lacks a technical architecture or integration strategy for how the tool monitors external documentation platforms.\"\n    }\n  ],\n  \"underexposed_topic_observations\": [\n    {\n      \"text\": \"The operational scope in \u00a74 provides no detail on how the tool handles sensitive or proprietary data within the documents it monitors.\"\n    }\n  ],\n  \"audience_mismatch_observations\": [],\n  \"structure_flow_observations\": [\n    {\n      \"text\": \"\u00a72 commits to a Q2 2026 launch, while \u00a75 commits to a Q3 2026 launch.\"\n    },\n    {\n      \"text\": \"The engineering effort described in \u00a72 is disconnected from the launch timeline in \u00a75.\"\n    }\n  ],\n  \"suggested_stage\": null\n}",
+  rwi9wch_6911:
+    '{"summary":"This document introduces Sidecar Review, a non-editing companion tool that uses BM25 ranking to surface document issues for the author.","claims":[{"text":"Sidecar Review is a companion panel that watches a working document and surfaces observations.","kind":"definition"},{"text":"Observations appear beside the draft, ranked by a lightweight BM25 pass over the text.","kind":"fact_claim"}],"clarity_observations":[],"unsupported_claim_observations":[],"undefined_jargon_observations":[{"text":"The ranking method \\"BM25\\" is named but never defined for the PM audience.","substring":"BM25"}]}',
+  r1jz9g4p_6685:
+    '{"summary":"The project targets a Q2 2026 public launch, preceded by a six-week private beta and a four-week engineering effort for the core pipeline.","claims":[{"text":"We are committing to a public launch in Q2 2026","kind":"commitment"},{"text":"private beta for design partners six weeks earlier","kind":"commitment"},{"text":"Engineering has sized the core pipeline at four weeks","kind":"fact_claim"}],"clarity_observations":[],"unsupported_claim_observations":[],"undefined_jargon_observations":[]}',
+  rcrq1zz_6832:
+    '{"summary":"The section outlines adoption targets, qualitative success tracking, and the Q3 2026 launch timeline.","claims":[{"text":"We will measure adoption by weekly active documents, targeting five hundred within the first quarter.","kind":"metric"},{"text":"Beyond adoption, we will track whether the observations feel trustworthy to authors.","kind":"commitment"},{"text":"The public launch is firmly set for Q3 2026, giving us a full quarter of beta feedback before general availability.","kind":"commitment"}],"clarity_observations":[{"text":"\\"Feel trustworthy\\" sets no measurable bar — the section never says how trust is observed or counted.","substring":"whether the observations feel trustworthy to authors"}],"unsupported_claim_observations":[],"undefined_jargon_observations":[]}',
+  r34am6e_6627:
+    '{"summary":"This section defines the scope boundaries for the project by explicitly excluding text generation and rewriting capabilities.","claims":[{"text":"The assistant will not generate or rewrite document text in any phase.","kind":"constraint"}],"clarity_observations":[],"unsupported_claim_observations":[],"undefined_jargon_observations":[]}',
+  r244asd_6772:
+    '{"summary":"Product managers spend significant time manually reconciling document inconsistencies due to limitations in current tooling.","claims":[{"text":"PMs spend nearly a third of every week hunting for inconsistencies in their own specs.","kind":"fact_claim"}],"clarity_observations":[],"unsupported_claim_observations":[{"text":"No source or data is cited for the claim that PMs lose nearly a third of each week to reconciliation.","substring":"PMs spend nearly a third of every week hunting for inconsistencies in their own specs."}],"undefined_jargon_observations":[]}',
+  rcgs0aq_4881:
+    '{"contradictions":[{"claimAId":7,"claimBId":8,"message":"The launch is set for Q3 2026 here, while the timeline commits to a public launch in Q2 2026."}],"tensions":[{"claimAId":1,"claimBId":4,"message":"Sizing the core pipeline at four weeks pulls against giving design partners a private beta six weeks before launch — the build leaves no lead time to spare."}]}',
+  r1gsf8s3_4810:
+    '{"missing_topic_observations":[{"text":"Nothing addresses how the tool handles the private document data it watches — a privacy and security expectation for a PRD like this."}],"underexposed_topic_observations":[],"audience_mismatch_observations":[],"structure_flow_observations":[],"suggested_stage":null}',
 };

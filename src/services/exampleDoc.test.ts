@@ -16,6 +16,13 @@ describe("exampleDoc", () => {
     expect(EXAMPLE_DOC_HTML).toContain("Q3 2026");
   });
 
+  it("keeps the planted BM25 term (the undefined_jargon exemplar)", () => {
+    // The demo's one undefined_jargon card anchors to this acronym; a copy edit
+    // that drops it would silently remove that capability from the "See it in
+    // action" spread. See docs/projects/onboarding_first_run.md § Revision.
+    expect(EXAMPLE_DOC_HTML).toContain("BM25");
+  });
+
   it("stays above the 150-word contradiction-sweep threshold", () => {
     const words = EXAMPLE_DOC_HTML.replace(/<[^>]+>/g, " ")
       .split(/\s+/)

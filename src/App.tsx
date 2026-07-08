@@ -178,7 +178,11 @@ export default function App() {
   const spanCloseTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [clearTrigger, setClearTrigger] = useState(0);
   const [stageSuggestion, setStageSuggestion] = useState<string | null>(null);
-  const [importContent, setImportContent] = useState<{ content: string; timestamp: number }>();
+  const [importContent, setImportContent] = useState<{
+    content: string;
+    timestamp: number;
+    docScan?: boolean;
+  }>();
 
   // Companion surface: the feed column reflows the canvas (never overlays it).
   // Collapsed → canvas reclaims full editorial measure. Persisted per session.
@@ -493,7 +497,13 @@ export default function App() {
     setStage(EXAMPLE_STAGE);
     setJargonAllowlist("");
     llmLogger.clearLogs();
-    setImportContent({ content: EXAMPLE_DOC_HTML, timestamp: Date.now() });
+    // docScan: run the doc-level review as part of the demo load. The normal
+    // import path never arms the doc-idle timer (setContent suppresses the
+    // update event), so without this the example would never surface a
+    // doc-scope observation (e.g. missing_topic) at the witness moment — it
+    // would only ever show section + contradiction cards. See Editor's import
+    // effect and docs/projects/onboarding_first_run.md § Revision 2026-07-07.
+    setImportContent({ content: EXAMPLE_DOC_HTML, timestamp: Date.now(), docScan: true });
   };
 
   // Finalize a dismissal: write the (G1 kind/severity-aware) suppression + flip
