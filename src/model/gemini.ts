@@ -121,6 +121,29 @@ function parseResponse(body: unknown): ParsedResponse {
   return { text, usage };
 }
 
+// GET /v1beta/models?key=… → { models: [{ name: "models/gemini-…",
+// supportedGenerationMethods: [...] }], nextPageToken }. Keep only models that
+// support generateContent (drops embedding/aqa/imagen/tts variants), and strip
+// the "models/" resource prefix to bare ids.
+function listModelsRequest(key: string): BuiltRequest {
+  return { url: `${GEMINI_API_BASE}?key=${key}&pageSize=1000`, init: { method: "GET" } };
+}
+
+function parseModelsList(body: unknown): string[] {
+  const models = (body as { models?: { name?: unknown; supportedGenerationMethods?: unknown }[] })
+    ?.models;
+  if (!Array.isArray(models)) return [];
+  return models
+    .filter(
+      (m) =>
+        Array.isArray(m?.supportedGenerationMethods) &&
+        (m.supportedGenerationMethods as unknown[]).includes("generateContent")
+    )
+    .map((m) => m?.name)
+    .filter((name): name is string => typeof name === "string" && name.length > 0)
+    .map((name) => name.replace(/^models\//, ""));
+}
+
 function classifyError(status: number, headers: Headers, body: string): ErrorClassification {
   if (status === 429) {
     const parsed = parse429(body);
@@ -159,6 +182,8 @@ export const geminiAdapter: ProviderAdapter = {
   buildRequest,
   parseResponse,
   classifyError,
+  listModelsRequest,
+  parseModelsList,
 };
 
 /** Thin shim preserving the original public surface: build a Gemini `ModelRouter`
