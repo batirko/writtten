@@ -223,8 +223,11 @@ describe("SidecarFeed — quoted-text subtitle (UX-008)", () => {
     ]);
     const anchor = div.querySelector('[data-testid="obs-anchor"]');
     expect(anchor).not.toBeNull();
-    expect(anchor?.textContent).toBe("“non-invasive way”");
-    // The full span stays reachable — the truncated quote carries a title tooltip.
+    // A span check's anchorText is the user's verbatim words — a mid-sentence,
+    // lowercase clause — so it leads and trails with an ellipsis (UX-008).
+    expect(anchor?.textContent).toBe("“…non-invasive way…”");
+    // The full span stays reachable — the truncated quote carries a title tooltip
+    // with the raw excerpt (no formatting ellipses).
     expect(anchor?.getAttribute("title")).toBe("non-invasive way");
     // Doc-scope label must not appear for a span card.
     expect(div.querySelector('[data-testid="obs-anchor-doc"]')).toBeNull();

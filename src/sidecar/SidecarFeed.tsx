@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import type { Observation } from "../store/db";
 import { partitionFeed, DEFAULT_FEED_BUDGET } from "./feedBudget";
+import { formatAnchorExcerpt } from "./anchorExcerpt";
 import type { GroupedObservation } from "./feedBudget";
 import { openSettings } from "./settingsGate";
 
@@ -126,6 +127,7 @@ export function GroupedObsCard({
 }: GroupedObsCardProps) {
   const [expanded, setExpanded] = useState(false);
   const { primary, others } = group;
+  const anchorExcerpt = formatAnchorExcerpt(primary);
 
   const handleDismiss = () => {
     onDismiss(group);
@@ -199,9 +201,9 @@ export function GroupedObsCard({
           <DismissIcon />
         </button>
       </div>
-      {primary.anchorText && (
-        <p className="card-anchor" data-testid="obs-anchor" title={primary.anchorText}>
-          “{primary.anchorText}”
+      {anchorExcerpt && (
+        <p className="card-anchor" data-testid="obs-anchor" title={primary.anchorQuote ?? primary.anchorText}>
+          “{anchorExcerpt}”
         </p>
       )}
       <div className="card-body">
