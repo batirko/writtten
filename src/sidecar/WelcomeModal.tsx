@@ -53,13 +53,16 @@ export function WelcomeModal({
   canLoadExample,
 }: WelcomeModalProps) {
   const cardRef = useRef<HTMLDivElement>(null);
-  const primaryRef = useRef<HTMLButtonElement>(null);
 
-  // Focus the primary action on open (so the modal owns focus immediately) and
-  // trap Tab within the card; Escape closes. Restore focus on unmount.
+  // Move focus into the dialog on open (so keyboard/SR users land inside it and
+  // the trap works), but focus the CARD CONTAINER, not an actionable button —
+  // programmatic `.focus()` on a button renders as a :focus-visible ring, so
+  // auto-focusing "Add your key" made it look pre-selected on load. Focusing the
+  // (tabindex=-1, outline:none) container owns focus without lighting a control;
+  // the buttons only ring once the user actually presses Tab. Escape closes.
   useEffect(() => {
     const previouslyFocused = document.activeElement as HTMLElement | null;
-    primaryRef.current?.focus();
+    cardRef.current?.focus();
 
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
@@ -99,6 +102,7 @@ export function WelcomeModal({
         aria-modal="true"
         aria-labelledby="welcome-modal-title"
         ref={cardRef}
+        tabIndex={-1}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="welcome-modal-head">
@@ -133,7 +137,6 @@ export function WelcomeModal({
 
         <div className="welcome-modal-actions">
           <button
-            ref={primaryRef}
             className="welcome-modal-primary"
             data-testid="welcome-add-key"
             onClick={onAddKey}
