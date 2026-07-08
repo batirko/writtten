@@ -29,15 +29,30 @@ import { MERGED_SYSTEM_PROMPT } from "../services/evaluatorPrompts";
 const LIVE = !!process.env.LIVE_CHECK;
 const only = process.env.LIVE_CHECK_PROVIDER; // optional: "openai" | "gemini" | "anthropic"
 
-/** Key resolution — plain names, with the repo's existing VITE_ gemini var as a fallback. */
-function keyFor(id: ProviderId): string | undefined {
+/**
+ * Key resolution → the router's ({ apiKey, paidKey }) shape.
+ * Env var names (in .env.test.local): OPENAI, ANTHROPIC, GEMINI_FREE, GEMINI_PAID.
+ * Gemini is the only tiered provider: apiKey = free key, paidKey = paid key.
+ * Paid-only providers pass their single key as paidKey (apiKey is "").
+ * VITE_GEMINI_API_KEY (from .env.local) is an extra fallback for the free key.
+ */
+const env = (n: string) => process.env[n] || undefined;
+function keysFor(id: ProviderId): { apiKey: string; paidKey?: string } | undefined {
   switch (id) {
-    case "openai":
-      return process.env.OPENAI_API_KEY || undefined;
-    case "anthropic":
-      return process.env.ANTHROPIC_API_KEY || undefined;
-    case "gemini":
-      return process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY || undefined;
+    case "openai": {
+      const k = env("OPENAI");
+      return k ? { apiKey: "", paidKey: k } : undefined;
+    }
+    case "anthropic": {
+      const k = env("ANTHROPIC");
+      return k ? { apiKey: "", paidKey: k } : undefined;
+    }
+    case "gemini": {
+      // .env.local already carries the app's VITE_GEMINI_*_KEY pair — use it as fallback.
+      const free = env("GEMINI_FREE") || env("VITE_GEMINI_API_KEY");
+      const paid = env("GEMINI_PAID") || env("VITE_GEMINI_PAID_KEY");
+      return free || paid ? { apiKey: free ?? "", paidKey: paid } : undefined;
+    }
   }
 }
 
@@ -63,14 +78,12 @@ const providers: ProviderId[] = ["openai", "gemini", "anthropic"];
 
 describe.skipIf(!LIVE)("livecheck — section-eval on the real model", () => {
   for (const id of providers) {
-    const key = keyFor(id);
-    const active = !!key && (!only || only === id);
+    const keys = keysFor(id);
+    const active = !!keys && (!only || only === id);
 
     it.skipIf(!active)(`${id}: returns JSON and unsupported_claim text is an insight`, async () => {
       setLlmMode("live");
-      // Paid providers take the single user key as paidKey; gemini as the free key.
-      const [apiKey, paidKey] = id === "gemini" ? [key!, undefined] : ["", key!];
-      const router = createRouterForSelection({ providerId: id }, apiKey, paidKey);
+      const router = createRouterForSelection({ providerId: id }, keys!.apiKey, keys!.paidKey);
 
       const t0 = Date.now();
       const res = await router.fast({ system: MERGED_SYSTEM_PROMPT, user: SECTION_USER, json: true });
