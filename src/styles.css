@@ -35,6 +35,9 @@
   --sem-opp-high: oklch(48% 0.1 240); /* #0369a1 */
   --sem-contradiction: oklch(72% 0.17 60); /* #ff9500 */
   --sem-tension: oklch(70% 0.13 235); /* #0ea5e9 */
+  /* Success / confirmed state (e.g. a key is set). Sits in the same green family
+     as the paid-tier affirmation; the first dedicated "good" token. */
+  --sem-good: oklch(46% 0.12 155);
 
   /* System-activity (Control Center dot) — a SEPARATE vocabulary from --sem-*.
      "Working" must not borrow the contradiction hue: amber reads as a document
@@ -589,6 +592,13 @@ body,
 .setting-help {
   font-size: 0.6875rem;
   color: var(--text-muted);
+}
+/* "✓ Key set" — the per-field status now carries the credential state (the
+   standing key-status card was retired). Bold + the success green so it reads
+   at a glance against the muted helper text around it. */
+.status-ok {
+  color: var(--sem-good);
+  font-weight: 600;
 }
 
 /* --- Multi-provider BYOK settings (docs/projects/multi_provider_router.md §D) --- */
