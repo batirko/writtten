@@ -28,6 +28,7 @@ load() { if [ -f "$1" ]; then set -a; # shellcheck disable=SC1090
 
 load "$HOME/.config/writtten/test-keys.env"
 load "./.env.local"
+load "./.env.test.local"   # repo-local (gitignored) — visible in the editor; wins
 
 # Report which providers are armed — names only, never values.
 armed=""
@@ -35,7 +36,7 @@ armed=""
 [ -n "${GEMINI_API_KEY:-${VITE_GEMINI_API_KEY:-}}" ]         && armed="$armed gemini"
 [ -n "${ANTHROPIC_API_KEY:-}" ]                              && armed="$armed anthropic"
 if [ -z "$armed" ]; then
-  echo "No keys found. Add at least one to ~/.config/writtten/test-keys.env" >&2
+  echo "No keys found. Add at least one to .env.test.local (copy .env.test.local.example) or ~/.config/writtten/test-keys.env" >&2
   exit 1
 fi
 echo "· providers armed:${armed}"
