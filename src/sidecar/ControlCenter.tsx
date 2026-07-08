@@ -334,20 +334,10 @@ export function ControlCenter({
   // reset it to off mid-diagnosis, alongside the persisted LLM debug log. The
   // panel is DEV-gated, so this flag only matters in dev; localStorage keeps it
   // sticky across a reload.
-  const [debugMode, setDebugMode] = useState(() => {
-    try {
-      return localStorage.getItem("writtten_debug_mode") === "1";
-    } catch {
-      return false;
-    }
-  });
-  useEffect(() => {
-    try {
-      localStorage.setItem("writtten_debug_mode", debugMode ? "1" : "0");
-    } catch {
-      // storage unavailable — the switch just isn't sticky
-    }
-  }, [debugMode]);
+  // The LLM debug drawer is dev-only and now always available in the control
+  // center (no Settings toggle) — it sits collapsed at rest and expands on click,
+  // so it's reachable without cluttering Settings. Prompt content stays hidden
+  // until expanded (L7): production strips the whole block via import.meta.env.DEV.
   const [debugExpanded, setDebugExpanded] = useState(false);
   const [expandedLogId, setExpandedLogId] = useState<string | null>(null);
   const [copySuccess, setCopySuccess] = useState(false);
@@ -658,7 +648,7 @@ export function ControlCenter({
       {showSettings && (
         <div className="modal-scrim" onClick={() => setShowSettings(false)}>
           <div
-            className="modal-card"
+            className="modal-card settings-modal"
             data-testid="settings-panel"
             onClick={(e) => e.stopPropagation()}
           >
@@ -672,238 +662,243 @@ export function ControlCenter({
                 <DismissIcon />
               </button>
             </div>
-            <div className="setting-group">
-              <label>Provider</label>
-              <div
-                className="provider-seg"
-                data-testid="provider-select"
-                role="group"
-                aria-label="Provider"
-              >
-                {PROVIDER_IDS.map((id) => {
-                  const active = id === providerId;
-                  return (
-                    <button
-                      key={id}
-                      type="button"
-                      className={active ? "is-active" : undefined}
-                      aria-pressed={active}
-                      onClick={() => onProviderChange?.(id)}
-                    >
-                      {/* Checkmark affirms the selection is committed & persisted,
-                          not a transient tab. Decorative — aria-pressed already
-                          carries the state to assistive tech. */}
-                      {active && (
-                        <svg
-                          className="provider-check"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="3"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          aria-hidden="true"
-                        >
-                          <polyline points="20 6 9 17 4 12"></polyline>
-                        </svg>
-                      )}
-                      {PROVIDER_META[id].label}
-                    </button>
-                  );
-                })}
-              </div>
-              <span className="setting-help">{meta.tierNote}</span>
-            </div>
 
-            <div className="setting-group" style={{ marginTop: "var(--space-sm)" }}>
-              <div className="setting-label-row">
-                <label htmlFor="api-key-input">
-                  {providerId === "gemini" ? "Gemini free key" : meta.keyLabel}
-                </label>
-                {apiKey && (
-                  <button
-                    type="button"
-                    className="key-remove"
-                    data-testid="remove-key"
-                    onClick={() => onApiKeyChange("")}
-                  >
-                    Remove
-                  </button>
-                )}
-              </div>
-              <input
-                id="api-key-input"
-                data-testid="api-key-input"
-                type="password"
-                placeholder={meta.placeholder}
-                value={apiKey}
-                onChange={(e) => onApiKeyChange(e.target.value)}
-              />
-              <span className="setting-help">
-                {apiKey ? "✓ Key set. " : "No key set. "}
-                {providerId === "gemini" &&
-                  "Handles the frequent, lightweight checks — the free daily budget carries them. "}
-                Get a key{" "}
-                <a className="setting-link" href={meta.keyUrl} target="_blank" rel="noreferrer">
-                  {meta.keyUrlText} ↗
-                </a>{" "}
-                · starts with <code className="key-shape">{meta.shape}</code>
-              </span>
-            </div>
+            {/* Provider & keys — pick the provider, hold the credential(s), and the
+                one shared privacy line that governs all of them. */}
+            <section className="setting-section">
+              <h3 className="setting-section-title">Provider &amp; keys</h3>
 
-            {providerId === "gemini" && (
+              <div className="setting-group">
+                <label>Provider</label>
+                <div
+                  className="provider-seg"
+                  data-testid="provider-select"
+                  role="group"
+                  aria-label="Provider"
+                >
+                  {PROVIDER_IDS.map((id) => {
+                    const active = id === providerId;
+                    return (
+                      <button
+                        key={id}
+                        type="button"
+                        className={active ? "is-active" : undefined}
+                        aria-pressed={active}
+                        onClick={() => onProviderChange?.(id)}
+                      >
+                        {/* Checkmark affirms the selection is committed & persisted,
+                            not a transient tab. Decorative — aria-pressed already
+                            carries the state to assistive tech. */}
+                        {active && (
+                          <svg
+                            className="provider-check"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="3"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            aria-hidden="true"
+                          >
+                            <polyline points="20 6 9 17 4 12"></polyline>
+                          </svg>
+                        )}
+                        {PROVIDER_META[id].label}
+                      </button>
+                    );
+                  })}
+                </div>
+                <span className="setting-help">{meta.tierNote}</span>
+              </div>
+
               <div className="setting-group" style={{ marginTop: "var(--space-sm)" }}>
                 <div className="setting-label-row">
-                  <label htmlFor="gemini-paid-key-input">
-                    Gemini paid key <span className="model-tier-note">· optional</span>
+                  <label htmlFor="api-key-input">
+                    {providerId === "gemini" ? "Gemini free key" : meta.keyLabel}
                   </label>
-                  {geminiPaidKey && (
+                  {apiKey && (
                     <button
                       type="button"
                       className="key-remove"
-                      data-testid="remove-paid-key"
-                      onClick={() => onGeminiPaidKeyChange?.("")}
+                      data-testid="remove-key"
+                      onClick={() => onApiKeyChange("")}
                     >
                       Remove
                     </button>
                   )}
                 </div>
                 <input
-                  id="gemini-paid-key-input"
-                  data-testid="gemini-paid-key-input"
+                  id="api-key-input"
+                  data-testid="api-key-input"
                   type="password"
-                  placeholder="Paste a billed Gemini key…"
-                  value={geminiPaidKey}
-                  onChange={(e) => onGeminiPaidKeyChange?.(e.target.value)}
+                  placeholder={meta.placeholder}
+                  value={apiKey}
+                  onChange={(e) => onApiKeyChange(e.target.value)}
                 />
                 <span className="setting-help">
-                  {geminiPaidKey ? "✓ Key set. " : "Optional. "}
-                  Unlocks the stronger adjudicator (
-                  <code className="key-shape">gemini-2.5-pro</code>) and keeps you working after the
-                  free daily budget runs out.{" "}
-                  <a
-                    className="setting-link"
-                    href="https://aistudio.google.com/app/apikey"
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    Enable billing ↗
-                  </a>
+                  {apiKey ? "✓ Key set. " : "No key set. "}
+                  {providerId === "gemini" &&
+                    "Handles the frequent, lightweight checks — the free daily budget carries them. "}
+                  Get a key{" "}
+                  <a className="setting-link" href={meta.keyUrl} target="_blank" rel="noreferrer">
+                    {meta.keyUrlText} ↗
+                  </a>{" "}
+                  · starts with <code className="key-shape">{meta.shape}</code>
                 </span>
               </div>
-            )}
 
-            <div className="setting-group" style={{ marginTop: "var(--space-sm)" }}>
-              <div className="ping-row">
-                <button
-                  type="button"
-                  className="ping-btn"
-                  data-testid="ping-model"
-                  disabled={pinging || !canPing}
-                  onClick={runPing}
-                >
-                  {pinging ? "Pinging…" : "Ping model"}
-                </button>
-                {ping && (
-                  <span
-                    className={`ping-verdict ping-${ping.status}`}
-                    data-testid="ping-verdict"
-                    role="status"
-                  >
-                    {ping.label}
+              {providerId === "gemini" && (
+                <div className="setting-group" style={{ marginTop: "var(--space-sm)" }}>
+                  <div className="setting-label-row">
+                    <label htmlFor="gemini-paid-key-input">
+                      Gemini paid key <span className="model-tier-note">· optional</span>
+                    </label>
+                    {geminiPaidKey && (
+                      <button
+                        type="button"
+                        className="key-remove"
+                        data-testid="remove-paid-key"
+                        onClick={() => onGeminiPaidKeyChange?.("")}
+                      >
+                        Remove
+                      </button>
+                    )}
+                  </div>
+                  <input
+                    id="gemini-paid-key-input"
+                    data-testid="gemini-paid-key-input"
+                    type="password"
+                    placeholder="Paste a billed Gemini key…"
+                    value={geminiPaidKey}
+                    onChange={(e) => onGeminiPaidKeyChange?.(e.target.value)}
+                  />
+                  <span className="setting-help">
+                    {geminiPaidKey ? "✓ Key set. " : "Optional. "}
+                    Unlocks the stronger adjudicator (
+                    <code className="key-shape">gemini-2.5-pro</code>) and keeps you working after
+                    the free daily budget runs out.{" "}
+                    <a
+                      className="setting-link"
+                      href="https://aistudio.google.com/app/apikey"
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      Enable billing ↗
+                    </a>
                   </span>
-                )}
-              </div>
-              <span className="setting-help">
-                Decodes failures too: invalid key · needs billing · network / CORS
-              </span>
-
-              {geminiStatus && (
-                <div
-                  className={`gemini-tier gemini-tier-${geminiStatus.cls}`}
-                  data-testid="gemini-tier"
-                >
-                  {geminiStatus.node}
                 </div>
               )}
-            </div>
 
-            <div className={`running-card${hasActiveKey ? "" : " is-preview"}`}>
-              <div className="running-head">
-                <span>{hasActiveKey ? "What's running" : "What will run"}</span>
-                {hasActiveKey && <span className="running-why">and why</span>}
+              {/* The privacy fact is equally true for every provider: the key rides
+                  straight from this browser to the provider and lives only in this
+                  device's localStorage — never a server of ours. One shared line,
+                  not a per-provider field. */}
+              <div className="trust-note" data-testid="trust-note">
+                Your {meta.label} key goes straight from this browser to {meta.label}, and is stored
+                only on this device — never on a server of ours.
               </div>
-              {runningRows.map((row) => (
-                <div className="running-row" key={row.model}>
-                  <code className="running-model">
-                    {row.model}
-                    {row.rotation && <span className="running-rotation"> · {row.rotation}</span>}
-                  </code>
-                  <span>{row.job}</span>
+            </section>
+
+            {/* Models — what actually runs for this provider/tier, and (paid only)
+                which models to route the fast + strong tiers through. */}
+            <section className="setting-section">
+              <h3 className="setting-section-title">Models</h3>
+
+              <div className={`running-card${hasActiveKey ? "" : " is-preview"}`}>
+                <div className="running-head">
+                  <span>{hasActiveKey ? "What's running" : "What will run"}</span>
+                  {hasActiveKey && <span className="running-why">and why</span>}
                 </div>
-              ))}
-            </div>
-
-            {meta.paid && (
-              <div className="setting-group" style={{ marginTop: "var(--space-md)" }}>
-                <label htmlFor="model-select-fast">
-                  Fast model <span className="model-tier-note">· frequent</span>
-                </label>
-                <select
-                  id="model-select-fast"
-                  className="model-select"
-                  data-testid="model-select-fast"
-                  value={selectedModels.fast}
-                  onChange={(e) => setModel("fast", e.target.value)}
-                >
-                  {withSelected(catalog.fast, selectedModels.fast).map((m) => (
-                    <option key={m} value={m}>
-                      {m}
-                    </option>
-                  ))}
-                </select>
-                <label htmlFor="model-select-strong" style={{ marginTop: "var(--space-sm)" }}>
-                  Strong model <span className="model-tier-note">· rare adjudicator</span>
-                </label>
-                <select
-                  id="model-select-strong"
-                  className="model-select"
-                  data-testid="model-select-strong"
-                  value={selectedModels.strong}
-                  onChange={(e) => setModel("strong", e.target.value)}
-                >
-                  {withSelected(catalog.strong, selectedModels.strong).map((m) => (
-                    <option key={m} value={m}>
-                      {m}
-                    </option>
-                  ))}
-                </select>
+                {runningRows.map((row) => (
+                  <div className="running-row" key={row.model}>
+                    <code className="running-model">
+                      {row.model}
+                      {row.rotation && <span className="running-rotation"> · {row.rotation}</span>}
+                    </code>
+                    <span>{row.job}</span>
+                  </div>
+                ))}
               </div>
-            )}
 
-            {meta.paid && meta.cost && <div className="pay-note">{meta.cost}</div>}
-            {/* The privacy fact is equally true for every provider: the key rides
-                straight from this browser to the provider and lives only in this
-                device's localStorage — never a server of ours. One shared line,
-                not a per-provider field. */}
-            <div className="trust-note" data-testid="trust-note">
-              Your {meta.label} key goes straight from this browser to {meta.label}, and is stored
-              only on this device — never on a server of ours.
-            </div>
-            {import.meta.env.DEV && (
-              <div className="setting-group" style={{ marginTop: "var(--space-sm)" }}>
-                <label
-                  style={{ display: "flex", alignItems: "center", gap: "8px", cursor: "pointer" }}
-                >
-                  <input
-                    type="checkbox"
-                    checked={debugMode}
-                    onChange={(e) => setDebugMode(e.target.checked)}
-                  />
-                  Enable LLM debug mode
-                </label>
+              {meta.paid && (
+                <div className="setting-group" style={{ marginTop: "var(--space-md)" }}>
+                  <label htmlFor="model-select-fast">
+                    Fast model <span className="model-tier-note">· frequent</span>
+                  </label>
+                  <select
+                    id="model-select-fast"
+                    className="model-select"
+                    data-testid="model-select-fast"
+                    value={selectedModels.fast}
+                    onChange={(e) => setModel("fast", e.target.value)}
+                  >
+                    {withSelected(catalog.fast, selectedModels.fast).map((m) => (
+                      <option key={m} value={m}>
+                        {m}
+                      </option>
+                    ))}
+                  </select>
+                  <label htmlFor="model-select-strong" style={{ marginTop: "var(--space-sm)" }}>
+                    Strong model <span className="model-tier-note">· rare adjudicator</span>
+                  </label>
+                  <select
+                    id="model-select-strong"
+                    className="model-select"
+                    data-testid="model-select-strong"
+                    value={selectedModels.strong}
+                    onChange={(e) => setModel("strong", e.target.value)}
+                  >
+                    {withSelected(catalog.strong, selectedModels.strong).map((m) => (
+                      <option key={m} value={m}>
+                        {m}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {meta.paid && meta.cost && <div className="pay-note">{meta.cost}</div>}
+            </section>
+
+            {/* Diagnostics — check a key reaches its provider and decode failures. */}
+            <section className="setting-section">
+              <h3 className="setting-section-title">Diagnostics</h3>
+
+              <div className="setting-group">
+                <div className="ping-row">
+                  <button
+                    type="button"
+                    className="ping-btn"
+                    data-testid="ping-model"
+                    disabled={pinging || !canPing}
+                    onClick={runPing}
+                  >
+                    {pinging ? "Pinging…" : "Ping model"}
+                  </button>
+                  {ping && (
+                    <span
+                      className={`ping-verdict ping-${ping.status}`}
+                      data-testid="ping-verdict"
+                      role="status"
+                    >
+                      {ping.label}
+                    </span>
+                  )}
+                </div>
+                <span className="setting-help">
+                  Decodes failures too: invalid key · needs billing · network / CORS
+                </span>
+
+                {geminiStatus && (
+                  <div
+                    className={`gemini-tier gemini-tier-${geminiStatus.cls}`}
+                    data-testid="gemini-tier"
+                  >
+                    {geminiStatus.node}
+                  </div>
+                )}
               </div>
-            )}
+            </section>
 
             <div className="settings-build" data-testid="build-version">
               writtten v{__APP_VERSION__}
@@ -955,7 +950,7 @@ export function ControlCenter({
             </div>
           )}
 
-          {import.meta.env.DEV && debugMode && (
+          {import.meta.env.DEV && (
             <div className="control-debug">
               <button
                 className="control-debug-toggle"

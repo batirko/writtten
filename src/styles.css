@@ -811,6 +811,39 @@ body,
   padding: 9px 10px;
 }
 
+/* Settings modal — widened a touch past the shared 340px .modal-card so the
+   BYOK + models + diagnostics content breathes (docs/plan.md § "Settings modal
+   is too narrow — widen + regroup"). The shared primitive and the clear-confirm
+   modal stay 340px. Compound selector so the width wins regardless of source
+   order — `.modal-card` is declared later in this file, so a bare `.settings-modal`
+   would lose the equal-specificity tie. */
+.modal-card.settings-modal {
+  width: 440px;
+}
+
+/* A quiet labeled section inside Settings — grouping, not a tabbed dashboard.
+   A small uppercase micro-label (the .welcome-eyebrow recipe) over its controls,
+   with a hairline divider between groups (the .settings-build divider). */
+.setting-section + .setting-section {
+  margin-top: var(--space-lg);
+  padding-top: var(--space-lg);
+  border-top: 0.5px solid var(--color-border);
+}
+.setting-section-title {
+  margin: 0 0 var(--space-sm);
+  font-size: var(--text-label);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-muted);
+}
+/* Uniform title→first-control gap: neutralize the first control's own top margin
+   (the running-card and setting-groups each carry one) so every section opens
+   with the same rhythm under its label. */
+.setting-section > .setting-section-title + * {
+  margin-top: 0;
+}
+
 /* Build stamp at the foot of Settings — deliberately quiet; it exists so a bug
    report can be pinned to an exact version + commit, not to draw the eye. */
 .settings-build {

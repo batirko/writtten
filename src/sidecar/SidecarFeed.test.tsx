@@ -4,7 +4,8 @@
  * L7 regression tests — prod prompt-leak.
  *
  * The debug panel shows full LLM prompts (user's document text). It must:
- *   1. Default to hidden (debugMode starts false).
+ *   1. Default to hidden (the drawer is collapsed by default — debugExpanded
+ *      starts false — so the prompt content isn't rendered at rest).
  *   2. Only be accessible in DEV builds (import.meta.env.DEV gate).
  *
  * These tests guard the default-off invariant. The DEV-gate itself is a
@@ -61,10 +62,12 @@ describe("SidecarFeed debug panel (L7 — prod prompt-leak)", () => {
     containers.length = 0;
   });
 
-  it("debug panel is hidden on initial render (debugMode defaults to false)", () => {
+  it("debug panel is hidden on initial render (drawer is collapsed by default)", () => {
     const div = render();
-    // The debug panel renders with className="debug-panel" only when debugMode=true.
-    // Regression: if this fails, someone set useState(true) again.
+    // The debug drawer is now always mounted in DEV (no Settings toggle), but its
+    // prompt content (className="debug-panel") only renders once `debugExpanded`
+    // is true — which defaults to false, so nothing leaks at rest.
+    // Regression: if this fails, someone set debugExpanded's useState(true).
     expect(div.querySelector(".debug-panel")).toBeNull();
   });
 });
