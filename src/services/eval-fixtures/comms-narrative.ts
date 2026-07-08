@@ -24,7 +24,7 @@ const fixture: EvalFixture = {
     },
   ],
   recordings: {
-    "rt43nx2_6928": "{\n  \"summary\": \"The company is introducing Instant Refunds to improve customer experience and mitigate the negative impact of refund delays on repeat purchases.\",\n  \"claims\": [\n    {\n      \"text\": \"Refund delays cost the average retailer 12% of repeat purchases.\",\n      \"kind\": \"fact_claim\"\n    }\n  ],\n  \"clarity_observations\": [],\n  \"unsupported_claim_observations\": [\n    {\n      \"text\": \"The assertion that refund delays cause a specific 12% loss in repeat purchases for the average retailer lacks a cited source or study.\",\n      \"substring\": \"Refund delays cost the average retailer 12% of repeat purchases.\"\n    }\n  ],\n  \"undefined_jargon_observations\": []\n}"
+    "rzy9k05_7213": "{\n  \"summary\": \"The company is introducing Instant Refunds to improve customer experience and mitigate the negative impact of refund delays on repeat purchases.\",\n  \"claims\": [\n    {\n      \"text\": \"Refund delays cost the average retailer 12% of repeat purchases.\",\n      \"kind\": \"fact_claim\"\n    }\n  ],\n  \"clarity_observations\": [],\n  \"unsupported_claim_observations\": [\n    {\n      \"text\": \"The assertion that refund delays cause a specific 12% loss in repeat purchases for the average retailer lacks a cited source or study.\",\n      \"substring\": \"Refund delays cost the average retailer 12% of repeat purchases.\"\n    }\n  ],\n  \"undefined_jargon_observations\": []\n}"
   },
   expected: [
     {

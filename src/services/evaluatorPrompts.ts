@@ -49,7 +49,7 @@ Return a JSON object with exactly five keys:
 - "summary" (string)
 - "claims" (array of {text, kind} — kind is one of: commitment, fact_claim, definition, constraint, metric)
 - "clarity_observations" (array of {text, substring} — substring is the exact literal text from the input that is unclear, case-sensitive; text must explain what is vague or missing, NOT restate the source sentence verbatim)
-- "unsupported_claim_observations" (array of {text, substring} — substring is the exact claim text lacking support)
+- "unsupported_claim_observations" (array of {text, substring} — substring is the exact claim text lacking support; text must name what evidence is absent or would be needed (data, precedent, a cited source), NOT restate or paraphrase the claim itself. E.g. for "Our decline rate is climbing" → text: "No data or trend cited for the decline-rate claim." — never text: "Our decline rate is climbing.")
 - "undefined_jargon_observations" (array of {text, substring} — substring is the exact jargon term or acronym)
 
 Return empty arrays for categories with no issues.

@@ -27,7 +27,7 @@ const fixture: EvalFixture = {
     },
   ],
   recordings: {
-    "rdl1idt_6843": "{\n  \"summary\": \"The author reflects on the potential cognitive impact of AI-assisted writing and the memory benefits of handwriting.\",\n  \"claims\": [\n    {\n      \"text\": \"handwriting improves long-term memory retention by 40% compared to typing\",\n      \"kind\": \"fact_claim\"\n    }\n  ],\n  \"clarity_observations\": [],\n  \"unsupported_claim_observations\": [\n    {\n      \"text\": \"The 40% figure for memory retention improvement lacks a cited study or source.\",\n      \"substring\": \"handwriting improves long-term memory retention by 40% compared to typing\"\n    }\n  ],\n  \"undefined_jargon_observations\": []\n}"
+    "rrehb9e_7128": "{\n  \"summary\": \"The author reflects on the potential cognitive impact of AI-assisted writing and the memory benefits of handwriting.\",\n  \"claims\": [\n    {\n      \"text\": \"handwriting improves long-term memory retention by 40% compared to typing\",\n      \"kind\": \"fact_claim\"\n    }\n  ],\n  \"clarity_observations\": [],\n  \"unsupported_claim_observations\": [\n    {\n      \"text\": \"The 40% figure for memory retention improvement lacks a cited study or source.\",\n      \"substring\": \"handwriting improves long-term memory retention by 40% compared to typing\"\n    }\n  ],\n  \"undefined_jargon_observations\": []\n}"
   },
   expected: [
     {
