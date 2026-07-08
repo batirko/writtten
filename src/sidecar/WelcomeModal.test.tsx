@@ -56,9 +56,13 @@ describe("WelcomeModal", () => {
     ).toBeTruthy();
   });
 
-  it("focuses the primary 'Add your key' action on open", () => {
+  it("moves focus to the dialog container on open (not an actionable button)", () => {
+    // Focusing the container owns focus for the trap/SR without rendering a
+    // :focus-visible ring on a button (which read as "pre-selected" on load).
     const div = renderWith();
-    expect(document.activeElement).toBe(div.querySelector('[data-testid="welcome-add-key"]'));
+    const card = div.querySelector('[data-testid="welcome-modal"]');
+    expect(document.activeElement).toBe(card);
+    expect(document.activeElement).not.toBe(div.querySelector('[data-testid="welcome-add-key"]'));
   });
 
   it("'Add your key' is the accent primary and fires onAddKey", () => {
@@ -76,9 +80,9 @@ describe("WelcomeModal", () => {
     let loaded = 0;
     const div = renderWith({ onLoadExample: () => (loaded += 1) });
     act(() => {
-      div.querySelector('[data-testid="see-example"]')?.dispatchEvent(
-        new MouseEvent("click", { bubbles: true })
-      );
+      div
+        .querySelector('[data-testid="see-example"]')
+        ?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     });
     expect(loaded).toBe(1);
 
@@ -92,14 +96,14 @@ describe("WelcomeModal", () => {
     let closed = 0;
     const div = renderWith({ onClose: () => (closed += 1) });
     act(() => {
-      div.querySelector('[data-testid="welcome-dismiss"]')?.dispatchEvent(
-        new MouseEvent("click", { bubbles: true })
-      );
+      div
+        .querySelector('[data-testid="welcome-dismiss"]')
+        ?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     });
     act(() => {
-      div.querySelector('[data-testid="welcome-later"]')?.dispatchEvent(
-        new MouseEvent("click", { bubbles: true })
-      );
+      div
+        .querySelector('[data-testid="welcome-later"]')
+        ?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     });
     act(() => {
       document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));

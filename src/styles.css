@@ -864,6 +864,13 @@ body,
 .welcome-modal {
   width: 400px;
 }
+/* The dialog owns focus on open (for the trap + SR), but it's a container, not a
+   control — never ring it. The action buttons keep their normal :focus-visible,
+   so a ring only appears once the user tabs. */
+.welcome-modal:focus,
+.welcome-modal:focus-visible {
+  outline: none;
+}
 
 .welcome-modal-head {
   display: flex;
