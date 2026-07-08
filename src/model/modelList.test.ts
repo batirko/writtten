@@ -17,6 +17,9 @@ describe("adapter.parseModelsList", () => {
         { id: "tts-1", object: "model" },
         { id: "omni-moderation-latest", object: "model" },
         { id: "davinci-002", object: "model" },
+        { id: "sora-2", object: "model" }, // video, not chat
+        { id: "sora-2-pro", object: "model" },
+        { id: "gpt-3.5-turbo-instruct", object: "model" }, // completions, not chat
       ],
     };
     expect(openaiAdapter.parseModelsList!(body).sort()).toEqual(["gpt-5.4-mini", "gpt-5.5"]);

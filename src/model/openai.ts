@@ -97,11 +97,14 @@ function listModelsRequest(key: string): BuiltRequest {
   };
 }
 
-// The list includes non-chat models (embeddings, audio/tts/whisper, image/dall-e,
-// moderation, realtime, legacy completions). Drop them by id substring so the
-// picker offers only text-chat models.
+// The list includes non-chat models — drop them by id substring so the picker
+// offers only text-chat models. Covers embeddings, audio/tts/whisper, image/dall-e,
+// moderation, realtime, video (sora), and legacy completions (…-instruct, and the
+// pre-chat davinci/babbage/ada/curie families). Confirmed against a live
+// /v1/models response (2026-07-08): sora-2 and gpt-3.5-turbo-instruct were the
+// two non-chat ids that slipped through the first pass.
 const OPENAI_NON_CHAT =
-  /embedding|whisper|tts|audio|dall-e|image|moderation|realtime|transcribe|davinci|babbage|ada|curie/i;
+  /embedding|whisper|tts|audio|dall-e|image|moderation|realtime|transcribe|sora|instruct|davinci|babbage|ada|curie/i;
 
 function parseModelsList(body: unknown): string[] {
   const data = (body as { data?: { id?: unknown }[] })?.data;
