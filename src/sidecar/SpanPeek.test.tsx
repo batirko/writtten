@@ -51,7 +51,7 @@ function render(props: Record<string, unknown>): HTMLDivElement {
   act(() => {
     createRoot(div).render(
       createElement(SpanPeek, {
-        group,
+        groups: [group],
         onDismiss: () => {},
         onKeepOpen: () => {},
         onClose: () => {},
@@ -97,5 +97,36 @@ describe("SpanPeek — pin-on-click (C8)", () => {
     const peek2 = div2.querySelectorAll('[data-testid="span-peek"]');
     // The just-rendered (last) peek is unpinned.
     expect(peek2[peek2.length - 1].classList.contains("span-peek-pinned")).toBe(false);
+  });
+});
+
+describe("SpanPeek — co-located stacking (C9)", () => {
+  it("renders nothing when the covering set is empty", () => {
+    const div = render({ groups: [] });
+    expect(div.querySelector('[data-testid="span-peek"]')).toBeNull();
+  });
+
+  it("stacks every covering card in one float (no loose feed cards)", () => {
+    const second: GroupedObservation = {
+      ...group,
+      id: "o2",
+      primary: { ...obs, id: "o2", type: "unsupported_claim", text: "Unsupported." },
+      blockId: "b1",
+      startOffset: 0,
+      endOffset: 20,
+    };
+    const div = render({ groups: [group, second] });
+    const peek = div.querySelector('[data-testid="span-peek"]') as HTMLElement;
+    expect(peek.getAttribute("data-count")).toBe("2");
+    expect(peek.classList.contains("span-peek-stack")).toBe(true);
+    // Both cards render inside the single float.
+    expect(div.querySelectorAll('[data-testid="obs-card"]').length).toBe(2);
+  });
+
+  it("does not add the stack class for a single covering card", () => {
+    const div = render({ groups: [group] });
+    const peek = div.querySelector('[data-testid="span-peek"]') as HTMLElement;
+    expect(peek.getAttribute("data-count")).toBe("1");
+    expect(peek.classList.contains("span-peek-stack")).toBe(false);
   });
 });

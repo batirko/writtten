@@ -1102,6 +1102,17 @@ body,
   animation: peekIn var(--dur-base) var(--ease-out);
 }
 
+/* C9 — co-located spans: the covering set stacks in one float. Space the cards
+   and cap the height so a claim in many contradictions scrolls inside the float
+   rather than running off-screen. */
+.span-peek-stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  max-height: calc(100vh - 2 * var(--space-lg));
+  overflow-y: auto;
+}
+
 /* C8 — pinned peek: a persistent click-to-pin float. Positioned so its × close
    control can sit just outside the card's top-right without overlapping the
    card's own dismiss affordance. */
