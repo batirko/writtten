@@ -207,7 +207,14 @@ export async function evaluateSection(
   const snapshot = getSectionSnapshot(docId, snapKey);
   if (snapshot) {
     if (!isLive()) return;
-    await restoreSectionFromSnapshot(docId, sectionId, memberBlockIds, cleanText, textHash, snapshot);
+    await restoreSectionFromSnapshot(
+      docId,
+      sectionId,
+      memberBlockIds,
+      cleanText,
+      textHash,
+      snapshot
+    );
     return;
   }
 
@@ -686,12 +693,23 @@ export async function evaluateDocument(
   }
 
   const summaries = await loadBlockSummariesForDocument(docId);
-  const meaningful = summaries.filter((s) => s.summary.trim().length > 0);
+  // Stable, content-based order for both the dirty-check hash and the prompt
+  // below, so the same document produces the same doc-level request every run —
+  // independent of the (session-random) block ids and the order section evals
+  // happened to finish in. Mirrors the contradiction sweep, which sorts its
+  // claims for exactly this reason; without it the doc-level prompt (hence its
+  // request hash) is nondeterministic, so the pass can't be mocked/replayed and
+  // the dirty-check is fragile across sessions.
+  const meaningful = summaries
+    .filter((s) => s.summary.trim().length > 0)
+    .sort((a, b) => a.summary.localeCompare(b.summary));
   // Need at least a couple of meaningful summaries to run doc-level checks
   if (meaningful.length < 2) return;
 
   const router = createRouter(apiKey ?? "", paidKey);
-  const claims = await loadActiveClaimsForDocument(docId);
+  const claims = (await loadActiveClaimsForDocument(docId)).sort(
+    (a, b) => a.text.localeCompare(b.text) || a.sourceBlockId.localeCompare(b.sourceBlockId)
+  );
 
   // Dirty-check: doc-level review is expensive (a strong-tier call) and its
   // inputs are the block summaries + the claim ledger + the stage. If none of

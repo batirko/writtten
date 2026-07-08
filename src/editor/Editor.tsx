@@ -90,7 +90,7 @@ interface Props {
   /** Called whenever the ordered list of blockIds changes (document-order, top→bottom). */
   onBlockOrderChange?: (ids: string[]) => void;
   clearTrigger?: number;
-  importContent?: { content: string; timestamp: number };
+  importContent?: { content: string; timestamp: number; docScan?: boolean };
   onReady?: (editor: import("@tiptap/react").Editor) => void;
 }
 
@@ -708,7 +708,12 @@ export function Editor({
 
   /** Absolute PM start position of a span (block + char offset), re-anchored. */
   const spanStartPos = useCallback(
-    (blockId: string, startOffset: number, endOffset: number, anchorText?: string): number | null => {
+    (
+      blockId: string,
+      startOffset: number,
+      endOffset: number,
+      anchorText?: string
+    ): number | null => {
       if (!editor) return null;
       const doc = editor.state.doc;
       let blockPos: number | null = null;
@@ -1279,6 +1284,15 @@ export function Editor({
           onEvaluationCompleteRef.current()
         );
       }
+      // Opt-in doc-level scan for imports that ask for it (the "See it in
+      // action" example). The normal import path suppresses the update event
+      // above, so the 12s doc-idle timer never arms — without this the demo
+      // would never run the doc-level review and could only surface section +
+      // contradiction cards. handleDocIdle self-defers until every section
+      // eval drains (summaries written), so scheduling it now is safe.
+      if (importContent.docScan) {
+        scheduleEval({ kind: "doc-idle" }, null, ctx, () => onEvaluationCompleteRef.current());
+      }
     }, 0);
   }, [editor, importContent]);
 
@@ -1320,7 +1334,9 @@ export function Editor({
           top={peek.top}
           left={peek.left}
           readOnly={peek.mode === "hover"}
-          onJump={() => anchorPeek(peekSpans.current?.anchor === "primary" ? "conflicting" : "primary")}
+          onJump={() =>
+            anchorPeek(peekSpans.current?.anchor === "primary" ? "conflicting" : "primary")
+          }
           onDismiss={dismissPeek}
         />
       )}

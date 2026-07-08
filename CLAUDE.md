@@ -259,7 +259,9 @@ npm run lint         # eslint src/
 npm run format       # prettier --write src/
 ```
 
-**Model router key:** copy `.env.local.example` → `.env.local` and set `VITE_GEMINI_API_KEY`. Use the "Ping model" button in the sidecar to verify the path end-to-end.
+**Model router key (app / dev server):** copy `.env.local.example` → `.env.local` and set `VITE_GEMINI_API_KEY`. Use the "Ping model" button in the sidecar to verify the path end-to-end. This is the only key the running app / Vite dev server reads.
+
+**Real-provider keys for tests & recording (`.env.test.local`):** a separate, gitignored file (`.env.test.local`, copy from `.env.test.local.example`) holds real provider keys — `OPENAI` · `ANTHROPIC` · `GEMINI_FREE` (weak/free tier) · `GEMINI_PAID` (billed). These are **not** read by the app — `scripts/live-check.sh` (`npm run live-check`) sources them into the shell **without printing values**, then runs the gated live harness. Reach for these whenever a task needs a real model call at a controlled tier — a live sanity check, or **re-recording a fixture at weak capability** (`GEMINI_FREE` is the same tier a keyless first-run user gets). To drive the app itself at the free tier (e.g. capturing the "See it in action" recording), launch the dev server with the free key: source `.env.test.local`, then `VITE_GEMINI_API_KEY=$GEMINI_FREE npm run dev -- --port <NNNN> --strictPort` (never echo the value). Leave `GEMINI_PAID` unset in that shell so the app stays weak-tier.
 
 ## Status
 
