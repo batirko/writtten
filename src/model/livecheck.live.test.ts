@@ -24,7 +24,7 @@ import { describe, it, expect } from "vitest";
 import type { ProviderId } from "./provider";
 import { createRouterForSelection } from "./factory";
 import { setLlmMode } from "./mock";
-import { MERGED_SYSTEM_PROMPT } from "../services/evaluatorPrompts";
+import { MERGED_SYSTEM_PROMPT, parseJSONResponse } from "../services/evaluatorPrompts";
 
 const LIVE = !!process.env.LIVE_CHECK;
 const only = process.env.LIVE_CHECK_PROVIDER; // optional: "openai" | "gemini" | "anthropic"
@@ -89,11 +89,14 @@ describe.skipIf(!LIVE)("livecheck — section-eval on the real model", () => {
       const res = await router.fast({ system: MERGED_SYSTEM_PROMPT, user: SECTION_USER, json: true });
       const ms = Date.now() - t0;
 
+      // Use the evaluator's own parser — it tolerates ```json fences and
+      // brace-slices — so the harness mirrors production parsing (Anthropic
+      // wraps its JSON in a markdown fence; the real pipeline handles that).
       let parsed: Parsed;
       try {
-        parsed = JSON.parse(res.text);
+        parsed = parseJSONResponse(res.text) as Parsed;
       } catch {
-        throw new Error(`[${id}] non-JSON response (len ${res.text.length}): ${res.text.slice(0, 200)}`);
+        throw new Error(`[${id}] unparseable response (len ${res.text.length}): ${res.text.slice(0, 200)}`);
       }
 
       const unsupported = parsed.unsupported_claim_observations ?? [];
