@@ -33,7 +33,10 @@ function buildRequest(model: string, req: LLMRequest, key: string): BuiltRequest
       { role: "system", content: req.system },
       { role: "user", content: req.user },
     ],
-    temperature: 0.2,
+    // Deliberately NO `temperature`: the GPT-5.x family rejects any non-default
+    // sampling value with a 400 ("Only the default (1) value is supported") — this
+    // was silently killing every strong-tier (contradiction/doc-quality) call on
+    // gpt-5.5. Determinism is driven by the prompt + JSON mode, as with Anthropic.
   };
   // Ask for a JSON object when the eval expects structured output — mirrors the
   // Gemini `responseMimeType: application/json` path.
