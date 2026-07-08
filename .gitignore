@@ -1,6 +1,9 @@
 node_modules
 dist
-.env.local
+# All local env files (.env.local, .env.test.local, …) — never commit keys.
+.env*.local
+# Live-model test keys, if dropped in the repo root instead of ~/.config/writtten/.
+test-keys.env
 *.tsbuildinfo
 
 # Scratch / captured test output (keep out of the public repo)
