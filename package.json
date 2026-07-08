@@ -16,6 +16,7 @@
     "eval:record": "vitest run --reporter=verbose --config vitest.record.config.ts",
     "eval:live": "EVAL_LIVE=1 vitest run src/services/evalRatchet.live.test.ts",
     "eval:v1": "EVAL_V1=1 vitest run src/services/evalV1Corpus.live.test.ts",
+    "live-check": "bash scripts/live-check.sh",
     "lint": "eslint src",
     "format": "prettier --write src"
   },
