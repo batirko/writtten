@@ -26,6 +26,8 @@ describe("openai adapter", () => {
       { role: "system", content: "SYS" },
       { role: "user", content: "USER" },
     ]);
+    // GPT-5.x rejects a non-default temperature with a 400 — must be omitted.
+    expect(body).not.toHaveProperty("temperature");
   });
 
   it("parses choices[0].message.content and usage", () => {
