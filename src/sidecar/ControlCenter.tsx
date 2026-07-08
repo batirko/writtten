@@ -9,6 +9,8 @@ import {
   pingModelFor,
   PROVIDER_IDS,
 } from "../model/registry";
+import { fetchModelCatalog, cachedCatalog } from "../model/modelList";
+import type { ModelCatalog } from "../model/provider";
 import {
   pingProvider,
   detectGeminiTier,
@@ -466,7 +468,29 @@ export function ControlCenter({
   }, [providerId, geminiPaidKey]);
 
   const meta = PROVIDER_META[providerId];
-  const catalog = catalogFor(providerId);
+  // Live per-provider model list for the picker: fetch the real models a key
+  // grants (replacing the hardcoded catalog), falling back to the preset when
+  // keyless or unreachable. Never blocks the modal — presets show immediately,
+  // the live list swaps in when it resolves. Only paid providers show a picker.
+  const [liveCatalog, setLiveCatalog] = useState<ModelCatalog | null>(null);
+  useEffect(() => {
+    if (!showSettings || !meta.paid || !apiKey) {
+      setLiveCatalog(null);
+      return;
+    }
+    // Seed synchronously from the session cache to avoid a preset→live flash.
+    setLiveCatalog(cachedCatalog(providerId, apiKey));
+    let cancelled = false;
+    fetchModelCatalog(providerId, apiKey).then((c) => {
+      if (!cancelled) setLiveCatalog(c);
+    });
+    return () => {
+      cancelled = true;
+    };
+    // meta.paid is derived from providerId, so it's covered by the providerId dep.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [providerId, apiKey, showSettings]);
+  const catalog = liveCatalog ?? catalogFor(providerId);
   // Is a paid Gemini tier in play? A key in the paid field settles it outright;
   // otherwise fall back to the free field's live detection (a paid key pasted
   // there still counts) and finally the persisted keyTier.
@@ -485,6 +509,11 @@ export function ControlCenter({
     providerId === "gemini"
       ? geminiRunningModels(geminiPaid)
       : (models[providerId] ?? defaultModels(providerId));
+  // The persisted choice must stay selectable even if it isn't in the (live or
+  // preset) catalog — otherwise the <select> would render blank. Surface it as an
+  // extra option at the top.
+  const withSelected = (options: string[], selected: string) =>
+    options.includes(selected) ? options : [selected, ...options];
   // Does the active provider have a key that can actually run a check? Keyless,
   // nothing runs (the evaluator skips), so the legibility card must not assert a
   // live model — it becomes a muted "what *will* run" preview instead. Gemini can
@@ -827,7 +856,7 @@ export function ControlCenter({
                   value={selectedModels.fast}
                   onChange={(e) => setModel("fast", e.target.value)}
                 >
-                  {catalog.fast.map((m) => (
+                  {withSelected(catalog.fast, selectedModels.fast).map((m) => (
                     <option key={m} value={m}>
                       {m}
                     </option>
@@ -843,7 +872,7 @@ export function ControlCenter({
                   value={selectedModels.strong}
                   onChange={(e) => setModel("strong", e.target.value)}
                 >
-                  {catalog.strong.map((m) => (
+                  {withSelected(catalog.strong, selectedModels.strong).map((m) => (
                     <option key={m} value={m}>
                       {m}
                     </option>

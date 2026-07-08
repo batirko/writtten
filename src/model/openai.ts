@@ -20,6 +20,7 @@ import type {
 } from "./provider";
 
 const OPENAI_ENDPOINT = "https://api.openai.com/v1/chat/completions";
+const OPENAI_MODELS_ENDPOINT = "https://api.openai.com/v1/models";
 
 // Default per tier is `[0]`. fast = cheap/frequent; strong = capable/rare.
 const FAST_CATALOG = ["gpt-5.4-mini", "gpt-5.4-nano", "gpt-5.4"];
@@ -88,6 +89,29 @@ function classifyError(status: number, headers: Headers, body: string): ErrorCla
   return { retryable: false, coolDownMs: 0 };
 }
 
+// GET /v1/models → { object: "list", data: [{ id, object: "model", owned_by }] }.
+function listModelsRequest(key: string): BuiltRequest {
+  return {
+    url: OPENAI_MODELS_ENDPOINT,
+    init: { method: "GET", headers: { Authorization: `Bearer ${key}` } },
+  };
+}
+
+// The list includes non-chat models (embeddings, audio/tts/whisper, image/dall-e,
+// moderation, realtime, legacy completions). Drop them by id substring so the
+// picker offers only text-chat models.
+const OPENAI_NON_CHAT =
+  /embedding|whisper|tts|audio|dall-e|image|moderation|realtime|transcribe|davinci|babbage|ada|curie/i;
+
+function parseModelsList(body: unknown): string[] {
+  const data = (body as { data?: { id?: unknown }[] })?.data;
+  if (!Array.isArray(data)) return [];
+  return data
+    .map((m) => m?.id)
+    .filter((id): id is string => typeof id === "string" && id.length > 0)
+    .filter((id) => !OPENAI_NON_CHAT.test(id));
+}
+
 /** OpenAI returns `Retry-After` in seconds (integer or HTTP-date). We honor the
  *  integer-seconds form; the date form falls back to the default. */
 function parseRetryAfter(headers: Headers): number | null {
@@ -111,4 +135,6 @@ export const openaiAdapter: ProviderAdapter = {
   buildRequest,
   parseResponse,
   classifyError,
+  listModelsRequest,
+  parseModelsList,
 };

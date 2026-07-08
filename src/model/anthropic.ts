@@ -91,6 +91,31 @@ function classifyError(status: number, headers: Headers): ErrorClassification {
   return { retryable: false, coolDownMs: 0 };
 }
 
+// GET /v1/models → { data: [{ id, type: "model", display_name, created_at }], … }.
+// Same direct-from-browser headers as the Messages call. All returned models are
+// Claude chat models, so no capability filtering is needed.
+function listModelsRequest(key: string): BuiltRequest {
+  return {
+    url: "https://api.anthropic.com/v1/models?limit=1000",
+    init: {
+      method: "GET",
+      headers: {
+        "x-api-key": key,
+        "anthropic-version": ANTHROPIC_VERSION,
+        "anthropic-dangerous-direct-browser-access": "true",
+      },
+    },
+  };
+}
+
+function parseModelsList(body: unknown): string[] {
+  const data = (body as { data?: { id?: unknown }[] })?.data;
+  if (!Array.isArray(data)) return [];
+  return data
+    .map((m) => m?.id)
+    .filter((id): id is string => typeof id === "string" && id.length > 0);
+}
+
 /** Anthropic returns `retry-after` in integer seconds on a 429. */
 function parseRetryAfter(headers: Headers): number | null {
   const v = headers.get("retry-after");
@@ -113,4 +138,6 @@ export const anthropicAdapter: ProviderAdapter = {
   buildRequest,
   parseResponse,
   classifyError,
+  listModelsRequest,
+  parseModelsList,
 };
