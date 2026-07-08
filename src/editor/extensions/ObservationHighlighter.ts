@@ -53,28 +53,35 @@ export function charOffsetToPmPos(
  * triggers ProseMirror's position mapping. See lifecycle_integrity L5.
  *
  * Rules:
- *  - Empty/whitespace `anchorText` (pre-v8 records) → stored offsets.
- *  - Otherwise locate `anchorText` in `blockText`: no match → stored offsets
- *    (text was edited away; the obs will auto-close on the next eval); one match
- *    → that occurrence; multiple → the occurrence whose start is nearest the
- *    stored start (the user most likely edited near, not at, the anchor).
+ *  - Empty/whitespace `anchorText` (pre-v8 records) → stored offsets (can't
+ *    verify without a captured span).
+ *  - Otherwise locate `anchorText` in `blockText`: one match → that occurrence;
+ *    multiple → the occurrence whose start is nearest the stored start (the user
+ *    most likely edited near, not at, the anchor).
+ *  - No match: the anchor text was edited away. What to do splits on whether the
+ *    stored offsets are a real span or the whole-block sentinel:
+ *      • **whole-block sentinel** (`storedStart === 0 && storedEnd >= 9999`, used
+ *        by the ledger sweep / contradiction conflicting-side, whose claims carry
+ *        text but no offsets): the "anchor" is the model's *reworded* claim, which
+ *        legitimately need not be a verbatim substring — return `{0, 9999}` so the
+ *        caller clamps to the block length (whole-block, as before).
+ *      • **real exact anchor** (any other offsets): the verbatim span the model
+ *        quoted no longer exists in the block, so its stored offsets now point at
+ *        *unrelated* current text (block ids are stable across edits, offsets are
+ *        not). Return `null` to **suppress** the range rather than paint the wrong
+ *        words — which would disagree with the card's own quote (`anchorQuote ??
+ *        anchorText`). The obs auto-closes on the next eval / ledger refresh; until
+ *        then it simply carries no highlight. Fixes the stale-anchor mismatch where
+ *        a cross-claim sweep obs lit a same-length clause at the old offsets.
  * Matching is exact (no case-folding) because `anchorText` was captured from the
  * same flattened block text and we need precise character positions.
- *
- * The **whole-block sentinel** (`storedStart === 0 && storedEnd >= 9999`, used by
- * the ledger sweep and contradiction conflicting-side, whose claims carry text
- * but no offsets) is *not* special-cased: it falls through to the substring
- * locate below, so a verbatim claim resolves to its exact clause instead of
- * lighting the whole block. When the claim text isn't a verbatim substring (the
- * LLM reworded it) the no-match branch returns the stored `{0, 9999}`, and the
- * caller clamps 9999 to the real text length — i.e. whole-block, as before.
  */
 export function reanchorOffset(
   blockText: string,
   anchorText: string,
   storedStart: number,
   storedEnd: number
-): { start: number; end: number } {
+): { start: number; end: number } | null {
   const anchor = anchorText.trim();
   if (anchor === "") return { start: storedStart, end: storedEnd };
 
@@ -86,7 +93,12 @@ export function reanchorOffset(
     }
     idx = blockText.indexOf(anchorText, idx + 1);
   }
-  if (bestIdx === -1) return { start: storedStart, end: storedEnd };
+  if (bestIdx === -1) {
+    // Whole-block sentinel → reworded claim, keep whole-block. Real exact anchor
+    // whose text vanished → suppress (don't paint stale offsets over other words).
+    const isWholeBlockSentinel = storedStart === 0 && storedEnd >= 9999;
+    return isWholeBlockSentinel ? { start: storedStart, end: storedEnd } : null;
+  }
   return { start: bestIdx, end: bestIdx + anchorText.length };
 }
 
@@ -138,11 +150,15 @@ export function computeObservationRanges(
       obs.startOffset ?? 0,
       obs.endOffset ?? textLength
     );
-    const rawStart = Math.max(0, Math.min(re.start, textLength));
-    const rawEnd = Math.max(0, Math.min(re.end, textLength));
-    const from = charOffsetToPmPos(blockNode, blockPos, rawStart, false);
-    const to = charOffsetToPmPos(blockNode, blockPos, rawEnd, true);
-    if (from < to) ranges.push({ obs, from, to, side: "primary" });
+    // null → the exact anchor text was edited away; suppress this side rather
+    // than resolve a range at stale offsets.
+    if (re) {
+      const rawStart = Math.max(0, Math.min(re.start, textLength));
+      const rawEnd = Math.max(0, Math.min(re.end, textLength));
+      const from = charOffsetToPmPos(blockNode, blockPos, rawStart, false);
+      const to = charOffsetToPmPos(blockNode, blockPos, rawEnd, true);
+      if (from < to) ranges.push({ obs, from, to, side: "primary" });
+    }
 
     if (obs.conflictingBlockId && obs.conflictingBlockId !== obs.blockId) {
       const conflictPos = blockPositions.get(obs.conflictingBlockId);
@@ -156,11 +172,13 @@ export function computeObservationRanges(
         obs.conflictingStartOffset ?? 0,
         obs.conflictingEndOffset ?? cLen
       );
-      const cRawStart = Math.max(0, Math.min(cRe.start, cLen));
-      const cRawEnd = Math.max(0, Math.min(cRe.end, cLen));
-      const cFrom = charOffsetToPmPos(conflictNode, conflictPos, cRawStart, false);
-      const cTo = charOffsetToPmPos(conflictNode, conflictPos, cRawEnd, true);
-      if (cFrom < cTo) ranges.push({ obs, from: cFrom, to: cTo, side: "conflicting" });
+      if (cRe) {
+        const cRawStart = Math.max(0, Math.min(cRe.start, cLen));
+        const cRawEnd = Math.max(0, Math.min(cRe.end, cLen));
+        const cFrom = charOffsetToPmPos(conflictNode, conflictPos, cRawStart, false);
+        const cTo = charOffsetToPmPos(conflictNode, conflictPos, cRawEnd, true);
+        if (cFrom < cTo) ranges.push({ obs, from: cFrom, to: cTo, side: "conflicting" });
+      }
     }
   }
   return ranges;
@@ -287,10 +305,12 @@ export const ObservationHighlighter = Extension.create<ObservationHighlighterOpt
                         obs.startOffset ?? 0,
                         obs.endOffset ?? textLength
                       );
-                      const rawStart = Math.max(0, Math.min(re.start, textLength));
-                      const rawEnd = Math.max(0, Math.min(re.end, textLength));
-                      const start = charOffsetToPmPos(blockNode, blockPos, rawStart, false);
-                      const end = charOffsetToPmPos(blockNode, blockPos, rawEnd, true);
+                      // null → exact anchor edited away; skip drawing (a stale
+                      // range would paint unrelated words and contradict the card).
+                      const rawStart = re ? Math.max(0, Math.min(re.start, textLength)) : 0;
+                      const rawEnd = re ? Math.max(0, Math.min(re.end, textLength)) : 0;
+                      const start = re ? charOffsetToPmPos(blockNode, blockPos, rawStart, false) : 0;
+                      const end = re ? charOffsetToPmPos(blockNode, blockPos, rawEnd, true) : 0;
 
                       // Both contradiction and strategic_tension span two blocks
                       // via conflictingBlockId — hovering either side, or the
@@ -350,22 +370,25 @@ export const ObservationHighlighter = Extension.create<ObservationHighlighterOpt
                               obs.conflictingStartOffset ?? 0,
                               obs.conflictingEndOffset ?? cTextLength
                             );
-                            const cRawStart = Math.max(0, Math.min(cRe.start, cTextLength));
-                            const cRawEnd = Math.max(0, Math.min(cRe.end, cTextLength));
-                            const cStart = charOffsetToPmPos(
-                              conflictNode,
-                              conflictPos,
-                              cRawStart,
-                              false
-                            );
-                            const cEnd = charOffsetToPmPos(
-                              conflictNode,
-                              conflictPos,
-                              cRawEnd,
-                              true
-                            );
-                            if (cStart < cEnd) {
-                              decos.push(inlineDeco(cStart, cEnd));
+                            // null → conflicting exact anchor edited away; skip it.
+                            if (cRe) {
+                              const cRawStart = Math.max(0, Math.min(cRe.start, cTextLength));
+                              const cRawEnd = Math.max(0, Math.min(cRe.end, cTextLength));
+                              const cStart = charOffsetToPmPos(
+                                conflictNode,
+                                conflictPos,
+                                cRawStart,
+                                false
+                              );
+                              const cEnd = charOffsetToPmPos(
+                                conflictNode,
+                                conflictPos,
+                                cRawEnd,
+                                true
+                              );
+                              if (cStart < cEnd) {
+                                decos.push(inlineDeco(cStart, cEnd));
+                              }
                             }
                           }
                         }
