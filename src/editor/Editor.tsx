@@ -724,6 +724,8 @@ export function Editor({
       if (!blockNode) return null;
       const len = blockNode.textContent.length;
       const re = reanchorOffset(blockNode.textContent, anchorText ?? "", startOffset, endOffset);
+      // null → exact anchor edited away; no valid scroll target.
+      if (!re) return null;
       const raw = Math.max(0, Math.min(re.start, len));
       return charOffsetToPmPos(blockNode, blockPos, raw, false);
     },

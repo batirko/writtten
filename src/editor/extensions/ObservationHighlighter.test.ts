@@ -227,8 +227,10 @@ describe("reanchorOffset (L5)", () => {
     expect(reanchorOffset(text, "the moon", 0, 4)).toEqual({ start: 5, end: 13 });
   });
 
-  it("falls back to stored offsets when the anchor is not found", () => {
-    expect(reanchorOffset("nothing here", "the moon", 3, 11)).toEqual({ start: 3, end: 11 });
+  it("suppresses (null) a real exact anchor whose text was edited away", () => {
+    // Stored 3:11 is a real span, not the whole-block sentinel. "the moon" is
+    // gone, so painting 3:11 would light unrelated current words — return null.
+    expect(reanchorOffset("nothing here", "the moon", 3, 11)).toBeNull();
   });
 
   it("falls back to stored offsets for empty/whitespace anchor (pre-v8 records)", () => {
@@ -304,6 +306,23 @@ describe("highlight re-anchoring on rebuild (L5)", () => {
       editor.view.dispatch(editor.state.tr.setMeta("setObservations", [activeSpanObs()]));
       const highlighted = editor.view.dom.querySelector(".obs-highlight")?.textContent;
       expect(highlighted).toBe("the moon");
+    } finally {
+      editor.destroy();
+    }
+  });
+
+  it("paints no highlight when the exact anchor text has been edited away", () => {
+    // Reproduces the stale cross-claim mismatch: the block text ("AAAA the moon
+    // is here") no longer contains the anchor "vanished clause", so the stored
+    // offsets (which now cover unrelated same-length words) must NOT be painted.
+    const editor = makeEditor();
+    try {
+      editor.view.dispatch(
+        editor.state.tr.setMeta("setObservations", [
+          activeSpanObs({ anchorText: "vanished clause", startOffset: 5, endOffset: 20 }),
+        ])
+      );
+      expect(editor.view.dom.querySelector(".obs-highlight")).toBeNull();
     } finally {
       editor.destroy();
     }
