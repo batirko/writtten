@@ -22,6 +22,7 @@ import {
 } from "../store/db";
 import { llmLogger } from "../model/logger";
 import { harness } from "../debug/harness";
+import { setActivityPending } from "../model/activitySignal";
 import { isNearLimit } from "../model/rpmBudget";
 import { nanoid } from "nanoid";
 
@@ -111,16 +112,19 @@ let pendingBootstrapSweep: { ctx: EvalContext; onComplete?: () => void } | null 
 /** Push the current "work outstanding" count to the readiness signal. Idle (0)
  *  means nothing is debouncing, queued, or in flight. */
 function recomputePending(): void {
+  const count =
+    coalesceTimers.size +
+    inFlightSections.size +
+    pendingAfterInflight.size +
+    (docIdleInFlight ? 1 : 0) +
+    (pendingDocIdle ? 1 : 0) +
+    (bootstrapSweepInFlight ? 1 : 0) +
+    (pendingBootstrapSweep ? 1 : 0);
+  // Production-safe activity signal drives the activity-center "working" pulse.
+  setActivityPending(count);
+  // The dev-only acceptance harness mirrors the same count for observability.
   if (import.meta.env.DEV) {
-    harness.setPending(
-      coalesceTimers.size +
-        inFlightSections.size +
-        pendingAfterInflight.size +
-        (docIdleInFlight ? 1 : 0) +
-        (pendingDocIdle ? 1 : 0) +
-        (bootstrapSweepInFlight ? 1 : 0) +
-        (pendingBootstrapSweep ? 1 : 0)
-    );
+    harness.setPending(count);
   }
 }
 
