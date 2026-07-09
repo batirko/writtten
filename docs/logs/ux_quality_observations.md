@@ -273,3 +273,27 @@ Each entry follows the format:
 **Actual:** The prompts (`CONTRADICTION_SWEEP_SYSTEM_PROMPT` and its hedged variant) label claims `[Claim #N]` for the model's own bookkeeping (so it can return `claimAId`/`claimBId` as structured fields) — but nothing stops the model from echoing that same `Claim #N` label inside the free-text `message` field it writes for the user. The example given in the prompt ("This contradicts the Q3 target date set earlier.") doesn't use index phrasing, but no instruction explicitly forbids it, so the model sometimes reaches for the label that's right in front of it.\
 **Failure mode:** internal-implementation leak into user-facing copy (register violation — evaluator's-eye-view instead of the user's-eye-view)\
 **Notes:** Purely a prompt fix: add an explicit instruction that the `message` field must never reference a claim by its index/label — it should quote or closely restate the claim's own words instead. Same session also surfaced OBS-031 (paraphrase drift) on one of these two messages — worth fixing together since both are about what the `message` field is allowed to say about a compared claim. → see `docs/logs/prompt_quality_observations.md` (OBS-031).
+
+---
+
+### UX-018 — A blatant contradiction between two same-section paragraphs never produces a contradiction card while typing
+
+**Date:** 2026-07-09\
+**Area/Component:** eval pipeline — contradiction detection (`src/services/evaluator.ts` per-section check, `src/services/orchestrator.ts` sweep trigger)\
+**Interaction:** Typing (not pasting) a two-paragraph, heading-less doc whose two paragraphs directly contradict each other — ¶1 _"We will launch the redesigned checkout to 100% of users in Q2."_ and ¶2 _"We will not launch the redesigned checkout to any users before Q4."_ — then waiting for the feed to settle.\
+**Expected:** The product's hero moment — a `contradiction` card linking the two claims, hover highlighting both spans. The whole reason to use the tool is _"it caught a contradiction I wrote."_\
+**Actual:** No contradiction card. The conflict surfaced only as a weak `clarity` nit (see OBS-033 for the model trace). With no heading the doc is one intro section, so both claims are keyed under the same representative id; the per-section contradiction check excludes same-section pairs, and the all-pairs ledger sweep runs only on `block-paste`, so nothing compared them.\
+**Failure mode:** missing-hero-moment / coverage-by-entry-path — the sharpest signal is silently unreachable unless the user happens to paste (long enough) or split the claims across sections.\
+**Notes:** Directly clusters with **UX-016** (contradiction sweep silenced on short drafts by the maturity/word-count gate) — same "the impressive, structurally-critical check doesn't run when you'd most want it" failure, different cause. Distinct from OBS-026 (which fixed _anchoring_ of a found intra-section conflict, not detection). Design options + decision tracked in `docs/projects/contradiction_coverage.md`; prompt-side trace in `docs/logs/prompt_quality_observations.md` (OBS-033). Not to be patched inline — needs an owner decision on cost/noise/taxonomy.
+
+---
+
+### UX-019 — Prepending a paragraph appears to auto-archive existing notes (needs reproduction)
+
+**Date:** 2026-07-09\
+**Area/Component:** section reconciliation / observation lifecycle on structural edits (`src/services/evaluator.ts` restore/reconcile, `src/editor/Editor.tsx` re-sectioning)\
+**Interaction:** With active observations on an intro section, placing the cursor at the very start of the first paragraph, pressing **Enter**, and typing a new leading line ("A quick note on timing before the details.").\
+**Expected:** Prepending an unrelated leading line shouldn't retire the section's still-valid observations; at most they re-anchor.\
+**Actual (user-perceived):** Existing notes appeared to get auto-archived on the Enter/prepend.\
+**Failure mode:** possible over-eager auto-close on a structural edit (unverified).\
+**Notes:** **Partly unverified — record, don't fix.** The captured harness log for this session shows only **one** archive, and it was a legitimate `resolved_prior` (the model marked a prior "lacks a specific date" clarity as addressed) — _before_ the prepend. Two candidate explanations to disentangle on repro: (1) the re-sectioning reconcile (`reconcileObservations` / `restoreSectionFromSnapshot` auto-closing observations on a member-set change as `resolved_by_edit`) firing on a pure prepend; (2) transient reconcile churn (close→reactivate) that _looks_ like archiving. Also note a related surprise from the same test: pressing Enter at the start did **not** migrate the section's representative id (`sourceBlockId` stayed `pHT5OxMbZc`, `orphaned: 0`) — ProseMirror kept the original block id on the top line — so "Enter at the start" is not a reliable way to trigger a representative-id migration. Reproduce with the harness event stream (watch for `archive` events with `reason` on a no-content-change prepend) before deciding whether this is a lifecycle bug or expected reconcile behavior.
