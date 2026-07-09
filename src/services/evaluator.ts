@@ -584,7 +584,11 @@ export async function evaluateSection(
             text: con.message,
             blockId: exact?.blockId ?? fallback.blockId,
             startOffset: exact?.startOffset ?? 0,
-            endOffset: exact?.endOffset ?? fallback.text.length,
+            // 9999 sentinel, not fallback.text.length: matches the whole-block
+            // convention `reanchorOffset` relies on (isWholeBlockSentinel) — a
+            // real length here gets misread as a vanished exact anchor and the
+            // highlight is wrongly suppressed on the next re-anchor.
+            endOffset: exact?.endOffset ?? 9999,
             anchorText: con.newClaimText,
             anchorQuote: newAnchorQuote,
             // Conflicting side: anchor to the existing claim's precise block +

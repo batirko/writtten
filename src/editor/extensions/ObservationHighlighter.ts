@@ -73,8 +73,16 @@ export function charOffsetToPmPos(
  *        anchorText`). The obs auto-closes on the next eval / ledger refresh; until
  *        then it simply carries no highlight. Fixes the stale-anchor mismatch where
  *        a cross-claim sweep obs lit a same-length clause at the old offsets.
- * Matching is exact (no case-folding) because `anchorText` was captured from the
- * same flattened block text and we need precise character positions.
+ * Matching tries exact (case-sensitive) first, since `anchorText` was usually
+ * captured from the same flattened block text and exact positions are cheapest
+ * to trust. It then falls back to a case-insensitive pass: cross-claim
+ * observations (contradiction/strategic_tension) carry `anchorText` set to the
+ * model's *normalized* claim text, which commonly capitalizes a clause that
+ * reads lowercase mid-sentence in the source (e.g. source "...it stays quiet..."
+ * vs claim "It stays quiet..."). Without the fallback, that case difference
+ * alone makes a correctly-anchored span look "vanished" on every render (not
+ * just after an edit) and the highlight is wrongly suppressed. Mirrors
+ * `anchorSubstring`'s extraction-time fallback so the two agree.
  */
 export function reanchorOffset(
   blockText: string,
@@ -85,13 +93,21 @@ export function reanchorOffset(
   const anchor = anchorText.trim();
   if (anchor === "") return { start: storedStart, end: storedEnd };
 
-  let bestIdx = -1;
-  let idx = blockText.indexOf(anchorText);
-  while (idx !== -1) {
-    if (bestIdx === -1 || Math.abs(idx - storedStart) < Math.abs(bestIdx - storedStart)) {
-      bestIdx = idx;
+  const findBest = (haystack: string, needle: string) => {
+    let bestIdx = -1;
+    let idx = haystack.indexOf(needle);
+    while (idx !== -1) {
+      if (bestIdx === -1 || Math.abs(idx - storedStart) < Math.abs(bestIdx - storedStart)) {
+        bestIdx = idx;
+      }
+      idx = haystack.indexOf(needle, idx + 1);
     }
-    idx = blockText.indexOf(anchorText, idx + 1);
+    return bestIdx;
+  };
+
+  let bestIdx = findBest(blockText, anchorText);
+  if (bestIdx === -1) {
+    bestIdx = findBest(blockText.toLowerCase(), anchorText.toLowerCase());
   }
   if (bestIdx === -1) {
     // Whole-block sentinel → reworded claim, keep whole-block. Real exact anchor

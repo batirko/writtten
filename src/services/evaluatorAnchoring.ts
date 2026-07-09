@@ -118,6 +118,15 @@ export function blockPairKey(o: Pick<Observation, "blockId" | "conflictingBlockI
  * LLM sees the whole section's combined text, but observations must still point
  * at individual blocks so highlights track through edits. Returns null if no
  * member contains the substring (a hallucinated span — dropped).
+ *
+ * Tries a case-sensitive match first, then falls back to case-insensitive: the
+ * extractor commonly capitalizes a claim it lifts into a standalone sentence
+ * even when the source clause is lowercase mid-sentence (e.g. source "...it
+ * stays quiet..." vs claim "It stays quiet..."). Without the fallback, that
+ * case difference alone sends the claim to the whole-block fallback, which can
+ * anchor a cross-claim observation to the wrong-looking span (a real anchor
+ * exists, just not case-exact). The returned offsets are always taken from the
+ * *source* text, so the resolved span stays byte-exact to the document.
  */
 export function anchorSubstring(
   members: SectionMember[],
@@ -125,6 +134,13 @@ export function anchorSubstring(
 ): { blockId: string; startOffset: number; endOffset: number } | null {
   for (const m of members) {
     const idx = m.text.indexOf(substring);
+    if (idx !== -1) {
+      return { blockId: m.blockId, startOffset: idx, endOffset: idx + substring.length };
+    }
+  }
+  const lowerSubstring = substring.toLowerCase();
+  for (const m of members) {
+    const idx = m.text.toLowerCase().indexOf(lowerSubstring);
     if (idx !== -1) {
       return { blockId: m.blockId, startOffset: idx, endOffset: idx + substring.length };
     }
@@ -214,7 +230,11 @@ export function anchorClaimsToMembers<T extends { text: string }>(
       ...c,
       anchorBlockId: body.blockId,
       anchorStartOffset: 0,
-      anchorEndOffset: body.text.length,
+      // 9999 sentinel (not body.text.length): downstream (evaluator.ts emit,
+      // reanchorOffset's isWholeBlockSentinel) distinguishes "whole-block
+      // fallback" from "exact anchor whose text later vanished" by this exact
+      // value. A real length here reads as the latter and gets suppressed.
+      anchorEndOffset: 9999,
       anchorExact: false,
     };
   });
