@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { Editor } from "./editor/Editor";
 import { SidecarFeed } from "./sidecar/SidecarFeed";
 import { WelcomeModal } from "./sidecar/WelcomeModal";
+import { DemoCoachmarks } from "./sidecar/DemoCoachmarks";
 import { openSettings } from "./sidecar/settingsGate";
 import { SpanPeek } from "./sidecar/SpanPeek";
 import { ControlCenter } from "./sidecar/ControlCenter";
@@ -733,6 +734,10 @@ export default function App() {
           canLoadExample={blockOrder.length <= 1}
         />
       )}
+      {/* Onboarding coachmarks over the "See it in action" demo — a temporary,
+          non-blocking tour of the three surfaces. Only while the demo is loaded
+          (demoActive); the component suppresses itself on mobile. */}
+      <DemoCoachmarks active={demoActive} />
     </div>
   );
 }

@@ -2373,6 +2373,111 @@ body,
   display: none;
 }
 
+/* ── Demo onboarding coachmarks (docs/projects/onboarding_first_run.md) ───────
+   A temporary, non-blocking tour shown over the "See it in action" demo. Styled
+   deliberately apart from core UX — dashed accent, numbered steps, spotlight
+   rings — so it reads as onboarding, not a permanent surface. The container and
+   the SVG are pointer-events:none (the demo behind stays interactive); only the
+   cards + dismiss take pointer events. Sits above the feed/control-center (z 40)
+   and peeks (z 45) but below the modal scrim (z 1000). */
+.demo-coachmarks {
+  position: fixed;
+  inset: 0;
+  z-index: 120;
+  pointer-events: none;
+}
+.demo-coach-svg {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+}
+.demo-coach-ring {
+  fill: none;
+  stroke: var(--color-accent);
+  stroke-width: 1.5;
+  stroke-dasharray: 5 4;
+  opacity: 0.85;
+}
+.demo-coach-conn {
+  fill: none;
+  stroke: var(--color-accent);
+  stroke-width: 1.5;
+  stroke-dasharray: 4 3;
+}
+.demo-coach-conn-dot {
+  fill: var(--color-accent);
+}
+.demo-coach-card {
+  position: fixed;
+  width: 236px;
+  max-width: calc(100vw - 16px);
+  background: var(--color-accent-tint);
+  border: 1.5px dashed var(--color-accent);
+  border-radius: 12px;
+  padding: 11px 13px;
+  box-shadow: var(--elev-float);
+  pointer-events: auto;
+  animation: cardEnter var(--dur-base) var(--ease-out);
+}
+.demo-coach-head {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-bottom: 6px;
+}
+.demo-coach-step {
+  flex-shrink: 0;
+  font-size: 10.5px;
+  font-weight: 500;
+  color: var(--color-surface);
+  background: var(--color-accent);
+  border-radius: 20px;
+  padding: 1px 8px;
+}
+.demo-coach-title {
+  font-size: var(--text-ui-sm);
+  font-weight: 500;
+  color: var(--color-accent-strong);
+}
+.demo-coach-body {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--color-ink-2);
+}
+.demo-coach-dismiss-bar {
+  position: fixed;
+  left: 20px;
+  bottom: 20px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  pointer-events: auto;
+}
+.demo-coach-dismiss {
+  font-size: var(--text-ui-sm);
+  font-weight: 500;
+  color: var(--color-surface);
+  background: var(--color-accent);
+  border: 0.5px solid var(--color-accent);
+  border-radius: var(--radius-md);
+  padding: 7px 14px;
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease-out);
+}
+.demo-coach-dismiss:hover {
+  background: var(--color-accent-strong);
+}
+.demo-coach-hint {
+  font-size: var(--text-ui-sm);
+  color: var(--color-muted);
+}
+@media (prefers-reduced-motion: reduce) {
+  .demo-coach-card {
+    animation: none;
+  }
+}
+
 /* ── Mobile courtesy pass (docs/projects/mobile_responsive.md § Phase 6) ─────
    The only layout media query in the app. Below 720px the hard two-pane flex
    row (Invariant: desktop-native) reflows to a vertical stack: editor leads,
@@ -2380,6 +2485,11 @@ body,
    min-width floor that forced horizontal overflow is relaxed. Bounded courtesy
    scope — NOT the Phase-7 touch hero interaction. Tokens only; no new identity. */
 @media (max-width: 720px) {
+  /* Coachmarks are desktop-only (rect-anchored to a two-pane layout). The
+     component already returns null on mobile; this is the CSS backstop. */
+  .demo-coachmarks {
+    display: none;
+  }
   /* Contain any stray wide child so nothing scrolls sideways (Hallmark gate 36).
      clip, never hidden — hidden would create a scroll container. */
   html,
