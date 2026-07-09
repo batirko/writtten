@@ -8,6 +8,23 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 > conventional-commit PR titles; a new version section is prepended when a release PR merges.
 > See `docs/mechanics/release_and_deploy.md`.
 
+## [0.4.0](https://github.com/batirko/writtten/compare/writtten-v0.3.0...writtten-v0.4.0) (2026-07-09)
+
+
+### Added
+
+* **eval:** catch intra-section contradictions while typing (mechanism A, OBS-033/UX-018) ([#161](https://github.com/batirko/writtten/issues/161)) ([800abdd](https://github.com/batirko/writtten/commit/800abddb9ad662c35430a990c65cbd208930e601))
+* **eval:** OBS-036 calibration cold-open — soften unknown default + rhetorical-question carve-out ([#162](https://github.com/batirko/writtten/issues/162)) ([41d165b](https://github.com/batirko/writtten/commit/41d165bf5df3752761756b20a7dcd3961ec1b439))
+* **mobile:** pre-release polish — feed open by default, tap collision, note prominence ([#160](https://github.com/batirko/writtten/issues/160)) ([86f8481](https://github.com/batirko/writtten/commit/86f84814ebc1f38ad541af8b715bdd7615faccb9))
+
+
+### Fixed
+
+* **anchoring:** case-insensitive claim/anchor matching for cross-claim highlights ([#158](https://github.com/batirko/writtten/issues/158)) ([0484987](https://github.com/batirko/writtten/commit/04849877886f1898d4bbd3a1b130aacc2998ad93))
+* **anchoring:** tolerate extractor-appended punctuation on re-anchor ([#164](https://github.com/batirko/writtten/issues/164)) ([13bbde4](https://github.com/batirko/writtten/commit/13bbde4731e6d78e852b840a634162df36fa0f64))
+* **model:** modernize Gemini paid pools + add pool-liveness early-warning ([#163](https://github.com/batirko/writtten/issues/163)) ([a51ba9d](https://github.com/batirko/writtten/commit/a51ba9d76ba58190741843249baea2160ab64af6))
+* **ui:** restore activity-center "working" pulse in production builds ([#165](https://github.com/batirko/writtten/issues/165)) ([065afcf](https://github.com/batirko/writtten/commit/065afcf69d75b49671e52e8d6fa72094b6dc6898))
+
 ## [0.3.0](https://github.com/batirko/writtten/compare/writtten-v0.2.0...writtten-v0.3.0) (2026-07-09)
 
 
