@@ -1819,6 +1819,39 @@ body,
   text-overflow: ellipsis;
 }
 
+/* Document-scope legibility: an observation about the whole document has no
+   anchorable span, so where a span card shows its serif-italic quote, a
+   doc-scoped card shows a muted sans scope marker instead. Deliberately the
+   opposite texture from the quote (sans, not serif-italic) so it never reads as
+   the user's own words; neutral hue so it never competes with the severity tag.
+   See docs/projects/doc_scope_legibility.md. */
+.card-scope {
+  margin: 6px 0 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  align-self: flex-start;
+  padding: 3px 9px;
+  border: 0.5px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-sidecar);
+  font-family: var(--font-sans);
+  font-size: var(--text-label);
+  line-height: 1;
+  color: var(--color-muted);
+}
+.card-scope svg {
+  width: 13px;
+  height: 13px;
+  flex-shrink: 0;
+}
+/* No passage to locate → the card is inert. Drop the hover-lift so it doesn't
+   advertise a click that does nothing (cursor is already default card-wide). */
+.observation-card-docscope:hover {
+  transform: none;
+  box-shadow: var(--elev-rest);
+}
+
 /* Debug drawer (dev only) — lives inside the control-center process panel and
    reveals with it on hover, rather than floating on its own. */
 .control-debug {

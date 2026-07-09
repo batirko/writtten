@@ -37,6 +37,30 @@ function DismissIcon() {
 }
 
 // ---------------------------------------------------------------------------
+// ScopeIcon — a small document glyph for the doc-scope marker (a card with no
+// anchorable span). Decorative; the adjacent "Whole doc" label carries meaning.
+// ---------------------------------------------------------------------------
+
+function ScopeIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"></path>
+      <path d="M14 3v5h5"></path>
+      <line x1="9" y1="13" x2="15" y2="13"></line>
+      <line x1="9" y1="17" x2="15" y2="17"></line>
+    </svg>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // KeylessBanner — the standing "add your key" card at the top of the feed, shown
 // in ANY keyless state (onboarding_first_run.md § Revision 2026-07-07, Decision
 // #3 + the recommended any-keyless generalization). Keyless, the evaluator does
@@ -127,6 +151,12 @@ export function GroupedObsCard({
 }: GroupedObsCardProps) {
   const [expanded, setExpanded] = useState(false);
   const { primary, others } = group;
+  // Document-scoped observations have no anchorable span — the highlighter only
+  // paints scope==="span" (ObservationHighlighter). So they get a scope marker
+  // instead of a quote, and shed the hover-to-highlight / click-to-locate
+  // affordances (both no-op for a card with no passage to point at).
+  // Keyed on scope, not type: dual-scope underexposed_topic is covered too.
+  const isDocScope = primary.scope === "document";
   const anchorExcerpt = formatAnchorExcerpt(primary);
 
   const handleDismiss = () => {
@@ -135,27 +165,32 @@ export function GroupedObsCard({
 
   return (
     <div
-      className={`observation-card observation-${primary.type}${isActive ? " observation-card-active" : ""}${isArriving ? " observation-card-arriving" : ""}${isDimmed ? " observation-card-dimmed" : ""}`}
+      className={`observation-card observation-${primary.type}${isActive ? " observation-card-active" : ""}${isArriving ? " observation-card-arriving" : ""}${isDimmed ? " observation-card-dimmed" : ""}${isDocScope ? " observation-card-docscope" : ""}`}
       data-testid="obs-card"
       role="listitem"
       tabIndex={0}
       data-obs-type={primary.type}
       data-obs-id={primary.id}
+      data-obs-scope={primary.scope}
       data-kind={primary.kind}
       data-severity={primary.severity}
       data-confidence={primary.confidence}
       data-grouped={others.length > 0 ? "true" : undefined}
-      onMouseEnter={() => onHover(primary.id)}
-      onMouseLeave={() => onHover(null)}
-      onFocus={() => onHover(primary.id)}
-      onBlur={() => onHover(null)}
+      onMouseEnter={isDocScope ? undefined : () => onHover(primary.id)}
+      onMouseLeave={isDocScope ? undefined : () => onHover(null)}
+      onFocus={isDocScope ? undefined : () => onHover(primary.id)}
+      onBlur={isDocScope ? undefined : () => onHover(null)}
       onClick={(e) => {
         // Click-to-locate (C2): scroll to (and pulse) the span. Clicks on the
-        // dismiss X or the "N more" toggle keep their own behaviour.
+        // dismiss X or the "N more" toggle keep their own behaviour. Doc-scoped
+        // cards have no span to locate, so the card body is inert (dismiss + the
+        // "N more" toggle still work via their own buttons).
         if ((e.target as HTMLElement).closest("button")) return;
+        if (isDocScope) return;
         window.dispatchEvent(new CustomEvent("obs-card-activate", { detail: { id: primary.id } }));
       }}
       onKeyDown={(e) => {
+        if (isDocScope) return;
         if (e.key === "Enter" || e.key === " ") {
           e.preventDefault();
           window.dispatchEvent(
@@ -201,10 +236,25 @@ export function GroupedObsCard({
           <DismissIcon />
         </button>
       </div>
-      {anchorExcerpt && (
-        <p className="card-anchor" data-testid="obs-anchor" title={primary.anchorQuote ?? primary.anchorText}>
-          “{anchorExcerpt}”
-        </p>
+      {isDocScope ? (
+        <span
+          className="card-scope"
+          data-testid="obs-scope"
+          title="This observation is about the whole document, not a specific passage"
+        >
+          <ScopeIcon />
+          Whole doc
+        </span>
+      ) : (
+        anchorExcerpt && (
+          <p
+            className="card-anchor"
+            data-testid="obs-anchor"
+            title={primary.anchorQuote ?? primary.anchorText}
+          >
+            “{anchorExcerpt}”
+          </p>
+        )
       )}
       <div className="card-body">
         <p>{primary.text}</p>

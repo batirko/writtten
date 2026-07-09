@@ -1,5 +1,5 @@
 ---
-status: idea
+status: in-progress
 kind: spec
 phases: [6]
 summary: Make document-scoped (unanchored) observations legible as such in the feed — a card-intrinsic scope marker plus honest affordances (drop the click-to-locate / hover-to-highlight that silently no-ops on a card with no span). Repairs the lost UX-008 "Whole document" treatment; complements (does not reopen) the dropped R4 doc-level anchoring.
@@ -11,7 +11,15 @@ summary: Make document-scoped (unanchored) observations legible as such in the f
 
 > Canonical status lives in the frontmatter above and is mirrored in the Projects Index in `docs/plan.md`. This block carries the human-readable scope only.
 
-**Idea — direction decided 2026-07-09, marker form pending Hallmark + prototype.** Phase 6 (experience & signal quality). The _what_ is settled interactively (see § Decided direction); the _how it looks_ is an open design task to be run through the Hallmark skill and signed off as a rendered prototype **before** any `src/` visual edit (per the repo's prototype-before-commit gate). No new observation type, no prompt change — this is a pure feed-UX legibility fix.
+**In progress — built & browser-verified 2026-07-09, pending merge.** Phase 6 (experience & signal quality). Direction settled interactively, marker designed via Hallmark + a signed-off rendered prototype, then implemented and verified live (desktop + 375px). No new observation type, no prompt change — a pure feed-UX legibility fix.
+
+### Built design (2026-07-09)
+
+The context-line slot is reused: a span card shows its serif-italic quote there; a doc-scoped card shows a **scope marker** instead — a document glyph (`ScopeIcon`) + the label **"Whole doc"**, in muted **sans** on a faint bordered chip (`.card-scope`, Variant A). Deliberately the opposite texture from the quote (sans, not serif-italic) so it never reads as the user's words; neutral hue so it never competes with the kind×severity type tag. Keyed on `scope === "document"` (the `isDocScope` branch in `GroupedObsCard`), so dual-scope `underexposed_topic` is covered by data, not by a type list.
+
+The dead locate affordance is removed for doc-scoped cards: `onHover` (hover→highlight) is unwired, the card-body `onClick`/`onKeyDown` no longer dispatch `obs-card-activate`, and `.observation-card-docscope:hover` drops the hover-lift — so the card reads as static, with nothing to point at. Dismiss + the "N more" toggle keep their own behaviour. Verified live: a doc card's body click fires **no** `obs-card-activate`, while a span card's still does.
+
+**Touched:** `src/sidecar/SidecarFeed.tsx` (`ScopeIcon`, `isDocScope`, scope-aware handlers, marker render), `src/styles.css` (`.card-scope` + docscope hover suppression). Selectors added: `data-testid="obs-scope"`, `data-obs-scope`.
 
 ## The problem
 
@@ -66,10 +74,10 @@ These are the taste calls to resolve with the Hallmark skill and lock via a rend
 
 Phase 6:
 
-- [ ] Confirm the exact set of scope-blind surfaces: card header/anchor slot, hover/click handlers, the "N more" grouped-member rows, and the reverse-hover (UX-006) path for a doc-scoped primary.
-- [ ] Hallmark pass on the marker (form + copy + affordance-removal feel).
-- [ ] Post a **rendered** prototype of the doc-scoped card (alongside a span card for contrast) in chat; get owner sign-off before touching `src/`.
-- [ ] Implement: card-intrinsic marker keyed on `scope === "document"`; label in/replacing the `card-anchor` slot.
-- [ ] Implement: suppress `obs-card-activate` + hover-highlight wiring for doc-scoped cards; keep dismiss + group toggle.
-- [ ] Verify at 375px + touch; verify the marker survives the "Key issues" lift and the reverse-hover path.
-- [ ] Update `feed_surface.md` (card anatomy) and `ui_interaction_mechanics.md` (affordance amendment); reconcile the stale UX-008 "Whole document" claim in `plan.md`.
+- [x] Confirm the exact set of scope-blind surfaces: card header/anchor slot, hover/click handlers, the "N more" grouped-member rows, and the reverse-hover (UX-006) path for a doc-scoped primary.
+- [x] Hallmark pass on the marker (form + copy + affordance-removal feel).
+- [x] Post a **rendered** prototype of the doc-scoped card (alongside a span card for contrast) in chat; get owner sign-off before touching `src/`. → Variant A (chip) + copy "Whole doc".
+- [x] Implement: card-intrinsic marker keyed on `scope === "document"`; label in/replacing the `card-anchor` slot.
+- [x] Implement: suppress `obs-card-activate` + hover-highlight wiring for doc-scoped cards; keep dismiss + group toggle.
+- [x] Verify at 375px + touch; verify the marker survives the "Key issues" lift and the reverse-hover path. (Live-verified on the "See it in action" `missing_topic` card, desktop + 375px, overflow-free.)
+- [x] Update `ui_interaction_mechanics.md` (affordance amendment) + reconcile the stale UX-008 "Whole document" claim in `plan.md`. (`feed_surface.md` card anatomy is cross-referenced from this project doc rather than duplicated.)
