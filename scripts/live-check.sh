@@ -55,4 +55,7 @@ echo "· providers armed:${armed}"
 [ -n "$provider" ] && echo "· narrowed to: $provider"
 # ${args[@]+…} guards against an empty array under `set -u` on bash 3.2 (macOS).
 LIVE_CHECK=1 LIVE_CHECK_PROVIDER="$provider" \
-  npx vitest run src/model/livecheck.live.test.ts ${args[@]+"${args[@]}"}
+  npx vitest run \
+    src/model/livecheck.live.test.ts \
+    src/model/poolLiveness.live.test.ts \
+    ${args[@]+"${args[@]}"}

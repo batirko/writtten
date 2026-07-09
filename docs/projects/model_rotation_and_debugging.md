@@ -79,10 +79,16 @@ All retry, rotation, and backoff logic belongs inside the **model-router** modul
 
 Rate limits in Google AI Studio are tracked **per model**, so rotating to a different model under the same API key can bypass a limit.
 
-| Tier         | Primary            | Fallback pool (in order) | Notes                        |
-| ------------ | ------------------ | ------------------------ | ---------------------------- |
-| **`fast`**   | `gemini-3.5-flash` | `gemini-2.5-flash`       | Fast and reliable fallbacks. |
-| **`strong`** | `gemini-3.5-flash` | `gemini-2.5-flash`       | Used for deeper checks.      |
+The pools split free vs. paid (see `src/model/gemini.ts`). `gemini-2.5-pro` remains the paid strong adjudicator — it is **not** retired (Google's announced retirement is **2026-10-16**; migrate deliberately before then). The redundant `gemini-2.5-flash` / `-flash-lite` fallbacks were dropped since `gemini-3.1-flash-lite` + `gemini-3.5-flash` already cover the flash tier. Note: a transient `404 "no longer available"` can hit any model mid-rollout without meaning it's retired — the rotation engine just tries the next model.
+
+| Tier / key        | Primary                 | Fallback pool (in order)                    | Notes                                   |
+| ----------------- | ----------------------- | ------------------------------------------- | --------------------------------------- |
+| **`fast`** free   | `gemini-3.1-flash-lite` | `gemini-3.5-flash`                          | flash-lite = 500 RPD workhorse.         |
+| **`strong`** free | `gemini-3.1-flash-lite` | `gemini-3.5-flash`                          | No pro on free (0 RPD).                 |
+| **`fast`** paid   | `gemini-3.5-flash`      | `gemini-3.1-flash-lite`                     | RPD not a constraint.                   |
+| **`strong`** paid | `gemini-2.5-pro`        | `gemini-3.5-flash`, `gemini-3.1-flash-lite` | Deepest reasoner; retires 2026-10-16.   |
+
+An opt-in **pool-liveness early-warning** (`src/model/poolLiveness.live.test.ts`, run by `scripts/live-check.sh`) probes each pooled model and flags any that 404s on *every* attempt — a heuristic for the eventual retirement, transient-blip-resistant. Detection logic: `src/model/liveness.ts` (unit-tested in `liveness.test.ts`).
 
 ### Rotation & Cool-down Flow
 

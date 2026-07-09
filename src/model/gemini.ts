@@ -18,28 +18,33 @@ const GEMINI_API_BASE = "https://generativelanguage.googleapis.com/v1beta/models
  *
  * Pool order is RPD-budget-first on the free tier:
  *   gemini-3.1-flash-lite = 500 RPD (25× more than the 20-RPD flash variants)
- *   Everything else       = 20 RPD
- *   gemini-2.5-pro        = 0 RPD (no free-tier quota — excluded entirely)
+ *   gemini-3.5-flash      = 20 RPD
+ *   gemini-2.5-pro        = 0 RPD (no free-tier quota — excluded from free pools)
+ *
+ * gemini-2.5-pro stays the paid strong adjudicator — it's the deepest reasoner
+ * we have and is NOT retired (Google's announced retirement is 2026-10-16; until
+ * then it has full paid quota). The redundant gemini-2.5-flash / -flash-lite
+ * fallbacks were dropped: 3.1-flash-lite + 3.5-flash already cover the flash tier,
+ * and trimming the 2.5 line shrinks exposure to its eventual retirement. NB: a
+ * transient 404 "no longer available" can hit any of these mid-rollout — it's not
+ * a real deprecation; the rotation engine already recovers by trying the next model.
  *
  * Paid pools use better models since RPD is not a constraint.
  * See docs/projects/model_rotation_and_debugging.md §2.
  */
 const FREE_FAST_POOL = [
   "gemini-3.1-flash-lite", // 500 RPD — primary workhorse on free tier
-  "gemini-2.5-flash-lite", // 20 RPD fallback
-  "gemini-2.5-flash", // 20 RPD fallback
-  "gemini-3.5-flash", // 20 RPD last resort
+  "gemini-3.5-flash", // 20 RPD fallback
 ];
 const FREE_STRONG_POOL = [
   "gemini-3.1-flash-lite", // 500 RPD — best available on free tier
   "gemini-3.5-flash", // 20 RPD fallback
-  "gemini-2.5-flash", // 20 RPD last resort
-  // gemini-2.5-pro excluded: 0 RPD on free tier (limit: 0 in every 429 payload)
+  // gemini-2.5-pro excluded from free: 0 RPD on the free tier (limit: 0 in every 429 payload)
 ];
 
 // Paid key pools: RPD not a bottleneck, so quality ordering.
-const PAID_FAST_POOL = ["gemini-2.5-flash", "gemini-3.5-flash", "gemini-3.1-flash-lite"];
-const PAID_STRONG_POOL = ["gemini-2.5-pro", "gemini-2.5-flash", "gemini-3.5-flash"];
+const PAID_FAST_POOL = ["gemini-3.5-flash", "gemini-3.1-flash-lite"];
+const PAID_STRONG_POOL = ["gemini-2.5-pro", "gemini-3.5-flash", "gemini-3.1-flash-lite"];
 
 function parseRetryDelay(headers: Headers): number | null {
   const delayStr = headers.get("retry-delay");
