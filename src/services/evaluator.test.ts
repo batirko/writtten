@@ -131,7 +131,7 @@ describe("evaluator - evaluateBlock", () => {
       summary: "",
       hash: expect.any(String),
     });
-    expect(db.saveClaimsForBlock).toHaveBeenCalledWith(docId, blockId, []);
+    expect(db.saveClaimsForBlock).toHaveBeenCalledWith(docId, blockId, [], [blockId]);
     expect(mockFast).not.toHaveBeenCalled();
   });
 
@@ -167,10 +167,15 @@ describe("evaluator - evaluateBlock", () => {
       hash: expect.any(String),
     });
 
-    expect(db.saveClaimsForBlock).toHaveBeenCalledWith(docId, blockId, [
-      // Anchor fields (OBS-032) asserted in evaluatorAnchoring.test.ts.
-      expect.objectContaining({ text: "We plan to launch in Q3.", kind: "commitment" }),
-    ]);
+    expect(db.saveClaimsForBlock).toHaveBeenCalledWith(
+      docId,
+      blockId,
+      [
+        // Anchor fields (OBS-032) asserted in evaluatorAnchoring.test.ts.
+        expect.objectContaining({ text: "We plan to launch in Q3.", kind: "commitment" }),
+      ],
+      [blockId] // section members threaded for former-representative eviction
+    );
 
     // Clarity observation saved.
     // severity:"low" confidence:"medium" priority:0.75 — clarity base prior.
@@ -1417,7 +1422,7 @@ describe("evaluator - bodyless-heading section is inert (OBS-029)", () => {
     expect(mockFast).not.toHaveBeenCalled();
     expect(mockStrong).not.toHaveBeenCalled();
     // Section is retired to the inert state (same path as the too-short guard).
-    expect(db.saveClaimsForBlock).toHaveBeenCalledWith(docId, sectionId, []);
+    expect(db.saveClaimsForBlock).toHaveBeenCalledWith(docId, sectionId, [], [sectionId]);
     expect(db.saveBlockSummary).toHaveBeenCalledWith({
       blockId: sectionId,
       docId,
@@ -1447,7 +1452,7 @@ describe("evaluator - bodyless-heading section is inert (OBS-029)", () => {
     );
 
     expect(mockFast).not.toHaveBeenCalled();
-    expect(db.saveClaimsForBlock).toHaveBeenCalledWith(docId, sectionId, []);
+    expect(db.saveClaimsForBlock).toHaveBeenCalledWith(docId, sectionId, [], [sectionId, "p1"]);
   });
 
   it("evaluates normally once the heading gains real body text", async () => {
@@ -1479,10 +1484,15 @@ describe("evaluator - bodyless-heading section is inert (OBS-029)", () => {
     );
 
     expect(mockFast).toHaveBeenCalledTimes(1);
-    expect(db.saveClaimsForBlock).toHaveBeenCalledWith(docId, sectionId, [
-      // Anchor fields (OBS-032) asserted in evaluatorAnchoring.test.ts.
-      expect.objectContaining({ text: "AI use erodes writing skill.", kind: "fact" }),
-    ]);
+    expect(db.saveClaimsForBlock).toHaveBeenCalledWith(
+      docId,
+      sectionId,
+      [
+        // Anchor fields (OBS-032) asserted in evaluatorAnchoring.test.ts.
+        expect.objectContaining({ text: "AI use erodes writing skill.", kind: "fact" }),
+      ],
+      [sectionId, "p1"] // section members threaded for former-representative eviction
+    );
   });
 });
 
@@ -1844,5 +1854,47 @@ describe("evaluator - revert-aware snapshot restore (UX-014 Mechanism 2)", () =>
     );
     // Different text, same membership → a real change, not a snapshot hit.
     expect(mockFast).toHaveBeenCalledTimes(2);
+  });
+
+  it("threads full membership into the claim write so a migrated representative retires the old rep's claims", async () => {
+    // 1. Section originally repped by "intro"; extracts a claim filed under "intro".
+    mockFast.mockResolvedValueOnce({
+      text: JSON.stringify({
+        summary: "s",
+        claims: [{ text: "A claim.", kind: "fact_claim" }],
+        clarity_observations: [],
+      }),
+    });
+    await evaluateSection(docId, "intro", combinedText, introMembers, undefined, apiKey);
+    expect(db.saveClaimsForBlock).toHaveBeenLastCalledWith(docId, "intro", expect.any(Array), [
+      "intro",
+      "target",
+      "trail",
+    ]);
+
+    // 2. The representative migrates to "target" (e.g. the intro's first block
+    //    shifted / a toggle re-owned the blocks) with "intro" now a plain member
+    //    and a *different* combined text (so no snapshot restore). The write must
+    //    carry the full membership so db.saveClaimsForBlock orphans the claims
+    //    still filed under the former representative "intro".
+    const migratedMembers = [
+      { blockId: "target", text: "Body text worth flagging." },
+      { blockId: "intro", text: "Some intro paragraph." },
+      { blockId: "trail", text: "Trailing paragraph." },
+    ];
+    const migratedText = migratedMembers.map((m) => m.text).join("\n\n");
+    mockFast.mockResolvedValueOnce({
+      text: JSON.stringify({
+        summary: "s2",
+        claims: [{ text: "A claim.", kind: "fact_claim" }],
+        clarity_observations: [],
+      }),
+    });
+    await evaluateSection(docId, "target", migratedText, migratedMembers, undefined, apiKey);
+    expect(db.saveClaimsForBlock).toHaveBeenLastCalledWith(docId, "target", expect.any(Array), [
+      "target",
+      "intro",
+      "trail",
+    ]);
   });
 });
