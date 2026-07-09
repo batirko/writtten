@@ -95,6 +95,13 @@ Of the **9-type taxonomy** (section: `clarity` · `unsupported_claim` · `undefi
 - **Keep the doc small and (optionally) the meta framing.** Owner likes the small size; the self-referential "Sidecar Review" PRD framing is not in scope to replace here (it was flagged but the ambition is curation, not a rewrite of the doc's subject).
 - **Re-record both paths.** The recording keys on request hash at **weak** capability (keyless `mock` replay + keyed live-error fallback). After changing the doc text, **every** section/sweep/document-scan hash changes, so the whole `EXAMPLE_DOC_RECORDING` must be regenerated, and `src/services/exampleReplay.test.ts` re-greened.
 
+### Iteration 2 (2026-07-09) — coachmarks + two clearer cards (shipped)
+
+Two owner follow-ups on the shipped demo:
+
+- **Onboarding coachmarks.** A new `src/sidecar/DemoCoachmarks.tsx` overlays three temporary, obviously-onboarding callouts over the demo — the writing canvas, the observation feed, and the activity monitor — so a first-timer is oriented before reading the cards. Deliberately styled apart from core UX (dashed `--color-accent`, numbered `N of 3` steps, spotlight rings; the approved prototype was signed off in chat). It's **non-blocking** (the overlay is `pointer-events: none`; only the cards + the single "Got it" take events), rect-anchored (measures `.editor-column` / `.sidecar-panel` / `[data-testid="control-anchor"]` and repositions on resize/scroll), gated on `demoActive`, dismissed by "Got it" or Escape, and **suppressed on ≤720px** (the layout stacks / the feed hides there — the `MobileNote` strip already sets the desktop expectation). z-index 120 (above the feed/control-center, below the modal scrim).
+- **Two weaker cards reworked** (a full weak-tier re-record, since the tension needed new claims). The `strategic_tension` was a four-week-build-vs-six-week-beta-lead timeline puzzle that needed arithmetic; it's now **quiet vs. engagement** — the panel is committed to "stay quiet and never interrupt" (Non-goals) yet success is measured by "weekly active documents" (Success metrics), two clearly-desirable goals pulling apart. The `missing_topic` moved from data-privacy to the sharper **go-to-market gap**: a launch date and a 500-active-docs target, but nothing on how PMs discover or start using the tool. The other four cards (contradiction, unsupported_claim, `BM25` jargon, "feel trustworthy" clarity) are unchanged; the 6-type spread guard still holds.
+
 ## Phased Plan
 
 | Phase | Contributes                                                                                                                                                                                                                                                              |
