@@ -89,6 +89,80 @@ const PROVIDER_META: Record<ProviderId, ProviderMeta> = {
   },
 };
 
+// The expected leading characters of each provider's key. Used for a cheap,
+// synchronous "does this even look like the right provider's key?" check before
+// we spend a network round-trip verifying it. Not a validity guarantee — a
+// well-shaped key can still be revoked/wrong; that's what the live verify is for.
+const KEY_PREFIX: Record<ProviderId, string> = {
+  gemini: "AIza",
+  openai: "sk-",
+  anthropic: "sk-ant-",
+};
+
+/** True when the key is empty (don't nag before typing) or starts with the
+ *  provider's expected prefix. Catches an obviously wrong-provider paste (a
+ *  Gemini `AIza…` key in the OpenAI field) without a doomed network call.
+ *  Exported for unit testing. */
+export function keyShapeOk(providerId: ProviderId, key: string): boolean {
+  const k = key.trim();
+  if (!k) return true;
+  return k.startsWith(KEY_PREFIX[providerId]);
+}
+
+// The verification state a key field can be in: not-yet-checked ("idle"),
+// in-flight ("checking"), or a settled ping outcome.
+export type KeyCheckStatus = "idle" | "checking" | PingStatus;
+
+// Fold Gemini's tier-detection signal into the same vocabulary the OpenAI/
+// Anthropic live check produces, so one subtitle helper serves every provider.
+export function geminiTierToCheck(tier: GeminiTier | "detecting" | "idle"): KeyCheckStatus {
+  switch (tier) {
+    case "idle":
+      return "idle";
+    case "detecting":
+      return "checking";
+    case "paid":
+    case "free":
+      return "ok"; // reachable & authenticated → verified
+    case "invalid":
+      return "invalid";
+    case "unknown":
+      return "network"; // couldn't reach the provider — can't claim verified
+  }
+}
+
+// One honest read for a single key field's subtitle: maps "is there a key",
+// "does it look right", and "what did verification say" into a label + a
+// `.status-*` class. Exported for unit testing the mapping matrix.
+export type KeyStatusView = { cls: "ok" | "bad" | "warn" | "checking" | "muted"; text: string };
+export function keyStatusView(args: {
+  hasKey: boolean;
+  shapeOk: boolean;
+  check: KeyCheckStatus;
+  shape: string;
+}): KeyStatusView {
+  const { hasKey, shapeOk, check, shape } = args;
+  if (!hasKey) return { cls: "muted", text: "No key set" };
+  // A wrong-shaped key is a local certainty — surface it before any verify state.
+  if (!shapeOk) return { cls: "bad", text: `✗ Doesn't look like a ${shape} key` };
+  switch (check) {
+    case "checking":
+      return { cls: "checking", text: "Key stored · checking…" };
+    case "ok":
+      return { cls: "ok", text: "✓ Key verified" };
+    case "invalid":
+      return { cls: "bad", text: "✗ Key rejected" };
+    case "billing":
+      return { cls: "warn", text: "✓ Key valid · billing not enabled" };
+    case "rate_limited":
+      return { cls: "warn", text: "✓ Key valid · rate-limited" };
+    // network / error / not-yet-checked: the key is stored but we can't assert
+    // it works. Say exactly that rather than a green "set" that over-claims.
+    default:
+      return { cls: "warn", text: "✓ Key stored · not verified" };
+  }
+}
+
 // The combined honest read of a two-field Gemini setup. Returned as a
 // {cls, node} pair so the panel can style it with the existing `.gemini-tier-*`
 // classes. Exported for unit testing of the copy-selection matrix.
@@ -457,6 +531,29 @@ export function ControlCenter({
     };
   }, [providerId, geminiPaidKey]);
 
+  // Live verification for the non-Gemini providers (Gemini has its own tier
+  // probe above). Debounced the same way: once a shape-plausible key settles,
+  // ping it once so the subtitle can say "verified" / "rejected" without the
+  // user pressing the button. A wrong-shaped key never fires — the local shape
+  // check already tells the truth, and the request would only 401.
+  const [keyCheck, setKeyCheck] = useState<KeyCheckStatus>("idle");
+  useEffect(() => {
+    if (providerId === "gemini" || !apiKey.trim() || !keyShapeOk(providerId, apiKey)) {
+      setKeyCheck("idle");
+      return;
+    }
+    let cancelled = false;
+    setKeyCheck("checking");
+    const t = setTimeout(async () => {
+      const result = await pingProvider(providerId, apiKey, pingModelFor(providerId));
+      if (!cancelled) setKeyCheck(result.status);
+    }, 700);
+    return () => {
+      cancelled = true;
+      clearTimeout(t);
+    };
+  }, [providerId, apiKey]);
+
   const meta = PROVIDER_META[providerId];
   // Live per-provider model list for the picker: fetch the real models a key
   // grants (replacing the hardcoded catalog), falling back to the preset when
@@ -546,6 +643,22 @@ export function ControlCenter({
       : geminiKeyStatus({ hasFree, hasPaid, geminiTier, geminiPaidTier, keyTier });
   const canPing = hasFree || (providerId === "gemini" && hasPaid);
 
+  // Honest per-field subtitle state. The primary field's verification signal is
+  // Gemini's tier probe when on Gemini, else the non-Gemini live check. The paid
+  // field always reads off its own tier probe.
+  const primaryView = keyStatusView({
+    hasKey: hasFree,
+    shapeOk: keyShapeOk(providerId, apiKey),
+    check: providerId === "gemini" ? geminiTierToCheck(geminiTier) : keyCheck,
+    shape: meta.shape,
+  });
+  const paidView = keyStatusView({
+    hasKey: hasPaid,
+    shapeOk: keyShapeOk("gemini", geminiPaidKey),
+    check: geminiTierToCheck(geminiPaidTier),
+    shape: "AIza…",
+  });
+
   const runPing = async () => {
     setPinging(true);
     setPing(null);
@@ -572,6 +685,9 @@ export function ControlCenter({
     } else {
       const result = await pingProvider(providerId, apiKey, pingModelFor(providerId));
       setPing(result);
+      // Keep the subtitle and the manual verdict in lockstep — a click can never
+      // disagree with the auto-verify.
+      setKeyCheck(result.status);
     }
     setPinging(false);
   };
@@ -735,11 +851,15 @@ export function ControlCenter({
                 value={apiKey}
                 onChange={(e) => onApiKeyChange(e.target.value)}
               />
-              {/* Status reads on the field itself: a bold green "✓ Key set" when a
-                  key is held, then the shape hint + a single "Get a key" link. The
-                  old standing key-status card that re-summarized this is gone. */}
+              {/* Status reads on the field itself: it names what we actually know
+                  — stored vs. checking vs. verified/rejected — not merely "a string
+                  is present". Then the shape hint + a single "Get a key" link. */}
               <span className="setting-help">
-                {apiKey ? <strong className="status-ok">✓ Key set</strong> : "No key set"}
+                {primaryView.cls === "muted" ? (
+                  primaryView.text
+                ) : (
+                  <strong className={`status-${primaryView.cls}`}>{primaryView.text}</strong>
+                )}
                 {" · starts with "}
                 <code className="key-shape">{meta.shape}</code>
                 {" · "}
@@ -782,7 +902,7 @@ export function ControlCenter({
                 <span className="setting-help">
                   {geminiPaidKey && (
                     <>
-                      <strong className="status-ok">✓ Key set</strong>
+                      <strong className={`status-${paidView.cls}`}>{paidView.text}</strong>
                       {" · "}
                     </>
                   )}

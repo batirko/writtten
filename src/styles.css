@@ -624,6 +624,20 @@ body,
   color: var(--sem-good);
   font-weight: 600;
 }
+/* Sibling verification states for the key subtitle. Colours mirror the .ping-*
+   verdict palette below so an inline subtitle and the ping chip read the same. */
+.status-bad {
+  color: oklch(47% 0.16 25);
+  font-weight: 600;
+}
+.status-warn {
+  color: oklch(45% 0.11 62);
+  font-weight: 600;
+}
+.status-checking {
+  color: var(--text-muted);
+  font-weight: 600;
+}
 
 /* --- Multi-provider BYOK settings (docs/projects/multi_provider_router.md §D) --- */
 .provider-seg {
