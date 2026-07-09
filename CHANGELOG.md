@@ -8,6 +8,47 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 > conventional-commit PR titles; a new version section is prepended when a release PR merges.
 > See `docs/mechanics/release_and_deploy.md`.
 
+## [0.3.0](https://github.com/batirko/writtten/compare/writtten-v0.2.0...writtten-v0.3.0) (2026-07-09)
+
+
+### Added
+
+* **control-center:** ship the LLM debug drawer in production ([#152](https://github.com/batirko/writtten/issues/152)) ([dae2c16](https://github.com/batirko/writtten/commit/dae2c16c7b7dc43e818145123b3d4a93272899c9))
+* **control-center:** weak/strong tier colour cue on the activity dot ([#122](https://github.com/batirko/writtten/issues/122)) ([c4bb1aa](https://github.com/batirko/writtten/commit/c4bb1aa58f2de635ddb92abcaab13ad75be5db4f))
+* **editor:** C8 — pin a highlighted span's card on click ([#119](https://github.com/batirko/writtten/issues/119)) ([c777c6c](https://github.com/batirko/writtten/commit/c777c6cdee406a7bf11f122df6b65a41984eddf4))
+* **evaluator:** UX-008 backend — emit anchorQuote verbatim excerpt ([#123](https://github.com/batirko/writtten/issues/123)) ([742550b](https://github.com/batirko/writtten/commit/742550b39633d839dbb23dd9c9f8cba4d8eb424b))
+* **feed:** document-scope card marker + honest affordance ([529fd03](https://github.com/batirko/writtten/commit/529fd033e7e111415abaf0c962eb5bcd8993df3d))
+* **feed:** document-scope card marker + honest affordance ([31aa184](https://github.com/batirko/writtten/commit/31aa1849581720f4cee4ddb577744741cb0cc064))
+* **feed:** mid-sentence anchor quote — ellipsis fence, no forced capital (UX-008) ([#137](https://github.com/batirko/writtten/issues/137)) ([f2c06ae](https://github.com/batirko/writtten/commit/f2c06ae0a747de96eb752bc76c20ede87814c180))
+* **onboarding:** curate "See it in action" demo for observation-type variety ([#141](https://github.com/batirko/writtten/issues/141)) ([d73a701](https://github.com/batirko/writtten/commit/d73a70130454e1803543f71a4da65b61a0f93fff))
+* **onboarding:** demo coachmarks + clearer tension/missing-topic cards ([#143](https://github.com/batirko/writtten/issues/143)) ([ab54853](https://github.com/batirko/writtten/commit/ab54853b1f805f68b265984a086dbe388ba05127))
+* **onboarding:** first-run activation — blocking welcome modal + keyless banner ([#114](https://github.com/batirko/writtten/issues/114)) ([5f347bd](https://github.com/batirko/writtten/commit/5f347bde1bde52910b5153ec952aad829dbea066))
+* **onboarding:** redesign coachmarks — gutter stack, spread, two-layer cards ([#147](https://github.com/batirko/writtten/issues/147)) ([6f03265](https://github.com/batirko/writtten/commit/6f0326542a6e9273e6d2796d8d6ce8a70f664cbb))
+* **settings:** affirm the active provider with an inline checkmark ([#117](https://github.com/batirko/writtten/issues/117)) ([40263d2](https://github.com/batirko/writtten/commit/40263d2481d0391aa81d1a0a94191286f1ff86ca))
+* **settings:** dynamic per-provider model list (replaces preset catalogs) ([#125](https://github.com/batirko/writtten/issues/125)) ([5c7da3f](https://github.com/batirko/writtten/commit/5c7da3f607168857d26b710f6826c8dd9cb49073))
+* **settings:** flat layout + simplified copy (revert sections, thin redundancy) ([#142](https://github.com/batirko/writtten/issues/142)) ([16eba1b](https://github.com/batirko/writtten/commit/16eba1b4dc34ffc8dd0262b5e5500e69f0406c68))
+* **settings:** shared key-privacy line + Remove-key control (all providers) ([#115](https://github.com/batirko/writtten/issues/115)) ([566cecc](https://github.com/batirko/writtten/commit/566cecc1669f057e33686f66937b72bed370b5e2))
+* **settings:** widen + regroup the settings modal into labeled sections ([#139](https://github.com/batirko/writtten/issues/139)) ([a7d6878](https://github.com/batirko/writtten/commit/a7d6878fabd7ecf7ca7f276cbf670c1ef9877576))
+
+
+### Fixed
+
+* **byok:** make the "Key set" subtitle honest about verification ([#151](https://github.com/batirko/writtten/issues/151)) ([7ff0006](https://github.com/batirko/writtten/commit/7ff0006f21061b8f9cf0a03ee249af65ce30e3a3))
+* **deploy:** match release-please's component tag + add manual dispatch ([#110](https://github.com/batirko/writtten/issues/110)) ([7edc781](https://github.com/batirko/writtten/commit/7edc7815d386c8cc252ad8e004beef7fbe5fc9ef))
+* **diagnostics:** L9 — persist the debug log + switch, add a top-level ErrorBoundary ([#120](https://github.com/batirko/writtten/issues/120)) ([a361969](https://github.com/batirko/writtten/commit/a36196966e85927fd59587c244b39d170836f436))
+* **editor:** C10 — drop the redundant canvas focus outline ([#118](https://github.com/batirko/writtten/issues/118)) ([8f78593](https://github.com/batirko/writtten/commit/8f7859315c142d9f149271f240c81acae04eef0a))
+* **editor:** C9 — resolve overlapping/co-located highlights by coordinate ([#116](https://github.com/batirko/writtten/issues/116)) ([6c9ffac](https://github.com/batirko/writtten/commit/6c9ffac1a2f0a22cae6d3c4111b8c8c4dbe63159))
+* **evaluator:** OBS-032 — anchor reworded cross-claims to the body, not the heading ([#121](https://github.com/batirko/writtten/issues/121)) ([4073e8c](https://github.com/batirko/writtten/commit/4073e8c242996853bd308501af6d78b0ada8137c))
+* **feed:** C9 — stack co-located cards in the SpanPeek float, not the feed ([#126](https://github.com/batirko/writtten/issues/126)) ([f88875d](https://github.com/batirko/writtten/commit/f88875d5d297c063029345d04da1fd500dd33f1d))
+* **highlight:** suppress stale exact-anchor highlights instead of painting wrong words ([#140](https://github.com/batirko/writtten/issues/140)) ([ed055ce](https://github.com/batirko/writtten/commit/ed055cec2bcb8f5a87d0bd119f49ea7ddf8e8054))
+* **ledger:** evict former-representative claims when a section's rep id migrates ([#146](https://github.com/batirko/writtten/issues/146)) ([25575a8](https://github.com/batirko/writtten/commit/25575a8a0a9b182f0c13376e3d4a628f271015b1))
+* **model:** drop temperature from OpenAI requests — GPT-5.x rejects it ([#128](https://github.com/batirko/writtten/issues/128)) ([df7bda7](https://github.com/batirko/writtten/commit/df7bda77127377c5ad09067db3d051583b8f92cb))
+* **onboarding:** coachmark canvas ring covers the whole canvas; obvious dismiss ([#145](https://github.com/batirko/writtten/issues/145)) ([facbda1](https://github.com/batirko/writtten/commit/facbda1688cf83af7023575e10aa77a7ee0c5190))
+* **onboarding:** welcome modal shouldn't auto-ring "Add your key" on open ([#124](https://github.com/batirko/writtten/issues/124)) ([da7a532](https://github.com/batirko/writtten/commit/da7a532f55c44546145c60e5492fc013aeee41c5))
+* **settings:** honest "What's running" card — keyless preview + Gemini rotation ([#113](https://github.com/batirko/writtten/issues/113)) ([47a86a6](https://github.com/batirko/writtten/commit/47a86a60180283f5ddcb10486c1987e65ff0fa8b))
+* **settings:** stop browser "save password" prompt on API-key fields ([#148](https://github.com/batirko/writtten/issues/148)) ([18da73a](https://github.com/batirko/writtten/commit/18da73abec65e5d69b7012313f15aea4fc598c21))
+* **signal:** unsupported_claim card body was a verbatim restatement of the cited span (OBS-032) ([#127](https://github.com/batirko/writtten/issues/127)) ([0ccd87f](https://github.com/batirko/writtten/commit/0ccd87fa04140de7dc5eeac3cd719e24f1744f32))
+
 ## [0.2.0](https://github.com/batirko/writtten/compare/writtten-v0.1.0...writtten-v0.2.0) (2026-07-07)
 
 
