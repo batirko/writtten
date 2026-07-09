@@ -19,7 +19,7 @@ const fixture: EvalFixture = {
     },
   ],
   recordings: {
-    "r1kj6xvk_6619": "{\n  \"summary\": \"The team intends to improve the checkout experience to enhance performance and user satisfaction.\",\n  \"claims\": [\n    {\n      \"text\": \"We will deliver a significant improvement to the checkout experience soon.\",\n      \"kind\": \"commitment\"\n    }\n  ],\n  \"clarity_observations\": [\n    {\n      \"text\": \"The timeline for delivery is unspecified.\",\n      \"substring\": \"soon\"\n    },\n    {\n      \"text\": \"The metrics for success regarding performance and user happiness are undefined.\",\n      \"substring\": \"Performance will be better and users will be happier\"\n    }\n  ],\n  \"unsupported_claim_observations\": [],\n  \"undefined_jargon_observations\": []\n}"
+    "rgdhnwb_7403": "{\n  \"summary\": \"The team intends to improve the checkout experience to enhance performance and user satisfaction.\",\n  \"claims\": [\n    {\n      \"text\": \"We will deliver a significant improvement to the checkout experience soon.\",\n      \"kind\": \"commitment\"\n    }\n  ],\n  \"clarity_observations\": [\n    {\n      \"text\": \"The timeline for delivery is unspecified.\",\n      \"substring\": \"soon\"\n    },\n    {\n      \"text\": \"The metrics for success regarding performance and user happiness are undefined.\",\n      \"substring\": \"Performance will be better and users will be happier\"\n    }\n  ],\n  \"unsupported_claim_observations\": [],\n  \"undefined_jargon_observations\": []\n}"
   },
   expected: [
     {

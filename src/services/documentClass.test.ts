@@ -58,24 +58,38 @@ describe("isRelaxedClass", () => {
 
 describe("calibration blocks", () => {
   const relaxed: DocumentClass[] = ["comms_announcement", "memo_email", "essay_personal"];
-  const strict: DocumentClass[] = ["prd_spec", "unknown"];
 
-  it("emits a section block only for relaxed classes (hash-stable otherwise)", () => {
+  it("emits a genre-labelled section block for the relaxed work genres", () => {
     for (const c of relaxed) {
       const b = sectionCalibrationBlock(c);
       expect(b).toContain("unsupported_claim");
       expect(b).toContain(CLASS_LABELS[c]);
     }
-    for (const c of strict) expect(sectionCalibrationBlock(c)).toBe("");
   });
 
-  it("emits a doc block only for relaxed classes (hash-stable otherwise)", () => {
+  it("emits a genre-labelled doc block for the relaxed work genres", () => {
     for (const c of relaxed) {
       const b = docCalibrationBlock(c);
       expect(b).toContain("missing_topic");
       expect(b).toContain(CLASS_LABELS[c]);
     }
-    for (const c of strict) expect(docCalibrationBlock(c)).toBe("");
+  });
+
+  it("prd_spec is the strict anchor — empty blocks, hash-stable", () => {
+    expect(sectionCalibrationBlock("prd_spec")).toBe("");
+    expect(docCalibrationBlock("prd_spec")).toBe("");
+  });
+
+  it("unknown gets a softened cold-open block, not full PRD strictness (OBS-036)", () => {
+    const sec = sectionCalibrationBlock("unknown");
+    expect(sec).not.toBe("");
+    expect(sec).toContain("not yet identified");
+    expect(sec).toContain("unsupported_claim");
+    // contradiction/clarity/jargon stay fully on for the cold-open default
+    expect(sec).toContain("Contradiction, clarity, and undefined-jargon checks are unchanged");
+    const doc = docCalibrationBlock("unknown");
+    expect(doc).not.toBe("");
+    expect(doc).toContain("missing_topic");
   });
 
   it("conservative dial: section block never relaxes contradiction/clarity/jargon", () => {

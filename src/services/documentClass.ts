@@ -23,10 +23,12 @@ export type DocumentClass =
   | "unknown";
 
 /**
- * Classes whose non-PRD register relaxes `unsupported_claim` / `missing_topic`.
- * `prd_spec` (full strictness — the anchor) and `unknown` (conservative default,
- * behaves PRD-ish + the always-on OBS-028 opinion carve-out) are NOT relaxed, so
- * they inject no calibration block and leave request hashes unchanged.
+ * The three non-PRD *work* genres that carry an explicit genre label in their
+ * calibration block. `prd_spec` is the strict anchor (no block, hash-stable);
+ * `unknown` is NOT in this set but since OBS-036 it emits its own *softened
+ * cold-open* block (see `sectionCalibrationBlock`/`docCalibrationBlock`) — so
+ * "relaxed genre" (labelled) and "emits a calibration block" are no longer the
+ * same thing. Only `prd_spec` leaves request hashes unchanged now.
  */
 const RELAXED_CLASSES: ReadonlySet<DocumentClass> = new Set<DocumentClass>([
   "comms_announcement",
@@ -81,21 +83,36 @@ export function classifyDocumentClass(stage?: string | null): DocumentClass {
 }
 
 /**
- * Section-tier (`unsupported_claim`) calibration block for a relaxed class.
- * Returns "" for non-relaxed classes so the prompt (and its hash) is unchanged.
- * Instructions ride in user content, not the static system prompt, so only
- * relaxed-class sections change their request hash.
+ * Section-tier (`unsupported_claim`) calibration block.
+ *
+ * `prd_spec` returns "" (full strictness — the strict anchor, hash-stable). The
+ * three relaxed genres each get a genre-labelled block. `unknown` gets a
+ * softened cold-open block (OBS-036): an un-staged doc classifies as `unknown`
+ * and, before the doc-idle inference has a chance to set a stage, used to get
+ * full PRD strictness on the very first pass — flagging a rhetorical apprehension
+ * in a cold essay as `unsupported_claim`. Since the un-staged cold-open is the
+ * *common* case, `unknown` now leans toward the essay/comms floor on
+ * `unsupported_claim` until a class is confirmed, while keeping
+ * `contradiction`/`clarity`/`undefined_jargon` fully on. Instructions ride in
+ * user content, not the static system prompt.
  */
 export function sectionCalibrationBlock(c: DocumentClass): string {
-  if (!isRelaxedClass(c)) return "";
+  if (c === "prd_spec") return "";
+  if (c === "unknown") {
+    return `\nDocument-type calibration — the document type is not yet identified. Until it is, do not assume this is a PRD or spec: apply unsupported_claim ONLY to hard, checkable external-fact assertions (statistics, claims about the current state of the world). Do NOT flag opinions, first-person reflection, rhetorical or narrative framing, or genre-normal statements as unsupported. Contradiction, clarity, and undefined-jargon checks are unchanged.`;
+  }
   return `\nDocument-type calibration — this is ${CLASS_LABELS[c]}, not a PRD or spec. Apply unsupported_claim ONLY to hard, checkable external-fact assertions (statistics, claims about the current state of the world). Do NOT flag opinions, first-person reflection, rhetorical or narrative framing, or genre-normal statements as unsupported. Contradiction, clarity, and undefined-jargon checks are unchanged.`;
 }
 
 /**
- * Doc-tier (`missing_topic` / `structure_flow`) calibration block for a relaxed
- * class. Returns "" for non-relaxed classes (hash-stable).
+ * Doc-tier (`missing_topic` / `structure_flow`) calibration block. `prd_spec`
+ * returns "" (hash-stable); the relaxed genres and `unknown` (OBS-036 cold-open,
+ * until a class is confirmed) suppress PRD-structural expectations.
  */
 export function docCalibrationBlock(c: DocumentClass): string {
-  if (!isRelaxedClass(c)) return "";
+  if (c === "prd_spec") return "";
+  if (c === "unknown") {
+    return `\nDocument-type calibration — the document type is not yet identified. Until it is, do not raise missing_topic or structure_flow for the absence of PRD sections (objective, scope, success metrics, timeline, risks); those are PRD constructs, not omissions in an unknown document type. Contradiction and clarity are unchanged.`;
+  }
   return `\nDocument-type calibration — this is ${CLASS_LABELS[c]}, not a PRD or spec. Do NOT raise missing_topic or structure_flow for the absence of PRD sections (objective, scope, success metrics, timeline, risks); those are PRD constructs, not omissions here. Judge structure by the norms of this genre. Contradiction and clarity are unchanged.`;
 }

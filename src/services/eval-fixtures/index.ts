@@ -30,6 +30,7 @@ import claimKindDiscrimination from "./claim-kind-discrimination";
 import clarityTextInsight from "./clarity-text-insight";
 import opinionApprehension from "./opinion-apprehension";
 import commsNarrative from "./comms-narrative";
+import rhetoricalApprehension from "./rhetorical-apprehension";
 import type { EvalFixture } from "./types";
 
 export const corpus: EvalFixture[] = [
@@ -51,6 +52,7 @@ export const corpus: EvalFixture[] = [
   clarityTextInsight,
   opinionApprehension,
   commsNarrative,
+  rhetoricalApprehension,
 ];
 
 export { type EvalFixture } from "./types";
