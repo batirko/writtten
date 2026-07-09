@@ -84,15 +84,19 @@ function computeLayout(): Layout | null {
   const clampX = (x: number) => Math.max(8, Math.min(x, vw - CARD_W - 8));
   const clampY = (y: number, h = 96) => Math.max(8, Math.min(y, vh - h - 8));
 
-  // 1 — canvas: ring the top of the writing column, card just below it.
+  // 1 — canvas: ring the WHOLE writing column, clamped to the viewport so a long,
+  //     scrolled document doesn't run the outline off-screen. The card labels the
+  //     region from its top-left corner (no connector — the ring is the pointer).
+  const ring1Top = Math.max(8, cvs.top + 8);
+  const ring1Bottom = Math.min(vh - 8, cvs.top + cvs.height - 8);
   const ring1: Ring = {
     x: cvs.left + 8,
-    y: cvs.top + 8,
+    y: ring1Top,
     w: cvs.width - 16,
-    h: Math.min(150, cvs.height - 16),
+    h: Math.max(80, ring1Bottom - ring1Top),
     rx: 10,
   };
-  const c1 = { x: clampX(cvs.left + 24), y: clampY(ring1.y + ring1.h + 22) };
+  const c1 = { x: clampX(cvs.left + 20), y: clampY(cvs.top + 16) };
 
   // 2 — feed: ring the whole feed, card to its left (falls back to overlap).
   const ring2: Ring = {
@@ -110,9 +114,8 @@ function computeLayout(): Layout | null {
   const dr = Math.max(dot.width, dot.height) / 2 + 9;
   const c3 = { x: clampX(dot.left - CARD_W - 18), y: clampY(dot.top - 88, 88) };
 
+  // card 1 sits inside its ring as a label (no connector). Cards 2 and 3 point.
   const conns: Conn[] = [
-    // card 1 top-centre → ring1 bottom-centre
-    { x1: c1.x + CARD_W / 2, y1: c1.y, x2: ring1.x + ring1.w / 2, y2: ring1.y + ring1.h },
     // card 2 right-mid → ring2 left edge
     { x1: c2.x + CARD_W, y1: c2.y + 42, x2: ring2.x, y2: feed.top + 42 },
     // card 3 right-mid → dot (upper-left of the ring)
@@ -141,10 +144,9 @@ export function DemoCoachmarks({ active }: { active: boolean }) {
 
   useEffect(() => {
     if (!visible) return;
-    if (window.matchMedia(MOBILE_QUERY).matches) {
-      setLayout(null);
-      return;
-    }
+    // Note: don't early-return on mobile here — measure() suppresses the overlay
+    // on ≤720px, and we still want the resize listener attached so a mobile→
+    // desktop resize recovers (and vice-versa).
     let raf = 0;
     const measure = () => {
       if (window.matchMedia(MOBILE_QUERY).matches) {
@@ -225,6 +227,28 @@ export function DemoCoachmarks({ active }: { active: boolean }) {
           className="demo-coach-card"
           style={{ left: layout.cards[i].x, top: layout.cards[i].y }}
         >
+          <button
+            type="button"
+            className="demo-coach-close"
+            onClick={() => setDismissed(true)}
+            aria-label="Dismiss tips"
+            title="Dismiss (Esc)"
+          >
+            <svg
+              width="12"
+              height="12"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <line x1="18" y1="6" x2="6" y2="18" />
+              <line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
+          </button>
           <div className="demo-coach-head">
             <span className="demo-coach-step">{i + 1} of 3</span>
             <span className="demo-coach-title">{step.title}</span>
@@ -241,9 +265,21 @@ export function DemoCoachmarks({ active }: { active: boolean }) {
           onClick={() => setDismissed(true)}
           autoFocus
         >
-          Got it
+          <svg
+            width="15"
+            height="15"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+          >
+            <polyline points="20 6 9 17 4 12" />
+          </svg>
+          Got it, hide these tips
         </button>
-        <span className="demo-coach-hint">a quick tour — dismiss when you're ready</span>
       </div>
     </div>
   );
