@@ -1,5 +1,5 @@
 ---
-status: in-progress
+status: done
 kind: spec
 phases: [6]
 summary: Make document-scoped (unanchored) observations legible as such in the feed — a card-intrinsic scope marker plus honest affordances (drop the click-to-locate / hover-to-highlight that silently no-ops on a card with no span). Repairs the lost UX-008 "Whole document" treatment; complements (does not reopen) the dropped R4 doc-level anchoring.
@@ -11,7 +11,7 @@ summary: Make document-scoped (unanchored) observations legible as such in the f
 
 > Canonical status lives in the frontmatter above and is mirrored in the Projects Index in `docs/plan.md`. This block carries the human-readable scope only.
 
-**In progress — built & browser-verified 2026-07-09, pending merge.** Phase 6 (experience & signal quality). Direction settled interactively, marker designed via Hallmark + a signed-off rendered prototype, then implemented and verified live (desktop + 375px). No new observation type, no prompt change — a pure feed-UX legibility fix.
+**Done — shipped and merged to `main` 2026-07-09** (commit `31aa184`). Phase 6 (experience & signal quality). Direction settled interactively, marker designed via Hallmark + a signed-off rendered prototype, then implemented and verified live (desktop + 375px). No new observation type, no prompt change — a pure feed-UX legibility fix.
 
 ### Built design (2026-07-09)
 
