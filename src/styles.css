@@ -589,6 +589,30 @@ body,
   border-color: #888;
 }
 
+/* API-key fields are plain text inputs (not type="password") so the browser's
+   password manager never offers to save them. We mask the value visually
+   instead. Chromium/Safari/Edge use the native -webkit-text-security; Firefox
+   (which lacks it) falls back to a "text-security" disc font that renders every
+   glyph as a bullet. The real value is untouched — only the rendering is masked. */
+.setting-group input.masked-key {
+  -webkit-text-security: disc;
+}
+
+/* Firefox fallback: the disc font. Only ~0.8 KB, inlined as a data URI so the
+   PWA stays fully offline (no external font fetch, CSP-safe). Loaded only where
+   -webkit-text-security is unsupported so other browsers keep native masking.
+   Font: noppa/text-security (SIL OFL 1.1). */
+@font-face {
+  font-family: "text-security-disc";
+  src: url("data:font/woff2;base64,d09GMgABAAAAAAMQAAoAAAAACAAAAALIAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAABmAAggAKcHILBgABNgIkAwYEIAWJSAcvG0gHEZWcjBRfHNjNPraIGU7SkQoTFkXoFRjv8FUcbDmIj4fv117P3fcRQioFRseKQUaWwJVVVVWlqUSWQCqzAXDOVp+vqsnVapWIlhw7yBoEhhMnHFYCHMKOvkR03bf6e9V3k5C0pdB3/e9T0qkd4MMPltYAwwl4rBdKBw5Q6WQJiMe2JfXQzxqDHiJHyBCRoyWk9D0eokh2Ww9se/9MHLHYawD4n5f/Ls/b722ATVs377KRPE9jOdKY88cWRA5gIghJDQ1N8AfoA89ygvcYf4pg/Ec+TgiEgQwZEhIKKKCIIkoooYwyKqigiipqqKGOOhpooIkmWmihjTY66PxOyEABGSZiKqAAQnQ6B6/n1u98x4262u0Js8WuS9OPfJk+/cuR6bOAtTcIJOZcuOuj7bV/Kyl9h9f38fFYbrefcSYrI8lAQDMUDxExOyyGlfQ/vVsg0xGArgJ1t5MoVLEcA2Gq5ci0HECy2rnswoOiU55kl1xUjEQJdXtiFM3sEWm9lqWFmgZbjP05LRVBvbqdHux9wpyGnbGWEX6p5JEHp+lXirTnJ5QhZa5Rrsq9D67r+24QRrdzndcmBzUrQ9xXb6hp/3Kt1h1kLEFUI/CLVKdW/dqtdrVRNqpIyLr2KxU5WYVXmZuskh+VXqlluyjNMNPGBGcj6JOF0MC+M9Ucc48RhDxCB6QQzssN7C3m8bmbGCrG7VXU5FY+yGdUakVOvwKllMExtmsLwzMsVQFGpi5UbHxfXhb762Voh6fTcKeW03OxxicY73eTpa8bxhIzeWR+wnoJ6j/4kBejs2xf69j7pOSUzmzPCqNy4cojtlsLwpBhb++AtcBHQcpyGZgkYrGUBTwXn2/RF12BjlQTI1XSvANELqO18DPB+UIyNkJSZBsoX7wh7DlfsyVfTshpuSjLSv9H3fwD+a36nwAAkBFZ5aSOqp+7Bg==")
+    format("woff2");
+}
+@supports not (-webkit-text-security: disc) {
+  .setting-group input.masked-key {
+    font-family: "text-security-disc";
+  }
+}
+
 .setting-help {
   font-size: 0.6875rem;
   color: var(--text-muted);
