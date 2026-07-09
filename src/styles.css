@@ -2424,6 +2424,31 @@ body,
   align-items: center;
   gap: 7px;
   margin-bottom: 6px;
+  padding-right: 16px;
+}
+.demo-coach-close {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--color-accent);
+  opacity: 0.55;
+  cursor: pointer;
+  transition:
+    opacity var(--dur-fast) var(--ease-out),
+    background var(--dur-fast) var(--ease-out);
+}
+.demo-coach-close:hover {
+  opacity: 1;
+  background: color-mix(in oklch, var(--color-accent) 12%, transparent);
 }
 .demo-coach-step {
   flex-shrink: 0;
@@ -2447,30 +2472,29 @@ body,
 }
 .demo-coach-dismiss-bar {
   position: fixed;
-  left: 20px;
-  bottom: 20px;
+  left: 50%;
+  bottom: 24px;
+  transform: translateX(-50%);
   display: flex;
-  align-items: center;
-  gap: 10px;
   pointer-events: auto;
 }
 .demo-coach-dismiss {
-  font-size: var(--text-ui-sm);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--text-ui);
   font-weight: 500;
   color: var(--color-surface);
   background: var(--color-accent);
   border: 0.5px solid var(--color-accent);
-  border-radius: var(--radius-md);
-  padding: 7px 14px;
+  border-radius: 999px;
+  padding: 10px 20px;
+  box-shadow: var(--elev-float);
   cursor: pointer;
   transition: background var(--dur-fast) var(--ease-out);
 }
 .demo-coach-dismiss:hover {
   background: var(--color-accent-strong);
-}
-.demo-coach-hint {
-  font-size: var(--text-ui-sm);
-  color: var(--color-muted);
 }
 @media (prefers-reduced-motion: reduce) {
   .demo-coach-card {
