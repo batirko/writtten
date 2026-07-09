@@ -81,8 +81,20 @@ export function charOffsetToPmPos(
  * reads lowercase mid-sentence in the source (e.g. source "...it stays quiet..."
  * vs claim "It stays quiet..."). Without the fallback, that case difference
  * alone makes a correctly-anchored span look "vanished" on every render (not
- * just after an edit) and the highlight is wrongly suppressed. Mirrors
- * `anchorSubstring`'s extraction-time fallback so the two agree.
+ * just after an edit) and the highlight is wrongly suppressed.
+ *
+ * A third fallback strips *trailing sentence punctuation* from `anchorText`
+ * before searching. This mirrors `anchorClaimsToMembers`, which anchors a claim
+ * via `c.text.replace(/[.,;:!?]+$/, "")` when the extractor lifts a mid-sentence
+ * clause into a standalone claim and appends a period the source lacks (claim
+ * "...ship in Q3." vs source "...ship in Q3, giving..."). That path stores the
+ * *stripped* offsets but keeps the *unstripped* claim as `anchorText`, so without
+ * this the exact/case-insensitive passes both miss, and — since the stored
+ * offsets are a real span, not the whole-block sentinel — the span resolves to
+ * `null`: highlight suppressed AND card-click (`spanStartPos`) inert. Sweep-born
+ * strategic_tension hit this on the primary side (both sides come from ledger
+ * claims), which is why clicking such a card didn't scroll to its span.
+ * Mirroring the strip here keeps re-anchoring and extraction in agreement.
  */
 export function reanchorOffset(
   blockText: string,
@@ -105,9 +117,22 @@ export function reanchorOffset(
     return bestIdx;
   };
 
+  // The needle actually located; its length sets the resolved `end`. Starts as the
+  // full anchor and narrows to the punctuation-stripped form only if that's what matched.
+  let needle = anchorText;
   let bestIdx = findBest(blockText, anchorText);
   if (bestIdx === -1) {
     bestIdx = findBest(blockText.toLowerCase(), anchorText.toLowerCase());
+  }
+  if (bestIdx === -1) {
+    // Trailing-punctuation-tolerant pass (mirrors anchorClaimsToMembers). Only
+    // when stripping actually changes the string and leaves something to match.
+    const stripped = anchorText.replace(/[.,;:!?]+$/, "");
+    if (stripped !== anchorText && stripped.trim() !== "") {
+      bestIdx = findBest(blockText, stripped);
+      if (bestIdx === -1) bestIdx = findBest(blockText.toLowerCase(), stripped.toLowerCase());
+      if (bestIdx !== -1) needle = stripped;
+    }
   }
   if (bestIdx === -1) {
     // Whole-block sentinel → reworded claim, keep whole-block. Real exact anchor
@@ -115,7 +140,7 @@ export function reanchorOffset(
     const isWholeBlockSentinel = storedStart === 0 && storedEnd >= 9999;
     return isWholeBlockSentinel ? { start: storedStart, end: storedEnd } : null;
   }
-  return { start: bestIdx, end: bestIdx + anchorText.length };
+  return { start: bestIdx, end: bestIdx + needle.length };
 }
 
 /** One resolved highlight range for an observation. `side` distinguishes the
