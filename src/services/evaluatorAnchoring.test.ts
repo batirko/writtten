@@ -45,7 +45,11 @@ describe("anchorClaimsToMembers", () => {
     expect(c.anchorBlockId).toBe("b1");
     expect(c.anchorBlockId).not.toBe("h1");
     expect(c.anchorStartOffset).toBe(0);
-    expect(c.anchorEndOffset).toBe(members[1].text.length);
+    // 9999 sentinel, not the real body length: downstream code (evaluator.ts
+    // emit, reanchorOffset's isWholeBlockSentinel) tells "whole-block
+    // fallback" apart from "exact anchor whose text vanished" by this exact
+    // value — a real length there gets misread as the latter and suppressed.
+    expect(c.anchorEndOffset).toBe(9999);
     expect(c.anchorExact).toBe(false);
     // UX-008: no faithful excerpt on the paraphrase fallback → absent.
     expect(c.anchorQuote).toBeUndefined();

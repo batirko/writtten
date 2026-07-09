@@ -249,10 +249,15 @@ describe("evaluator - evaluateBlock", () => {
     // (kind:commitment) are commitments → escalated to severity:"high".
     // paidKey is undefined in this test → contradictionTier:"hedged" → confidence:"low".
     // priority = 3 (high) × 0.5 (low confidence factor) = 1.5
+    // The claim text "Launch in Q3." case-differs from the source's mid-sentence
+    // "launch in Q3." (source: "We plan to launch in Q3."); anchorSubstring's
+    // case-insensitive fallback resolves this to the real clause (offset 11) with
+    // a verbatim anchorQuote, rather than silently falling back whole-block.
     expect(db.saveObservation).toHaveBeenCalledWith({
       id: "mock-id",
       docId,
       anchorText: "Launch in Q3.",
+      anchorQuote: "launch in Q3.",
       conflictingAnchorText: "Launch is delayed to Q4.",
       type: "contradiction",
       scope: "span",
@@ -263,7 +268,7 @@ describe("evaluator - evaluateBlock", () => {
       text: "Contradicts delayed launch to Q4.",
       status: "active",
       blockId,
-      startOffset: 0,
+      startOffset: 11,
       endOffset: text.length,
       conflictingBlockId: "block2",
       conflictingStartOffset: 0,
