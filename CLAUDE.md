@@ -75,6 +75,8 @@ The principle has a finer edge than "no apply button," and three failure modes t
 
 Two browser-automation tools are available. Pick by job; fall back to the other if the chosen one misbehaves.
 
+> **⚠️ Parallel sessions: default to claude-preview, not chrome-devtools.** The chrome-devtools MCP is **one shared browser with a single _global_ "selected page" pointer, shared across every concurrent session.** `isolatedContext` isolates storage/cookies but **not** the selection — so any other session's `new_page`/`select_page`/`resize_page` silently steals your selection _between your calls_, and your next `evaluate_script`/`take_snapshot`/`screenshot` runs against **another branch's app** (you'll get stale UI that looks like your change broke — it didn't; you're on the wrong page). claude-preview's `preview_*` tools are addressed by the `serverId` from `preview_start`, so they **cannot** be hijacked — they're the collision-proof default. Almost everything you'd reach chrome-devtools for works in `preview_eval`: set a React-controlled input (native `value` setter + `dispatchEvent(new Event('input',{bubbles:true}))`), read the DOM, poll state. Reserve chrome-devtools for what genuinely needs it (real hover/keyboard fidelity ProseMirror rejects synthetically), and when you use it in parallel, follow the three rules in its section below.
+
 ### claude-preview (Claude Preview MCP)
 
 Key tools (load via ToolSearch): `mcp__Claude_Preview__preview_start`, `preview_eval`, `preview_snapshot`, `preview_screenshot`, `preview_console_logs`, `preview_network`.
@@ -94,6 +96,12 @@ Configured globally in `~/Library/Application Support/Claude/claude_desktop_conf
 **Prefer for:** interaction fidelity — hovering over observation cards to trigger highlights, real keyboard input into the ProseMirror editor, clicking UI elements by accessibility uid, native-dialog handling (`handle_dialog`). Also the right fallback whenever `preview_eval` is timing out or returning unexpected results.
 
 **Watch out for:** `wait_for` matches the **entire accessibility tree including history** — it can match stale text from a previous eval. Always wait for a string that will only appear _after_ the action (e.g. `"idle"` on the `[data-testid="sidecar-status"]` element, which only transitions once `pending === 0`). Use `evaluate_script` to read `window.__sidecar__` state when the snapshot is too noisy.
+
+**Global-selection theft (parallel sessions) — see the ⚠️ callout above.** If you must use chrome-devtools while other sessions are live, three rules make it survivable:
+
+1. **Do the whole flow in ONE `evaluate_script`** (open panel → act → poll → read), so there is no inter-call gap for another session to steal. Split-across-calls sequences get hijacked; single self-contained async evals don't.
+2. **Guard every eval with a port check up top:** `if (!location.href.includes('<my-port>')) return { ABORT: location.href };` — never trust output from a page that isn't yours. This is the single highest-value habit.
+3. **`select_page(<id>, bringToFront:true)` immediately before** any call you can't guard (e.g. `take_screenshot`), and re-check the returned `location.href`. Note the async-render gap too: after clicking a button that opens a React modal, `await sleep(~120ms)` before reading the DOM. Close your page and kill your dev server when done — stale pages from finished sessions pile up in the page list.
 
 ---
 
