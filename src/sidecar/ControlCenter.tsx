@@ -23,6 +23,14 @@ import { getLlmMode } from "../model/mock";
 import { subscribeStall } from "../model/stallSignal";
 import { subscribeOpenSettings } from "./settingsGate";
 
+// Whether the LLM debug drawer renders. Historically DEV-only (dead-code-
+// eliminated from production via import.meta.env.DEV); as of 2026-07-09 it ships
+// in production too, by owner decision. Kept as a single named flag so it's one
+// obvious toggle point — flip to `import.meta.env.DEV` to restore dev-only, or
+// wire to a setting later. The underlying call log already records in prod; only
+// its sessionStorage persistence stays dev-only (see logger.ts `canPersist`).
+const DEBUG_PANEL_ENABLED = true;
+
 // Per-provider settings copy: how to get a key, the key shape, and the one-line
 // plain-English job of each tier for the "what's running" card. See
 // docs/projects/multi_provider_router.md §D.
@@ -405,13 +413,14 @@ export function ControlCenter({
   const [showSettings, setShowSettings] = useState(false);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   // Debug switch persisted (L9, lifecycle_integrity.md § L9): a remount must not
-  // reset it to off mid-diagnosis, alongside the persisted LLM debug log. The
-  // panel is DEV-gated, so this flag only matters in dev; localStorage keeps it
-  // sticky across a reload.
-  // The LLM debug drawer is dev-only and now always available in the control
-  // center (no Settings toggle) — it sits collapsed at rest and expands on click,
-  // so it's reachable without cluttering Settings. Prompt content stays hidden
-  // until expanded (L7): production strips the whole block via import.meta.env.DEV.
+  // reset it to off mid-diagnosis, alongside the LLM debug log. localStorage
+  // keeps it sticky across a reload.
+  // The LLM debug drawer now ships in production too (owner decision,
+  // 2026-07-09) — see DEBUG_PANEL_ENABLED. It sits collapsed at rest and expands
+  // on click, so it's reachable without cluttering Settings, and shows the live
+  // in-session call log. Prompt content stays hidden until a row is expanded, and
+  // the entries are still only *persisted* to sessionStorage in dev (logger.ts
+  // `canPersist`), so prod never adds the user's prompt text as data-at-rest.
   const [debugExpanded, setDebugExpanded] = useState(false);
   const [expandedLogId, setExpandedLogId] = useState<string | null>(null);
   const [copySuccess, setCopySuccess] = useState(false);
@@ -1061,7 +1070,7 @@ export function ControlCenter({
             </div>
           )}
 
-          {import.meta.env.DEV && (
+          {DEBUG_PANEL_ENABLED && (
             <div className="control-debug">
               <button
                 className="control-debug-toggle"
