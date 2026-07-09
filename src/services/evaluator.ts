@@ -135,7 +135,10 @@ async function restoreSectionFromSnapshot(
     }
   }
 
-  await saveClaimsForBlock(docId, sectionId, snapshot.claims);
+  // Pass members so a restore under a *different* representative id than the one
+  // captured retires the old-id claims instead of duplicating them (the snapshot
+  // key is membership+text, so the current rep id may differ from capture time).
+  await saveClaimsForBlock(docId, sectionId, snapshot.claims, memberBlockIds);
   await saveBlockSummary({ blockId: sectionId, docId, summary: snapshot.summary, hash: textHash });
 
   if (import.meta.env.DEV) {
@@ -238,7 +241,7 @@ export async function evaluateSection(
     // If the section was removed concurrently, handleBlockRemoved already did
     // this cleanup — don't recreate an (empty) summary for a deleted block (L4).
     if (!isLive()) return;
-    await saveClaimsForBlock(docId, sectionId, []);
+    await saveClaimsForBlock(docId, sectionId, [], memberBlockIds);
     await reconcileObservations(docId, memberBlockIds, []);
     await saveBlockSummary({ blockId: sectionId, docId, summary: "", hash: textHash });
     return;
@@ -402,7 +405,7 @@ export async function evaluateSection(
     //    The block summary + dirty-check hash are written LAST (after reconcile
     //    succeeds) so a failed strong call can't poison the dirty-check and wedge
     //    the section. See lifecycle_integrity L3.
-    await saveClaimsForBlock(docId, sectionId, extractedClaims);
+    await saveClaimsForBlock(docId, sectionId, extractedClaims, memberBlockIds);
 
     if (import.meta.env.DEV) {
       llmLogger.recordProduced(mergedRes.callId, {

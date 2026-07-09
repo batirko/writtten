@@ -280,19 +280,34 @@ export async function deleteBlockSummary(blockId: string): Promise<void> {
 }
 
 // Claim Ledger
+/**
+ * Replace the claims for a section, keyed by its representative block id
+ * (`blockId`). Optionally pass the section's current `memberBlockIds` to also
+ * retire **former-representative** claims: a section's representative id is not
+ * stable (a heading↔paragraph toggle or an intro section's first-block shift
+ * changes it), and claims are only ever written under a representative id. So an
+ * `active` claim sitting under a block that is now a *non-representative member*
+ * of this section is a stale leftover from when that block was itself a rep —
+ * orphan it. Membership is disjoint across sections (`resolveSections`
+ * partitions blocks), so this can never clobber another live section's claims.
+ * Done inside the same transaction as the write, so "insert new + retire stale
+ * former-members" is atomic. Omitting `memberBlockIds` preserves the prior
+ * single-block replace behavior exactly. See docs/mechanics/evaluation-triggers.md.
+ */
 export async function saveClaimsForBlock(
   docId: string,
   blockId: string,
-  claims: Omit<ClaimLedgerEntry, "id" | "docId" | "sourceBlockId" | "status">[]
+  claims: Omit<ClaimLedgerEntry, "id" | "docId" | "sourceBlockId" | "status">[],
+  memberBlockIds?: string[]
 ): Promise<void> {
   const db = await getDb();
   const tx = db.transaction("claim_ledger", "readwrite");
   const store = tx.store;
+  const blockIndex = store.index("by_block");
 
   // 1. Delete existing active claims for this block (count them — a prior
   //    occupant means this write *overwrites* rather than inserts; the
   //    block-id-collision bug shows up here as an unexpected overwrite).
-  const blockIndex = store.index("by_block");
   let deleted = 0;
   let cursor = await blockIndex.openCursor(IDBKeyRange.only(blockId));
   while (cursor) {
@@ -311,6 +326,23 @@ export async function saveClaimsForBlock(
     });
   }
 
+  // 3. Retire stale claims filed under former-representative members (see doc
+  //    comment). Only active rows are flipped; already-orphaned rows are left.
+  let orphaned = 0;
+  if (memberBlockIds) {
+    for (const memberId of memberBlockIds) {
+      if (memberId === blockId) continue;
+      let staleCursor = await blockIndex.openCursor(IDBKeyRange.only(memberId));
+      while (staleCursor) {
+        if (staleCursor.value.status === "active") {
+          await staleCursor.update({ ...staleCursor.value, status: "orphaned" });
+          orphaned++;
+        }
+        staleCursor = await staleCursor.continue();
+      }
+    }
+  }
+
   await tx.done;
 
   if (import.meta.env.DEV) {
@@ -318,6 +350,7 @@ export async function saveClaimsForBlock(
       block: blockId,
       action: deleted > 0 ? "overwrite" : "insert",
       claims: claims.length,
+      orphaned,
     });
   }
 }

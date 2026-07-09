@@ -115,7 +115,7 @@ export function createFixtureRunner(): FixtureRunner {
     vi.mocked(db.loadDocEvalState).mockResolvedValue(undefined);
 
     vi.mocked(db.saveClaimsForBlock).mockImplementation(
-      async (docId: string, blockId: string, claims) => {
+      async (docId: string, blockId: string, claims, memberBlockIds?: string[]) => {
         // Replace all claims for this block (mirrors real saveClaimsForBlock).
         const without = claimsStore.filter((c) => c.sourceBlockId !== blockId);
         claimsStore.length = 0;
@@ -129,10 +129,20 @@ export function createFixtureRunner(): FixtureRunner {
             status: "active",
           });
         }
+        // Retire stale former-representative claims (mirrors real behavior): any
+        // active claim under a current non-representative member is orphaned.
+        if (memberBlockIds) {
+          const stale = new Set(memberBlockIds.filter((id) => id !== blockId));
+          for (const c of claimsStore) {
+            if (c.status === "active" && stale.has(c.sourceBlockId)) c.status = "orphaned";
+          }
+        }
       }
     );
 
-    vi.mocked(db.loadActiveClaimsForDocument).mockImplementation(async () => [...claimsStore]);
+    vi.mocked(db.loadActiveClaimsForDocument).mockImplementation(async () =>
+      claimsStore.filter((c) => c.status === "active")
+    );
 
     vi.mocked(db.saveObservation).mockImplementation(async (obsArg) => {
       savedObservations.push(obsArg as Observation);
