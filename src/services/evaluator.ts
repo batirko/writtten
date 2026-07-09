@@ -45,6 +45,7 @@ import {
   anchorClaimsToMembers,
   firstBodyMember,
   normalizeText,
+  conflictPairKey,
   type NewObservation,
 } from "./evaluatorAnchoring";
 import {
@@ -476,7 +477,38 @@ export async function evaluateSection(
     //    contradiction once the ledger is built, avoiding N paid-tier calls.
     if (!skipContradiction) {
       const existingClaims = await loadActiveClaimsForDocument(docId);
-      const otherClaims = existingClaims.filter((c) => c.sourceBlockId !== sectionId);
+      // Mechanism A (contradiction_coverage.md — OBS-033/UX-018): also compare the
+      // new claims against SAME-section pairs, not just other sections'. A
+      // single-section doc's conflicting pair is extracted in one batch and keyed
+      // under the same section representative id, so the old
+      // `sourceBlockId !== sectionId` filter dropped all intra-section pairs
+      // wholesale — a blatant contradiction then surfaced (if at all) only as a
+      // weak `clarity` nit, never as a `contradiction`, unless it arrived via the
+      // paste sweep.
+      //
+      // The same-section pool is taken from the in-memory `extractedClaims` (this
+      // settle's own freshly-extracted claims), NOT from re-reading the ledger:
+      // `saveClaimsForBlock` above just wrote them, and on the FIRST settle those
+      // rows are not reliably visible to this read yet (IndexedDB read-after-write),
+      // so a DB-based fold fired the intra-section contradiction only on a *later*
+      // settle — flaky exactly on the type-it-once hero path. `extractedClaims`
+      // are guaranteed present here and carry the same text/kind/anchor offsets.
+      //
+      // Fold them in ONLY when the section has ≥2 claims (an intra-section pair is
+      // actually possible). A lone section claim can't self-contradict, and adding
+      // it would just be a self-dup that perturbs every single-claim section's
+      // contradiction prompt (and its recorded hash) for zero coverage gain — so
+      // the common case stays byte-identical. A claim vs its own copy is a self-pair,
+      // rejected at emit (same guard as the sweep), and A×B/B×A duplicates coalesce
+      // via `conflictPairKey`. No new call cadence: this widens the candidate set of
+      // a strong call that already fires per settle and is not maturity-gated
+      // (resolving UX-016's intra-section case).
+      const crossSectionClaims = existingClaims.filter((c) => c.sourceBlockId !== sectionId);
+      const sameSectionPool: ClaimLedgerEntry[] =
+        extractedClaims.length >= 2
+          ? extractedClaims.map((c) => ({ id: 0, docId, status: "active", sourceBlockId: sectionId, ...c }))
+          : [];
+      const otherClaims = [...crossSectionClaims, ...sameSectionPool];
 
       // Prefilter to top-10 most semantically relevant claims so the contradiction
       // prompt stays bounded as documents grow. With ≤10 claims this is a no-op.
@@ -542,12 +574,23 @@ export async function evaluateSection(
         // hard logical incompatibilities (kind: problem, tier-calibrated
         // confidence); strategic tensions are deliberate tradeoffs (kind:
         // opportunity, softer register — see OBS-004).
+        //
+        // Mechanism A widened the candidate pool to include same-section claims, so
+        // a claim can now appear on both sides (New + Existing). Two guards keep
+        // that clean: reject a self-pair (a claim vs its own persisted copy — same
+        // guard the sweep applies at ~L983) and coalesce A×B/B×A duplicates by the
+        // order-independent `conflictPairKey`.
+        const seenConflictKeys = new Set<string>();
         const emitConflict = (
           con: ContradictionObservation,
           obsType: "contradiction" | "strategic_tension"
         ) => {
           const matchingExisting = sortedOther[Number(con.existingClaimId)];
           if (!matchingExisting) return;
+
+          // Self-pair: the model matched a new claim against its own freshly-saved
+          // copy (identical text). Not a contradiction — skip before anchoring.
+          if (normalizeText(con.newClaimText) === normalizeText(matchingExisting.text)) return;
 
           // Anchor the new side to the member block holding the claim if we can
           // find it; otherwise fall back to the section's first **body** block —
@@ -574,6 +617,17 @@ export async function evaluateSection(
                 })
               : computePriority({ type: "strategic_tension" });
 
+          const blockId = exact?.blockId ?? fallback.blockId;
+          const conflictingBlockId =
+            matchingExisting.anchorBlockId ?? matchingExisting.sourceBlockId;
+
+          // Coalesce A×B / B×A: with same-section pairs in the pool both directions
+          // can come back. `conflictPairKey` is order-independent, so the second
+          // direction (and any re-run of the same pair) collapses onto the first.
+          const pairKey = conflictPairKey({ type: obsType, blockId, conflictingBlockId });
+          if (seenConflictKeys.has(pairKey)) return;
+          seenConflictKeys.add(pairKey);
+
           newObs.push({
             type: obsType,
             scope: "span",
@@ -582,7 +636,7 @@ export async function evaluateSection(
             confidence,
             priority,
             text: con.message,
-            blockId: exact?.blockId ?? fallback.blockId,
+            blockId,
             startOffset: exact?.startOffset ?? 0,
             // 9999 sentinel, not fallback.text.length: matches the whole-block
             // convention `reanchorOffset` relies on (isWholeBlockSentinel) — a
@@ -593,7 +647,7 @@ export async function evaluateSection(
             anchorQuote: newAnchorQuote,
             // Conflicting side: anchor to the existing claim's precise block +
             // offsets when resolved at extraction; else its section block + whole-block.
-            conflictingBlockId: matchingExisting.anchorBlockId ?? matchingExisting.sourceBlockId,
+            conflictingBlockId,
             conflictingStartOffset: matchingExisting.anchorStartOffset ?? 0,
             conflictingEndOffset: matchingExisting.anchorEndOffset ?? 9999,
             conflictingAnchorText: matchingExisting.text,

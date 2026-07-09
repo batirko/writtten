@@ -15,6 +15,14 @@
  * passive/run-on case in clarity-discrimination.ts: a model drifting toward
  * "this is hard to read = unclear meaning" will emit clarity on sec1's
  * 90-word sentence even though every fact in it is fully specified.
+ *
+ * Re-keyed 2026-07-09 for mechanism A (contradiction_coverage.md): the
+ * per-section contradiction check now folds in same-section claims when a
+ * section has ≥2 claims. sec1 (3 claims) now issues an intra-section
+ * comparison of its own compatible claims (no conflict → empty); sec2's
+ * cross-section tension prompt gained sec1's+sec2's claims, shifting the
+ * fixed-deadline claim to Existing index 3. Responses are otherwise the
+ * frozen model output — only the request hashes (and one index) changed.
  */
 import type { EvalFixture } from "./types";
 
@@ -35,7 +43,8 @@ const fixture: EvalFixture = {
   recordings: {
     "rjyufwi_7204": "{\n  \"summary\": \"The mobile platform engineering team is committed to delivering a new push-notification infrastructure by November 30, 2025, while maintaining a 98.5% delivery success rate.\",\n  \"claims\": [\n    {\n      \"text\": \"the mobile platform engineering team of the push-notification infrastructure ... will be completed no later than 2025-11-30\",\n      \"kind\": \"commitment\"\n    },\n    {\n      \"text\": \"maximum of 3 retries at 30-second intervals\",\n      \"kind\": \"constraint\"\n    },\n    {\n      \"text\": \"delivery-success rate across opted-in notification targets will be maintained at or above 98.5%\",\n      \"kind\": \"metric\"\n    }\n  ],\n  \"clarity_observations\": [\n    {\n      \"text\": \"The delivery-success rate metric lacks a definition for what constitutes a successful delivery event.\",\n      \"substring\": \"delivery-success rate\"\n    }\n  ],\n  \"unsupported_claim_observations\": [],\n  \"undefined_jargon_observations\": []\n}",
     "re39h7l_7587": "{\n  \"summary\": \"The team intends to release the feature upon readiness and coordinate with stakeholders using existing processes.\",\n  \"claims\": [\n    {\n      \"text\": \"We plan to launch the feature when it is ready.\",\n      \"kind\": \"commitment\"\n    },\n    {\n      \"text\": \"Stakeholder alignment will happen through the usual channels before release\",\n      \"kind\": \"commitment\"\n    },\n    {\n      \"text\": \"we will track progress against our standard metrics.\",\n      \"kind\": \"commitment\"\n    }\n  ],\n  \"clarity_observations\": [\n    {\n      \"text\": \"The criteria for readiness are unspecified, making the launch timeline indeterminate.\",\n      \"substring\": \"when it is ready\"\n    },\n    {\n      \"text\": \"The document does not identify which specific metrics constitute the standard set.\",\n      \"substring\": \"standard metrics\"\n    },\n    {\n      \"text\": \"The specific communication methods and participants for alignment are not defined.\",\n      \"substring\": \"usual channels\"\n    }\n  ],\n  \"unsupported_claim_observations\": [],\n  \"undefined_jargon_observations\": []\n}",
-    "r113jj5x_4571": "{\n  \"contradictions\": [],\n  \"tensions\": [\n    {\n      \"newClaimText\": \"We plan to launch the feature when it is ready.\",\n      \"existingClaimId\": 2,\n      \"message\": \"The new claim prioritizes launching \\\"when it is ready\\\" over the fixed 2025-11-30 deadline set earlier.\"\n    }\n  ]\n}"
+    "rqg2eys_4658": "{\n  \"contradictions\": [],\n  \"tensions\": []\n}",
+    "ra0du7t_4817": "{\n  \"contradictions\": [],\n  \"tensions\": [\n    {\n      \"newClaimText\": \"We plan to launch the feature when it is ready.\",\n      \"existingClaimId\": 3,\n      \"message\": \"The new claim prioritizes launching \\\"when it is ready\\\" over the fixed 2025-11-30 deadline set earlier.\"\n    }\n  ]\n}"
   },
   expected: [
     {
