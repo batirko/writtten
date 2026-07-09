@@ -725,7 +725,12 @@ export function ControlCenter({
               <input
                 id="api-key-input"
                 data-testid="api-key-input"
-                type="password"
+                type="text"
+                className="masked-key"
+                autoComplete="off"
+                spellCheck={false}
+                data-1p-ignore
+                data-lpignore="true"
                 placeholder={meta.placeholder}
                 value={apiKey}
                 onChange={(e) => onApiKeyChange(e.target.value)}
@@ -764,7 +769,12 @@ export function ControlCenter({
                 <input
                   id="gemini-paid-key-input"
                   data-testid="gemini-paid-key-input"
-                  type="password"
+                  type="text"
+                  className="masked-key"
+                  autoComplete="off"
+                  spellCheck={false}
+                  data-1p-ignore
+                  data-lpignore="true"
                   placeholder="Paste a billed Gemini key…"
                   value={geminiPaidKey}
                   onChange={(e) => onGeminiPaidKeyChange?.(e.target.value)}
