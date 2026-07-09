@@ -503,3 +503,16 @@ The fabricated claims were written to the ledger, then a **paid `gemini-2.5-pro`
 **Actual:** The card rendered the same sentence twice: the italic quote (from `substring`) and the body (from `text`) were the same string, so the observation carried zero added information (see [`SidecarFeed.tsx:194`](../../src/sidecar/SidecarFeed.tsx) quote vs `:199` body).\
 **Failure mode:** empty-signal duplication — the `text` field restated the cited span instead of locating the missing support.\
 **Notes:** Root cause was an asymmetry in the JSON-key spec: `clarity_observations` explicitly said _"text must explain what is vague or missing, NOT restate the source sentence verbatim"_ but the parallel `unsupported_claim_observations` line only described the `substring`, leaving `text` unconstrained — so a model (here gpt-5.4-mini) filled it with a verbatim copy of the claim. Fix brings the two specs into parity. Clusters with `clarity-text-insight` (the fixture guarding the analogous clarity behavior).
+
+---
+
+### OBS-033 — A genuine contradiction is laundered into a `clarity` nit because the contradiction taxonomy never engages for intra-section claim pairs during typing
+
+**Date:** 2026-07-09\
+**Prompt tier:** fast (section-eval, `MERGED_SYSTEM_PROMPT`, `src/services/evaluatorPrompts.ts`) — surfacing a defect that is really an **architecture** gap (see `docs/projects/contradiction_coverage.md`), not a prompt wording bug.\
+**Type flag:** clarity (should have been `contradiction`)\
+**Input excerpt:** A two-paragraph doc with **no heading** (→ one intro section). ¶1: _"We will launch the redesigned checkout to 100% of users in Q2."_ (commitment) ¶2: _"We will not launch the redesigned checkout to any users before Q4."_ (constraint). Live on `gemini-3.1-flash-lite [free]`.\
+**Expected:** A `contradiction` card linking the two claims (Q2 100% vs no-launch-before-Q4 is a hard logical incompatibility), highlighting both spans.\
+**Actual:** No `contradiction` card. The fast section-eval **noticed the conflict itself** and returned it as a `clarity_observation`: _"The commitment to launch in Q2 conflicts with the constraint prohibiting any launch before Q4."_ The dedicated contradiction machinery never ran: the per-section contradiction check excludes same-section claims (`existingClaims.filter((c) => c.sourceBlockId !== sectionId)`, `evaluator.ts` ~L468 — and both claims are keyed under the section's representative id, so the filter drops the pair), and the all-pairs ledger sweep (`evaluateLedgerContradictions`) fires only on `block-paste` (`orchestrator.ts:475`), not on typing.\
+**Failure mode:** taxonomy laundering — the sharpest, most on-brand signal (a self-contradiction) is downgraded to a soft clarity nit and its cross-span highlight is lost, purely because of how/where the claims entered.\
+**Notes:** Not fixable by prompt wording — the fast tier is not the contradiction adjudicator, and the pair never reaches the adjudicating pass. This is the detection half of what OBS-026 left open (OBS-026 made a _found_ intra-section conflict renderable via single-block anchoring; nothing detects one while typing). Clusters with UX-016 (sweep silenced on short drafts by the maturity gate) and UX-018 (the same session, UX framing). Design decision tracked in `docs/projects/contradiction_coverage.md` — do **not** patch inline.
