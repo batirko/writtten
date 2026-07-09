@@ -187,13 +187,14 @@ export default function App() {
 
   // Companion surface: the feed column reflows the canvas (never overlays it).
   // Collapsed → canvas reclaims full editorial measure. Persisted per session.
-  // On a narrow viewport with no stored preference, default collapsed so the
-  // editor leads on a phone (docs/projects/mobile_responsive.md § M2); a stored
-  // preference always wins, and desktop keeps its expanded default.
+  // Default expanded on every viewport so the feed is visible-and-discoverable —
+  // on a phone it was previously default-collapsed (the M2 decision) but that made
+  // the observation feed easy to miss, so it now leads visible on narrow too
+  // (docs/projects/mobile_responsive.md § M2). A stored preference always wins.
   const [feedCollapsed, setFeedCollapsed] = useState<boolean>(() => {
     const stored = localStorage.getItem("writtten_feed_collapsed");
     if (stored != null) return stored === "1";
-    return typeof window !== "undefined" && window.matchMedia("(max-width: 720px)").matches;
+    return false;
   });
   useEffect(() => {
     localStorage.setItem("writtten_feed_collapsed", feedCollapsed ? "1" : "0");

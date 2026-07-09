@@ -1524,15 +1524,26 @@ body,
     opacity var(--dur-fast) var(--ease-out),
     transform var(--dur-fast) var(--ease-out);
 }
-.control-center:hover .control-process,
-.control-center:focus-within .control-process,
+/* `.is-open` (tapOpen, ControlCenter.tsx) is the unconditional reveal path so it
+   drives touch, where there is no hover. The hover / focus-within reveal is gated
+   to hover-capable pointers below — otherwise iOS's sticky `:hover` (set on first
+   tap, cleared only by tapping elsewhere) would keep the panel open after a second
+   tap flips `.is-open` off, so the anchor wouldn't close on second tap. */
 .control-center.is-open .control-process,
-.control-center:hover .control-actions-extra,
-.control-center:focus-within .control-actions-extra,
 .control-center.is-open .control-actions-extra {
   opacity: 1;
   pointer-events: auto;
   transform: none;
+}
+@media (hover: hover) {
+  .control-center:hover .control-process,
+  .control-center:focus-within .control-process,
+  .control-center:hover .control-actions-extra,
+  .control-center:focus-within .control-actions-extra {
+    opacity: 1;
+    pointer-events: auto;
+    transform: none;
+  }
 }
 .control-process-row {
   display: flex;
@@ -2617,6 +2628,12 @@ body,
     flex-direction: column;
     height: auto;
     min-height: 100%;
+    /* Reserve a clear zone at the end of the scroll so the fixed control-center
+       (bottom-right) never rests over the full-width feed handle / last card and
+       steals its taps. Height = anchor inset (space-lg) + its 44px touch target +
+       a gap. Paired with the feed defaulting expanded (App.tsx), this removes the
+       reported handle↔activity-center tap collision. */
+    padding-bottom: calc(var(--space-lg) + 44px + var(--space-md));
   }
   .editor-panel {
     overflow-y: visible;
@@ -2670,7 +2687,11 @@ body,
     width: calc(100vw - 2 * var(--space-md));
   }
 
-  /* Reveal the honesty note — slim, non-blocking strip at the top of the column. */
+  /* Reveal the honesty note — slim, non-blocking strip at the top of the column.
+     A modest, still-calm lift over the earlier near-invisible sidecar wash so a
+     phone visitor actually registers it: accent tint + a stronger accent-mixed
+     border + full-ink text at the standard UI size. No icon/eyebrow — it stays a
+     quiet strip, not a callout (docs/projects/mobile_responsive.md § M4). */
   .mobile-note {
     display: flex;
     align-items: flex-start;
@@ -2678,15 +2699,18 @@ body,
     gap: var(--space-sm);
     margin-bottom: var(--space-md);
     padding: var(--space-xs) var(--space-sm);
-    background: var(--color-sidecar);
-    border: 0.5px solid var(--color-border);
+    background: var(--color-accent-tint);
+    /* Mix the accent into the accent-tint (same violet hue) rather than into the
+       near-neutral border — mixing violet with the border's yellowish hue rotates
+       through green in oklch. Keeps a subtle in-family violet edge. */
+    border: 0.5px solid color-mix(in oklch, var(--color-accent) 30%, var(--color-accent-tint));
     border-radius: var(--radius-md);
   }
   .mobile-note-text {
     font-family: var(--font-sans);
-    font-size: var(--text-ui-sm);
+    font-size: var(--text-ui);
     line-height: 1.45;
-    color: var(--color-ink-2);
+    color: var(--color-ink);
   }
   .mobile-note-dismiss {
     flex-shrink: 0;
