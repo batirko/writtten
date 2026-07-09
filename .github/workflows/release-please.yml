@@ -5,6 +5,21 @@ name: Release Please
 # version. Merging THAT PR is the single act that cuts a release: it tags
 # `vX.Y.Z`, which is what deploy.yml listens for. No production deploy happens
 # on ordinary merges to main — only on the tag.
+#
+# Uses a PAT (secret RELEASE_PLEASE_TOKEN), not the default GITHUB_TOKEN:
+# a GITHUB_TOKEN-authored push is stamped as github-actions[bot], which (a)
+# makes GitHub hold the release PR's own CI run on "action_required" pending
+# manual approval on every push to the PR, and (b) is blocked by GitHub's
+# recursion guard from triggering deploy.yml when the tag lands — both
+# required a human to manually approve/dispatch every release. A PAT reads as
+# a real collaborator, so both fire automatically. Falls back to GITHUB_TOKEN
+# if the secret isn't set, so this degrades gracefully rather than breaking
+# release-please entirely.
+#
+# Setup (one-time, repo admin): create a fine-grained PAT scoped to just this
+# repo with Contents: Read & write + Pull requests: Read & write, then:
+#   gh secret set RELEASE_PLEASE_TOKEN --repo batirko/writtten
+# (paste the token at the prompt — it's never printed or committed).
 
 on:
   push:
@@ -20,5 +35,6 @@ jobs:
     steps:
       - uses: googleapis/release-please-action@v4
         with:
+          token: ${{ secrets.RELEASE_PLEASE_TOKEN || secrets.GITHUB_TOKEN }}
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
