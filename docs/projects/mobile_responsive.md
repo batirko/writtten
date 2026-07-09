@@ -68,7 +68,7 @@ Anchor file: `src/styles.css` (this is Visual-lane territory — it edits the sh
 ### M2 — Feed made reachable-not-broken on narrow (mechanical + one small call) — done
 
 - [x] Feed stacks below the editor at full width, scrollable/readable; the whole column scrolls as one document (editor + sidecar `overflow-y: visible` on narrow). Card markup and tap-dismiss are unchanged, so they work as-is.
-- [x] **Feed defaults collapsed on first load at narrow widths** — `feedCollapsed` initializer falls back to `matchMedia("(max-width: 720px)").matches` when there is no stored preference (a stored preference always wins; desktop stays expanded). The `.feed-handle` becomes a **full-width ≥44px tap bar** to reveal it. Verified: fresh load at 375px → feed collapsed, tap handle → feed reveals full-width.
+- [x] **Feed defaults _expanded_ on first load (all viewports).** _(Reversed 2026-07-09 — see the follow-up below. Originally the `feedCollapsed` initializer fell back to `matchMedia("(max-width: 720px)").matches` so a phone opened collapsed, editor-first. Real use showed the feed was then too easy to miss — visitors didn't realise the observation companion existed — so the initializer now returns `false` when there is no stored preference, and the feed leads visible on narrow too.)_ A stored preference always wins. The `.feed-handle` remains a **full-width ≥44px tap bar** to collapse/reveal it.
 
 ### M3 — Degrade hover-only affordances gracefully (small judgment) — done
 
@@ -81,9 +81,20 @@ Anchor file: `src/styles.css` (this is Visual-lane territory — it edits the sh
 
 ### M4 — The honesty note (small) — done
 
-- [x] `MobileNote.tsx`: a quiet, dismissible one-liner shown only on narrow viewports — _"writtten is built for focused desktop writing — the observation feed is best on a laptop."_ Slim non-blocking strip at the top of the editor column (sidecar wash, `--radius-md`, sans `--text-ui-sm` in `--color-ink-2`, muted `×` with a 44px touch target), **not** a modal wall. Display-gated to ≤720px in CSS (no desktop flash) and dismissal persists to `localStorage` (`writtten_mobile_note_dismissed`).
+- [x] `MobileNote.tsx`: a quiet, dismissible one-liner shown only on narrow viewports — _"writtten is built for focused desktop writing — the observation feed is best on a laptop."_ Slim non-blocking strip at the top of the editor column (originally a sidecar wash, `--radius-md`, sans `--text-ui-sm` in `--color-ink-2`, muted `×` with a 44px touch target — restyled 2026-07-09 to an accent tint + full-ink `--text-ui`; see follow-up below), **not** a modal wall. Display-gated to ≤720px in CSS (no desktop flash) and dismissal persists to `localStorage` (`writtten_mobile_note_dismissed`).
 
 **Phase-6 verification (done 2026-07-07, chrome-devtools CDP viewport override on the worktree dev server):** 320 / 360 / 375px — no horizontal scroll; editor usable at the reading measure; feed default-collapsed on narrow, reveals on tap-handle, scrolls full-width; honesty note appears once and dismisses (flag persists); **no console errors/warnings**; nothing in the core read loop is _only_ reachable by hover. Desktop (1280px) unregressed — two-pane row, feed expanded at 320px, note hidden.
+
+### Follow-up — pre-first-release mobile polish (2026-07-09)
+
+Small polish pass on the shipped courtesy pass ahead of the first public release (not a new milestone; still bounded Phase-6 scope, no Phase-7 touch-hero work). Four fixes:
+
+- **Feed defaults expanded on narrow** — the M2 default was flipped (see above). The observation feed leads visible on a phone so first-time visitors register that it exists; a stored preference still wins.
+- **Handle ↔ activity-center tap collision fixed.** The `position: fixed` control-center (bottom-right, `z 40`) floated over the full-width in-flow `.feed-handle`; on a short collapsed page the handle stranded under the anchor and its right-end taps hit the activity center. Fix: a bottom safe-area on the mobile `.app` (`padding-bottom: calc(var(--space-lg) + 44px + var(--space-md))`) keeps the fixed anchor's footprint clear of the last interactive row — combined with the feed now defaulting expanded, the handle is no longer the stranded last element.
+- **Activity center closes on second tap (touch).** The tap toggle in `ControlCenter.tsx` already flipped `tapOpen`, but the reveal rule ORed in `:hover` / `:focus-within`; iOS's sticky `:hover` (set on first tap, cleared only by tapping elsewhere) kept the panel open after the second tap. Fix: `.is-open` is now the unconditional reveal path and the hover / focus-within reveal is gated behind `@media (hover: hover)` (desktop only), so `tapOpen` is authoritative on touch.
+- **Honesty note made visible.** The M4 strip was a near-invisible sidecar wash (`--color-sidecar` / hairline / `--text-ui-sm` in `--color-ink-2`). Modest, still-calm lift to `--color-accent-tint` + a stronger accent-mixed border + full-ink text at `--text-ui`. No icon/eyebrow — still a quiet strip, not a callout. Copy, markup, dismiss + `localStorage` persistence unchanged.
+
+The Welcome modal was reviewed at 375px and needed no change (it caps to `max-width: 88vw` via `.modal-card` and its CTAs already stack). Verified at 320 / 360 / 375px + desktop 1280px unregressed; `npm test` / `lint` / `build` green.
 
 ## Phase 7 — Mobile review companion (design sketch, not build-ready)
 
