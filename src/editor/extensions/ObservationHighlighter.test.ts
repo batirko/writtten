@@ -262,6 +262,23 @@ describe("reanchorOffset (L5)", () => {
     const text = "ab_ab_ab__";
     expect(reanchorOffset(text, "ab", 4, 6)).toEqual({ start: 3, end: 5 });
   });
+
+  it("tolerates trailing punctuation the extractor appended to a mid-sentence clause", () => {
+    // anchorClaimsToMembers anchors "We ship in Q3." via its punctuation-strip
+    // fallback, storing the STRIPPED offsets (0:13) but the UNSTRIPPED claim as
+    // anchorText. Without a matching strip here the real (non-sentinel) span
+    // would resolve to null — suppressing the highlight and killing card-click.
+    // The resolved end uses the stripped length (13), not the anchorText length.
+    expect(reanchorOffset("We ship in Q3, giving the team room.", "We ship in Q3.", 0, 13)).toEqual(
+      { start: 0, end: 13 }
+    );
+  });
+
+  it("still suppresses a vanished anchor even after stripping trailing punctuation", () => {
+    // Stripping "gone." → "gone" still finds nothing, and 3:7 is a real span
+    // (not the whole-block sentinel), so the stale span is correctly suppressed.
+    expect(reanchorOffset("nothing here at all", "gone.", 3, 7)).toBeNull();
+  });
 });
 
 describe("highlight re-anchoring on rebuild (L5)", () => {
