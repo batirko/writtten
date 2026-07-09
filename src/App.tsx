@@ -32,6 +32,7 @@ import { setActiveProviderSelection } from "./model/factory";
 import type { ProviderId } from "./model/provider";
 import { llmLogger, type LLMLogEntry, type SessionStats } from "./model/logger";
 import { harness } from "./debug/harness";
+import { subscribeActivity } from "./model/activitySignal";
 import { nanoid } from "nanoid";
 import type { Editor as TiptapEditor } from "@tiptap/react";
 import { downloadMarkdown, exportPdf, copyMarkdown, copyRichText } from "./services/export";
@@ -379,13 +380,17 @@ export default function App() {
     return unsubscribe;
   }, []);
 
-  // Dev-only acceptance harness: attach window.__sidecar__ and surface the
-  // readiness signal. Stripped from the production build via import.meta.env.DEV.
+  // Activity-center "working" pulse: the outstanding-eval count from the
+  // orchestrator's production-safe signal. (Historically this only flowed
+  // through the dev harness, so the dot stayed grey in production builds.)
+  useEffect(() => subscribeActivity(setPending), []);
+
+  // Dev-only acceptance harness: attach window.__sidecar__ so tools can inspect
+  // live state. Stripped from the production build via import.meta.env.DEV.
   useEffect(() => {
     if (!import.meta.env.DEV) return;
     harness.install({ docId: DOC_ID });
     harness.registerClear(() => clearWorkspaceRef.current());
-    return harness.subscribePending(setPending);
   }, []);
 
   // Sync settings to localStorage
