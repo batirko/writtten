@@ -2407,12 +2407,13 @@ body,
 }
 
 /* ── Demo onboarding coachmarks (docs/projects/onboarding_first_run.md) ───────
-   A temporary, non-blocking tour shown over the "See it in action" demo. Styled
-   deliberately apart from core UX — dashed accent, numbered steps, spotlight
-   rings — so it reads as onboarding, not a permanent surface. The container and
-   the SVG are pointer-events:none (the demo behind stays interactive); only the
-   cards + dismiss take pointer events. Sits above the feed/control-center (z 40)
-   and peeks (z 45) but below the modal scrim (z 1000). */
+   A temporary, non-blocking tour over the "See it in action" demo: three cards
+   stacked in the empty gutter between the canvas and the feed, each with a thin
+   pointer to its surface (no rings) and a "Learn more" second layer. Styled apart
+   from core UX (accent tint, numbered steps) so it reads as onboarding. The
+   wrapper + SVG are pointer-events:none (the demo behind stays interactive); only
+   the cards + controls take events. z 120 (above feed/control-center 40, peeks 45;
+   below the modal scrim 1000). */
 .demo-coachmarks {
   position: fixed;
   inset: 0;
@@ -2424,13 +2425,6 @@ body,
   inset: 0;
   pointer-events: none;
 }
-.demo-coach-ring {
-  fill: none;
-  stroke: var(--color-accent);
-  stroke-width: 1.5;
-  stroke-dasharray: 5 4;
-  opacity: 0.85;
-}
 .demo-coach-conn {
   fill: none;
   stroke: var(--color-accent);
@@ -2440,57 +2434,59 @@ body,
 .demo-coach-conn-dot {
   fill: var(--color-accent);
 }
-.demo-coach-card {
+/* Card 3 (activity monitor) rings the indicator instead of drawing a connector
+   that would cross the feed to reach the far-right dot. */
+.demo-coach-ring {
+  fill: none;
+  stroke: var(--color-accent);
+  stroke-width: 1.5;
+  stroke-dasharray: 5 4;
+  opacity: 0.85;
+}
+.demo-coach-stack {
   position: fixed;
-  width: 236px;
-  max-width: calc(100vw - 16px);
-  background: var(--color-accent-tint);
-  border: 1.5px dashed var(--color-accent);
-  border-radius: 12px;
-  padding: 11px 13px;
-  box-shadow: var(--elev-float);
-  pointer-events: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  pointer-events: none;
   animation: cardEnter var(--dur-base) var(--ease-out);
+}
+/* The three cards spread over the full stack height (top → middle → bottom) so
+   each sits near its surface; flex never overlaps them when a card expands. */
+.demo-coach-cards {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 10px;
+}
+.demo-coach-card {
+  pointer-events: auto;
+  background: var(--color-accent-tint);
+  border: 1px solid color-mix(in oklch, var(--color-accent) 30%, transparent);
+  border-radius: 12px;
+  padding: 10px 12px;
+  box-shadow: var(--elev-float);
 }
 .demo-coach-head {
   display: flex;
   align-items: center;
   gap: 7px;
-  margin-bottom: 6px;
-  padding-right: 16px;
-}
-.demo-coach-close {
-  position: absolute;
-  top: 6px;
-  right: 6px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 20px;
-  height: 20px;
-  padding: 0;
-  border: none;
-  border-radius: 4px;
-  background: transparent;
-  color: var(--color-accent);
-  opacity: 0.55;
-  cursor: pointer;
-  transition:
-    opacity var(--dur-fast) var(--ease-out),
-    background var(--dur-fast) var(--ease-out);
-}
-.demo-coach-close:hover {
-  opacity: 1;
-  background: color-mix(in oklch, var(--color-accent) 12%, transparent);
+  margin-bottom: 4px;
 }
 .demo-coach-step {
   flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 17px;
+  height: 17px;
   font-size: 10.5px;
   font-weight: 500;
   color: var(--color-surface);
   background: var(--color-accent);
-  border-radius: 20px;
-  padding: 1px 8px;
+  border-radius: 50%;
 }
 .demo-coach-title {
   font-size: var(--text-ui-sm);
@@ -2503,25 +2499,48 @@ body,
   line-height: 1.45;
   color: var(--color-ink-2);
 }
-.demo-coach-dismiss-bar {
-  position: fixed;
-  left: 50%;
-  bottom: 24px;
-  transform: translateX(-50%);
-  display: flex;
-  pointer-events: auto;
+.demo-coach-detail {
+  margin: 7px 0 0;
+  padding-top: 7px;
+  border-top: 1px dashed color-mix(in oklch, var(--color-accent) 30%, transparent);
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--color-ink-2);
+}
+.demo-coach-more {
+  margin-top: 6px;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 0;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--color-accent);
+}
+.demo-coach-more:hover {
+  color: var(--color-accent-strong);
+}
+.demo-coach-more-chev {
+  font-size: 9px;
 }
 .demo-coach-dismiss {
+  pointer-events: auto;
+  align-self: center;
+  margin-top: 2px;
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  font-size: var(--text-ui);
+  font-size: var(--text-ui-sm);
   font-weight: 500;
   color: var(--color-surface);
   background: var(--color-accent);
   border: 0.5px solid var(--color-accent);
   border-radius: 999px;
-  padding: 10px 20px;
+  padding: 8px 18px;
   box-shadow: var(--elev-float);
   cursor: pointer;
   transition: background var(--dur-fast) var(--ease-out);
@@ -2530,7 +2549,7 @@ body,
   background: var(--color-accent-strong);
 }
 @media (prefers-reduced-motion: reduce) {
-  .demo-coach-card {
+  .demo-coach-stack {
     animation: none;
   }
 }
