@@ -87,9 +87,14 @@ const openItems = items.filter((it) => it.requireAnnotation);
 const doneItems = items.filter((it) => it.forbidAnnotation);
 
 describe("docs/plan.md routing annotations", () => {
-  it("finds both open and completed milestones to check", () => {
+  it("finds open milestones to check", () => {
+    // Sanity guard that the collector isn't silently returning nothing.
+    // We assert only on OPEN items: once closed phases are archived to
+    // docs/plan-archive.md (Phases 0–6 as of 2026-07-10), the live plan can
+    // legitimately carry *zero* completed (`[x]`) milestones, so requiring
+    // doneItems > 0 is no longer a valid invariant. The drop-annotation
+    // check below still runs for whatever `[x]` items do remain (if any).
     expect(openItems.length).toBeGreaterThan(0);
-    expect(doneItems.length).toBeGreaterThan(0);
   });
 
   it.each(openItems.map((it) => [it.lineNo, it.text] as const))(
