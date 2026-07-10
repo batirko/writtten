@@ -1,7 +1,7 @@
 ---
 status: idea
 kind: quality
-phases: [7]
+phases: [9]
 summary: Resolve the zero-config "smart feed" philosophy against the user desire for filters/sorting/"top 5" (UX-010). Decision (2026-06-18) — maturity-aware curation (R2) plus exactly ONE lightweight control, a three-step noisiness switch (Key issues / Balanced / Everything); per-type filters, sorting, and manual "top N" are deliberately refused. Draws the line so the feed never becomes a settings dashboard.
 ---
 
@@ -11,7 +11,7 @@ summary: Resolve the zero-config "smart feed" philosophy against the user desire
 
 ## Status
 
-**Idea — Phase 7 (design settled 2026-06-18; sequencing updated 2026-06-27; moved Phase 6→7 on 2026-07-08).** The decision (the _line_: maturity-aware curation + one noisiness switch, refuse the rest) is made. **Two updates 2026-06-27:** (1) the maturity-aware-curation half is now its own tracked milestone, `maturity_aware_severity.md` (R2), which this design depends on — it is no longer an ambient principle; (2) the one conceded control (the noisiness switch) is **build-held pending V2** confirms maturity-curation isn't already sufficient, rather than wired immediately. **Update 2026-07-08:** R2 has now **shipped**, so the only remaining gate is V2 — and since V2 was deferred to Phase 7, the owner moved this milestone to Phase 7 too (rather than leave a V2-blocked item in the current phase). If V2 shows the maturity split dissolves the UX-010 friction, we may never need to add the control surface — which is the more zero-config outcome.
+**Idea — Phase 9 (design settled 2026-06-18; sequencing updated 2026-06-27; moved Phase 6→7 on 2026-07-08; re-cut to Phase 9 on 2026-07-10, with its V2 gate in Phase 8).** The decision (the _line_: maturity-aware curation + one noisiness switch, refuse the rest) is made. **Two updates 2026-06-27:** (1) the maturity-aware-curation half is now its own tracked milestone, `maturity_aware_severity.md` (R2), which this design depends on — it is no longer an ambient principle; (2) the one conceded control (the noisiness switch) is **build-held pending V2** confirms maturity-curation isn't already sufficient, rather than wired immediately. **Update 2026-07-08:** R2 has now **shipped**, so the only remaining gate is V2 — and since V2 was deferred out of the active phase, the owner moved this milestone with it (rather than leave a V2-blocked item in the current phase); as of the 2026-07-10 re-cut, V2 is Phase 8 and this switch is Phase 9. If V2 shows the maturity split dissolves the UX-010 friction, we may never need to add the control surface — which is the more zero-config outcome.
 
 Read alongside:
 
@@ -26,7 +26,7 @@ Read alongside:
 
 | Phase | Contributes                                                                                                                                                                                                          |
 | ----- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **7** | The decision (this doc) + ship the **noisiness switch** (Milestone E build spec) as the single conceded control — **only if V2 shows maturity-aware curation (R2, shipped in Phase 6) doesn't already resolve UX-010.** Held here behind V2, which also lives in Phase 7. |
+| **9** | The decision (this doc) + ship the **noisiness switch** (Milestone E build spec) as the single conceded control — **only if V2 (Phase 8) shows maturity-aware curation (R2, shipped in Phase 6) doesn’t already resolve UX-010.** Held here behind V2. |
 
 ## Todo
 
@@ -65,7 +65,7 @@ The control lives in the settings panel (Milestone E places it near the jargon c
 
 ### Relationship to the Phase 7 "Noisiness control" backlog item
 
-The noisiness control was originally a Phase 7 backlog line (`docs/plan.md` Phase 7 + Milestone E note). It was pulled into Phase 6 (2026-06-18) as R2c's single conceded control, then **moved back to Phase 7 on 2026-07-08** — R2 shipped but the switch stays build-held behind V2, which is itself a Phase-7 item, so the milestone lives in Phase 7 rather than blocking on a later-phase gate from within Phase 6. The `docs/plan.md` Phase 7 line now carries this R2c milestone directly; Milestone E remains the executable "how."
+The noisiness control was originally a Phase 7 backlog line (`docs/plan.md` Phase 7 + Milestone E note). It was pulled into Phase 6 (2026-06-18) as R2c's single conceded control, then **moved back out of Phase 6 on 2026-07-08** — R2 shipped but the switch stays build-held behind V2, so the milestone travels with its gate (2026-07-10 re-cut: V2 is Phase 8; this switch is Phase 9). The `docs/plan.md` Phase 9 line now carries this R2c milestone directly; Milestone E remains the executable "how."
 
 ### Out of scope
 

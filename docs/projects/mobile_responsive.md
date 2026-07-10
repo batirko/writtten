@@ -1,8 +1,8 @@
 ---
 status: in-progress
 kind: spec
-phases: [6, 7]
-summary: The project's never-designed narrow-viewport / touch dimension. Split into a small Phase-6 "courtesy pass" (don't ship a broken layout to phone visitors of the first public release) and a Phase-7 "mobile review companion" (the real touch interaction model — feed-first review, tap-to-locate-span — reframed to fit the product instead of forcing a cramped phone editor).
+phases: [6, 9]
+summary: The project's never-designed narrow-viewport / touch dimension. Split into a small Phase-6 "courtesy pass" (don't ship a broken layout to phone visitors of the first public release) and a Phase-9 "mobile review companion" (the real touch interaction model — feed-first review, tap-to-locate-span — reframed to fit the product instead of forcing a cramped phone editor).
 ---
 
 # Mobile & responsive
@@ -11,10 +11,10 @@ summary: The project's never-designed narrow-viewport / touch dimension. Split i
 
 ## Status
 
-**In-progress — Phase 6 courtesy pass shipped (2026-07-07); Phase 7 (companion) still a design sketch.** Two clearly separated bodies of work:
+**In-progress — Phase 6 courtesy pass shipped (2026-07-07); Phase 9 (companion) still a design sketch.** Two clearly separated bodies of work:
 
 - **Phase 6 — Mobile courtesy pass (small, in-scope). ✅ Shipped 2026-07-07.** The first public release means people *will* open the link on a phone. That was a broken, sideways-scrolling squish (see _Ground truth_ below). The courtesy pass makes a narrow viewport *not embarrassing and usably read-only-ish*, and is honest that the tool is built for desktop: a `@media (max-width: 720px)` stack, feed default-collapsed on narrow, hover-only affordances degraded, and a quiet dismissible "best on desktop" note. **Does not** attempt to make the hero interaction work on touch.
-- **Phase 7 — Mobile review companion (big, post-traction).** The real touch interaction model for the span↔card relationship, reframed: on a phone you *review* observations (feed-first, tap-to-locate-span, dismiss/keep), you don't thumb-type a PRD. This is a genuine second interaction surface and gets its own design; don't pre-build it.
+- **Phase 9 — Mobile review companion (big, post-traction).** The real touch interaction model for the span↔card relationship, reframed: on a phone you *review* observations (feed-first, tap-to-locate-span, dismiss/keep), you don't thumb-type a PRD. This is a genuine second interaction surface and gets its own design; don't pre-build it.
 
 Read alongside `docs/projects/accessibility.md` (its keyboard/AT equivalence for the hover-only hero interaction is the sibling of this work — a touch equivalent is the same underlying gap) and `docs/projects/feed_surface.md` (the companion-surface metaphor this must re-express on narrow screens).
 
@@ -43,7 +43,7 @@ Verified against the running layout and `src/styles.css`:
 - Document-context header, `ControlCenter`, export/import buttons — reflow.
 - Stacking the two panes vertically and removing the feed `min-width` floors at a breakpoint.
 
-**Needs another look (a real interaction redesign — Phase 7):**
+**Needs another look (a real interaction redesign — Phase 9):**
 
 - **The span↔card relationship is the product, and it has no touch model.** On desktop it's a *spatial, simultaneous* companion — text left, live feed in peripheral vision, hover linking them. On a phone there's no room for "simultaneous" and no hover for "linking." It has to become *modal/temporal*: feed as a bottom sheet or a tab; **tap a highlighted span → surface its card; tap a card → scroll+flash its span.** That's a different UX, not a reflow.
 - **The menus** (bubble/slash/table) assume mouse-selection + hover; touch selection handles behave differently.
@@ -74,9 +74,9 @@ Anchor file: `src/styles.css` (this is Visual-lane territory — it edits the sh
 
 - [x] Hover-only audit (courtesy bar = no dead-end for the core read loop):
   - **Feed cards / dismiss** — reachable by tap (handle → scroll → tap dismiss). The observation _content_ is fully reachable without hover.
-  - **SpanPeek / ContradictionPeek (reverse-hover)** — don't surface on touch. Accepted: they're a _shortcut_ to content already reachable in the feed; the span↔card **linking** is the Phase-7 gap, not a Phase-6 dead-end. Widths capped so they can't overflow if ever shown.
+  - **SpanPeek / ContradictionPeek (reverse-hover)** — don't surface on touch. Accepted: they're a _shortcut_ to content already reachable in the feed; the span↔card **linking** is the Phase-9 gap, not a Phase-6 dead-end. Widths capped so they can't overflow if ever shown.
   - **Bubble / slash menus** — trigger on selection / "/" typing (touch-supported); `min-width` capped so they fit a phone.
-  - **Table menu** — hover-gated controls are a known Phase-7 gap (mobile formatting is review-first/minimal by design); no dead-end for the core loop.
+  - **Table menu** — hover-gated controls are a known Phase-9 gap (mobile formatting is review-first/minimal by design); no dead-end for the core loop.
 - [x] `ObservationHighlighter` decorations still render statically (not hover-dependent), so observed spans still _show_ colour on touch even though tapping them does nothing yet.
 
 ### M4 — The honesty note (small) — done
@@ -87,7 +87,7 @@ Anchor file: `src/styles.css` (this is Visual-lane territory — it edits the sh
 
 ### Follow-up — pre-first-release mobile polish (2026-07-09)
 
-Small polish pass on the shipped courtesy pass ahead of the first public release (not a new milestone; still bounded Phase-6 scope, no Phase-7 touch-hero work). Four fixes:
+Small polish pass on the shipped courtesy pass ahead of the first public release (not a new milestone; still bounded Phase-6 scope, no Phase-9 touch-hero work). Four fixes:
 
 - **Feed defaults expanded on narrow** — the M2 default was flipped (see above). The observation feed leads visible on a phone so first-time visitors register that it exists; a stored preference still wins.
 - **Handle ↔ activity-center tap collision fixed.** The `position: fixed` control-center (bottom-right, `z 40`) floated over the full-width in-flow `.feed-handle`; on a short collapsed page the handle stranded under the anchor and its right-end taps hit the activity center. Fix: a bottom safe-area on the mobile `.app` (`padding-bottom: calc(var(--space-lg) + 44px + var(--space-md))`) keeps the fixed anchor's footprint clear of the last interactive row — combined with the feed now defaulting expanded, the handle is no longer the stranded last element.
@@ -96,7 +96,7 @@ Small polish pass on the shipped courtesy pass ahead of the first public release
 
 The Welcome modal was reviewed at 375px and needed no change (it caps to `max-width: 88vw` via `.modal-card` and its CTAs already stack). Verified at 320 / 360 / 375px + desktop 1280px unregressed; `npm test` / `lint` / `build` green.
 
-## Phase 7 — Mobile review companion (design sketch, not build-ready)
+## Phase 9 — Mobile review companion (design sketch, not build-ready)
 
 **Reframe:** don't build a cramped phone *editor*; build a phone *reviewer*. The persona drafts a PRD on a laptop; the phone is where they skim observations on the train. That fits the product instead of fighting it, and it's a compelling second surface rather than a degraded first one.
 
@@ -115,4 +115,4 @@ Open design questions (this is a sketch to be turned into a build-ready spec whe
 
 - **No mobile-native app.** Consistent with `docs/concept.md` — this is responsive web / PWA, not React Native / a store binary.
 - **No new fix-application affordances.** Invariant #1 holds on every surface; a phone "review" surface must not sprout an apply/rewrite button because it's tempting on touch.
-- **Phase 6 does not attempt the touch hero interaction.** That's Phase 7 by design; conflating them is how the courtesy pass balloons.
+- **Phase 6 does not attempt the touch hero interaction.** That's Phase 9 by design; conflating them is how the courtesy pass balloons.

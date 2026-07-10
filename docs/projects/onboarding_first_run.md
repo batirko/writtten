@@ -1,5 +1,5 @@
 ---
-status: in-progress
+status: done
 kind: spec
 phases: [6]
 summary: The first-run experience for a brand-new user — a one-time blocking welcome modal that frames the inversion AND names the API-key requirement (keyless does nothing on the user's own text), a one-click "See it in action" recorded example (planted contradiction) witnessable with no key, a standing "add your key" banner in any keyless state, and the quiet-by-design empty states reserved for the keyed state.

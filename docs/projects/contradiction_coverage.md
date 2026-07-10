@@ -1,5 +1,5 @@
 ---
-status: in-progress
+status: done
 kind: quality
 phases: [6]
 summary: Close the gaps where a genuine contradiction goes undetected depending on how the text entered — intra-section pairs are excluded from the per-section check and the all-pairs ledger sweep runs only on paste, so a blatant same-section contradiction surfaces (if at all) as a weak `clarity` nit. Decided direction (2026-07-09): mechanism A — widen the per-section check to include same-section pairs.
@@ -9,7 +9,7 @@ summary: Close the gaps where a genuine contradiction goes undetected depending 
 
 ## Status
 
-> Canonical status is the frontmatter (`in-progress`). The design question below is **resolved** — see § Decided direction. Mechanism A (widen the per-section check) was chosen with the owner on 2026-07-09; implementation is underway in the Prompt/signal lane.
+> Canonical status is the frontmatter (`done`). Mechanism A (widen the per-section check) was chosen with the owner on 2026-07-09 and **shipped the same day in #161** with the `contradiction-intra-section` ratchet fixture — see § Decided direction for the as-built shape. The **cross-section** short-draft facet of UX-016 (paste-sweep maturity gate) was explicitly out of scope here and is carried as its own Phase-8 item in `docs/plan.md`.
 
 ## Decided direction (2026-07-09 — mechanism A)
 
@@ -81,8 +81,8 @@ Any option must compose with the discomfort-budget floor/ceiling (G4) and the ma
 ### Phase 6
 
 - [x] **Decide the mechanism** — done 2026-07-09: **A** (widen the per-section check). See § Decided direction.
-- [ ] Implement the chosen path — replace the `sourceBlockId !== sectionId` filter in `src/services/evaluator.ts` (~L479) with a claim-text-identity self-exclusion; dedup emissions by `conflictPairKey`.
-- [ ] Add ratchet/regression coverage for a **typed** intra-section contradiction (today only the paste sweep is fixtured — `contradiction-sweep-fidelity`).
+- [x] Implement the chosen path — replace the `sourceBlockId !== sectionId` filter in `src/services/evaluator.ts` (~L479) with a claim-text-identity self-exclusion; dedup emissions by `conflictPairKey`.
+- [x] Add ratchet/regression coverage for a **typed** intra-section contradiction (today only the paste sweep is fixtured — `contradiction-sweep-fidelity`).
 - [x] Reconcile with the UX-016 maturity gate — A resolves the short-draft **intra-section** case for free (per-section check is not maturity-gated); the cross-section sweep-gating facet of UX-016 stays out of scope.
 
 ## Related

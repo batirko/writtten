@@ -1,7 +1,7 @@
 ---
 status: idea
 kind: infra
-phases: [6, 7]
+phases: [6, 7, 9]
 summary: The open-source launch readiness checklist — what must be in the repo, how it should present, the pre-flight cleanup/security sweep, contributor on-ramp, positioning assets, and the go-to-market/post-launch plan. Tiered Minimum → Good-enough → Superb so a lean launch can ship without the depth work.
 ---
 
@@ -13,12 +13,12 @@ summary: The open-source launch readiness checklist — what must be in the repo
 
 ## Status
 
-**Idea — spans Phase 6 (prep-now hygiene) and Phase 7 (contributor depth).** Nothing here is built. The gating product decision (OSS real vs. decorative) is treated as **resolved → real** by virtue of this work being scheduled; the concrete follow-through is the checklist below. Most of the **Minimum** tier is low-complexity, high-leverage repo hygiene that can ship inside Phase 6; the **Superb** tier (real extension seams, non-Gemini adapters) is genuine Phase-7 engineering.
+**Idea — spans Phases 6–7 (prep-now hygiene + launch residuals) and Phase 9 (contributor depth).** Nothing here is built. The gating product decision (OSS real vs. decorative) is treated as **resolved → real** by virtue of this work being scheduled; the concrete follow-through is the checklist below. Most of the **Minimum** tier is low-complexity, high-leverage repo hygiene that can ship inside Phase 6; the **Superb** tier (real extension seams, local/Ollama adapter) is genuine Phase-9 engineering (the OpenAI/Anthropic adapters shipped first-party 2026-07-07).
 
 Read alongside:
 
 - `docs/concept.md` → _Stance on monetization and OSS_ (the thesis + the honest caveat this doc closes).
-- `docs/plan.md` → Phase 7 "Documented extension API for the three seams" and the Strategic open questions (OSS, free-tier, privacy/egress).
+- `docs/plan.md` → Phase 9 "Superb tier — contributor depth" and the Strategic open questions (OSS, free-tier, privacy/egress).
 - `docs/projects/onboarding_first_run.md` — the zero-config "See it in action" demo is also the OSS "try before you clone" hook.
 - `docs/projects/byok_capability_model.md` — the model-router seam is the load-bearing contribution surface; its Gemini-shape is the biggest contributor gap.
 - `CLAUDE.md` — the hard invariants a CONTRIBUTING guide must transmit (esp. #1 no fix-application affordances, #2 fixed taxonomy).
@@ -26,7 +26,7 @@ Read alongside:
 ## Phased Plan
 
 - **Phase 6 (prep-now, mostly 🔧/⚙️):** repo hygiene + the Minimum tier. LICENSE file, README that pitches the inversion, CONTRIBUTING/CODE_OF_CONDUCT/SECURITY, issue/PR templates, the pre-flight cleanup + security sweep, and the docs/ transparency decision. This is the launchable core.
-- **Phase 7 (depth, 🧠):** the contributor on-ramp that makes "contribute to" true — documented extension seams (observation types, model providers, export formats), a non-Gemini adapter as the reference contribution, "good first issue" pipeline, and the go-to-market execution. Gated on the core being solid and (ideally) a live hosted demo existing.
+- **Phase 9 (depth, 🧠):** the contributor on-ramp that makes "contribute to" true — documented extension seams (observation types, model providers, export formats), a non-Gemini adapter as the reference contribution, "good first issue" pipeline, and the go-to-market execution. Gated on the core being solid and (ideally) a live hosted demo existing.
 
 ## Todo
 
@@ -60,7 +60,7 @@ Read alongside:
 - [x] **CHANGELOG.md** added (Keep-a-Changelog, `0.1.0` first-release notes). _The tagged `v0.1.0` release + the `<owner>` compare links are done at publish time._
 - [x] **A short "why I built this" launch post** — `docs/launch/why-writtten.md`, adaptable for Show HN / blog. _(2026-07-05)_
 
-### Superb — makes "a tool people want to contribute to" actually true (Phase 7)
+### Superb — makes "a tool people want to contribute to" actually true (Phase 9)
 
 - [ ] **Documented extension API for the three seams** — observation types, model providers, export formats. 🟢 build-ready spec for `docs/extending.md` (one section per seam; each maps _where it lives · what interface to implement · what's stubbed · a worked example_):
   - **Model providers** — the `ProviderAdapter` seam (`src/model/provider.ts`, landed by `multi_provider_router.md`). "Add a provider = one adapter file + a registry entry; zero call-site changes." Point at `gemini.ts`/`openai.ts`/`anthropic.ts` as the three reference adapters; Ollama/local as the archetypal next contribution (also the no-egress privacy win).
@@ -186,7 +186,7 @@ Flip the plan.md milestone to `[x]` only once `writtten.com` actually resolves.
 | --------------- | --------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------- |
 | **Minimum**     | Legally forkable, understandable, runnable, no leaked secrets. LICENSE + README + hygiene + security sign-off + basic community files.  | Phase 6, mostly 🔧/⚙️, days not weeks. |
 | **Good-enough** | A credible, welcoming launch: live demo, hero visual, zero-config try, honest status, first release, launch post.                       | Phase 6 → early 7.                     |
-| **Superb**      | "Contribute to" is true: documented seams, a second model adapter, good-first-issues, enforced philosophy guardrails, a triage cadence. | Phase 7, 🧠, real engineering.         |
+| **Superb**      | "Contribute to" is true: documented seams, a second model adapter, good-first-issues, enforced philosophy guardrails, a triage cadence. | Phase 9, 🧠, real engineering.         |
 
 **Launch bar (decided 2026-07-06):** ship at **Good-enough _plus_ multi-provider BYOK.** Minimum alone reads as "code dump"; Good-enough (hosted demo + hero visual + honest status) is the credible bar — and the owner elected to also make **Gemini + OpenAI + Anthropic** (`multi_provider_router.md`) a hard pre-public blocker rather than a fast-follow. Everything else in **Superb** (the `docs/extending.md` seam guide, the good-first-issue pipeline, guardrail docs, triage cadence) is specced to 🟢 here but accretes _after_ launch as contributors arrive.
 
