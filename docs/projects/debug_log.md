@@ -1,7 +1,7 @@
 ---
 status: in-progress
 kind: infra
-phases: [4, 5]
+phases: [4, 7, 9]
 summary: Redesign the debug/observability log into one call-centric, self-describing event model — merge request+response, dereference static prompts, add archival (user + system) records, and unify the two divergent logs — optimized for human reading and AI consumption (automated testing or pasted-by-user).
 ---
 
@@ -13,7 +13,7 @@ summary: Redesign the debug/observability log into one call-centric, self-descri
 
 > Canonical status lives in the frontmatter above and is mirrored in the Projects Index in `docs/plan.md`. This block carries the human-readable scope only.
 
-**Phase 4 slice shipped 2026-06-05; Phase 5 (log unify + token/cost) remains `idea`.** Triggered while debugging a Phase-4 field-test session whose "Copy All" log could not show observation archival at all. This is **dev/observability infrastructure**, gated behind the existing **Enable LLM Debug Mode** flag — entirely client-side, no server, telemetry, or egress (standing rule 5). It overlaps two shipped docs and should be read alongside them:
+**Phase 4 slice shipped 2026-06-05; the rest was re-cut 2026-07-10 — the export-redaction check rides Phase 7 (launch hygiene), the log unify + token/cost + retention slice is parked in Phase 9.** Triggered while debugging a Phase-4 field-test session whose "Copy All" log could not show observation archival at all. This is **dev/observability infrastructure**, gated behind the existing **Enable LLM Debug Mode** flag — entirely client-side, no server, telemetry, or egress (standing rule 5). It overlaps two shipped docs and should be read alongside them:
 
 - `docs/projects/agent_acceptance_harness.md` — owns the structured **event stream** primitive (`window.__sidecar__.getEvents()`), the readiness signal, and the seedable-state/mock surfaces.
 - `docs/projects/model_rotation_and_debugging.md` — owns the **LLM debug panel** + per-model quota/`getApiStats()` surface that the call log feeds.
@@ -47,7 +47,7 @@ This redesign is the third leg: the **log record model and export** shared by bo
 
 **Files:** `model/router.ts` (`meta`/`callId` on the request/response types), `model/logger.ts` (correlation fields + `archive` type + `logArchive`/`recordProduced`), `model/debugLog.ts` (the projection + envelope, new) and `debugLog.test.ts`, `model/gemini.ts` (callId lifecycle), `services/orchestrator.ts` + `services/evaluator.ts` (evalId threading + archives + produced), `App.tsx` (user archives), `debug/harness.ts` (`archive()` dual-write + event type), `sidecar/SidecarFeed.tsx` (archive rendering + envelope export). Verified live: envelope shows merged calls, dereferenced prompt/glossary, archive `actor`/`reason`, and `produced` effects.
 
-### Phase 5
+### Phase 5 (re-cut 2026-07-10: the redaction check is Phase 7 launch hygiene; unify + token/cost + retention are Phase 9)
 
 - [ ] Single emitter feeding both the agent event stream and the human debug panel; reconcile the two type vocabularies and retention limits.
 - [ ] Capture Gemini `usageMetadata` (prompt/candidate token counts) per call; surface per-call cost alongside latency.

@@ -36,7 +36,7 @@ The audit's one-line verdict: _"a promising prototype with unusually good archit
 
 ## Todo
 
-### L1 — Repair gates + add CI — 🟢 Low–Med · 🔧 (audit #1, #10)
+### L1 — Repair gates + add CI — ✅ done 2026-06-13 (audit #1, #10)
 
 - [x] Added a dedicated `tsconfig.test.json` (includes `src` + `vitest.record.config.ts`, `types: ["node", "jsdom"]`) referenced from the root `tsconfig.json`, and excluded `*.test.ts`/`*.test.tsx` from `tsconfig.app.json`. Installed `@types/node` + `@types/jsdom`. (2026-06-13)
 - [x] Fixed `vite.config.ts` — imports `defineConfig` from `vitest/config`. (2026-06-13)
@@ -45,7 +45,7 @@ The audit's one-line verdict: _"a promising prototype with unusually good archit
 - [x] Side fix required for green CI: the Projects Index in `plan.md` used bare names; `projects.index.test.ts` (24 failures, pre-existing on `main`) requires markdown links — converted all 22 rows to `[name](projects/name.md)`. (2026-06-13)
 - [x] Added `.github/workflows/ci.yml` running `npm ci` → lint → build → test on push to `main` + all PRs (Node 20). Build is green: `dist/` produced incl. PWA `sw.js`/manifest. (2026-06-13)
 
-### L2 — Fix dead auto-close-on-deletion — 🟢 Low · 🔧 (audit #2)
+### L2 — Fix dead auto-close-on-deletion — ✅ done 2026-06-13 (audit #2)
 
 - [x] `src/editor/extensions/ObservationHighlighter.ts` — passed `{ "data-obs-id": obs.id }` as the 4th (`spec`) argument to both `Decoration.inline` calls (primary span + cross-claim conflicting span). The collapse detector reads the id off `spec`, so `hasDeco`/`wasDecoBefore` now resolve correctly and `onObservationCollapsed` fires on deletion. (2026-06-13)
 - [x] Added a collapse-path test (`ObservationHighlighter.test.ts`, jsdom): registers an active span observation, deletes the highlighted span, asserts `onObservationCollapsed` fires with the obs id; plus a negative test that an unrelated edit leaving the span intact does **not** fire. (2026-06-13)
@@ -70,7 +70,7 @@ The audit's one-line verdict: _"a promising prototype with unusually good archit
 - [x] Added the race tests: `orchestrator.test.ts` (new file — first orchestrator test; proves `block-removed` flips the in-flight section's `isLive` to false, and that an unrelated removal does not) and three `evaluator.test.ts` liveness-guard tests (removed during fast call → no writes; removed during strong call → no reconcile/summary; happy path still writes). All regression-verified by neutralising the fix. (2026-06-14)
 - [x] Updated `docs/mechanics/evaluation-triggers.md` (`block-removed` cascade + `evaluateSection`) to document the generation guard.
 
-### L5 — Make `anchorText` load-bearing — 🟡 High · 🧠 (audit #5, #6, #7)
+### L5 — Make `anchorText` load-bearing — ✅ done 2026-06-14 (audit #5, #6, #7)
 
 > Shipping as three sequenced PRs: **5a** suppression matching, **5b** highlight re-anchoring, **5c** per-section conflict-identity dedupe. (L6 — the `evaluator.ts` split — follows L5 as a separate pure refactor, by decision 2026-06-14.)
 
@@ -104,7 +104,7 @@ The audit's one-line verdict: _"a promising prototype with unusually good archit
 - [ ] Profile first. Every `onUpdate` runs `getBlockIds` + `getWordCount` + `emitBlockOrderIfChanged` + `resolveSection` → `resolveSections`, which materializes `combinedText` for **every section** (`src/editor/section.ts:71–80`) per keystroke; `onSelectionUpdate` does another full resolve. The LLM-side "no full-document scan" invariant holds; this is CPU-side and degrades on long docs. Also: `refreshObservations` full-table scans after every eval; the archive list is unbounded/unvirtualized.
 - [ ] Lower priority than L1–L5 — schedule only if dogfooding shows real lag.
 
-### L9 — Unexpected full remount/reload wipes diagnostics (field-discovered 2026-07-07) — 🟠 Med · 🧠
+### L9 — Unexpected full remount/reload wipes diagnostics — ✅ done 2026-07-08 (sessionStorage log mirror + ErrorBoundary; see plan-archive Phase 6)
 
 **Symptom.** During normal use (observed while exercising the live Claude/Anthropic API), **the whole screen "blinks" like a quick refresh**, seemingly unconnected to any user action. Side effects: the **LLM debug log is fully wiped** and the **debug switches reset to off**. Persisted state (IndexedDB) survives; only in-memory React state is lost — so this is a **full remount / page reload**, not a normal re-render.
 

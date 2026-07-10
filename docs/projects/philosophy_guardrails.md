@@ -1,5 +1,5 @@
 ---
-status: in-progress
+status: done
 kind: quality
 phases: [4, 6]
 summary: Build the three unguarded philosophy guardrails — flattery-resistant dismissal, an explicit anti-taxonomy, and no-disguised-fix register discipline — plus a discomfort-budget ceiling, so the qualitative half of the fidelity bar is enforced in code and CI rather than left to model goodwill.
@@ -11,7 +11,7 @@ summary: Build the three unguarded philosophy guardrails — flattery-resistant 
 
 > Canonical status lives in the frontmatter above and is mirrored in the Projects Index in `docs/plan.md`. This block carries the human-readable scope only.
 
-**Idea — scheduled across two phases.** The 2026-06-04 requirements analysis (`docs/snapshots/2026-06-04_requirements-analysis.md`) found that the product meets the _structural_ floor of the fidelity bar but leaves three _qualitative_ guardrails asserted-but-unbuilt: they look like helpfulness from the inside, so nothing in code stops them. This project builds the guards.
+**Done — all four guardrails shipped** (status closed 2026-07-10; the Todo checkmarks below were reconciled against the shipped record in `docs/plan-archive.md`): G1 severity-aware dismissal suppression (high-severity/`contradiction` dismissals are span-only, `isSpanSuppressed`), G2 anti-taxonomy negative-list prompt rule + the `anti-taxonomy` ratchet fixture, G3 no-disguised-fix register rule hardened with a message lint/fixture, G4 contradiction floor+ceiling (`CONTRADICTION_CEILING=3` in `feedBudget.ts`, shipped 2026-06-19). Original scope framing kept below for the record. The 2026-06-04 requirements analysis (`docs/snapshots/2026-06-04_requirements-analysis.md`) found that the product met the _structural_ floor of the fidelity bar but left three _qualitative_ guardrails asserted-but-unbuilt: they look like helpfulness from the inside, so nothing in code stops them. This project built the guards.
 
 - **Phase 4 (current core experience):** G1 flattery-resistant dismissal, G2 anti-taxonomy. These are trust/signal-quality work — they belong with the calm-feed milestones, not in packaging.
 - **Phase 6:** G3 no-disguised-fix register polish (the prompt rule lands in Phase 4; the human-tone half rides with `emotional_register`), G4 discomfort-budget ceiling.
@@ -36,24 +36,24 @@ Read alongside:
 
 ### Phase 4
 
-- [ ] **G1 — Flattery-resistant dismissal (R5.4).**
-  - [ ] Make `DismissalSuppression` (`src/store/db.ts`) carry the observation `kind`/`severity` of the dismissed item.
-  - [ ] Update `isSpanSuppressed` (`src/services/evaluator.ts:111`) so a high-severity defect/`contradiction` dismissal suppresses only _that span_, never the category on other spans. Low-severity nit dismissals keep the existing category/term-wide suppression.
-  - [ ] Decide the gesture: either high-severity dismissal is inherently span-scoped, or it requires a distinct "not a real issue" affordance that doesn't train silence (UI decision — keep it one click).
-  - [ ] IndexedDB migration for the new suppression fields (follow the existing migration pattern in `src/store/db.ts`).
-  - [ ] Fixture/test: seed two contradictions on different spans, dismiss one, assert the other still fires (the R5.4 gate in `fidelity-criteria.md`).
-- [ ] **G2 — Anti-taxonomy (R4.3).**
-  - [ ] Add an explicit negative-list instruction to the span-check prompt (`src/services/evaluator.ts` ~L277–291): never flag grammar, spelling, punctuation, passive voice, sentence length, word choice, readability, "consider rephrasing."
-  - [ ] Add a ratchet fixture (`src/services/eval-fixtures/`) whose labeled expectation asserts none of these categories appear on a deliberately surface-flawed-but-substantively-clean doc.
-  - [ ] Wire the assertion into the Tier-1 deterministic scorer so a prompt regression fails CI.
+- [x] **G1 — Flattery-resistant dismissal (R5.4).**
+  - [x] Make `DismissalSuppression` (`src/store/db.ts`) carry the observation `kind`/`severity` of the dismissed item.
+  - [x] Update `isSpanSuppressed` (`src/services/evaluator.ts:111`) so a high-severity defect/`contradiction` dismissal suppresses only _that span_, never the category on other spans. Low-severity nit dismissals keep the existing category/term-wide suppression.
+  - [x] Decide the gesture: either high-severity dismissal is inherently span-scoped, or it requires a distinct "not a real issue" affordance that doesn't train silence (UI decision — keep it one click).
+  - [x] IndexedDB migration for the new suppression fields (follow the existing migration pattern in `src/store/db.ts`).
+  - [x] Fixture/test: seed two contradictions on different spans, dismiss one, assert the other still fires (the R5.4 gate in `fidelity-criteria.md`).
+- [x] **G2 — Anti-taxonomy (R4.3).**
+  - [x] Add an explicit negative-list instruction to the span-check prompt (`src/services/evaluator.ts` ~L277–291): never flag grammar, spelling, punctuation, passive voice, sentence length, word choice, readability, "consider rephrasing."
+  - [x] Add a ratchet fixture (`src/services/eval-fixtures/`) whose labeled expectation asserts none of these categories appear on a deliberately surface-flawed-but-substantively-clean doc.
+  - [x] Wire the assertion into the Tier-1 deterministic scorer so a prompt regression fails CI.
   - [x] **`clarity` discrimination fixtures** (2026-06-10 due-diligence audit #8). Shipped 2026-06-19: `clarity-wordy-specified.ts` (extreme prose density + full specificity vs. clean-but-vague) and `clarity-conditional-specified.ts` (specified conditional hedging vs. unspecified hedging) added to the Tier-1 corpus. Both strip false-positive sec1 clarity hits from frozen recordings and document them in `knownGaps` for Tier-2 / live tracking. The fixtures guard the G2 boundary at two distinct failure modes; Tier-1 asserts precision=1 && recall=1 at every CI run.
 
 ### Phase 6
 
-- [ ] **G3 — No-disguised-fix register rule (R2.2–R2.4).**
-  - [ ] Prompt rule across all observation prompts: messages locate, never prescribe; no leading/Socratic questions; no replacement text. (Partly present — make it explicit and uniform.)
-  - [ ] Message lint / fixture: assert no generated message contains an imperative-prescription pattern ("you need…", "add…", "change…") or a `?`-terminated leading clause.
-  - [ ] Hand the felt-tone half to `emotional_register.md`.
+- [x] **G3 — No-disguised-fix register rule (R2.2–R2.4).**
+  - [x] Prompt rule across all observation prompts: messages locate, never prescribe; no leading/Socratic questions; no replacement text. (Partly present — make it explicit and uniform.)
+  - [x] Message lint / fixture: assert no generated message contains an imperative-prescription pattern ("you need…", "add…", "change…") or a `?`-terminated leading clause.
+  - [x] Hand the felt-tone half to `emotional_register.md`.
 - [x] **G4 — Discomfort-budget ceiling (R6.3).** _Decision settled 2026-06-17: **floor + ceiling hybrid** (§ G4). Shipped 2026-06-19: `CONTRADICTION_CEILING=3` in `feedBudget.ts`, floor+ceiling partition logic, "N more contradictions" signpost in `SidecarFeed.tsx`, 3 new unit tests (a/b/c per spec)._
 
 ## Design

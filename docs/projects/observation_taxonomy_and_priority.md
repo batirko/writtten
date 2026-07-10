@@ -1,7 +1,7 @@
 ---
 status: in-progress
 kind: quality
-phases: [4, 7]
+phases: [4, 9]
 summary: Extend the observation model with three structured axes (kind, severity, confidence → priority), close the decision-rigor gap in the type taxonomy, add a reflection/mirror kind, and wire a budget-based noisiness model into the feed.
 ---
 
@@ -11,7 +11,7 @@ summary: Extend the observation model with three structured axes (kind, severity
 
 > Canonical status lives in the frontmatter above and is mirrored in the Projects Index in `docs/plan.md`. This block carries the human-readable scope only.
 
-**Phase scope (reprioritized 2026-06-03):** split across two phases. Milestones **A · B · E** (priority axes → priority function → budget/calm feed) are **Phase 4 — the current core-experience target**, because a calm, priority-ranked feed _is_ the core recommendation experience. Milestones **C** (decision-rigor taxonomy, research-gated) and **D** (reflection kind) are **Phase 7 (post-traction)**. Do Milestone A first; everything else depends on it.
+**Phase scope (reprioritized 2026-06-03):** split across two phases. Milestones **A · B · E** (priority axes → priority function → budget/calm feed) are **Phase 4 — the current core-experience target**, because a calm, priority-ranked feed _is_ the core recommendation experience. Milestones **C** (decision-rigor taxonomy, research-gated) and **D** (reflection kind) are **Phase 9 (post-traction)**. Do Milestone A first; everything else depends on it.
 
 Read alongside:
 
@@ -24,7 +24,7 @@ Read alongside:
 
 ## Phased Plan
 
-Five milestones with a strict dependency spine, now split across Phase 4 (A·B·E) and Phase 7 (C·D):
+Five milestones with a strict dependency spine, now split across Phase 4 (A·B·E) and Phase 9 (C·D):
 
 **A → B → E** (sequential — each depends on the previous).  
 **C** and **D** hang off A and can proceed in parallel with B and each other.
