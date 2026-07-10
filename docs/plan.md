@@ -41,6 +41,8 @@
 > - **Platform** — app-shell/packaging territory: Tauri wrapper, serverless proxy, external integrations, monetization plumbing. Nothing here is active; re-rate when an item is scheduled.
 >
 > Same rules as Phase 6: two items are parallel-safe iff they're in different lanes and neither is Visual; items sharing a lane's hub file serialize within the lane.
+>
+> **Enforced:** `docs/plan.annotations.test.ts` requires a `· Lane: <name>` (from this list) on every open milestone inside a "Phase N" section, alongside the readiness/agent markers — added 2026-07-10 after the plan re-cut dropped the lane axis unnoticed (the axis existed only as prose, so nothing failed). Discovered/unscheduled ideas stay un-laned by convention. If you add a lane name here, add it to the test's `LANE_NAMES` in the same change.
 
 ---
 
