@@ -8,6 +8,13 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 > conventional-commit PR titles; a new version section is prepended when a release PR merges.
 > See `docs/mechanics/release_and_deploy.md`.
 
+## [0.4.1](https://github.com/batirko/writtten/compare/writtten-v0.4.0...writtten-v0.4.1) (2026-07-10)
+
+
+### Fixed
+
+* **onboarding:** re-key stale "See it in action" demo recording + drift guard ([#166](https://github.com/batirko/writtten/issues/166)) ([047a17b](https://github.com/batirko/writtten/commit/047a17bc22dff5336241145278c3d4928bf6a676))
+
 ## [0.4.0](https://github.com/batirko/writtten/compare/writtten-v0.3.0...writtten-v0.4.0) (2026-07-09)
 
 
