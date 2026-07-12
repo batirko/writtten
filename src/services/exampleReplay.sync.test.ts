@@ -49,6 +49,7 @@ vi.mock("../store/db", () => ({
   saveClaimsForBlock: vi.fn(),
   loadActiveClaimsForDocument: vi.fn(),
   loadBlockSummariesForDocument: vi.fn(),
+  loadDocument: vi.fn(),
   saveObservation: vi.fn(),
   loadObservation: vi.fn(),
   reactivateObservation: vi.fn(),
@@ -103,6 +104,18 @@ function wireDb(): void {
   vi.mocked(db.loadBlockSummariesForDocument).mockImplementation(async () =>
     committed ? summaryStore : []
   );
+  // OBS-035: the doc-scan orders its Block Summaries / Claim Ledger by the
+  // document's reading order — but only when the doc is *persisted* (loadDocument
+  // reads the `documents` store). The demo loads the example via
+  // `editor.commands.setContent(html, /* emitUpdate */ false)`, so the editor's
+  // onUpdate → debounced saveDocument NEVER fires and the document is never
+  // written. So in the real keyless demo loadDocument returns undefined and the
+  // doc-scan falls back to the hash-determinism alphabetical order — which is
+  // exactly what this fixture's recording is keyed to. Returning undefined here
+  // is therefore the *faithful* mock: it reproduces the real demo request. (A
+  // real typing session persists the doc, so OBS-035 reorders there — covered by
+  // evaluator.test.ts "OBS-035 document-ordered prompt input".)
+  vi.mocked(db.loadDocument).mockResolvedValue(undefined);
 
   vi.mocked(db.saveBlockSummary).mockImplementation(async (s) => {
     const i = summaryStore.findIndex((x) => x.blockId === s.blockId);

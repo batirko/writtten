@@ -34,6 +34,7 @@ export interface RegisterViolation {
     | "hedge"
     | "evaluative"
     | "claim-index"
+    | "section-number"
     | "length";
   /** Human-readable explanation, suitable for a test failure message. */
   detail: string;
@@ -74,8 +75,31 @@ const EVALUATIVE_PATTERNS = [
   "will not convince",
 ];
 
-/** Contradiction/tension internal bookkeeping label leak (UX-017): "Claim #1", "claim 2". */
-const CLAIM_INDEX_RE = /\bclaim\s*#?\s*\d+/i;
+/**
+ * Evaluator-internal bookkeeping-index leak into user-facing copy. Catches the
+ * contradiction/tension `Claim #N` form (UX-017) AND the doc-level `claim [3]` /
+ * `claims [1] and [2]` / `block [2]` bracket forms (OBS-034). Matches
+ * claim(s)/block + optional `#`/`[` + digit; the bare phrase "the existing
+ * claim" (no number) is ordinary English and does NOT match.
+ */
+const CLAIM_INDEX_RE = /\b(?:claims?|blocks?)\s*#?\s*\[?\s*\d+/i;
+
+/**
+ * A fabricated `§N` section reference (OBS-034). The doc-level model receives a
+ * numbered `[N]` summary list, not the document's own section numbers, so any
+ * `§3` it emits addresses nothing the author can see. Only meaningful for the
+ * doc-level observation types (a real span-scoped note can legitimately quote a
+ * `§2` the author actually wrote).
+ */
+const SECTION_NUMBER_RE = /§\s*\d+/;
+
+/** The doc-level (unanchored) observation types — their `text` is the whole card. */
+const DOC_LEVEL_TYPES: ReadonlySet<Observation["type"]> = new Set([
+  "missing_topic",
+  "underexposed_topic",
+  "audience_mismatch",
+  "structure_flow",
+]);
 
 /** Length soft cap — one observation is one thought (§ Voice & copy guide rule 1). */
 const LENGTH_SOFT_CAP = 240;
@@ -130,19 +154,32 @@ export function lintRegister(
     }
   }
 
-  // 5. No evaluator-internal claim index labels in contradiction/tension copy (UX-017).
-  //    The bare phrase "the existing claim" is ordinary English and does NOT match.
-  if (
-    (opts?.type === "contradiction" || opts?.type === "strategic_tension") &&
-    CLAIM_INDEX_RE.test(message)
-  ) {
+  // 5. No evaluator-internal index labels in message-bearing copy. Applies to
+  //    contradiction/tension (UX-017: `Claim #N`) and the doc-level types
+  //    (OBS-034: `claim [3]`, `claims [1] and [2]`, `block [2]`). The bare phrase
+  //    "the existing claim" (no number) is ordinary English and does NOT match.
+  const indexLeakTypes =
+    opts?.type === "contradiction" ||
+    opts?.type === "strategic_tension" ||
+    (opts?.type != null && DOC_LEVEL_TYPES.has(opts.type));
+  if (indexLeakTypes && CLAIM_INDEX_RE.test(message)) {
     violations.push({
       rule: "claim-index",
-      detail: `message references a claim by its internal index label; must quote the claim's words — "${message}"`,
+      detail: `message references a claim/block by its internal index label; must quote the content's words — "${message}"`,
     });
   }
 
-  // 6. Length soft cap: ≤ 240 chars. SOFT — a 250-char contradiction that names
+  // 6. No fabricated `§N` section numbers in doc-level copy (OBS-034). The model
+  //    is fed a positional `[N]` list, not the document's own numbering, so any
+  //    `§N` it emits points at nothing the author can see.
+  if (opts?.type != null && DOC_LEVEL_TYPES.has(opts.type) && SECTION_NUMBER_RE.test(message)) {
+    violations.push({
+      rule: "section-number",
+      detail: `message invents a "§N" section number the document does not use; refer to content by heading or subject — "${message}"`,
+    });
+  }
+
+  // 7. Length soft cap: ≤ 240 chars. SOFT — a 250-char contradiction that names
   //    both anchors is better than a truncated one (§ Voice & copy guide rule 1).
   if (message.length > LENGTH_SOFT_CAP) {
     violations.push({

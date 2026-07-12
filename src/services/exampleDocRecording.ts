@@ -23,9 +23,13 @@
  * (system + user), so any edit to MERGED_SYSTEM_PROMPT (section evals),
  * CONTRADICTION_SWEEP_SYSTEM_PROMPT[_HEDGED] (sweep) or DOC_LEVEL_SYSTEM_PROMPT
  * (doc-scan) re-keys the affected entries — a stale key silently misses in
- * `mock` mode (returns `{}`), which blanks the keyless demo. `exampleReplay.sync
- * .test.ts` is the CI guard: it replays this fixture through the real pipeline
- * and fails the moment a key drifts, so this can't ship broken again.
+ * `mock` mode (returns `{}`), which blanks the keyless demo. (The doc-scan orders
+ * its Block Summaries / Claim Ledger by document reading order when the doc is
+ * persisted — OBS-035 — but the demo loads via `setContent(html, emitUpdate:false)`
+ * so it is never saved; the demo's doc-scan therefore uses the alphabetical
+ * fallback, which is what this key reflects.) `exampleReplay.sync.test.ts` is the
+ * CI guard: it replays this fixture through the real pipeline and fails the
+ * moment a key drifts, so this can't ship broken again.
  *
  * Re-key (prompt changed, messages unchanged): the response bodies are
  * capability- and content-stable, so only the KEYS move. Recompute them by
@@ -53,6 +57,6 @@ export const EXAMPLE_DOC_RECORDING: Record<string, string> = {
     '{"summary":"The section defines adoption and trust metrics for the feature and confirms a Q3 2026 launch date.","claims":[{"text":"We will measure adoption by weekly active documents","kind":"commitment"},{"text":"targeting five hundred within the first quarter","kind":"metric"},{"text":"The public launch is firmly set for Q3 2026","kind":"constraint"}],"clarity_observations":[{"text":"\\"Feel trustworthy\\" sets no measurable bar — the section never says how trust is observed or counted.","substring":"track whether the observations feel trustworthy to authors"}],"unsupported_claim_observations":[],"undefined_jargon_observations":[]}',
   r1gl8f5j_4638:
     '{"contradictions":[{"claimAId":6,"claimBId":7,"message":"The launch is set for Q3 2026 here, while the timeline commits to a public launch in Q2 2026."}],"tensions":[{"claimAId":0,"claimBId":8,"message":"Staying quiet and never interrupting the writer pulls against measuring success by weekly active documents — the tool is asked to recede and to be leaned on at once."}]}',
-  rjmv60v_4478:
+  r2y9nkd_5100:
     '{"missing_topic_observations":[{"text":"The PRD sets a launch date and a target of five hundred active documents, but never says how PMs will discover the tool or start using it — there is no go-to-market or adoption path."}],"underexposed_topic_observations":[],"audience_mismatch_observations":[],"structure_flow_observations":[],"suggested_stage":null}',
 };
