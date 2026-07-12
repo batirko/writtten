@@ -1020,6 +1020,23 @@ export function ControlCenter({
               only on this device — never on a server of ours.
             </div>
 
+            {/* In-app OSS discoverability: a hosted-demo visitor should be able
+                to find the source — and learn they can self-host — without
+                leaving for the README. Deliberately quiet, sits above the build
+                stamp. The "run it locally" line is the privacy payoff: cloning
+                takes writtten.com out of the loop entirely. */}
+            <div className="settings-oss" data-testid="oss-link">
+              <a
+                className="settings-oss-repo"
+                href="https://github.com/batirko/writtten"
+                target="_blank"
+                rel="noreferrer"
+              >
+                Open source · github.com/batirko/writtten
+              </a>
+              <span className="settings-oss-note">Clone the repo to run writtten locally.</span>
+            </div>
+
             <div className="settings-build" data-testid="build-version">
               writtten v{__APP_VERSION__}
               <span className="settings-build-sha"> · {__GIT_SHA__}</span>
