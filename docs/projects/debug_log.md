@@ -51,7 +51,7 @@ This redesign is the third leg: the **log record model and export** shared by bo
 
 - [ ] Single emitter feeding both the agent event stream and the human debug panel; reconcile the two type vocabularies and retention limits.
 - [ ] Capture Gemini `usageMetadata` (prompt/candidate token counts) per call; surface per-call cost alongside latency.
-- [ ] Redaction pass on the export envelope (ensure API keys never leave the `<free>`/`<paid>` masking; confirm no key material in `endpoint`).
+- [x] Redaction pass on the export envelope (ensure API keys never leave the `<free>`/`<paid>` masking; confirm no key material in `endpoint`). **Shipped 2026-07-12 (#179).** Confirmed the defence-in-depth: the endpoint URL's key is masked to `<free>`/`<paid>` at log time (`rotation.ts:78`) and the `endpoint` field is dropped from the envelope entirely (`buildEnvelope`). Closed two residual free-text vectors — `redactKeys` now also masks bare `AIza…` / `sk-…` keys (not just the `key=` form), and it is applied to the `user` and `response` fields (a user who pastes a key into the draft body no longer leaks it). Regression test in `debugLog.test.ts` seeds a raw key into endpoint/system/user/error/response and asserts the serialized envelope contains no raw key (+ a no-false-redaction prose case).
 - [ ] Retention review now that records are denser (merged + dereferenced): tune `maxLogs`/`MAX_EVENTS` against a realistic bulk-paste session.
 
 ---
