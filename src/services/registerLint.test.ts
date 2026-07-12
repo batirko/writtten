@@ -59,6 +59,57 @@ describe("lintRegister — structural register rules", () => {
     ).not.toContain("claim-index");
   });
 
+  // OBS-034: the doc-level pass leaked `claim [3]` / `claims [1] and [2]` /
+  // fabricated `§N` numbers into user-facing copy. The lint now covers the
+  // doc-level types (missing_topic / underexposed_topic / audience_mismatch /
+  // structure_flow) as a backstop to the prompt fix.
+  it("flags the doc-level `claim [3]` bracket form on doc-level types", () => {
+    expect(
+      lintRegister('The functionality in claim [3] as "key issues" is underspecified.', {
+        type: "underexposed_topic",
+      }).map((x) => x.rule)
+    ).toContain("claim-index");
+  });
+
+  it("flags the plural `claims [1] and [2]` bracket form", () => {
+    expect(
+      lintRegister("The informal phrasing in claims [1] and [2] does not fit the audience.", {
+        type: "audience_mismatch",
+      }).map((x) => x.rule)
+    ).toContain("claim-index");
+  });
+
+  it("flags a `block [2]` reference on a doc-level type", () => {
+    expect(
+      lintRegister("The topic in block [2] is never developed.", { type: "missing_topic" }).map(
+        (x) => x.rule
+      )
+    ).toContain("claim-index");
+  });
+
+  it("flags a fabricated `§N` number on doc-level types", () => {
+    expect(
+      lintRegister("It introduces the solution in §1 before the problem in §2.", {
+        type: "structure_flow",
+      }).map((x) => x.rule)
+    ).toContain("section-number");
+  });
+
+  it("does not flag a `§2` reference on a span-scoped type (author may have written it)", () => {
+    expect(
+      lintRegister("The metric in §2 has no baseline.", { type: "clarity" }).map((x) => x.rule)
+    ).not.toContain("section-number");
+  });
+
+  it("passes doc-level copy that quotes content instead of numbering", () => {
+    expect(
+      lintRegister(
+        'The "Success metrics" section sets a launch date but never names a go-to-market path.',
+        { type: "missing_topic" }
+      )
+    ).toEqual([]);
+  });
+
   it("marks the >240-char length violation as soft", () => {
     const long = "§2. " + "x".repeat(300);
     const v = lintRegister(long);

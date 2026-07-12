@@ -15,6 +15,7 @@ import {
   saveClaimsForBlock,
   loadActiveClaimsForDocument,
   loadBlockSummariesForDocument,
+  loadDocument,
   saveDocEvalState,
   loadDocEvalState,
   loadActiveObservationsForDocument,
@@ -738,6 +739,27 @@ export async function evaluateBlock(
 // Doc-level evaluator (doc-idle trigger)
 // ---------------------------------------------------------------------------
 
+/**
+ * Ordered top-level blockIds from the persisted TipTap JSON (document order,
+ * top→bottom). Mirrors what `editor/section.ts` `topLevelBlocks` reads off the
+ * live PMNode, but walks the persisted `DocumentRecord.content` because the
+ * doc-level evaluator has no live editor handle. Used only to order the
+ * doc-level prompt's positional `[N]` input — see OBS-035. A blockId absent from
+ * the content (e.g. content not yet re-persisted this tick) simply isn't ranked;
+ * the caller falls it back to the tail, preserving the prior alphabetical order.
+ */
+function orderedBlockIdsFromContent(content: unknown): string[] {
+  const nodes = (content as { content?: Array<{ attrs?: { blockId?: unknown } }> } | null | undefined)
+    ?.content;
+  if (!Array.isArray(nodes)) return [];
+  const ids: string[] = [];
+  for (const node of nodes) {
+    const id = node?.attrs?.blockId;
+    if (typeof id === "string" && id.length > 0) ids.push(id);
+  }
+  return ids;
+}
+
 export async function evaluateDocument(
   docId: string,
   stage?: string,
@@ -786,6 +808,28 @@ export async function evaluateDocument(
     return;
   }
 
+  // OBS-035: the alphabetical sort above exists *only* for docStateHash
+  // determinism (so the expensive doc-level call can be dirty-checked and
+  // mocked/replayed). Feeding that same order to the model as its positional
+  // `[1] … [2] …` input made `structure_flow`/ordering observations reason over
+  // a scrambled sequence (the model correctly called "solution before problem"
+  // on an alphabetised list). So the prompt's Block Summaries / Claim Ledger are
+  // built from a *document-ordered* view instead, while the hash keeps using the
+  // alphabetical order. Blocks/claims whose blockId isn't in the persisted
+  // content (e.g. not yet re-persisted this tick) sort to the tail, preserving
+  // the prior order for them — a graceful degrade to today's behaviour.
+  const docRecord = await loadDocument(docId);
+  const orderRank = new Map(
+    orderedBlockIdsFromContent(docRecord?.content).map((id, i) => [id, i] as const)
+  );
+  const rankOf = (blockId: string) => orderRank.get(blockId) ?? Number.MAX_SAFE_INTEGER;
+  // Stable sort: equal ranks (claims sharing a source block, or unranked blocks)
+  // keep their incoming alphabetical order, so the request stays deterministic.
+  const orderedSummaries = [...meaningful].sort((a, b) => rankOf(a.blockId) - rankOf(b.blockId));
+  const orderedClaims = [...claims].sort(
+    (a, b) => rankOf(a.sourceBlockId) - rankOf(b.sourceBlockId)
+  );
+
   // A1: Load prior doc-scope observations only when the model can drive
   // resolution, so it can map persists and resolutions instead of the lexical
   // fallback doing all the work. Weak model: priorDocObs stays empty → prompt
@@ -818,11 +862,11 @@ export async function evaluateDocument(
     );
   }
   parts.push(
-    `\nBlock Summaries:\n${meaningful.map((s, i) => `[${i + 1}] ${s.summary}`).join("\n")}`
+    `\nBlock Summaries:\n${orderedSummaries.map((s, i) => `[${i + 1}] ${s.summary}`).join("\n")}`
   );
-  if (claims.length > 0) {
+  if (orderedClaims.length > 0) {
     parts.push(
-      `\nClaim Ledger:\n${claims.map((c, i) => `[${i + 1}] (${c.kind}): "${c.text}"`).join("\n")}`
+      `\nClaim Ledger:\n${orderedClaims.map((c, i) => `[${i + 1}] (${c.kind}): "${c.text}"`).join("\n")}`
     );
   }
   if (!stage) {

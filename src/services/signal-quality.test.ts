@@ -25,6 +25,7 @@ vi.mock("../store/db", () => ({
   updateObservationStatus: vi.fn(),
   loadSuppressionsForDocument: vi.fn(async () => []),
   loadBlockSummariesForDocument: vi.fn(async () => []),
+  loadDocument: vi.fn(async () => undefined),
   saveDocEvalState: vi.fn(),
   loadDocEvalState: vi.fn(async () => undefined),
 }));

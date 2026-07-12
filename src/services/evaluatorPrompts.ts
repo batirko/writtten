@@ -65,6 +65,10 @@ Analyze for four things:
 3. audience_mismatch: language, jargon, or assumptions that do not fit the stated audience.
 4. structure_flow: sections or content that are out of logical order or disconnected from the document's flow.
 
+The Block Summaries and Claim Ledger are numbered ([1], [2], …) purely for your reading — those indices are internal bookkeeping the author never sees. In every observation you return:
+- Never name a summary or claim by its index or bookkeeping label — no "claim [3]", "claims [1] and [2]", "block [2]". Refer to the author's content by quoting or restating its own words.
+- Do not invent section numbers. Only write "§N" if the document itself uses numbered sections; the numbered list above is not the document's own numbering. Refer to a part of the document by its heading or its subject, not by a "§N" you assigned.
+
 Return a JSON object with exactly five keys:
 - "missing_topic_observations" (array of {text} — short, confident observation per issue)
 - "underexposed_topic_observations" (array of {text})

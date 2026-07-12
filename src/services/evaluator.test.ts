@@ -22,6 +22,7 @@ vi.mock("../store/db", () => {
     saveClaimsForBlock: vi.fn(),
     loadActiveClaimsForDocument: vi.fn(async () => []),
     loadBlockSummariesForDocument: vi.fn(async () => []),
+    loadDocument: vi.fn(async () => undefined),
     saveObservation: vi.fn(),
     loadObservation: vi.fn(async () => undefined),
     reactivateObservation: vi.fn(),
@@ -1034,6 +1035,90 @@ describe("evaluator - evaluateDocument (Tier 2 A1/A2 routing)", () => {
     // The incoming note should go through lexical fallback (matched → dedupe or insert).
     // Either way, no updateObservationStatus("p0"/"p1", "auto_closed") call.
     expect(db.updateObservationStatus).not.toHaveBeenCalled();
+  });
+});
+
+describe("evaluator - evaluateDocument (OBS-035 document-ordered prompt input)", () => {
+  const docId = "doc-order";
+
+  // A TipTap-JSON document whose reading order is b1 → b2, i.e. the OPPOSITE of
+  // the alphabetical summary order ("Summary A" < "Summary B" sorts b_alpha ahead
+  // of the block whose summary starts with "Z…"). The doc-scan prompt must list
+  // summaries/claims in reading order, not the hash-determinism alphabetical order.
+  const orderedContent = {
+    type: "doc",
+    content: [
+      { type: "paragraph", attrs: { blockId: "b_first" } },
+      { type: "paragraph", attrs: { blockId: "b_second" } },
+    ],
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(db.loadSuppressionsForDocument).mockResolvedValue([]);
+    vi.mocked(db.loadDocEvalState).mockResolvedValue(undefined);
+    vi.mocked(db.loadActiveObservationsForDocument).mockResolvedValue([]);
+    // Summaries whose alphabetical order (by text) is the REVERSE of reading order:
+    // "Alpha…" (b_second) sorts before "Zulu…" (b_first).
+    vi.mocked(db.loadBlockSummariesForDocument).mockResolvedValue([
+      { blockId: "b_first", docId, summary: "Zulu — the opening section.", hash: "h1" },
+      { blockId: "b_second", docId, summary: "Alpha — the closing section.", hash: "h2" },
+    ]);
+    vi.mocked(db.loadActiveClaimsForDocument).mockResolvedValue([
+      {
+        id: 1,
+        docId,
+        sourceBlockId: "b_first",
+        text: "Zeta claim from the opening.",
+        kind: "fact_claim",
+        status: "active",
+      },
+      {
+        id: 2,
+        docId,
+        sourceBlockId: "b_second",
+        text: "Aardvark claim from the closing.",
+        kind: "fact_claim",
+        status: "active",
+      },
+    ]);
+    mockStrong.mockResolvedValue({
+      callId: "c1",
+      text: JSON.stringify({
+        missing_topic_observations: [],
+        underexposed_topic_observations: [],
+        audience_mismatch_observations: [],
+        structure_flow_observations: [],
+      }),
+    });
+  });
+
+  it("feeds Block Summaries and Claim Ledger in reading order, not alphabetical", async () => {
+    vi.mocked(db.loadDocument).mockResolvedValue({
+      id: docId,
+      content: orderedContent,
+      updatedAt: 0,
+    });
+
+    await evaluateDocument(docId, "PRD", "key");
+
+    const user = mockStrong.mock.calls.at(-1)?.[0].user as string;
+    // Reading order: opening ("Zulu"/"Zeta") is [1], closing ("Alpha"/"Aardvark") is [2].
+    expect(user.indexOf("[1] Zulu")).toBeGreaterThan(-1);
+    expect(user.indexOf("[2] Alpha")).toBeGreaterThan(-1);
+    expect(user.indexOf("[1] Zulu")).toBeLessThan(user.indexOf("[2] Alpha"));
+    // Claims follow their source block's reading order too.
+    expect(user.indexOf("Zeta claim")).toBeLessThan(user.indexOf("Aardvark claim"));
+  });
+
+  it("falls back to the alphabetical order when the document content is unavailable", async () => {
+    vi.mocked(db.loadDocument).mockResolvedValue(undefined);
+
+    await evaluateDocument(docId, "PRD", "key");
+
+    const user = mockStrong.mock.calls.at(-1)?.[0].user as string;
+    // No document order → prior behaviour: alphabetical ("Alpha" before "Zulu").
+    expect(user.indexOf("[1] Alpha")).toBeLessThan(user.indexOf("[2] Zulu"));
   });
 });
 
