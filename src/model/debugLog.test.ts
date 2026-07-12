@@ -211,6 +211,65 @@ describe("buildEnvelope — glossary dereference", () => {
   });
 });
 
+describe("buildEnvelope — secret redaction (never leak a key)", () => {
+  // Realistic-shaped fakes (never real secrets). Gemini: AIza + 35; sk-: OpenAI/Anthropic.
+  const GEMINI_KEY = "AIzaSyRAWfakeRAWfakeRAWfakeRAWfake1234";
+  const OPENAI_KEY = "sk-proj-RAWfakeRAWfakeRAWfakeRAWfake123";
+
+  it("emits no raw API key from any free-text field, and drops the endpoint entirely", () => {
+    const entries = [
+      entry({
+        type: "request",
+        callId: "c1",
+        model: "gemini-2.5-pro",
+        // The endpoint carries the key in the URL — it must never reach the envelope.
+        endpoint: `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:generateContent?key=${GEMINI_KEY}`,
+        payload: {
+          system: `You are an editor. (stray key=${GEMINI_KEY})`,
+          // A user who pasted their own keys into the document body.
+          user: `Overview\n\nMy Gemini key is ${GEMINI_KEY} and my OpenAI key is ${OPENAI_KEY}.`,
+        },
+      }),
+      entry({
+        type: "error",
+        callId: "c1",
+        model: "gemini-2.5-pro",
+        statusCode: 400,
+        errorMessage: `Bad request to https://…:generateContent?key=${GEMINI_KEY}`,
+        payload: { system: "", user: "" },
+      }),
+      entry({
+        type: "response",
+        callId: "c1",
+        statusCode: 200,
+        payload: { system: "", user: "" },
+        response: `{"echo":"${GEMINI_KEY}"}`,
+      }),
+    ];
+
+    const serialized = JSON.stringify(buildEnvelope(entries, new Map()));
+    // No raw secret survives anywhere in the envelope…
+    expect(serialized).not.toContain(GEMINI_KEY);
+    expect(serialized).not.toContain(OPENAI_KEY);
+    // …and the endpoint (which carries the key in its URL) is never emitted at all.
+    expect(serialized).not.toContain("generativelanguage.googleapis.com");
+    // The redaction marker is present where a secret was masked.
+    expect(serialized).toContain("<REDACTED>");
+  });
+
+  it("keeps ordinary prose with key-ish substrings intact (no false redaction)", () => {
+    // "task-", "risk-" contain "sk-" mid-word; the \b anchor must leave them alone.
+    const user = "The task-tracking risk-assessment work is not a security concern here.";
+    const env = buildEnvelope(
+      [entry({ type: "request", callId: "c1", payload: { system: SYS, user } })],
+      new Map()
+    );
+    const call = env.log.find((r) => r.kind === "call") as CallRecord;
+    expect(call.user).toBe(user);
+    expect(call.user).not.toContain("<REDACTED>");
+  });
+});
+
 describe("buildEnvelope — triggers, archives, produced", () => {
   it("emits trigger and archive records inline and chronologically", () => {
     const entries = [

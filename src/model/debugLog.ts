@@ -17,10 +17,26 @@ import type { LLMLogEntry, CallProduced } from "./logger";
 
 const SCHEMA_VERSION = 2;
 
-/** Ensure API keys (e.g. from raw error messages) never leak in the export. */
+/**
+ * Ensure API keys never leak in the exported log envelope. Second layer of a
+ * defence-in-depth: the endpoint URL's key is already masked to `<free>`/`<paid>`
+ * at log time (`rotation.ts`), and `endpoint` is dropped from the envelope
+ * entirely — this catches keys that ride in *free-text* fields instead: a raw
+ * error body, a system prompt, or a key a user pasted into the document itself.
+ *
+ * Three shapes, covering every provider writtten talks to:
+ *   - `key=<secret>` — the Gemini URL query-param form (and any `key=` form).
+ *   - a bare Google API key (`AIza…`) sitting in prose (e.g. pasted into a draft).
+ *   - an OpenAI / Anthropic secret key (`sk-…`, `sk-proj-…`, `sk-ant-…`).
+ * The `\b` anchors on the bare forms keep ordinary prose ("task-", "risk-") from
+ * being mangled — a real secret is always at a token boundary.
+ */
 export function redactKeys(str: string | undefined): string | undefined {
   if (!str) return str;
-  return str.replace(/key=([A-Za-z0-9_-]{20,})/g, "key=<REDACTED>");
+  return str
+    .replace(/key=([A-Za-z0-9_-]{20,})/g, "key=<REDACTED>")
+    .replace(/\bAIza[0-9A-Za-z_-]{16,}/g, "<REDACTED>")
+    .replace(/\bsk-[A-Za-z0-9_-]{16,}/g, "<REDACTED>");
 }
 
 /** Header so a pasted log is self-describing — no out-of-band context needed. */
@@ -184,6 +200,11 @@ export function buildEnvelope(
     return user;
   };
 
+  // The user content is author-written text, so it can contain a key the user
+  // pasted into the draft — redact before it enters the envelope. (Glossary
+  // dereference first, then redact; the two are disjoint.)
+  const cleanUser = (user: string): string => redactKeys(dereferenceUser(user))!;
+
   // First pass: assemble call records keyed by callId, preserving first-seen order.
   const calls = new Map<string, CallRecord>();
   const callOrder: string[] = [];
@@ -274,7 +295,7 @@ export function buildEnvelope(
         tier: e.tier,
         keyTier: e.keyTier,
         promptRef: refFor(e),
-        user: e.payload?.user ? dereferenceUser(e.payload.user) : undefined,
+        user: e.payload?.user ? cleanUser(e.payload.user) : undefined,
         attempts: [],
         status: "pending",
       };
@@ -284,7 +305,7 @@ export function buildEnvelope(
     }
     // Keep the best-known promptRef / user / tier as legs arrive.
     if (!call.promptRef) call.promptRef = refFor(e);
-    if (!call.user && e.payload?.user) call.user = dereferenceUser(e.payload.user);
+    if (!call.user && e.payload?.user) call.user = cleanUser(e.payload.user);
     if (!call.tier && e.tier) call.tier = e.tier;
     if (!call.keyTier && e.keyTier) call.keyTier = e.keyTier;
 
@@ -312,7 +333,7 @@ export function buildEnvelope(
       }
       call.status = e.statusCode ?? 200;
       call.latencyMs = e.latencyMs;
-      call.response = e.response;
+      call.response = redactKeys(e.response);
       if (e.usage) call.usage = e.usage;
     } else if (e.type === "error") {
       const last = call.attempts[call.attempts.length - 1];
