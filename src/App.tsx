@@ -180,6 +180,16 @@ export default function App() {
   const spanCloseTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [clearTrigger, setClearTrigger] = useState(0);
   const [stageSuggestion, setStageSuggestion] = useState<string | null>(null);
+  // Dismissal damping for the context suggestion chip: a declined guess is not
+  // re-offered verbatim — since the section fast call re-asks on every settle
+  // while no stage is set, an undamped chip would nag the identical guess back
+  // after each edit. The chip returns only when the model's guess actually
+  // changes (normalized compare; session-scoped, deliberately not persisted).
+  const dismissedStageSuggestionRef = useRef<string | null>(null);
+  const handleStageSuggestion = useCallback((suggestion: string) => {
+    if (dismissedStageSuggestionRef.current === suggestion.trim().toLowerCase()) return;
+    setStageSuggestion(suggestion);
+  }, []);
   const [importContent, setImportContent] = useState<{
     content: string;
     timestamp: number;
@@ -598,7 +608,7 @@ export default function App() {
         paidKey,
         capability,
         stage: stageRef.current,
-        onStageSuggestion: setStageSuggestion,
+        onStageSuggestion: handleStageSuggestion,
       };
       scheduleEval({ kind: "stage-changed", previousStage }, null, ctx, refreshObservations);
     }, 3000);
@@ -610,6 +620,7 @@ export default function App() {
   };
 
   const handleDismissStageSuggestion = () => {
+    dismissedStageSuggestionRef.current = stageSuggestion?.trim().toLowerCase() ?? null;
     setStageSuggestion(null);
   };
 
@@ -642,7 +653,7 @@ export default function App() {
             isPinned={spanPinnedObsId != null}
             onObservationCollapsed={handleObservationCollapsed}
             onEvaluationComplete={handleEvaluationComplete}
-            onStageSuggestion={setStageSuggestion}
+            onStageSuggestion={handleStageSuggestion}
             onBlockOrderChange={setBlockOrder}
             clearTrigger={clearTrigger}
             importContent={importContent}

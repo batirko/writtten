@@ -1988,3 +1988,120 @@ describe("evaluator - revert-aware snapshot restore (UX-014 Mechanism 2)", () =>
     ]);
   });
 });
+
+describe("evaluator - evaluateSection stage inference (headingless docs)", () => {
+  // A single-section (e.g. headingless) doc never reaches evaluateDocument's
+  // suggested_stage inference (its summary count stays below the ≥2 gate), so
+  // the section fast call carries the inference when no stage is set. Gated on
+  // !stage: staged requests must stay byte-identical for mock replay.
+  const docId = "doc1";
+  const sectionId = "sec1";
+  const apiKey = "mock-key";
+  const text = "We will ship the fraud tooling in Q3. Support volume should drop.";
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(db.loadBlockSummary).mockResolvedValue(undefined);
+    vi.mocked(db.loadActiveObservationsForDocument).mockResolvedValue([]);
+    vi.mocked(db.loadActiveClaimsForDocument).mockResolvedValue([]);
+    vi.mocked(db.loadBlockSummariesForDocument).mockResolvedValue([]);
+  });
+
+  it("asks for suggested_stage and surfaces it when no stage is set", async () => {
+    mockFast.mockResolvedValueOnce({
+      text: JSON.stringify({
+        summary: "Ship fraud tooling in Q3.",
+        claims: [],
+        clarity_observations: [],
+        suggested_stage: "  Internal PRD for the payments team  ",
+      }),
+    });
+    const onStageSuggestion = vi.fn();
+
+    await evaluateSection(
+      docId,
+      sectionId,
+      text,
+      [{ blockId: sectionId, text }],
+      undefined, // no stage set
+      apiKey,
+      undefined,
+      undefined,
+      true, // skipContradiction
+      undefined,
+      undefined,
+      undefined,
+      onStageSuggestion
+    );
+
+    const user = mockFast.mock.calls[0][0].user as string;
+    expect(user).toContain("No document context is set");
+    expect(user).toContain('"suggested_stage"');
+    // Trimmed before surfacing — mirrors evaluateDocument's handling.
+    expect(onStageSuggestion).toHaveBeenCalledWith("Internal PRD for the payments team");
+  });
+
+  it("staged request carries no inference ask and never fires the callback", async () => {
+    mockFast.mockResolvedValueOnce({
+      text: JSON.stringify({
+        summary: "Ship fraud tooling in Q3.",
+        claims: [],
+        clarity_observations: [],
+        // A misbehaving model returning the key anyway must be ignored.
+        suggested_stage: "should be ignored",
+      }),
+    });
+    const onStageSuggestion = vi.fn();
+
+    await evaluateSection(
+      docId,
+      sectionId,
+      text,
+      [{ blockId: sectionId, text }],
+      "PRD for fraud tooling",
+      apiKey,
+      undefined,
+      undefined,
+      true,
+      undefined,
+      undefined,
+      undefined,
+      onStageSuggestion
+    );
+
+    const user = mockFast.mock.calls[0][0].user as string;
+    expect(user).not.toContain("No document context is set");
+    expect(user).not.toContain("suggested_stage");
+    expect(onStageSuggestion).not.toHaveBeenCalled();
+  });
+
+  it("does not fire the callback when the model returns suggested_stage: null", async () => {
+    mockFast.mockResolvedValueOnce({
+      text: JSON.stringify({
+        summary: "Ship fraud tooling in Q3.",
+        claims: [],
+        clarity_observations: [],
+        suggested_stage: null,
+      }),
+    });
+    const onStageSuggestion = vi.fn();
+
+    await evaluateSection(
+      docId,
+      sectionId,
+      text,
+      [{ blockId: sectionId, text }],
+      undefined,
+      apiKey,
+      undefined,
+      undefined,
+      true,
+      undefined,
+      undefined,
+      undefined,
+      onStageSuggestion
+    );
+
+    expect(onStageSuggestion).not.toHaveBeenCalled();
+  });
+});

@@ -236,7 +236,8 @@ async function dispatch(
       ctx.skipContradiction,
       evalId,
       ctx.capability,
-      isLive
+      isLive,
+      ctx.onStageSuggestion
     );
   } catch (err) {
     console.error("[orchestrator] evaluateSection threw:", err);
