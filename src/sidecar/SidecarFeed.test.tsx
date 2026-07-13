@@ -665,3 +665,94 @@ describe("SidecarFeed — in-place dismiss + Undo (C3)", () => {
     expect(div.querySelectorAll('[data-testid="obs-card"]').length).toBe(0);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Truncation-honesty note (heading-cliff facet 2) — while any section exceeds
+// MAX_SECTION_CHARS the feed says so; dismissal is per truncated-set (the note
+// returns only when the SET changes — new information, not a re-nag).
+// ---------------------------------------------------------------------------
+
+describe("SidecarFeed — truncation-honesty note", () => {
+  const containers: HTMLDivElement[] = [];
+
+  function renderWith(props: Record<string, unknown>): HTMLDivElement {
+    const div = document.createElement("div");
+    document.body.appendChild(div);
+    containers.push(div);
+    act(() => {
+      createRoot(div).render(createElement(SidecarFeed, { ...minProps, ...props }));
+    });
+    return div;
+  }
+
+  afterEach(() => {
+    for (const c of containers) act(() => c.remove());
+    containers.length = 0;
+  });
+
+  it("is absent when no section is truncated", () => {
+    expect(
+      renderWith({ truncatedSections: [] }).querySelector('[data-testid="trunc-note"]')
+    ).toBeNull();
+  });
+
+  it("states the single-unbroken-section mechanism for a headingless doc", () => {
+    const div = renderWith({
+      truncatedSections: [{ sectionId: "b1", headingText: "" }],
+      totalSections: 1,
+    });
+    const note = div.querySelector('[data-testid="trunc-note"]');
+    expect(note).not.toBeNull();
+    expect(note?.textContent).toMatch(/single unbroken section/i);
+    expect(note?.textContent).toMatch(/~1,300 words/);
+    // Register discipline: the note must state the limit, never prescribe a move.
+    expect(note?.textContent).not.toMatch(/add (a )?heading/i);
+  });
+
+  it("names the unheaded intro of a SECTIONED doc — never a false single-unbroken claim", () => {
+    const div = renderWith({
+      truncatedSections: [{ sectionId: "b1", headingText: "" }],
+      totalSections: 3,
+    });
+    const note = div.querySelector('[data-testid="trunc-note"]');
+    expect(note?.textContent).toMatch(/opening section/i);
+    expect(note?.textContent).not.toMatch(/single unbroken section/i);
+  });
+
+  it("names the section when the truncated section has a heading", () => {
+    const div = renderWith({
+      truncatedSections: [{ sectionId: "h1", headingText: "Background" }],
+    });
+    expect(div.querySelector('[data-testid="trunc-note"]')?.textContent).toContain("Background");
+  });
+
+  it("dismiss hides the note; it returns only when the truncated set changes", () => {
+    const div = document.createElement("div");
+    document.body.appendChild(div);
+    containers.push(div);
+    const root = createRoot(div);
+    const renderSet = (truncatedSections: { sectionId: string; headingText: string }[]) =>
+      act(() => {
+        root.render(createElement(SidecarFeed, { ...minProps, truncatedSections }));
+      });
+
+    const setA = [{ sectionId: "b1", headingText: "" }];
+    renderSet(setA);
+    expect(div.querySelector('[data-testid="trunc-note"]')).not.toBeNull();
+
+    act(() => {
+      div
+        .querySelector('[data-testid="trunc-note-dismiss"]')
+        ?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+    expect(div.querySelector('[data-testid="trunc-note"]')).toBeNull();
+
+    // Same set re-rendered → still hidden (no re-nag).
+    renderSet([...setA]);
+    expect(div.querySelector('[data-testid="trunc-note"]')).toBeNull();
+
+    // A different section crosses the cap → new information, note returns.
+    renderSet([{ sectionId: "h2", headingText: "Appendix" }]);
+    expect(div.querySelector('[data-testid="trunc-note"]')).not.toBeNull();
+  });
+});

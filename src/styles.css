@@ -1143,6 +1143,59 @@ body,
   text-underline-offset: 2px;
 }
 
+/* Hallmark · component: notice · genre: editorial (inherited) · theme: project tokens
+ * states: default · hover · focus · active (disabled/loading/error/success n/a — static note)
+ *
+ * Truncation-honesty note (heading-cliff facet 2). System voice, quieter than
+ * the keyless banner: no accent tint (it's a stated limit, not a call to
+ * action), no card chrome (it must not read as an observation). A hairline
+ * left rule + ink-2 sans text — the same register as the empty state, but
+ * left-aligned and standing. Text is ink-2 (not muted) for AA contrast on the
+ * sidecar surface. */
+.trunc-note {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-xs);
+  padding: 6px 2px 6px 10px;
+  margin-bottom: var(--space-sm);
+  border-left: 2px solid var(--color-border-strong);
+}
+.trunc-note-text {
+  font-family: var(--font-sans);
+  font-size: var(--text-ui-sm);
+  line-height: 1.5;
+  color: var(--color-ink-2);
+  margin: 0;
+}
+.trunc-note-dismiss {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  /* 44px hit area, pulled back with negative margins so the note stays slim —
+     same trick as .mobile-note-dismiss (touch reachability on the phone feed). */
+  width: 44px;
+  height: 44px;
+  margin: -12px -14px -12px -6px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  color: var(--color-muted);
+  border-radius: var(--radius-sm);
+  transition: color var(--dur-fast) var(--ease-out);
+}
+.trunc-note-dismiss:hover {
+  color: var(--color-ink-2);
+}
+.trunc-note-dismiss:active {
+  color: var(--color-ink);
+}
+.trunc-note-dismiss:focus-visible {
+  outline: 2px solid var(--color-accent-strong);
+  outline-offset: 1px;
+}
+
 .observations-list {
   display: flex;
   flex-direction: column;

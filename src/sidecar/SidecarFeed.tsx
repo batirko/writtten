@@ -123,6 +123,73 @@ function KeylessBanner({ demoActive }: { demoActive: boolean }) {
 }
 
 // ---------------------------------------------------------------------------
+// TruncationNote — quiet capability-honesty note shown while any section's text
+// exceeds MAX_SECTION_CHARS (heading-cliff facet 2). The evaluator reads a
+// section only up to the cap (section.ts buildCombined), so the tail gets no
+// span checks and no claims — and that silence otherwise reads as "nothing to
+// flag". System voice, deliberately NOT a card and NOT accent-tinted: it's the
+// product stating a limit, not a call to action (that's the KeylessBanner) and
+// not an observation about the document. States the mechanism factually — never
+// "add headings" (register discipline: the tool doesn't direct the writing).
+// Dismissal is per truncated-set: the note returns only if the SET of truncated
+// sections changes (a new section crossing the cap is new information).
+// ---------------------------------------------------------------------------
+
+export interface TruncatedSection {
+  sectionId: string;
+  headingText: string;
+}
+
+function truncSignature(sections: TruncatedSection[]): string {
+  return sections
+    .map((s) => s.sectionId)
+    .sort()
+    .join("|");
+}
+
+function truncationCopy(sections: TruncatedSection[], totalSections: number): string {
+  const lead = "writtten reads one section at a time, up to ~1,300 words each. ";
+  if (sections.length === 1) {
+    const { headingText } = sections[0];
+    if (headingText.trim().length > 0) {
+      return `${lead}“${headingText.trim()}” runs past that limit, so its tail isn’t read.`;
+    }
+    // Unheaded section: "the whole document" only when it truly IS the whole
+    // document — in a sectioned doc the unheaded intro gets named as such,
+    // never a false "single unbroken section" claim.
+    return totalSections <= 1
+      ? `${lead}This document is a single unbroken section, so text past that limit isn’t read.`
+      : `${lead}The opening section (before the first heading) runs past that limit, so its tail isn’t read.`;
+  }
+  return `${lead}${sections.length} sections run past that limit, so their tails aren’t read.`;
+}
+
+function TruncationNote({
+  sections,
+  totalSections,
+  onDismiss,
+}: {
+  sections: TruncatedSection[];
+  totalSections: number;
+  onDismiss: () => void;
+}) {
+  return (
+    <div className="trunc-note" data-testid="trunc-note" role="note">
+      <p className="trunc-note-text">{truncationCopy(sections, totalSections)}</p>
+      <button
+        type="button"
+        className="trunc-note-dismiss"
+        data-testid="trunc-note-dismiss"
+        onClick={onDismiss}
+        aria-label="Dismiss reading-limit note"
+      >
+        <DismissIcon />
+      </button>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // GroupedObsCard — renders a single group (one or more observations on the
 // same span). Severity is carried by the type tag (feed_surface.md § Card
 // execution), driven by the card's data-kind / data-severity / data-obs-type.
@@ -340,6 +407,13 @@ interface Props {
   /** Whether the recorded "See it in action" example is currently loaded — tunes
    *  the keyless banner copy (demo vs. general keyless). */
   demoActive?: boolean;
+  /** Sections whose text exceeds MAX_SECTION_CHARS — drives the standing
+   *  truncation-honesty note (heading-cliff facet 2). Empty = no note. */
+  truncatedSections?: TruncatedSection[];
+  /** Total sections in the doc — lets the note's copy distinguish "this whole
+   *  document is one unbroken section" from "the unheaded intro of a sectioned
+   *  doc". Only meaningful while truncatedSections is non-empty. */
+  totalSections?: number;
 }
 
 export function SidecarFeed({
@@ -352,9 +426,19 @@ export function SidecarFeed({
   onDismissObservation,
   hasKey = false,
   demoActive = false,
+  truncatedSections = [],
+  totalSections = 0,
 }: Props) {
   const [showArchive, setShowArchive] = useState(false);
   const [showAlsoNoticed, setShowAlsoNoticed] = useState(false);
+
+  // --- Truncation-honesty note dismissal (per truncated-set) ---
+  // Dismissing stores the current set's signature; the note stays hidden while
+  // the set is unchanged and returns when it changes (a new section crossing
+  // the cap is new information, not a re-nag). Session-scoped by design.
+  const [truncDismissedSig, setTruncDismissedSig] = useState<string | null>(null);
+  const truncSig = truncSignature(truncatedSections);
+  const showTruncNote = truncatedSections.length > 0 && truncSig !== truncDismissedSig;
 
   // --- Batched arrival animation ---
   const prevObsIdsRef = useRef<Set<string>>(new Set(observations.map((o) => o.id)));
@@ -511,6 +595,16 @@ export function SidecarFeed({
               and when a keyless user just writes), so quiet-by-design never masks
               the key requirement. */}
           {!hasKey && <KeylessBanner demoActive={demoActive} />}
+          {/* Standing truncation-honesty note: while any section exceeds the
+              reading cap, silence on its tail must not read as "nothing to flag"
+              (heading-cliff facet 2). */}
+          {showTruncNote && (
+            <TruncationNote
+              sections={truncatedSections}
+              totalSections={totalSections}
+              onDismiss={() => setTruncDismissedSig(truncSig)}
+            />
+          )}
           {observations.length === 0 ? (
             // The quiet empty state is reserved for the KEYED "working, quietly"
             // state. Keyless, the banner above carries the honest message instead
