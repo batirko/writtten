@@ -180,7 +180,12 @@ export async function evaluateSection(
    *  so a late LLM response can't resurrect claims/observations for a section
    *  that no longer exists. Defaults to always-live for direct callers/tests.
    *  See lifecycle_integrity L4. */
-  isLive: () => boolean = () => true
+  isLive: () => boolean = () => true,
+  /** Called with the model's inferred document type/audience when no stage is
+   *  set (the fast call is asked for a `suggested_stage` key — see the prompt
+   *  build below). Threaded from `EvalContext.onStageSuggestion` by the
+   *  orchestrator; surfaces as the confirm chip in `DocumentContext`. */
+  onStageSuggestion?: (suggestion: string) => void
 ): Promise<void> {
   // Mock mode replays canned responses, so it needs no key. Every other mode
   // hits the network and does.
@@ -274,6 +279,25 @@ export async function evaluateSection(
 
     const userParts: string[] = [cleanText];
     if (stage) userParts.push(`\nDocument context: ${stage}`);
+    // No stage set → ask the fast call for a document-type guess alongside its
+    // normal output. The doc-level pass also infers a stage, but a single-section
+    // (e.g. headingless) doc never reaches it — its summary count stays below
+    // evaluateDocument's ≥2 gate — and even sectioned docs used to wait out
+    // doc-idle for their first suggestion (OBS-036 facet 1). Riding the existing
+    // fast call costs zero extra requests. Gated on !stage so staged requests
+    // keep byte-identical hashes for mock replay (same rule as the OBS-027 block
+    // below); the schema addition rides user content, not the system prompt,
+    // mirroring resolved_prior.
+    else
+      userParts.push(
+        // Wording note (2026-07-13): a stricter "only if unmistakable … when in
+        // doubt, return null" bar was tried and reverted — live probes showed the
+        // weak fast-tier model returning null even for an unambiguous proposal
+        // paragraph, zeroing the feature on the tier most users run. "Confidently
+        // infer" (the doc-tier prompt's long-standing wording) gives a correct
+        // guess there; re-offer nagging is handled by App-side dismissal damping.
+        `\nNo document context is set. If you can confidently infer the document type and intended audience from the content, add a "suggested_stage" key (string — a short description of what this document is and who it is for) to your JSON response; otherwise set it to null.`
+      );
     // Document-type calibration (OBS-023/OBS-028): on non-PRD genres, relax
     // unsupported_claim to hard external-fact assertions only. Empty (hash-stable)
     // for prd_spec / unknown. See documentClass.ts.
@@ -357,6 +381,7 @@ export async function evaluateSection(
       unsupported_claim_observations?: SpanObservation[];
       undefined_jargon_observations?: SpanObservation[];
       resolved_prior?: number[];
+      suggested_stage?: string | null;
     };
     if (import.meta.env.DEV) {
       harness.emit("response", {
@@ -408,6 +433,18 @@ export async function evaluateSection(
     //    succeeds) so a failed strong call can't poison the dirty-check and wedge
     //    the section. See lifecycle_integrity L3.
     await saveClaimsForBlock(docId, sectionId, extractedClaims, memberBlockIds);
+
+    // Surface the model's document-type guess (requested only when no stage is
+    // set — see the prompt build above). Same guards as evaluateDocument's
+    // suggested_stage handling; the App-side confirm chip does the rest.
+    if (
+      !stage &&
+      parsedMerged.suggested_stage &&
+      typeof parsedMerged.suggested_stage === "string" &&
+      parsedMerged.suggested_stage.trim()
+    ) {
+      onStageSuggestion?.(parsedMerged.suggested_stage.trim());
+    }
 
     if (import.meta.env.DEV) {
       llmLogger.recordProduced(mergedRes.callId, {

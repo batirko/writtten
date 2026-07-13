@@ -29,7 +29,7 @@ const fixture: EvalFixture = {
   ],
   recordings: {
     // fast section-eval — extracts both conflicting claims
-    "r13179z5_7404":
+    "rfemye1_7670":
       '{\n  "summary": "The redesigned checkout is committed to a 100% Q2 launch and, separately, barred from any launch before Q4.",\n  "claims": [\n    {\n      "text": "We will launch the redesigned checkout to 100% of users in Q2.",\n      "kind": "commitment"\n    },\n    {\n      "text": "We will not launch the redesigned checkout to any users before Q4.",\n      "kind": "constraint"\n    }\n  ],\n  "clarity_observations": [],\n  "unsupported_claim_observations": [],\n  "undefined_jargon_observations": []\n}',
     // per-section contradiction check — same-section pair folded in (mechanism A):
     // New = both claims, Existing = both claims (sorted), so the intra-section
