@@ -89,6 +89,15 @@ interface Props {
   onStageSuggestion?: (suggestion: string) => void;
   /** Called whenever the ordered list of blockIds changes (document-order, top→bottom). */
   onBlockOrderChange?: (ids: string[]) => void;
+  /** Called when the set of sections exceeding MAX_SECTION_CHARS changes (empty
+   *  array = none). Drives the feed's truncation-honesty note — everything past
+   *  the cap is invisible to the evaluator (heading-cliff facet 2).
+   *  `totalSections` lets the copy distinguish "this whole document is one
+   *  unbroken section" from "the unheaded intro of a sectioned doc". */
+  onTruncatedSectionsChange?: (
+    sections: { sectionId: string; headingText: string }[],
+    totalSections: number
+  ) => void;
   clearTrigger?: number;
   importContent?: { content: string; timestamp: number; docScan?: boolean };
   onReady?: (editor: import("@tiptap/react").Editor) => void;
@@ -155,6 +164,7 @@ export function Editor({
   onEvaluationComplete,
   onStageSuggestion,
   onBlockOrderChange,
+  onTruncatedSectionsChange,
   clearTrigger,
   importContent,
   onReady,
@@ -220,6 +230,32 @@ export function Editor({
   useEffect(() => {
     onBlockOrderChangeRef.current = onBlockOrderChange;
   }, [onBlockOrderChange]);
+  const onTruncatedSectionsChangeRef = useRef(onTruncatedSectionsChange);
+  useEffect(() => {
+    onTruncatedSectionsChangeRef.current = onTruncatedSectionsChange;
+  }, [onTruncatedSectionsChange]);
+  /** Last emitted truncated-sections signature, for change-detection. */
+  const prevTruncSigRef = useRef<string>("");
+
+  /** Report which sections exceed MAX_SECTION_CHARS (truncation honesty,
+   *  heading-cliff facet 2). The evaluator silently drops everything past the
+   *  cap (`buildCombined`, section.ts), and that silence otherwise reads as
+   *  "nothing to flag" on the tail — the feed surfaces it as a quiet note.
+   *  Signature-deduped so React state only changes when the truncated set does. */
+  const reportTruncatedSections = (sections: ReturnType<typeof resolveSections>) => {
+    const truncated = sections
+      .filter((s) => s.truncated)
+      .map((s) => ({ sectionId: s.sectionId, headingText: s.headingText }));
+    // The total section count rides in the signature only while something is
+    // truncated — the copy needs it ("single unbroken document" vs "the opening
+    // section of a sectioned doc"), but an untruncated doc shouldn't re-fire
+    // the callback on every added paragraph/heading.
+    const total = truncated.length > 0 ? sections.length : 0;
+    const sig = `${total}::${truncated.map((t) => `${t.sectionId}:${t.headingText}`).join("|")}`;
+    if (sig === prevTruncSigRef.current) return;
+    prevTruncSigRef.current = sig;
+    onTruncatedSectionsChangeRef.current?.(truncated, sections.length);
+  };
   /** Last emitted ordered blockId string, for change-detection. */
   const prevBlockOrderKeyRef = useRef<string>("");
 
@@ -265,6 +301,10 @@ export function Editor({
       structuralTimer.current = null;
     }
     affectedSectionIds.current.clear();
+    // Every load-shaped path (mount, loadDoc, import, bulk paste, clear) flows
+    // through here with freshly resolved sections — the one choke point where
+    // the truncation note can be kept current without extra resolves.
+    reportTruncatedSections(sections);
   };
 
   /** Fired when a re-sectioning has held for EVAL_DEBOUNCE_MS: commit the new
@@ -445,7 +485,12 @@ export function Editor({
       // resolveSections here is the same linear walk step 3 already relies on —
       // no LLM, invariant #3 untouched. See revert_aware_evaluation.md.
       {
-        const liveOwners = sectionOwnerMap(resolveSections(editor.state.doc));
+        const liveSections = resolveSections(editor.state.doc);
+        // Keep the truncation-honesty note current on the typing path (the
+        // load-shaped paths report via commitOwnersNow). Same linear walk 2d
+        // already does — no extra resolve.
+        reportTruncatedSections(liveSections);
+        const liveOwners = sectionOwnerMap(liveSections);
         if (hasStructuralChange(committedOwners.current, liveOwners)) {
           // Re-sectioning in flight. Freeze committed boundaries, suppress the
           // affected sections, and (re)arm the settle window. Invalidate any eval

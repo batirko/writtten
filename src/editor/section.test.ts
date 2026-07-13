@@ -156,12 +156,21 @@ describe("resolveSections", () => {
     );
   });
 
-  it("truncates combined text beyond MAX_SECTION_CHARS", () => {
+  it("truncates combined text beyond MAX_SECTION_CHARS and flags the section", () => {
     const huge = "x".repeat(MAX_SECTION_CHARS + 500);
     const d = doc(heading("h", "Big"), para("p", huge));
     const sections = resolveSections(d);
 
     expect(sections[0].combinedText.length).toBe(MAX_SECTION_CHARS);
+    // The truncated flag drives the feed's honesty note (heading-cliff facet 2).
+    expect(sections[0].truncated).toBe(true);
+  });
+
+  it("does not flag an under-cap section as truncated", () => {
+    const d = doc(heading("h", "Small"), para("p", "A short body."));
+    const sections = resolveSections(d);
+
+    expect(sections[0].truncated).toBe(false);
   });
 });
 

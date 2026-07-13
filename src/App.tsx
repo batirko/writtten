@@ -158,6 +158,14 @@ export default function App() {
   const [observations, setObservations] = useState<Observation[]>([]);
   const [archivedObservations, setArchivedObservations] = useState<Observation[]>([]);
   const [blockOrder, setBlockOrder] = useState<string[]>([]);
+  // Sections whose text exceeds MAX_SECTION_CHARS — the evaluator reads only up
+  // to the cap, and the feed says so honestly (heading-cliff facet 2).
+  // totalSections distinguishes "the whole doc is one unbroken section" from
+  // "the unheaded intro of a sectioned doc" in the note's copy.
+  const [truncInfo, setTruncInfo] = useState<{
+    sections: { sectionId: string; headingText: string }[];
+    totalSections: number;
+  }>({ sections: [], totalSections: 0 });
   const [hoveredObservationId, setHoveredObservationId] = useState<string | null>(null);
   // Reverse hover (UX-006): the primary id of the card whose span the pointer is
   // dwelling on. Distinct from hoveredObservationId because *only* a span-origin
@@ -655,6 +663,9 @@ export default function App() {
             onEvaluationComplete={handleEvaluationComplete}
             onStageSuggestion={handleStageSuggestion}
             onBlockOrderChange={setBlockOrder}
+            onTruncatedSectionsChange={(sections, totalSections) =>
+              setTruncInfo({ sections, totalSections })
+            }
             clearTrigger={clearTrigger}
             importContent={importContent}
             onReady={(e) => (editorRef.current = e)}
@@ -699,6 +710,8 @@ export default function App() {
           onDismissObservation={handleDismissObservation}
           hasKey={Boolean(activeKey)}
           demoActive={demoActive}
+          truncatedSections={truncInfo.sections}
+          totalSections={truncInfo.totalSections}
         />
       </div>
       {/* Reverse hover floats the hovered span's card(s) at the top of the gutter

@@ -40,6 +40,11 @@ export interface Section {
   members: SectionMember[];
   /** Heading + body joined in document order — the LLM's view of the section. */
   combinedText: string;
+  /** True when the joined text exceeded MAX_SECTION_CHARS and `combinedText`
+   *  was cut at the cap — everything past it is invisible to the evaluator.
+   *  Surfaced as the feed's truncation note (heading-cliff facet 2); the
+   *  console-only warn otherwise read as "nothing to flag" on the tail. */
+  truncated: boolean;
 }
 
 /**
@@ -72,7 +77,7 @@ function topLevelBlocks(doc: PMNode): TopBlock[] {
   return out;
 }
 
-function buildCombined(members: SectionMember[]): string {
+function buildCombined(members: SectionMember[]): { text: string; truncated: boolean } {
   const combined = members
     // A table is eval-inert: keep it as a section member (for anchoring
     // continuity) but exclude its flattened cell text from the LLM's view of
@@ -86,9 +91,9 @@ function buildCombined(members: SectionMember[]): string {
     console.warn(
       `[section] combinedText ${combined.length} chars exceeds MAX_SECTION_CHARS (${MAX_SECTION_CHARS}); truncating.`
     );
-    return combined.slice(0, MAX_SECTION_CHARS);
+    return { text: combined.slice(0, MAX_SECTION_CHARS), truncated: true };
   }
-  return combined;
+  return { text: combined, truncated: false };
 }
 
 /**
@@ -104,11 +109,13 @@ export function resolveSections(doc: PMNode): Section[] {
 
   const flush = () => {
     if (!current) return;
+    const { text, truncated } = buildCombined(current.members);
     sections.push({
       sectionId: current.sectionId,
       headingText: current.headingText,
       members: current.members,
-      combinedText: buildCombined(current.members),
+      combinedText: text,
+      truncated,
     });
     current = null;
   };
