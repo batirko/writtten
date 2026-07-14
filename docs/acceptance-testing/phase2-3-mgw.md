@@ -7,10 +7,10 @@
 > **Before starting:** `npm run dev` must be running at `http://localhost:5173`.
 >
 > **Tooling.** Two MCPs, picked per job (see `CLAUDE.md` § Browser testing):
-> - **claude-preview** (`mcp__Claude_Preview__preview_*`) — preferred for anything driving `window.__sidecar__`: seeding fixtures, polling state, reading the ledger/event stream, record/replay. `preview_eval` has a **30 s hard timeout** — keep polling loops under it.
-> - **chrome-devtools** (`mcp__chrome-devtools__*`) — preferred for real input fidelity: typing into the ProseMirror editor, hovering cards to trigger highlights, clicking by accessibility uid.
+> - **Browser pane** (built-in `mcp__Claude_Browser__*`, loaded by default) — preferred for anything driving `window.__sidecar__`: seeding fixtures, polling state, reading the ledger/event stream, record/replay. Drive it with `javascript_tool` (pass a single async IIFE expression — no top-level `await`/`return`); `read_page` for the a11y tree, `computer` for input/screenshots. Per-session and collision-proof.
+> - **chrome-devtools** (`mcp__chrome-devtools__*`) — fallback for real input fidelity: typing into the ProseMirror editor, hovering cards to trigger highlights, clicking by accessibility uid. Shared global selection — see the ⚠️ callout in `CLAUDE.md`.
 >
-> Load tool schemas via ToolSearch before first use.
+> The Browser pane is loaded by default; load chrome-devtools schemas via ToolSearch before first use.
 
 ---
 

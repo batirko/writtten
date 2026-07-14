@@ -78,17 +78,36 @@ The principle has a finer edge than "no apply button," and three failure modes t
 
 Two browser-automation tools are available. Pick by job; fall back to the other if the chosen one misbehaves.
 
-> **⚠️ Parallel sessions: default to claude-preview, not chrome-devtools.** The chrome-devtools MCP is **one shared browser with a single _global_ "selected page" pointer, shared across every concurrent session.** `isolatedContext` isolates storage/cookies but **not** the selection — so any other session's `new_page`/`select_page`/`resize_page` silently steals your selection _between your calls_, and your next `evaluate_script`/`take_snapshot`/`screenshot` runs against **another branch's app** (you'll get stale UI that looks like your change broke — it didn't; you're on the wrong page). claude-preview's `preview_*` tools are addressed by the `serverId` from `preview_start`, so they **cannot** be hijacked — they're the collision-proof default. Almost everything you'd reach chrome-devtools for works in `preview_eval`: set a React-controlled input (native `value` setter + `dispatchEvent(new Event('input',{bubbles:true}))`), read the DOM, poll state. Reserve chrome-devtools for what genuinely needs it (real hover/keyboard fidelity ProseMirror rejects synthetically), and when you use it in parallel, follow the three rules in its section below.
+> **2026-07-12 migration — the built-in Browser pane replaced the old claude-preview MCP.** Claude Code now ships an **in-app Browser pane** exposed as `mcp__Claude_Browser__*` tools (`preview_start`, `navigate`, `read_page`, `computer`, `form_input`, `find`, `get_page_text`, `javascript_tool`, `read_console_messages`, `read_network_requests`, `preview_logs`, `preview_list`, `preview_stop`, `tabs_*`, `resize_window`). These are **loaded by default** — no ToolSearch needed. The former `mcp__Claude_Preview__*` server no longer exists; every `preview_eval`/`preview_snapshot`/`preview_screenshot`/`preview_console_logs`/`preview_network` call maps onto a Browser-pane tool (mapping below). chrome-devtools is unchanged and still loaded via ToolSearch.
 
-### claude-preview (Claude Preview MCP)
+> **⚠️ Parallel sessions: default to the Browser pane, not chrome-devtools.** The chrome-devtools MCP is **one shared browser with a single _global_ "selected page" pointer, shared across every concurrent session.** `isolatedContext` isolates storage/cookies but **not** the selection — so any other session's `new_page`/`select_page`/`resize_page` silently steals your selection _between your calls_, and your next `evaluate_script`/`take_snapshot`/`screenshot` runs against **another branch's app** (you'll get stale UI that looks like your change broke — it didn't; you're on the wrong page). The Browser pane is **one pane per session**, and every tool is addressed by the `tabId`/`serverId` returned from `preview_start`, so it **cannot** be hijacked by another session — that makes it the collision-proof default. Almost everything you'd reach chrome-devtools for works in `javascript_tool`: set a React-controlled input (native `value` setter + `dispatchEvent(new Event('input',{bubbles:true}))`), read the DOM, poll state. Reserve chrome-devtools for what genuinely needs it (real hover/keyboard fidelity ProseMirror rejects synthetically), and when you use it in parallel, follow the three rules in its section below.
 
-Key tools (load via ToolSearch): `mcp__Claude_Preview__preview_start`, `preview_eval`, `preview_snapshot`, `preview_screenshot`, `preview_console_logs`, `preview_network`.
+### Browser pane (built-in `mcp__Claude_Browser__*`)
 
-**Prefer for:** anything that drives `window.__sidecar__` — polling state (`await preview_eval("window.__sidecar__.getState()")`), waiting for `pending === 0`, inspecting the ledger or event stream, running record/replay sessions, seeding fixtures. Async JS in `preview_eval` returns clean JSON and handles arbitrary polling logic in one call. Also good for quick structural snapshots and network-log inspection.
+Loaded by default. Key tools: `preview_start`, `javascript_tool`, `read_page`, `get_page_text`, `computer`, `form_input`, `find`, `read_console_messages`, `read_network_requests`, `preview_logs`, `tabs_context`, `resize_window`.
 
-**Watch out for:** `preview_eval` has a **30-second hard timeout** — don't embed `while` loops that could exceed it; break them into smaller calls. Not great for _real_ input events (hover, keyboard) — the ProseMirror editor sometimes ignores synthetic events from `eval`.
+**Prefer for:** anything that drives `window.__sidecar__` — polling state (`javascript_tool` → `getState()`), waiting for `pending === 0`, inspecting the ledger or event stream, running record/replay sessions, seeding fixtures. Also quick structural snapshots (`read_page` → YAML a11y tree with `ref_N` handles; `get_page_text` for plain text), console/network inspection, screenshots, and responsive/dark-mode checks (`resize_window`).
 
-**Start the server:** `preview_start` with config name `"writtten"` (`.claude/launch.json` is already set up). The preview server and the existing `npm run dev` at `http://localhost:5173` are the same Vite dev server — you only need one running.
+**Start the server (two distinct modes — this is new):**
+
+- **Open a tab against an already-running server:** `preview_start` with `{ url: "http://localhost:5173" }`. Use this when `npm run dev` (or a concurrent session) already owns `:5173` — the pane just opens a browser tab at that URL; it does **not** try to manage the process. This is the common case here since `:5173` is shared.
+- **Have the pane start & manage the dev server:** `preview_start` with `{ name: "writtten" }` (config in `.claude/launch.json`). This only works if the port is free — if `:5173` is already in use by an external `node`, it errors and tells you to free the port or set `autoPort`. Don't fight it; open by `url` instead.
+
+`preview_start` returns `{ serverId, tabId }`. Pass `tabId` to `javascript_tool`/`read_page`/`computer`/`navigate`; `serverId` is only for `preview_logs`/`preview_stop`. `tabs_context` lists open tabs.
+
+**`javascript_tool` is the `preview_eval` replacement — but its evaluation model differs:**
+
+- The `text` is evaluated as a **single expression**, _not_ a function body. **No top-level `await`, no top-level `return`.** To run async/polling logic, pass a self-invoking async arrow that returns a promise — the tool awaits it and serializes the result to JSON:
+  ```js
+  // ✅ correct — async IIFE expression
+  (async () => { const st = await window.__sidecar__.getState(); return st.pending; })()
+  // ❌ `await window.__sidecar__.getState()`  → "await is only valid in async functions"
+  // ❌ `return (async()=>{…})()`               → "Illegal return statement"
+  ```
+- Its stated purpose is **debugging/inspection** — use it to read state and drive `__sidecar__`, not to implement UI changes (edit source for those).
+- Keep any embedded polling loop short and break long waits into multiple calls rather than one long-running eval (same discipline the old 30-s cap forced).
+
+**Real input:** `computer` drives actual click/type/hover/scroll/key at the CDP level (more real than `eval`-injected events) — target by `ref_N` (from `read_page`/`find`) or coordinate. **Verified 2026-07-12: `computer {action:"type"}` into the ProseMirror editor produces real transactions** — the text lands in both the DOM and the `__sidecar__` block model and advances `seq` (i.e. it drives the eval pipeline, unlike `eval`-injected input). So use it as the default for typing; only reach for chrome-devtools if a specific interaction misbehaves. `form_input` sets a form/contenteditable value by `ref`. `computer {action:"screenshot"}` for visual proof.
 
 ---
 
@@ -96,7 +115,7 @@ Key tools (load via ToolSearch): `mcp__Claude_Preview__preview_start`, `preview_
 
 Configured globally in `~/Library/Application Support/Claude/claude_desktop_config.json`. Key tools (load via ToolSearch): `mcp__chrome-devtools__new_page`, `navigate_page`, `take_screenshot`, `take_snapshot`, `type_text`, `click`, `hover`, `wait_for`, `press_key`, `evaluate_script`, `list_console_messages`.
 
-**Prefer for:** interaction fidelity — hovering over observation cards to trigger highlights, real keyboard input into the ProseMirror editor, clicking UI elements by accessibility uid, native-dialog handling (`handle_dialog`). Also the right fallback whenever `preview_eval` is timing out or returning unexpected results.
+**Prefer for:** interaction fidelity — hovering over observation cards to trigger highlights, real keyboard input into the ProseMirror editor, clicking UI elements by accessibility uid, native-dialog handling (`handle_dialog`). Also the right fallback whenever the Browser pane's `javascript_tool`/`computer` is timing out, returning unexpected results, or having its synthetic input rejected by ProseMirror.
 
 **Watch out for:** `wait_for` matches the **entire accessibility tree including history** — it can match stale text from a previous eval. Always wait for a string that will only appear _after_ the action (e.g. `"idle"` on the `[data-testid="sidecar-status"]` element, which only transitions once `pending === 0`). Use `evaluate_script` to read `window.__sidecar__` state when the snapshot is too noisy.
 
@@ -110,17 +129,18 @@ Configured globally in `~/Library/Application Support/Claude/claude_desktop_conf
 
 ### Decision table
 
-| Task                                         | Reach for                                                                                               |
-| -------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
-| Inspect ledger / observations / event stream | **preview_eval**                                                                                        |
-| Wait for eval to finish (`pending === 0`)    | **preview_eval** polling loop, or `wait_for("[data-testid='sidecar-status']", ["idle"])` on either tool |
-| Seed a fixture doc / ledger                  | **preview_eval** → `__sidecar__.loadDoc` / `loadLedger`                                                 |
-| Record or replay LLM responses               | **preview_eval** → `__sidecar__.setLlmMode` / `dumpRecordings`                                          |
-| Hover a card to trigger highlights           | **chrome-devtools** `hover`                                                                             |
-| Type into the editor                         | **chrome-devtools** `type_text` (real events)                                                           |
-| Click a button                               | Either — but chrome-devtools is more reliable for complex UI                                            |
-| Screenshot / visual check                    | Either                                                                                                  |
-| Native confirm dialogs                       | **chrome-devtools** `handle_dialog` (or use `__sidecar__.clear()` to skip entirely)                     |
+| Task                                         | Reach for                                                                                                       |
+| -------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| Inspect ledger / observations / event stream | **`javascript_tool`** (Browser pane)                                                                            |
+| Wait for eval to finish (`pending === 0`)    | **`javascript_tool`** polling loop, or `wait_for("[data-testid='sidecar-status']", ["idle"])` (chrome-devtools) |
+| Seed a fixture doc / ledger                  | **`javascript_tool`** → `__sidecar__.loadDoc` / `loadLedger`                                                    |
+| Record or replay LLM responses               | **`javascript_tool`** → `__sidecar__.setLlmMode` / `dumpRecordings`                                             |
+| Structural snapshot / read the DOM           | **`read_page`** (a11y tree + `ref_N`) or **`get_page_text`** (Browser pane)                                     |
+| Hover a card to trigger highlights           | **Browser pane** `computer {action:"hover"}` first; **chrome-devtools** `hover` if rejected                     |
+| Type into the editor                         | **Browser pane** `computer {action:"type"}` (verified to fire real ProseMirror transactions); chrome-devtools as backup |
+| Click a button                               | **Browser pane** `computer {action:"left_click"}` (by `ref`) — chrome-devtools is a fallback for complex UI     |
+| Screenshot / visual check                    | Either — Browser pane `computer {action:"screenshot"}` is the collision-proof default                           |
+| Native confirm dialogs                       | **chrome-devtools** `handle_dialog` (or use `__sidecar__.clear()` to skip entirely)                             |
 
 **Fallback rule:** if the primary tool returns unexpected results (stale matches, eval timeouts, synthetic events ignored), switch to the other one for that step — don't retry the same tool indefinitely. Document the switch in a comment if it affects a reproducible test.
 
@@ -164,13 +184,17 @@ The binding free-tier constraint is **requests-per-day (RPD) per model** (e.g. 2
 ### Waiting for idle (the right pattern)
 
 ```js
-// In preview_eval — inline polling loop
-const start = Date.now();
-while (Date.now()-start < 25000) {
-  await new Promise(r => setTimeout(r, 1500));
-  const st = await window.__sidecar__.getState();
-  if (st.pending === 0 && <your condition>) break;
-}
+// In the Browser pane — pass one async IIFE expression to javascript_tool
+// (no top-level await/return; the tool awaits the returned promise)
+(async () => {
+  const start = Date.now();
+  while (Date.now() - start < 25000) {
+    await new Promise(r => setTimeout(r, 1500));
+    const st = await window.__sidecar__.getState();
+    if (st.pending === 0 /* && <your condition> */) return st.pending;
+  }
+  return 'timeout';
+})()
 
 // In chrome-devtools — wait for the status chip
 wait_for('[data-testid="sidecar-status"]', ["idle"])
