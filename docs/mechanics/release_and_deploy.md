@@ -80,7 +80,18 @@ Until these exist, `deploy.yml` will fail at the wrangler step — safe, since n
 ## How to publish (the day-to-day)
 
 1. Merge feature PRs to `main` as usual.
-2. When ready to ship, open the release PR release-please maintains ("chore(main): release x.y.z"), sanity-check
+2. **Run the pre-release gate: `npm run release:check`.** This is `lint` + `test` + `build` + `npm run live-check`
+   in one command (maintainer-only — `live-check` sources real provider keys from `.env.test.local` and exits
+   non-zero without them). It exists because **green CI does not exercise the real models**: every real-model
+   check (`live-check`, `eval:live`, `eval:v1`, tone) is a `*.live.test.ts` that `describe.skipIf`-skips in CI,
+   so a retired provider model, a prompt/eval-quality regression, or a shipped-fixture drift passes `verify`
+   and only breaks in a production build (this class already shipped once — the demo-recording drift, #166).
+   If a pooled model is unreachable or a provider fails to round-trip, **stop and investigate — do not cut the
+   release.** Then drive the **production build** once, keyless *and* keyed (`npm run build && npm run preview`,
+   keyed via `VITE_GEMINI_API_KEY=$GEMINI_FREE` sourced from `.env.test.local`, never echoed), watching the
+   browser console for silent `[mock] no recording`-style misses — the two blind spots `release:check` can't
+   catch are prod-only DEV-stripped divergence and fixture drift.
+3. When ready to ship, open the release PR release-please maintains ("chore(main): release x.y.z"), sanity-check
    the changelog, and **merge it**.
-3. That's it — the tag triggers the deploy; watch the `Deploy to Cloudflare Pages` action go green and the new
+4. That's it — the tag triggers the deploy; watch the `Deploy to Cloudflare Pages` action go green and the new
    version appear in the Settings footer on `writtten.com`.

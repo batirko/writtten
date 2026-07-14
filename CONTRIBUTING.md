@@ -45,6 +45,19 @@ Requires **Node 20** (see `.nvmrc`).
 
 **Before opening a PR, run `npm test && npm run lint && npm run build` and make sure all three are green** — that's exactly what CI enforces.
 
+### Maintainer: real-model checks
+
+These hit real providers, so they're gated behind keys in `.env.test.local` (gitignored; copy `.env.test.local.example`) and are **excluded from CI** — green CI does not exercise the live models.
+
+| Command                | What it does                                                              |
+| ---------------------- | ------------------------------------------------------------------------ |
+| `npm run live-check`   | Provider reachability + Gemini pool liveness (real API calls)            |
+| `npm run eval:live`    | Live evaluator precision/recall ratchet                                  |
+| `npm run eval:v1`      | V1 base-rate corpus run                                                  |
+| `npm run release:check` | **Pre-release gate:** `lint` + `test` + `build` + `live-check` in one    |
+
+**Before cutting a release**, a maintainer runs `npm run release:check` (needs `.env.test.local` keys) — see the [release runbook](docs/mechanics/release_and_deploy.md#how-to-publish-the-day-to-day).
+
 ## Working model
 
 - **Branch for every change** — never commit to `main` directly. One focused change per PR.
