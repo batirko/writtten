@@ -8,6 +8,13 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 > conventional-commit PR titles; a new version section is prepended when a release PR merges.
 > See `docs/mechanics/release_and_deploy.md`.
 
+## [0.5.1](https://github.com/batirko/writtten/compare/writtten-v0.5.0...writtten-v0.5.1) (2026-07-14)
+
+
+### Fixed
+
+* **model:** bound strong-tier reasoning + raise timeout + paid strong fallback (Phase 7) ([#185](https://github.com/batirko/writtten/issues/185)) ([c562cb0](https://github.com/batirko/writtten/commit/c562cb0a63b483475e486d0a4082df999460dc53))
+
 ## [0.5.0](https://github.com/batirko/writtten/compare/writtten-v0.4.1...writtten-v0.5.0) (2026-07-14)
 
 
