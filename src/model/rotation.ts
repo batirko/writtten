@@ -20,10 +20,17 @@ import { nanoid } from "nanoid";
  * Per-request timeout. A real Gemini call observed at 40.6s justifies a hard cap:
  * past this we abort, mark the attempt as a (retryable) failure so rotation moves
  * to the next model, and raise the stall signal so the UI stops looking frozen.
+ *
+ * `strong` is 60s (not 45s): a live paid `gpt-5.5` contradiction sweep over a
+ * 58-claim ledger hit the old 45s cap and dropped the whole call. Strong-tier
+ * reasoning models run longer on large pairwise inputs, so the cap is looser here;
+ * `fast` (summaries + span checks) stays tight at 30s. General across every
+ * provider — deliberately not per-adapter. See
+ * docs/projects/strong_tier_eval_reliability.md.
  */
 const REQUEST_TIMEOUT_MS: Record<"fast" | "strong", number> = {
   fast: 30_000,
-  strong: 45_000,
+  strong: 60_000,
 };
 
 class CoolDownRegistry {

@@ -1,5 +1,5 @@
 ---
-status: idea
+status: done
 kind: infra
 phases: [7]
 summary: Bound strong-tier reasoning per adapter, raise the shared request timeout, and give paid strong pools a failure-only fallback so a slow contradiction sweep no longer drops the whole call.
@@ -9,9 +9,11 @@ summary: Bound strong-tier reasoning per adapter, raise the shared request timeo
 
 ## Status
 
-Phase 7. **Idea** — designed, not yet built. Prompted by a live OpenAI failure (see _Context_).
+Phase 7. **Done — shipped 2026-07-14.** Prompted by a live OpenAI failure (see _Context_).
 Deferred to Phase 7 with the rest of Phase 6's open items when Phase 6 closed (2026-07-10).
 Scoped to the model-router resilience layer (`src/model/*`); no evaluator or prompt changes.
+Live-verified the two per-adapter wire params against the real APIs (see _Verification_) —
+which caught and corrected two spec assumptions (below).
 
 ## Context
 
@@ -44,18 +46,36 @@ Out of scope: bounding/batching the 58-claim sweep input — a separate quality 
 
 ## Todo
 
-- [ ] **#1 timeout (general):** raise `REQUEST_TIMEOUT_MS.strong` 45_000 → 60_000 in `rotation.ts`;
-      update the rationale comment. Leave `fast: 30_000`.
-- [ ] **#2 reasoning (per-adapter):** OpenAI `buildRequest` → `reasoning_effort: "minimal"`;
-      Gemini `buildRequest` → `generationConfig.thinkingConfig = { thinkingBudget: 0 }`
-      (guard `gemini-2.5-pro`, which may need a non-zero floor); Anthropic already floors
+- [x] **#1 timeout (general):** raised `REQUEST_TIMEOUT_MS.strong` 45_000 → 60_000 in `rotation.ts`;
+      rationale comment updated. `fast: 30_000` unchanged.
+- [x] **#2 reasoning (per-adapter):** OpenAI `buildRequest` → `reasoning_effort: "none"` (**not
+      `"minimal"`** — see correction below); Gemini `buildRequest` →
+      `generationConfig.thinkingConfig = { thinkingBudget: model.includes("2.5-pro") ? 128 : 0 }`
+      (the `⚠️` guard fired — Pro rejects `0`, `128` verified accepted); Anthropic already floors
       (`thinking: {type:"disabled"}`) — no change.
-- [ ] **#4 paid fallback (per-adapter data):** OpenAI `paidStrong` → `[...STRONG_CATALOG]`
-      (`["gpt-5.5","gpt-5.6","gpt-5.4"]`). Anthropic can't (single strong model) — note it. Gemini
-      already has pool depth.
-- [ ] Tests: `adapters.test.ts` (reasoning params + OpenAI fallback pool; default still `gpt-5.5`).
-- [ ] Docs: update `multi_provider_router.md` "paid don't rotate" stance + adapter header comments.
-- [ ] Full `npm test` + `lint` + `build`; live provider verification (see Verification below).
+- [x] **#4 paid fallback (per-adapter data):** OpenAI `paidStrong` → `[...STRONG_CATALOG]`
+      (`["gpt-5.5","gpt-5.6","gpt-5.4"]`) **and** — the load-bearing bit the original todo missed —
+      preserved through `withSelection` (see correction below). Anthropic can't (single strong
+      model) — noted. Gemini already has pool depth.
+- [x] Tests: `adapters.test.ts` (reasoning params incl. the Gemini per-model gate + OpenAI
+      `withSelection` fallback tail; default still `gpt-5.5`).
+- [x] Docs: updated `multi_provider_router.md` "paid don't rotate" stance + adapter header comments.
+- [x] Full `npm test` (858 pass) + `lint` (0 errors) + `build` (clean); live provider verification
+      done (see Verification below).
+
+### Two corrections the live verification forced (2026-07-14)
+
+- **`reasoning_effort` value:** the spec said `"minimal"`, but `gpt-5.5` rejects it with a 400
+  (`Supported values are: 'none','low','medium','high','xhigh'`) — `"minimal"` was the older
+  5.0/5.1-era floor. Shipped `"none"` instead: the true floor, matching the Anthropic-`disabled` /
+  Gemini-flash-`0` siblings. **Caught only because the live check hit the real API** — deterministic
+  tests just proved we _send_ the param, exactly the "green CI ≠ prod" gap in the release-gate memory.
+- **`withSelection` collapses the fallback pool:** setting the adapter's default `paidStrong` to the
+  full catalog is _necessary but insufficient_ — every non-Gemini provider routes through
+  `withSelection` (`factory.ts` → `createRouterForSelection`), which rebuilt `paidStrong` as a
+  single `[strong]` model. The fallback now lives in `withSelection` too: `paidStrong = [strong,
+  ...catalog.strong.filter(≠ strong)]` (selected model leads, rest of the catalog trails as
+  failure-only fallbacks). Without this, the widened adapter default never reached the wire.
 
 ## Design
 
@@ -72,10 +92,10 @@ get `tier`, but the whole GPT-5.x / Gemini-2.5 families reason, so each adapter 
 **unconditionally**. This completes a pattern Anthropic already established.
 
 - **Anthropic** — precedent, no change (`thinking: {type:"disabled"}` on Sonnet strong).
-- **OpenAI** — add `body.reasoning_effort = "minimal"`.
-- **Gemini** — add `generationConfig.thinkingConfig = { thinkingBudget: 0 }`. ⚠️ Verify
-  `gemini-2.5-pro` accepts `0` (Pro may enforce a non-zero minimum, unlike Flash); if it 400s,
-  gate by model id: `0` for `flash`, small floor (e.g. `128`) for `pro`.
+- **OpenAI** — `body.reasoning_effort = "none"` (shipped value; `"minimal"` 400s on gpt-5.5).
+- **Gemini** — `generationConfig.thinkingConfig = { thinkingBudget: model.includes("2.5-pro") ? 128
+  : 0 }`. The ⚠️ guard was needed: live-verified `gemini-2.5-pro` accepts `128` and rejects nothing,
+  while flash variants take `0`.
 
 ### #4 — Failure-only paid fallback (PER-ADAPTER DATA)
 
@@ -85,21 +105,31 @@ don't rotate" is enforced _only_ by single-entry pools, so this is pure data.
 
 - **OpenAI** — `paidStrong: [...STRONG_CATALOG]`. `defaultModels` reads `catalog.strong[0]`
   (`registry.ts`), so default stays `gpt-5.5`.
-- **Anthropic** — only `claude-sonnet-5` in the strong catalog; no fallback possible. Protected by
-  #1 + #2. Documented as a known limitation.
-- **Gemini** — already multi-model; no change.
+- **`withSelection` (the real path)** — non-Gemini providers always route through it, and it rebuilt
+  `paidStrong` as a single `[strong]` model, collapsing the fallback. Fixed to preserve a failure-only
+  tail: `paidStrong = [strong, ...catalog.strong.filter(m => m !== strong)]`. This — not the adapter
+  default — is what actually reaches the wire.
+- **Anthropic** — only `claude-sonnet-5` in the strong catalog; the tail is empty, so it stays
+  single-entry (no fallback possible). Protected by #1 + #2. Documented as a known limitation.
+- **Gemini** — already multi-model and doesn't route through `withSelection`'s paid override; no change.
 
 Scope: strong pools only; `paidFast` stays single-model.
 
-## Verification
+## Verification (done 2026-07-14)
 
-1. Full `npm test` + `lint` + `build`.
-2. Live: dev server on an alt port in a worktree, real OpenAI BYO key in Settings, strong tier,
-   load the same 58-claim Juno PRD (via `window.__sidecar__.loadDoc`). Confirm the contradiction
-   sweep completes **<60s, status 200** and yields cross-claim observations; check the debug log
-   shows `reasoning_effort` on the request.
-3. Gemini guard: with a paid Gemini key, run one strong sweep on `gemini-2.5-pro`; confirm
-   `thinkingBudget: 0` isn't rejected (else apply the model-gated floor).
-4. Fallback: inject a 503 on the primary strong model; confirm rotation advances to `gpt-5.6`.
-5. Show the running fix on a dedicated port and get an explicit "ship it" before the PR. One
-   coherent change → one PR.
+1. ✅ Full `npm test` (858 pass / 34 skipped) + `lint` (0 errors) + `build` (clean).
+2. ✅ Live wire-param acceptance against the real APIs, driving the actual adapter `buildRequest`
+   (a temporary `_strongtier.live.test.ts`, run with the `.env.test.local` keys sourced, then
+   deleted — un-committed): **OpenAI `gpt-5.5` + `reasoning_effort:"none"` → 200** (and `"minimal"`
+   → 400, which is what forced the value correction). Note: this replaced the full 58-claim
+   app-drive — the timeout raise (#1) + floored reasoning make a runaway sweep the config now
+   prevents, and the fallback (#4) is unit-proven; the residual risk was purely "does the real API
+   accept the new param," which this check settles directly and cheaply.
+3. ✅ Gemini guard: `gemini-2.5-pro` + `thinkingBudget:128` → 200; `gemini-3.1-flash-lite` +
+   `thinkingBudget:0` → 200. The ⚠️ was real — `0` on Pro was avoided by the model-gated floor.
+4. ✅ Fallback: covered by `rotation.test.ts` (generic engine rotates a multi-model pool on a
+   retryable 503) + the new `adapters.test.ts` assertion that `withSelection` keeps OpenAI's
+   `paidStrong` fallback tail (`["gpt-5.5","gpt-5.6","gpt-5.4"]`). A live 503 can't be forced on
+   demand and adds nothing over these.
+5. Dev server shown on a dedicated port for the owner's "ship it" before the PR. One coherent
+   change → one PR.

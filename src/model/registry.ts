@@ -60,9 +60,17 @@ export function geminiRunningModels(paid: boolean): { fast: string; strong: stri
 
 /**
  * Return a copy of the adapter whose paid pools route the user's selected model
- * per tier (a single-model pool — paid providers don't rotate). Omitted
- * selections fall back to the catalog default. The free pools are left as-is
- * (Gemini's free rotation pool stays intact; see §D).
+ * per tier. Omitted selections fall back to the catalog default. The free pools
+ * are left as-is (Gemini's free rotation pool stays intact; see §D).
+ *
+ * `paidFast` is single-model (frequent, cheap — a failure just retries next time).
+ * `paidStrong` keeps a **failure-only fallback tail**: the selected model first,
+ * then the rest of the strong catalog, so a strong-tier timeout on a heavy
+ * contradiction sweep rotates instead of dropping the whole call. Every non-Gemini
+ * provider routes through here (factory.ts), so this — not just the adapter's
+ * default `paidStrong` — is what makes the fallback actually engage. Single-strong
+ * providers (Anthropic) collapse to one entry, which is fine (no fallback exists).
+ * See strong_tier_eval_reliability.md.
  */
 export function withSelection(
   adapter: ProviderAdapter,
@@ -70,12 +78,13 @@ export function withSelection(
 ): ProviderAdapter {
   const fast = selection.fastModel ?? adapter.catalog.fast[0];
   const strong = selection.strongModel ?? adapter.catalog.strong[0];
+  const strongPool = [strong, ...adapter.catalog.strong.filter((m) => m !== strong)];
   return {
     ...adapter,
     pools: {
       ...adapter.pools,
       paidFast: [fast],
-      paidStrong: [strong],
+      paidStrong: strongPool,
     },
   };
 }
