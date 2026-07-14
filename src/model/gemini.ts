@@ -82,8 +82,17 @@ function buildRequest(model: string, req: LLMRequest, key: string): BuiltRequest
   const generationConfig: {
     temperature: number;
     responseMimeType?: string;
+    thinkingConfig?: { thinkingBudget: number };
   } = {
     temperature: 0.2,
+    // Floor the hidden reasoning: the Gemini-2.5/3.x families "think" by default,
+    // and an unbounded strong-tier sweep over a large ledger can blow past our
+    // request timeout (see strong_tier_eval_reliability.md). Flash variants accept
+    // `0`; `gemini-2.5-pro` enforces a non-zero minimum, so give it a small floor
+    // rather than `0` (which 400s). `buildRequest` gets no `tier`, but capping
+    // unconditionally is safe — our evals are located-critique judgments, not
+    // open-ended reasoning — and mirrors Anthropic's `thinking:{disabled}`.
+    thinkingConfig: { thinkingBudget: model.includes("2.5-pro") ? 128 : 0 },
   };
   if (req.json) {
     generationConfig.responseMimeType = "application/json";

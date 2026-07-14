@@ -28,6 +28,10 @@ describe("openai adapter", () => {
     ]);
     // GPT-5.x rejects a non-default temperature with a 400 — must be omitted.
     expect(body).not.toHaveProperty("temperature");
+    // Reasoning is floored unconditionally so a heavy strong-tier sweep can't run
+    // away past our request timeout (strong_tier_eval_reliability.md). `none` is
+    // gpt-5.5's floor — `minimal` is rejected by this model (verified live).
+    expect(body.reasoning_effort).toBe("none");
   });
 
   it("parses choices[0].message.content and usage", () => {
@@ -100,6 +104,21 @@ describe("anthropic adapter", () => {
   });
 });
 
+describe("gemini adapter", () => {
+  it("floors thinking to 0 on flash variants and to a small non-zero on 2.5-pro", () => {
+    // Flash accepts thinkingBudget: 0 (fully disabled).
+    const flash = JSON.parse(
+      geminiAdapter.buildRequest("gemini-3.1-flash-lite", req, "k").init.body as string
+    );
+    expect(flash.generationConfig.thinkingConfig).toEqual({ thinkingBudget: 0 });
+    // gemini-2.5-pro enforces a non-zero minimum, so it gets a small floor, not 0.
+    const pro = JSON.parse(
+      geminiAdapter.buildRequest("gemini-2.5-pro", req, "k").init.body as string
+    );
+    expect(pro.generationConfig.thinkingConfig).toEqual({ thinkingBudget: 128 });
+  });
+});
+
 describe("registry", () => {
   it("resolves all three providers and falls back to gemini for unknown ids", () => {
     expect(resolveProvider("openai")).toBe(openaiAdapter);
@@ -130,12 +149,28 @@ describe("registry", () => {
     });
   });
 
-  it("withSelection routes the chosen single model per paid tier", () => {
+  it("withSelection routes the chosen model per paid tier, single-strong collapses", () => {
     const routed = withSelection(anthropicAdapter, { strongModel: "claude-sonnet-5" });
+    // Anthropic has one strong model, so the fallback tail is empty.
     expect(routed.pools.paidStrong).toEqual(["claude-sonnet-5"]);
     // Default fills in the fast tier when omitted.
     expect(routed.pools.paidFast).toEqual(["claude-haiku-4-5"]);
     // Free pools untouched (single-model routing only overrides the paid pools).
     expect(routed.pools.freeFast).toEqual([]);
+  });
+
+  it("withSelection keeps a failure-only strong fallback tail for multi-strong providers", () => {
+    // Selected model leads; the rest of the strong catalog follows so a strong-tier
+    // timeout rotates instead of dropping the call (strong_tier_eval_reliability.md).
+    const routed = withSelection(openaiAdapter, { strongModel: "gpt-5.5" });
+    expect(routed.pools.paidStrong).toEqual(["gpt-5.5", "gpt-5.6", "gpt-5.4"]);
+    // fast stays single-model (a fast failure just retries next eval).
+    expect(routed.pools.paidFast).toEqual(["gpt-5.4-mini"]);
+    // A non-default selection still leads, with no duplicate of itself in the tail.
+    const routed2 = withSelection(openaiAdapter, { strongModel: "gpt-5.6" });
+    expect(routed2.pools.paidStrong).toEqual(["gpt-5.6", "gpt-5.5", "gpt-5.4"]);
+    // Omitted selection falls back to the catalog default as the lead.
+    const routed3 = withSelection(openaiAdapter, {});
+    expect(routed3.pools.paidStrong).toEqual(["gpt-5.5", "gpt-5.6", "gpt-5.4"]);
   });
 });

@@ -37,6 +37,16 @@ function buildRequest(model: string, req: LLMRequest, key: string): BuiltRequest
     // sampling value with a 400 ("Only the default (1) value is supported") — this
     // was silently killing every strong-tier (contradiction/doc-quality) call on
     // gpt-5.5. Determinism is driven by the prompt + JSON mode, as with Anthropic.
+    //
+    // Floor the hidden reasoning: the whole GPT-5.x family reasons, and an
+    // unbounded strong-tier sweep over a 58-claim ledger blew past our 45s cap
+    // (see strong_tier_eval_reliability.md). `buildRequest` gets no `tier`, but
+    // capping unconditionally is safe — our evals are located-critique judgments,
+    // not open-ended reasoning — and mirrors Anthropic's `thinking:{disabled}`.
+    // NB: gpt-5.5 supports `none|low|medium|high|xhigh` (NOT `minimal`, which the
+    // older 5.0/5.1 line took and 400s here — confirmed live 2026-07-14); `none`
+    // is the true floor, matching the Anthropic-disabled / Gemini-flash-0 siblings.
+    reasoning_effort: "none",
   };
   // Ask for a JSON object when the eval expects structured output — mirrors the
   // Gemini `responseMimeType: application/json` path.
@@ -135,7 +145,13 @@ export const openaiAdapter: ProviderAdapter = {
     freeFast: [],
     freeStrong: [],
     paidFast: [FAST_CATALOG[0]],
-    paidStrong: [STRONG_CATALOG[0]],
+    // Multi-model so a strong-tier failure (e.g. a timeout on a heavy sweep) can
+    // rotate instead of dropping the whole call — OpenAI's strong pool was a
+    // single model, so a `gpt-5.5` timeout had nowhere to go. `defaultModels`
+    // still reads `catalog.strong[0]`, so the default stays `gpt-5.5`; the
+    // per-selection routed pool preserves this fallback tail (see
+    // `withSelection` in registry.ts). See strong_tier_eval_reliability.md.
+    paidStrong: [...STRONG_CATALOG],
   },
   catalog: { fast: FAST_CATALOG, strong: STRONG_CATALOG },
   buildRequest,
