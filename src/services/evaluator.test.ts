@@ -2105,3 +2105,140 @@ describe("evaluator - evaluateSection stage inference (headingless docs)", () =>
     expect(onStageSuggestion).not.toHaveBeenCalled();
   });
 });
+
+describe("evaluator - evaluateDocument single-section pass (heading-cliff facet 3)", () => {
+  // A doc that resolves to ONE section (headingless prose) has one block
+  // summary, which used to hit the ≥2-summaries gate and silently skip every
+  // doc-level check. When the editor supplies the section's raw text, the pass
+  // now runs with the text inlined in place of the summary list.
+  const docId = "doc-single";
+  const memo =
+    "A headingless memo body long enough to matter. It commits to Q3 and asks for two engineers.";
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(db.loadSuppressionsForDocument).mockResolvedValue([]);
+    vi.mocked(db.loadDocEvalState).mockResolvedValue(undefined);
+    vi.mocked(db.loadActiveClaimsForDocument).mockResolvedValue([]);
+    vi.mocked(db.loadActiveObservationsForDocument).mockResolvedValue([]);
+    // ONE meaningful summary — the doc is a single section.
+    vi.mocked(db.loadBlockSummariesForDocument).mockResolvedValue([
+      { blockId: "b1", docId, summary: "Memo summary", hash: "h1" },
+    ]);
+  });
+
+  it("runs with the raw text inlined when the single section's text is supplied", async () => {
+    mockStrong.mockResolvedValueOnce({
+      callId: "c1",
+      text: JSON.stringify({
+        missing_topic_observations: [{ text: "No owner is named for the migration." }],
+        underexposed_topic_observations: [],
+        audience_mismatch_observations: [],
+        structure_flow_observations: [],
+      }),
+    });
+
+    await evaluateDocument(
+      docId,
+      undefined,
+      "key",
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      "mature",
+      memo
+    );
+
+    expect(mockStrong).toHaveBeenCalledTimes(1);
+    const user = mockStrong.mock.calls[0][0].user as string;
+    expect(user).toContain("single unbroken section");
+    expect(user).toContain(memo);
+    expect(user).not.toContain("Block Summaries");
+
+    // A doc-scope observation lands through the normal reconcile path.
+    const saved = vi.mocked(db.saveObservation).mock.calls.map(([o]) => o);
+    expect(saved.some((o) => o.type === "missing_topic" && o.scope === "document")).toBe(true);
+  });
+
+  it("still returns early for a single-summary doc when no text is supplied (legacy callers)", async () => {
+    await evaluateDocument(docId, undefined, "key");
+    expect(mockStrong).not.toHaveBeenCalled();
+  });
+
+  it("keeps the summary-list path for multi-section docs even if text is supplied", async () => {
+    vi.mocked(db.loadBlockSummariesForDocument).mockResolvedValue([
+      { blockId: "b1", docId, summary: "Summary A", hash: "h1" },
+      { blockId: "b2", docId, summary: "Summary B", hash: "h2" },
+    ]);
+    mockStrong.mockResolvedValueOnce({
+      callId: "c1",
+      text: JSON.stringify({
+        missing_topic_observations: [],
+        underexposed_topic_observations: [],
+        audience_mismatch_observations: [],
+        structure_flow_observations: [],
+      }),
+    });
+
+    await evaluateDocument(
+      docId,
+      undefined,
+      "key",
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      memo
+    );
+
+    const user = mockStrong.mock.calls[0][0].user as string;
+    expect(user).toContain("Block Summaries");
+    expect(user).not.toContain("single unbroken section");
+  });
+
+  it("is dirty-checked: an unchanged single-section doc skips the second call", async () => {
+    mockStrong.mockResolvedValue({
+      callId: "c1",
+      text: JSON.stringify({
+        missing_topic_observations: [],
+        underexposed_topic_observations: [],
+        audience_mismatch_observations: [],
+        structure_flow_observations: [],
+      }),
+    });
+    let savedState: string | undefined;
+    vi.mocked(db.saveDocEvalState).mockImplementation(async (_id, hash) => {
+      savedState = hash as unknown as string;
+    });
+
+    await evaluateDocument(
+      docId,
+      undefined,
+      "key",
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      "mature",
+      memo
+    );
+    expect(mockStrong).toHaveBeenCalledTimes(1);
+
+    // Same inputs, state persisted → the pass short-circuits.
+    vi.mocked(db.loadDocEvalState).mockResolvedValue(savedState);
+    await evaluateDocument(
+      docId,
+      undefined,
+      "key",
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      "mature",
+      memo
+    );
+    expect(mockStrong).toHaveBeenCalledTimes(1);
+  });
+});

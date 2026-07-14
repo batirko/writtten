@@ -68,6 +68,13 @@ export interface EvalContext {
   stage?: string;
   /** Called when evaluateDocument infers a stage from the document content. */
   onStageSuggestion?: (suggestion: string) => void;
+  /** The document's full combinedText when it resolves to exactly ONE section
+   *  (e.g. headingless prose) — set by the editor at doc-idle fire time. Lets
+   *  `evaluateDocument` run its pass with the raw text inlined in place of the
+   *  per-section summary list, instead of returning early at the ≥2-summaries
+   *  gate (heading-cliff facet 3; probe-validated 2026-07-14). Undefined for
+   *  multi-section docs — the summary-list path is untouched. */
+  singleSectionText?: string;
   /** Terms that should never be flagged as undefined jargon. Merged with
    *  JARGON_PRESET and any definition-kind claims in the ledger before the
    *  fast call. One term per entry; case-insensitive. */

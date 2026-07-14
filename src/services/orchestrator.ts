@@ -334,7 +334,8 @@ async function handleDocIdle(ctx: EvalContext, onComplete?: () => void): Promise
       ctx.paidKey,
       evalId,
       ctx.capability,
-      ctx.maturity
+      ctx.maturity,
+      ctx.singleSectionText
     );
   } catch (err) {
     console.error("[orchestrator] evaluateDocument threw:", err);
