@@ -8,6 +8,22 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 > conventional-commit PR titles; a new version section is prepended when a release PR merges.
 > See `docs/mechanics/release_and_deploy.md`.
 
+## [0.5.0](https://github.com/batirko/writtten/compare/writtten-v0.4.1...writtten-v0.5.0) (2026-07-14)
+
+
+### Added
+
+* **eval:** infer document type at first settle — headingless docs get classified ([#180](https://github.com/batirko/writtten/issues/180)) ([284b8ec](https://github.com/batirko/writtten/commit/284b8ec1c08ce94288038fb98169fdaa6f2347b8))
+* **eval:** run the doc-level pass on single-section (headingless) docs (heading-cliff facet 3) ([#183](https://github.com/batirko/writtten/issues/183)) ([113328e](https://github.com/batirko/writtten/commit/113328e02e8367dd5fd008ca91ae6d1b205dffbe))
+* **feed:** truncation-honesty note — say when a section runs past the reading cap (heading-cliff facet 2) ([#182](https://github.com/batirko/writtten/issues/182)) ([fd4787c](https://github.com/batirko/writtten/commit/fd4787c479c3972808a9c6e9646fff81d0c985c7))
+* **settings:** surface open-source repo link in Settings footer ([#175](https://github.com/batirko/writtten/issues/175)) ([956eaa4](https://github.com/batirko/writtten/commit/956eaa4bbf5ee12afcdcafc6daeb46cd2dff88bf))
+
+
+### Fixed
+
+* **debug-log:** close residual key-leak vectors in the export envelope ([#179](https://github.com/batirko/writtten/issues/179)) ([9cd9a31](https://github.com/batirko/writtten/commit/9cd9a313ff7a4d6d6c9c863d817f5039211b84f5))
+* **evaluator:** document-order the doc-level prompt input + close the index/§N copy leak (OBS-034/OBS-035) ([#178](https://github.com/batirko/writtten/issues/178)) ([13b7eaf](https://github.com/batirko/writtten/commit/13b7eaff15a48d0c9fa0920cebf319b0ea70285e))
+
 ## [0.4.1](https://github.com/batirko/writtten/compare/writtten-v0.4.0...writtten-v0.4.1) (2026-07-10)
 
 
