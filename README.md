@@ -6,7 +6,11 @@ Most AI writing tools generate text for you to edit. writtten does the opposite.
 
 > _"This section contradicts the success metric you set in §2."_ → so you go back and fix it yourself.
 
-<!-- TODO(launch): replace with a 30–60s GIF of the loop — write → observation appears → hover to highlight the span → contradiction peek. This is the hero asset. -->
+<p align="center">
+  <img src="docs/launch/hero-loop.gif" alt="A PRD open in writtten. Hovering a flagged span surfaces its observation card while the others recede — here, a contradiction between a Q2 2026 launch date in one section and Q3 2026 in another, both spans lit at once." width="960">
+</p>
+
+<p align="center"><sub>Point at a flagged passage and its observation surfaces — here, one section commits to a Q2 2026 launch while another sets it firmly in Q3. writtten notices; you decide what to do about it.</sub></p>
 
 ## Why
 
