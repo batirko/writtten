@@ -280,6 +280,18 @@ export function Editor({
   const isSectionSuppressed = (sectionId: string): boolean =>
     structuralTimer.current !== null && affectedSectionIds.current.has(sectionId);
 
+  /** The doc's full combinedText when it resolves to exactly ONE section (e.g.
+   *  headingless prose), else undefined. Computed at doc-idle fire time and
+   *  threaded via EvalContext so evaluateDocument can run the single-section
+   *  doc pass (raw text in place of the summary list — heading-cliff facet 3).
+   *  Same linear walk the triggers already rely on; invariant #3 untouched. */
+  const singleSectionTextNow = (
+    ed: NonNullable<ReturnType<typeof useEditor>>
+  ): string | undefined => {
+    const sections = resolveSections(ed.state.doc);
+    return sections.length === 1 ? sections[0].combinedText : undefined;
+  };
+
   /** Build the ambient EvalContext from the current prop refs. */
   const buildEvalCtx = (): EvalContext => ({
     docId: DOC_ID,
@@ -638,6 +650,7 @@ export function Editor({
             // Recompute at fire time so the level reflects the settled doc, not
             // the keystroke that armed the timer.
             maturity: getMaturity(editor),
+            singleSectionText: singleSectionTextNow(editor),
           };
           scheduleEval({ kind: "doc-idle" }, null, ctx, () => onEvaluationCompleteRef.current());
         }, DOC_IDLE_MS);
@@ -1247,7 +1260,11 @@ export function Editor({
             scheduleEval(
               { kind: "doc-idle" },
               null,
-              { ...ctx, maturity: getMaturity(editor) },
+              {
+                ...ctx,
+                maturity: getMaturity(editor),
+                singleSectionText: singleSectionTextNow(editor),
+              },
               () => onEvaluationCompleteRef.current()
             );
           }, DOC_IDLE_MS);

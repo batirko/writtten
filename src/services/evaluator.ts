@@ -805,7 +805,14 @@ export async function evaluateDocument(
   paidKey?: string,
   evalId?: string,
   capability: ModelCapability = WEAK_CAPABILITY,
-  maturity?: MaturityLevel
+  maturity?: MaturityLevel,
+  /** The doc's full combinedText when it resolves to exactly ONE section
+   *  (headingless prose, or one heading owning everything) — supplied by the
+   *  editor via `EvalContext.singleSectionText`. Enables the single-section doc
+   *  pass: raw text inlined in place of the summary list (heading-cliff facet 3,
+   *  probe-validated 2026-07-14 at both tiers). Undefined → multi-section
+   *  summary-list path only, exactly as before. */
+  singleSectionText?: string
 ): Promise<void> {
   if (!apiKey && getLlmMode() !== "mock") {
     console.warn("Evaluator: No API key provided, skipping doc-level check.");
@@ -823,8 +830,18 @@ export async function evaluateDocument(
   const meaningful = summaries
     .filter((s) => s.summary.trim().length > 0)
     .sort((a, b) => a.summary.localeCompare(b.summary));
-  // Need at least a couple of meaningful summaries to run doc-level checks
-  if (meaningful.length < 2) return;
+  // The summaries gate. Historically "at least a couple of meaningful
+  // summaries" — written 2026-06-02 when summaries were per-BLOCK (a content
+  // threshold); section-as-eval-unit (2026-06-03) silently re-based it to
+  // one-per-section, turning it into a heading requirement that starved
+  // headingless docs of every doc-level check. Now: a doc that resolves to a
+  // single section still earns the pass when the editor supplied its raw text —
+  // the text is inlined in place of the summary list below (probe-validated:
+  // register-clean, doc-scope observations at both tiers). The maturity gate at
+  // the trigger (doc-idle arms only past "nascent") keeps Invariant #4; this
+  // runs at doc-idle and is dirty-checked, so Invariant #3 holds too.
+  const singleSectionPass = meaningful.length === 1 && !!singleSectionText?.trim();
+  if (meaningful.length < 2 && !singleSectionPass) return;
 
   const router = createRouter(apiKey ?? "", paidKey);
   const claims = (await loadActiveClaimsForDocument(docId)).sort(
@@ -898,9 +915,21 @@ export async function evaluateDocument(
       "\n\nDraft maturity: MATURE (substantially developed). For the structural observations (missing_topic, underexposed_topic, structure_flow, audience_mismatch), be firm and direct — a near-final draft warrants located warnings, not soft suggestions. Still locate, don't prescribe; no leading questions."
     );
   }
-  parts.push(
-    `\nBlock Summaries:\n${orderedSummaries.map((s, i) => `[${i + 1}] ${s.summary}`).join("\n")}`
-  );
+  if (singleSectionPass) {
+    // Single-section doc: the summary list would be one line — too lossy to
+    // judge the whole document by. Inline the raw text instead (≤ MAX_SECTION_CHARS
+    // by construction — the editor caps combinedText) and say plainly what the
+    // model is looking at, so structure_flow judges internal consistency rather
+    // than hallucinating section ordering. Framing proven by the 2026-07-14
+    // probe: specific, located, zero register-lint violations at both tiers.
+    parts.push(
+      `\nThe document is a single unbroken section (no headings). Full text:\n${singleSectionText!.trim()}`
+    );
+  } else {
+    parts.push(
+      `\nBlock Summaries:\n${orderedSummaries.map((s, i) => `[${i + 1}] ${s.summary}`).join("\n")}`
+    );
+  }
   if (orderedClaims.length > 0) {
     parts.push(
       `\nClaim Ledger:\n${orderedClaims.map((c, i) => `[${i + 1}] (${c.kind}): "${c.text}"`).join("\n")}`
