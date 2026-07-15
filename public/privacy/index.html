@@ -1,0 +1,328 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Privacy &amp; Terms — writtten</title>
+    <meta
+      name="description"
+      content="How writtten handles your writing, in plain language: local-first storage, provider egress, the free-tier caveat, no analytics, and plain as-is terms."
+    />
+    <meta name="robots" content="index,follow" />
+    <link rel="icon" href="/favicon.svg" />
+    <style>
+      /* Fonts self-hosted to match the app (@fontsource-variable, latin subset). */
+      @font-face {
+        font-family: "Faustina Variable";
+        font-style: normal;
+        font-display: swap;
+        font-weight: 300 700;
+        src: url("/fonts/faustina-latin-wght-normal.woff2") format("woff2");
+        unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC,
+          U+0304, U+0308, U+0329, U+2000-206F, U+2074, U+20AC, U+2122, U+2191, U+2193, U+2212,
+          U+2215, U+FEFF, U+FFFD;
+      }
+      @font-face {
+        font-family: "Inter Variable";
+        font-style: normal;
+        font-display: swap;
+        font-weight: 100 900;
+        src: url("/fonts/inter-latin-wght-normal.woff2") format("woff2");
+        unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC,
+          U+0304, U+0308, U+0329, U+2000-206F, U+2074, U+20AC, U+2122, U+2191, U+2193, U+2212,
+          U+2215, U+FEFF, U+FFFD;
+      }
+
+      :root {
+        --paper: oklch(98.4% 0.004 95);
+        --border: oklch(91% 0.004 95);
+        --ink: oklch(22% 0.004 95);
+        --ink-2: oklch(40% 0.005 95);
+        --muted: oklch(62% 0.006 95);
+        --accent: oklch(50% 0.12 274);
+        --accent-strong: oklch(44% 0.14 274);
+        --accent-tint: oklch(95% 0.02 274);
+        --caveat-bg: oklch(97% 0.02 75);
+        --caveat-rule: oklch(72% 0.17 60);
+        --font-serif: "Faustina Variable", "Faustina", Georgia, Cambria, "Times New Roman", serif;
+        --font-sans: "Inter Variable", "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI",
+          sans-serif;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+      /* Deliberately single-theme: matches the app, which is light-first (dark deferred). */
+      body {
+        background: var(--paper);
+        color: var(--ink);
+        font-family: var(--font-sans);
+        -webkit-font-smoothing: antialiased;
+        text-rendering: optimizeLegibility;
+        margin: 0;
+      }
+
+      .topbar {
+        max-width: 41rem;
+        margin: 0 auto;
+        padding: 1.5rem;
+      }
+      .home {
+        font-family: var(--font-serif);
+        font-size: 1.0625rem;
+        letter-spacing: -0.01em;
+        color: var(--ink-2);
+        text-decoration: none;
+        display: inline-flex;
+        align-items: baseline;
+        gap: 0.5rem;
+      }
+      .home:hover {
+        color: var(--accent-strong);
+      }
+      .home .arrow {
+        color: var(--muted);
+      }
+
+      main {
+        max-width: 41rem;
+        margin: 0 auto;
+        padding: 0 1.5rem 5rem;
+      }
+
+      h1 {
+        font-family: var(--font-serif);
+        font-weight: 600;
+        font-size: 2.125rem;
+        letter-spacing: -0.02em;
+        line-height: 1.1;
+        margin: 2.5rem 0 0.75rem;
+        text-wrap: balance;
+      }
+      .lede {
+        font-size: 1.0625rem;
+        line-height: 1.6;
+        color: var(--ink-2);
+        margin: 0;
+      }
+      .updated {
+        display: block;
+        margin-top: 0.5rem;
+        font-size: 0.8125rem;
+        color: var(--muted);
+      }
+
+      .summary {
+        margin: 2.25rem 0;
+        padding: 1.25rem 1.5rem;
+        background: var(--accent-tint);
+        border-radius: 10px;
+      }
+      .summary h2 {
+        margin-top: 0;
+      }
+      .summary p {
+        margin-bottom: 0;
+      }
+
+      h2 {
+        font-family: var(--font-serif);
+        font-weight: 600;
+        font-size: 1.375rem;
+        letter-spacing: -0.01em;
+        line-height: 1.25;
+        margin: 2.75rem 0 0.75rem;
+      }
+      p {
+        font-size: 1.0625rem;
+        line-height: 1.65;
+        color: var(--ink);
+        margin: 0 0 1.1rem;
+      }
+      .muted-note {
+        color: var(--ink-2);
+      }
+
+      a.link {
+        color: var(--accent);
+        text-decoration: none;
+        border-bottom: 1px solid transparent;
+        transition: border-color 120ms ease;
+      }
+      a.link:hover {
+        border-bottom-color: var(--accent);
+      }
+      a:focus-visible,
+      .home:focus-visible {
+        outline: 2px solid var(--accent);
+        outline-offset: 3px;
+        border-radius: 2px;
+      }
+
+      .caveat {
+        margin: 1.5rem 0;
+        padding: 1rem 1.25rem 1rem 1.15rem;
+        background: var(--caveat-bg);
+        border-left: 3px solid var(--caveat-rule);
+        border-radius: 0 8px 8px 0;
+      }
+      .caveat p:last-child {
+        margin-bottom: 0;
+      }
+      .caveat strong {
+        font-weight: 600;
+      }
+
+      hr {
+        border: none;
+        border-top: 0.5px solid var(--border);
+        margin: 3rem 0 0;
+      }
+      footer {
+        max-width: 41rem;
+        margin: 1.5rem auto 0;
+        padding: 0 1.5rem;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem 1.25rem;
+        font-size: 0.875rem;
+        color: var(--muted);
+      }
+      footer a {
+        color: var(--muted);
+        text-decoration: none;
+        border-bottom: 1px solid transparent;
+      }
+      footer a:hover {
+        color: var(--accent-strong);
+        border-bottom-color: var(--accent-strong);
+      }
+
+      @media (max-width: 480px) {
+        h1 {
+          font-size: 1.875rem;
+        }
+        .topbar,
+        main,
+        footer {
+          padding-left: 1.25rem;
+          padding-right: 1.25rem;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="topbar">
+      <a class="home" href="/"><span class="arrow" aria-hidden="true">←</span> writtten</a>
+    </div>
+
+    <main>
+      <h1>Privacy &amp; Terms</h1>
+      <p class="lede">
+        How writtten handles your writing, in plain language.
+        <span class="updated">Last updated 15 July 2026</span>
+      </p>
+
+      <div class="summary">
+        <h2>The short version</h2>
+        <p>
+          writtten runs in your browser. Your document and everything the tool derives from it are
+          stored only on your device — there are no accounts and no writtten server holding your
+          work. The one time your writing leaves your device is when it&rsquo;s sent to the AI
+          provider you chose, using your own API key, to generate observations. writtten sets no
+          analytics and no tracking cookies.
+        </p>
+      </div>
+
+      <h2>Where your writing lives</h2>
+      <p>
+        Your document, the claim ledger, block summaries, observations, and your settings are stored
+        locally in your browser (IndexedDB). There are no accounts and no required backend, and none
+        of it is copied to a writtten server. Clear your browser&rsquo;s data for this site and
+        it&rsquo;s gone. That&rsquo;s what &ldquo;local-first&rdquo; means here.
+      </p>
+
+      <h2>When your writing leaves your device</h2>
+      <p>
+        Evaluation is not local. When a block of text settles, that block&rsquo;s text and the claims
+        extracted from it are sent to the AI model provider you configured — Google Gemini, OpenAI,
+        or Anthropic — directly from your browser, using your own API key. It never passes through a
+        writtten server. What the provider does with it is governed by that provider&rsquo;s terms,
+        not by writtten.
+      </p>
+      <p class="muted-note">
+        So, honestly: for any document you actually evaluate, your text is seen by a third-party
+        model provider. &ldquo;Local-first&rdquo; describes where your work is stored, not whether
+        it&rsquo;s ever sent anywhere.
+      </p>
+
+      <div class="caveat">
+        <p>
+          <strong>The free Gemini tier is the sharp edge.</strong> If you use a free Google Gemini
+          key, Google&rsquo;s free-tier API terms may permit them to use the text you submit to
+          improve their models. Don&rsquo;t put anything you consider confidential into the free
+          tier.
+        </p>
+        <p>
+          For confidential work, use a paid key — or a provider whose terms exclude training on your
+          data. See
+          <a class="link" href="https://ai.google.dev/terms" target="_blank" rel="noreferrer"
+            >Google&rsquo;s Gemini API terms</a
+          >.
+        </p>
+      </div>
+
+      <h2>Your API keys</h2>
+      <p>
+        Any API key you add is stored only in this browser, in localStorage, in plain text — the
+        honest trade-off for a tool with no backend to hold secrets for you. Your key is sent only to
+        the provider it belongs to, and never to writtten.
+      </p>
+
+      <h2>Analytics and tracking</h2>
+      <p>
+        writtten collects nothing about you. There is no analytics, no telemetry, no tracking
+        cookies, and no third-party trackers in the app. The site is served as static files from
+        Cloudflare Pages; like any web host, the host may keep standard request logs (such as IP
+        addresses) at its edge — writtten itself neither collects nor has access to any per-visitor
+        data.
+      </p>
+
+      <h2>Terms of use</h2>
+      <p>
+        writtten is free, open-source software (Apache-2.0). It is provided &ldquo;as is&rdquo;,
+        without warranty of any kind, and you use it at your own risk. To the fullest extent allowed
+        by law, the maintainers are not liable for any loss or damage arising from its use.
+        You&rsquo;re responsible for your own API keys and for following the terms of whichever AI
+        provider you use. Don&rsquo;t use writtten to do anything unlawful. The Apache-2.0 license
+        governs the source code; this page governs the hosted site at writtten.com.
+      </p>
+
+      <h2>Changes</h2>
+      <p>
+        This page may change as the tool does. The &ldquo;last updated&rdquo; date above reflects the
+        current version, and the full history is public in the git repository.
+      </p>
+
+      <h2>Questions?</h2>
+      <p>
+        writtten is built in the open by
+        <a class="link" href="https://github.com/batirko" target="_blank" rel="noreferrer"
+          >@batirko</a
+        >. For a privacy or legal question, open an issue or send a direct message on
+        <a class="link" href="https://github.com/batirko/writtten" target="_blank" rel="noreferrer"
+          >GitHub</a
+        >.
+      </p>
+
+      <hr />
+    </main>
+
+    <footer>
+      <a href="https://github.com/batirko/writtten" target="_blank" rel="noreferrer"
+        >Open source · github.com/batirko/writtten</a
+      >
+      <a href="/">← Back to writtten</a>
+    </footer>
+  </body>
+</html>

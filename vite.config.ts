@@ -27,6 +27,14 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
+      workbox: {
+        // The SW's default NavigationRoute rewrites every in-scope navigation to
+        // the SPA shell (index.html). The static legal pages under /privacy are
+        // real files, not app routes — deny them the fallback so the request
+        // reaches the network (Cloudflare serves /privacy/index.html directly);
+        // otherwise a no-trailing-slash hit on /privacy would render the app shell.
+        navigateFallbackDenylist: [/^\/privacy/],
+      },
       manifest: {
         name: 'writtten',
         short_name: 'writtten',

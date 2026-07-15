@@ -918,6 +918,24 @@ body,
   color: var(--color-muted);
 }
 
+/* Privacy & Terms link — sits directly under the OSS block (no divider of its
+   own, so the two "meta" links read as one cluster) and stays muted, leaving the
+   repo link as the footer's single accent. */
+.settings-legal {
+  margin-top: var(--space-xs);
+  text-align: center;
+  font-size: var(--text-label);
+  line-height: 1.5;
+}
+.settings-legal a {
+  color: var(--color-muted);
+  text-decoration: none;
+}
+.settings-legal a:hover {
+  color: var(--color-accent-strong);
+  text-decoration: underline;
+}
+
 /* Build stamp at the foot of Settings — deliberately quiet; it exists so a bug
    report can be pinned to an exact version + commit, not to draw the eye. */
 .settings-build {

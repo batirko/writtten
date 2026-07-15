@@ -1037,6 +1037,12 @@ export function ControlCenter({
               <span className="settings-oss-note">Clone the repo to run writtten locally.</span>
             </div>
 
+            <div className="settings-legal" data-testid="legal-link">
+              <a href="/privacy/" target="_blank" rel="noreferrer">
+                Privacy &amp; Terms
+              </a>
+            </div>
+
             <div className="settings-build" data-testid="build-version">
               writtten v{__APP_VERSION__}
               <span className="settings-build-sha"> · {__GIT_SHA__}</span>
