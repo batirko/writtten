@@ -8,6 +8,13 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 > conventional-commit PR titles; a new version section is prepended when a release PR merges.
 > See `docs/mechanics/release_and_deploy.md`.
 
+## [0.6.0](https://github.com/batirko/writtten/compare/writtten-v0.5.1...writtten-v0.6.0) (2026-07-15)
+
+
+### Added
+
+* **site:** add Privacy & Terms page ([#189](https://github.com/batirko/writtten/issues/189)) ([2074d14](https://github.com/batirko/writtten/commit/2074d14d5b60842cf845e0c54cf8c8303fdbb25d))
+
 ## [0.5.1](https://github.com/batirko/writtten/compare/writtten-v0.5.0...writtten-v0.5.1) (2026-07-14)
 
 
