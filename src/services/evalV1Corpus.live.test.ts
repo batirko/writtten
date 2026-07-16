@@ -139,6 +139,16 @@ async function runTier(
   paidKey: string | undefined
 ): Promise<Observation[]> {
   if (RECORD) {
+    // Resumable record (V1_RESUME): a corpus larger than a few docs can't finish
+    // a real-call record pass inside one test timeout, and re-recording already-
+    // dumped docs re-spends scarce free-tier RPD. When V1_RESUME is set, replay a
+    // doc/tier that already has a dump instead of calling the model again, so a
+    // record run picks up where a timed-out one left off.
+    const existing = recordingPath(fixture.id, tier);
+    if (process.env.V1_RESUME && fs.existsSync(existing)) {
+      const recordings = JSON.parse(fs.readFileSync(existing, "utf8")) as Record<string, string>;
+      return runner.run({ ...fixture, recordings });
+    }
     const { observations, recordings } = await runner.runRecord(
       fixture,
       freeKey,
@@ -271,7 +281,7 @@ describe.skipIf(!V1)("V1 base-rate corpus study", () => {
     // Sanity assertions only (never gate on the measured numbers themselves).
     expect(recall.all.docCount).toBe(corpus.length);
     expect(fs.existsSync(path.join(CORPUS_DIR, "emissions.generated.csv"))).toBe(true);
-  }, 600_000);
+  }, process.env.V1_TIMEOUT ? Number(process.env.V1_TIMEOUT) : 600_000);
 });
 
 /** Both buckets of a recall result as console.table rows, labeled by slice. */

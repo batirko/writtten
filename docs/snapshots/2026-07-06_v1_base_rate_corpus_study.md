@@ -1,6 +1,6 @@
 # V1 — Base-rate corpus study
 
-**Date:** 2026-07-06 · **Status:** ⏳ machinery landed, numbers pending the keyed run + verified labels
+**Date:** 2026-07-06 (machinery) · updated **2026-07-16** (Run 1) · **Status:** ✅ first keyed run done — cost-bounded 9-doc subset; full-corpus run still pending
 **Track:** `docs/projects/field_validation.md` § V1 · **Lane:** Validation
 
 > This is the durable home for the three V1 numbers. The **runner + scorers +
@@ -53,15 +53,18 @@ markdown; stored locally, referenced by anonymised id `P01`…`P21`):
 > The `prd`+`spec` split lets you check whether the number is register-sensitive,
 > and the audit-#5 path stays open to drop in confidential PRDs (paid-key only) later.
 
-> **AI first-pass labels drafted 2026-07-06** (tool-blind, all `verified=false` in the
-> local `labels.csv` — pending human verification). **Emerging signal worth stress-testing
-> in the keyed run:** un-disclosed contradictions are **rare in polished public specs**
-> (the RFC proxy `spec` slice ≈ 0) but **common in real/near-real PRDs** (`prd`) and
-> **code-bearing decision ADRs** (`decision`). Of ~17 candidate rows, the PRD slice carried
-> the most (8, largely from the 2 real PRDs) and the polished RFCs almost none. If this
-> survives verification, **the hero base rate on the actual target doc type (PRDs) is
-> materially higher than the RFC proxy implies** — i.e. the proxy likely *under*-states the
-> real base rate, which strengthens (not weakens) the hero case. Confirm with the keyed run.
+> **Corpus expanded 2026-07-16 → 28 docs.** The `prd` slice gained **6 real, author-written
+> PRDs** — 5 confidential internal product docs + 1 job-application case study — and the
+> `decision` slice gained 1 real strategy case study. This **partly closes the validity
+> caveat above**: the `prd` base rate is no longer proxy-only. Confidential docs run on both
+> tiers per an explicit owner decision (recorded in the local manifest); source text stays
+> gitignored and is referenced here by anonymised id only.
+>
+> **Labels human-verified 2026-07-16** (24 rows, all `verified=true`). The pre-run signal held:
+> the polished public proxies carried **near-zero** un-disclosed contradictions, while the **real
+> PRDs each carried ~1 genuine un-planted contradiction** (structural — a metric/timeframe/SLA
+> that conflicts with another section), plus author-confirmed tensions. So the hero has real
+> material to catch — the base rate is not an artifact of the proxy.
 
 ## How to run it (the follow-up)
 
@@ -85,47 +88,79 @@ markdown; stored locally, referenced by anonymised id `P01`…`P21`):
 
 ## Results
 
-### 1. Hero base rate & recall — overall AND per `docType`
+> **Run 1 — 2026-07-16, cost-bounded 9-doc subset (both tiers).** Free-tier RPD is the
+> binding constraint, so the first keyed run covered a **9-doc subset** chosen for
+> signal-per-cost: **7 `prd`** (6 real author-written PRDs + 1 public proxy) and **2
+> `decision`** (1 real strategy case study + 1 code ADR proxy). The remaining 19 docs
+> (all `spec`/`comms` + the rest) are **unrun**. Numbers are this subset, paid tier
+> unless noted. The runner was made resumable (`V1_RESUME`) after the record pass
+> exceeded one test timeout. Artifacts: gitignored `.v1-corpus/runs/2026-07-16-focused9/`.
 
-_Bucket 1 (strict contradiction) is the hero; Bucket 2 (tension) reported separately.
-The per-type rows are the point of stratification: does the hero hold off `spec`, or collapse?_
+### 1. Hero base rate & recall (9-doc subset, paid tier, verified labels)
 
-| Slice | Bucket | Docs | Labels | Base rate / doc | Recall (paid) |
+| Slice | Bucket | Docs | Labels | Base rate / doc | Recall |
 | --- | --- | --- | --- | --- | --- |
-| ALL | B1 strict contradiction | TBD | TBD | TBD | TBD |
-| ALL | B2 tension | TBD | TBD | TBD | TBD |
-| spec | B1 / B2 | 10 | TBD | TBD | TBD |
-| prd | B1 / B2 | 4 | TBD | TBD | TBD |
-| decision | B1 / B2 | 4 | TBD | TBD | TBD |
-| comms | B1 / B2 | 3 | TBD | TBD | TBD |
+| ALL | B1 strict contradiction | 9 | 10 | **1.11** | **10%** (1/10) |
+| ALL | B2 tension | 9 | 5 | 0.56 | 0% (0/5) |
+| prd | B1 | 7 | 8 | 1.14 | **0%** (0/8) |
+| prd | B2 | 7 | 3 | 0.43 | 0% |
+| decision | B1 | 2 | 2 | 1.00 | 50% (1/2) |
+| decision | B2 | 2 | 2 | 1.00 | 0% |
 
-### 2. Per-type precision in the wild (overall; also sliced per `docType`)
+**The base rate is real (~1.1 strict contradictions/doc) — but recall is near-zero on real
+PRDs.** The single B1 catch was a code-level conflict in the ADR proxy (lexically-dense,
+same-domain claims — the tool's best case). **Every labeled contradiction in the 7 PRDs was
+missed.**
 
-_TP / (TP+FP) from adjudicated emissions, vs the ratchet's per-type floors. The runner
-also prints a per-`docType` breakdown so one register (e.g. `audience_mismatch` on comms)
-doesn't masquerade as the whole floor._
+### 2. Contradiction wild precision (adjudicated with the author)
 
-| Type | n | Wild precision | Ratchet floor | Meets floor? |
+| Slice | n emitted | Wild precision | Floor | Meets? |
 | --- | --- | --- | --- | --- |
-| contradiction | TBD | TBD | 95% | TBD |
-| unsupported_claim | TBD | TBD | 85% | TBD |
-| audience_mismatch | TBD | TBD | 85% | TBD |
-| clarity | TBD | TBD | 80% | TBD |
-| undefined_jargon | TBD | TBD | 80% | TBD |
-| missing_topic / underexposed_topic / structure_flow / strategic_tension | TBD | TBD | 70% | TBD |
+| ALL | 13 | **15%** (2/13) | 95% | ❌ |
+| prd | 4 | **0%** (0/4) | 95% | ❌ |
+| decision | 9 | 22% (2/9) | 95% | ❌ |
 
-### 3. Free-vs-paid delta
+The 13 emitted contradictions were adjudicated `tp`/`fp` with the author of the real docs.
+**On the real PRDs, all 4 emitted contradictions were false positives; the only 2 true
+positives were both in the ADR proxy.** The FP patterns are structured, not random
+(abstracted): two synonymous phrasings of one rule flagged as conflicting · a statement
+flagged against its own restatement · a scope-exclusion flagged against an in-scope
+commitment · a current-state problem flagged against the proposed fix that resolves it.
+_(Other types not formally adjudicated this run — but see the jargon volume note in §3.)_
 
-- Confident **false** contradictions on the **free** tier (no verified B1 label): **TBD**
-- Free-only vs paid-only conflicts (recall lost on the free tier): **TBD**
+### 3. Free-vs-paid delta + jargon noise
 
-## Implications (fill after the numbers land)
+- **Free tier under-adjudicates contradictions:** 2 emitted (both false) vs the paid tier's 13.
+  Confident **false** contradictions on the free tier: **2**.
+- **Undefined-jargon volume dominates the real-PRD feed:** the section-eval `undefined_jargon`
+  check fired **21–53× per technical PRD** (vs ~2 on the public proxies) — a wall of flags,
+  eyeballed as largely audience-inappropriate (domain vocabulary the doc's own intended reader
+  would share). This, not the hero, is the most conspicuous real-PRD-experience finding.
 
-- **Free-tier: real tier or demo?** (`docs/plan.md` open question; audit #3) — TBD.
-- **Per-type ratchet-floor recalibration** (`evaluator_quality_ratchet.md`; audit #7) —
-  TBD (replace the provisional `PRECISION_FLOORS` constants with these wild numbers).
-- **Is contradiction-at-distance frequent enough to be the hero?** (this is the
-  gate the Phase-6 decision-rigor taxonomy waits behind) — TBD.
+## Implications
+
+- **The contradiction hero, as built, does not survive real PRDs** — 0% recall *and* 0%
+  precision on the author's own PRDs, both far under the 95% trust floor. **But the base rate
+  is real (~1.1/doc)**, so the failure is in *finding / adjudicating*, not in whether
+  contradictions exist. A fixable engine, not a dead premise.
+- **Diagnosed miss mechanism = OBS-038** (candidate selection, not adjudication): the Jaccard
+  prefilter surfaces a *compatible* near-duplicate of a claim and crowds the *contradictory*
+  claim out of the top-K, so the adjudicator is never shown the real pair. → promotes the
+  deferred real-vector / prefilter fix from "Discovered" to scheduled.
+- **The FP patterns are structured** → scope-exclusion tagging (OBS-030, already Phase 8)
+  removes one class; synonym / restatement / current-vs-proposed-temporal guards address the rest.
+- **Jargon is the dominant felt-noise** → the fix is **audience-relative, _inferred_**
+  calibration (flag a term only if the doc's inferred audience likely wouldn't know it) plus
+  volume management (once-per-distinct-term, ranked cap) — **not** a bigger allow-list. Keeps
+  the "should you explain this?" provocation only where it's live.
+- **Per-type ratchet-floor recalibration** (`evaluator_quality_ratchet.md`; audit #7) — the
+  contradiction wild-precision here (15% observed vs 95% floor) is a subset signal; recalibrate
+  once a fuller run lands, but the gap direction is unambiguous.
+- **Free-tier: leaning demo, not real tier** (audit #3) — near-silent on contradictions and,
+  combined with the jargon wall, a weak keyless experience. Informs the free-vs-paid decision.
+
+**Caveats:** n=9 subset, RPD-bounded; contradiction precision rests on author adjudication
+(the FPs were clear-cut); the `spec`/`comms` slices are unrun. Directionally strong enough to act on.
 
 ## Hand-off
 
