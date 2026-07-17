@@ -19,6 +19,7 @@ import strategicTensionFraud from "./strategic-tension-fraud";
 import clarityVague from "./clarity-vague";
 import unsupportedVsAttributed from "./unsupported-vs-attributed";
 import jargonAllowlist from "./jargon-allowlist";
+import jargonAudienceInferred from "./jargon-audience-inferred";
 import cleanDoc from "./clean-doc";
 import antiTaxonomy from "./anti-taxonomy";
 import noDisguisedFix from "./no-disguised-fix";
@@ -41,6 +42,7 @@ export const corpus: EvalFixture[] = [
   clarityVague,
   unsupportedVsAttributed,
   jargonAllowlist,
+  jargonAudienceInferred,
   cleanDoc,
   antiTaxonomy,
   noDisguisedFix,
