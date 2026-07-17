@@ -73,6 +73,19 @@ The settled floor: **allow the observation, anchor it to the one shared block, a
 
 **Deferred (not the floor):** computing real per-claim span offsets from each claim's text within the block, to restore a true two-span intra-block highlight and disambiguate multiple intra-section conflicts. That's the "compute real offsets" option — more code and fragile substring matching; it can layer on later without changing this contract. Couples then with `doc_level_anchoring` (substring resolver reuse).
 
+#### Decision brief — real-offset two-span disambiguation (written 2026-07-16 for the Phase-9 "Decide:" item)
+
+**The question.** Does the phrase-level A↔B highlight inside one block earn its code + fragility, or does the deferral stand? Two distinct values are on the table: (a) the *cosmetic* two-span highlight (whole-block → clause-level), and (b) the *correctness* fix for the v1 limitation — two distinct intra-section conflicts in one section collapse into one card (shared `[block, block]` pair key + `0:9999` content-sig).
+
+**What changed since the deferral (2026-07-07, OBS-032):** the build is cheaper than when deferred. Extraction-time anchoring now exists — `anchorClaimsToMembers` (`evaluatorAnchoring.ts`) already substring-matches claims to members and stores `anchorBlockId` + `anchorExact` on the ledger. The remaining work is *within-block offsets* on that same machinery, not a new resolver. And the fragility is now **measurable, not hypothetical**: the DEV paraphrase-residual counter (reads `anchorExact === false`) reports exactly how often a claim is *not* a verbatim substring — i.e. how often the two-span highlight would fall back to whole-block anyway.
+
+**Options.**
+- **A — deferral stands** (recommended default). The value was rated "not the floor" for a reason: colocated conflicts are contradiction-at-proximity, the whole-block highlight already lights the right section, and the card names both claims. Zero cost, zero fragility.
+- **B — build the offsets** (~Med, Prompt/signal lane): substring-match each side's `anchorText` within the shared block (reusing `anchorSubstring`/`reanchorOffset`); fall back to whole-block when `anchorExact` is false; key distinct conflicts by offset-pair so two conflicts in one section stop collapsing.
+- **C — build only the dedup half**: fix the collapse (key intra-block pairs by normalized claim-text pair instead of `[block, block]` + `0:9999`) without any highlight change — smaller, targets the only *correctness* defect in the v1 limitation.
+
+**Decision procedure (makes this decidable with evidence instead of taste):** from the V1 corpus runs (`npm run eval:v1` transcripts — real PRDs, both tiers), count (1) how often ≥2 distinct intra-section conflicts actually co-occur in one section (the collapse frequency — justifies C), and (2) the `anchorExact === false` rate on conflict-participating claims (the fallback rate — bounds what B's highlight can ever deliver). **Decide B only if** the fallback rate is low (<~20%) *and* V2 users visibly hunt for "which sentence?" on whole-block conflict cards; **decide C alone if** the collapse frequency is non-trivial (> a few % of conflict cards) while the fallback rate stays high; **otherwise A stands.** Both counts are free byproducts of runs Phase 8 executes anyway.
+
 ### OBS-027 — established context as input, not a new call
 
 The fix adds **no API requests** (RPD is the binding free-tier limit): it enriches the _existing_ single section-eval call's user content with artifacts already in memory. The section-eval already injects `definition` claims as a "Defined terms" glossary; OBS-027 generalises that intuition — the false positives come from the model not knowing what _sibling_ sections established, so we hand it exactly that, labelled as established and off-limits for `undefined`/`unclear`/`unsupported` flags.

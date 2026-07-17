@@ -1,7 +1,7 @@
 ---
 status: in-progress
 kind: infra
-phases: [5]
+phases: [5, 9]
 summary: The code-correctness hardening cluster from the 2026-06-10 code-architecture audit — repair the broken build/lint gates and add CI, then close the three silent-failure paths in the observation lifecycle (dead auto-close-on-deletion, the strong-call eval-wedge, the block-removal zombie-claim race) and make `anchorText` actually load-bearing so dismissals hold and highlights stay truthful through edits.
 ---
 
@@ -99,10 +99,17 @@ The audit's one-line verdict: _"a promising prototype with unusually good archit
 - [x] **Removed the harness top-level side effect.** `harness.ts` had `llmLogger.setEventSyncHook(...)` at module level, which forced the harness module into the prod bundle even though all call sites were already DEV-gated. Wrapped in `if (import.meta.env.DEV)` — the hook now only wires in development. (2026-06-15)
 - [x] **Re-verified harness/call-site gating.** All `harness.emit()` and `harness.archive()` calls in `evaluator.ts`, `db.ts`, `orchestrator.ts`, `App.tsx`, and `Editor.tsx` were confirmed already wrapped in `if (import.meta.env.DEV)` guards. The remaining prod bundle footprint (the static `import { harness }` in each file and the `new Harness()` singleton) is inert — `window.__sidecar__` is never attached in prod, events accumulate in a bounded in-memory ring buffer with no external egress. Full DCE would require switching to dynamic imports across all callers; noted as future work. (2026-06-15)
 
-### L8 — Editor hot-path perf — 🟠 Med · ⚙️ (audit #10)
+### L8 — Editor hot-path perf — 🟡 Med · ⚙️ (audit #10; parked in plan Phase 9; profiling protocol written 2026-07-16)
 
-- [ ] Profile first. Every `onUpdate` runs `getBlockIds` + `getWordCount` + `emitBlockOrderIfChanged` + `resolveSection` → `resolveSections`, which materializes `combinedText` for **every section** (`src/editor/section.ts:71–80`) per keystroke; `onSelectionUpdate` does another full resolve. The LLM-side "no full-document scan" invariant holds; this is CPU-side and degrades on long docs. Also: `refreshObservations` full-table scans after every eval; the archive list is unbounded/unvirtualized.
-- [ ] Lower priority than L1–L5 — schedule only if dogfooding shows real lag.
+**The suspects (desk analysis, unchanged):** every `onUpdate` runs `getBlockIds` + `getWordCount` + `emitBlockOrderIfChanged` + `resolveSection` → `resolveSections`, which materializes `combinedText` for **every section** (`src/editor/section.ts:71–80`) per keystroke; `onSelectionUpdate` does another full resolve. The LLM-side "no full-document scan" invariant holds; this is CPU-side O(doc) per keystroke. Also: `refreshObservations` full-table scans after every eval; the archive list is unbounded/unvirtualized.
+
+**Profiling protocol (run this before writing any fix — it is also the scheduling trigger):**
+
+- [ ] **Fixture:** three mock-mode docs via `__sidecar__.loadDoc` — ~1k words (typical), ~8k words (the V1 corpus's large-PRD grade), ~25k words (abuse case). Same session, dev build for the DevTools pass **and** `vite preview` prod build for the verdict numbers (dev-mode React overhead inflates dev numbers ~2×).
+- [ ] **Measure A — keystroke cost:** DevTools performance trace while typing a steady sentence mid-document; read the per-keystroke scripting time and attribute the `onUpdate` slice (`resolveSections` should be visible by name). One-off `performance.now()` wrappers in a scratch branch are fine for confirmation; don't ship instrumentation.
+- [ ] **Measure B — post-eval refresh:** time `refreshObservations` after a settle on each fixture (trace or wrapper), plus the archive render with 200+ archived cards (seedable by looping `loadLedger`/dismiss).
+- [ ] **Verdict thresholds:** per-keystroke scripting **> 8ms sustained at 8k words** (half a 60fps frame budget — typing latency becomes perceptible alongside IME/layout costs) or **any** keystroke jank visible at 1k words ⇒ schedule the fix; under that at 8k and only the 25k abuse case exceeds ⇒ stays parked (note the numbers here and re-check when real docs grow). `refreshObservations` **> 50ms** post-settle ⇒ schedule its half independently (it's off the typing path, so the bar is laxer).
+- [ ] **Candidate fixes, ranked (build only what the numbers indict):** (1) memoize `resolveSections` on a cheap block-structure signature — heading positions + block count — so unchanged structure skips re-materializing `combinedText` (kills both `onUpdate` and `onSelectionUpdate` full scans; biggest win, smallest blast radius); (2) resolve **only the section containing the caret** on `onUpdate`, full resolve only on structure change; (3) scope `refreshObservations` to the settled section's observations via the existing `by_doc` index filter; (4) virtualize/paginate the archive list (pure Feed-UI, independent).
 
 ### L9 — Unexpected full remount/reload wipes diagnostics — ✅ done 2026-07-08 (sessionStorage log mirror + ErrorBoundary; see plan-archive Phase 6)
 

@@ -96,20 +96,27 @@ Small polish pass on the shipped courtesy pass ahead of the first public release
 
 The Welcome modal was reviewed at 375px and needed no change (it caps to `max-width: 88vw` via `.modal-card` and its CTAs already stack). Verified at 320 / 360 / 375px + desktop 1280px unregressed; `npm test` / `lint` / `build` green.
 
-## Phase 9 — Mobile review companion (design sketch, not build-ready)
+## Phase 9 — Mobile review companion (design pass 2026-07-16 — 🟡, taste calls flagged)
 
-**Reframe:** don't build a cramped phone *editor*; build a phone *reviewer*. The persona drafts a PRD on a laptop; the phone is where they skim observations on the train. That fits the product instead of fighting it, and it's a compelling second surface rather than a degraded first one.
+**Reframe (unchanged):** don't build a cramped phone *editor*; build a phone *reviewer*. The persona drafts a PRD on a laptop; the phone is where they skim observations on the train. That fits the product instead of fighting it, and it's a compelling second surface rather than a degraded first one.
 
-Open design questions (this is a sketch to be turned into a build-ready spec when scheduled):
+The 2026-07-16 readiness pass resolves each former open question to a **recommended default + the reason**, so the item is buildable after one owner design-review; the two ⚑-marked calls are product-taste and stay the owner's (the prototype gate — rendered prototypes in chat before the first `src/` visual edit — applies to this whole surface).
 
-- **Feed placement:** bottom sheet (peek → half → full drag states) vs. a tab/segmented switch between "Write" and "Observations." Bottom sheet keeps the "companion" feel closer than a hard tab.
-- **span→card:** tap a highlighted span in the editor → its card rises in the sheet (the touch analogue of reverse-hover).
-- **card→span:** tap a card → editor scrolls to and flashes the span (reuse the C2 click-to-locate contract + `bothSpansFit` peek from UX-009; the far-span peek is *more* important on a small screen).
-- **How much authoring on mobile?** Decide explicitly: full editing, light edits only, or read + dismiss only. Leaning light-edit + review — thumb-typing a spec is not the job.
-- **Menus:** a touch-appropriate formatting affordance (or accept that mobile is review-first and formatting is minimal).
-- **Choreography:** the Phase-6 feed motion (`cardEnter`/`cardExit`, "New" marker) re-expressed for a sheet, honoring `prefers-reduced-motion`.
+### The interaction contract
 
-**Dependencies / composition:** the touch model is the same underlying gap as `accessibility.md`'s keyboard/AT equivalence for the hover hero interaction — both give the span↔card link a non-hover driver. Build them aware of each other. Reuses the UX-009 (`ui_interaction_mechanics.md`) click-to-locate + peek machinery.
+- **Feed placement — ⚑ recommended: bottom sheet, three states** (peek ≈ one card-height strip with count + top-card teaser · half ≈ 50vh scrollable feed · full). A hard "Write / Observations" tab was the rejected alternative: a tab makes the companion a *destination you leave the text for*, which breaks the ambient-companion thesis worse than a sheet ever could; the peek state is the mobile translation of "calm feed in the corner" — present, glanceable, not modal. Drag + tap-to-cycle between states; sheet grip is a ≥44px target.
+- **span→card:** tap a highlighted span → the sheet rises to *half* with that card scrolled-to and focus-styled (the touch analogue of reverse-hover). A second tap on the same span dismisses nothing — it re-raises the same card (idempotent; no tap-toggle ambiguity).
+- **card→span:** tap a card (its body, not its dismiss control) → sheet drops to *peek*, editor scrolls to and flashes the span — the existing C2 click-to-locate contract re-used verbatim; for conflict cards the `bothSpansFit` far-span peek (UX-009) matters *more* on a small screen and rides along.
+- **Dismiss on touch:** the card's dismiss stays an explicit button (≥44px). **No swipe-to-dismiss** — swiping a critique away is a flick-of-the-wrist gesture that cheapens dismissal (dismissal-should-teach, G1/G3); a considered tap is the point.
+- **Authoring depth — ⚑ recommended: full editing capability, review-first framing.** Don't *gate* editing (an artificial read-only mode is a wall to explain and enforce); simply optimize nothing for authoring. The editor stays a live TipTap surface — fixing a typo the feed caught is exactly the loop — but formatting affordances stay minimal (bubble/slash menus already work on touch selection per the M3 audit; the hover-gated table controls stay a accepted gap). The rejected alternatives: read-only (fails the "I want to fix it now" moment), light-edit-only (an enforcement surface with no honest definition of "light").
+- **Choreography:** `cardEnter`/`cardExit` re-expressed inside the sheet (translate-Y within the sheet, not viewport-level), the "New" marker unchanged; sheet state transitions use the existing motion tokens and collapse to opacity-only under `prefers-reduced-motion`.
+- **MobileNote copy** updates in the same change — once the companion exists, "best on a laptop" is only true for *drafting*; the note should say that ("drafting is best on a laptop — reviewing works right here") or retire.
+
+### Build shape (when scheduled)
+
+Feed-UI-lane work, roughly three separable PRs: (1) the sheet container + states replacing the Phase-6 vertical stack below 720px (`SidecarFeed` wrapper + `styles.css`; feed internals untouched); (2) span-tap → card (a touch/click handler on highlighter decorations — today spans have no tap handler at all — routed through the same lookup the C2 contract uses in reverse); (3) card-tap → locate re-wired to the sheet-drop choreography. **Guard:** every step re-verified at 375px per the standing mobile bar, and the desktop hover model must be byte-for-byte unaffected (the sheet exists only inside the ≤720px media context).
+
+**Dependencies / composition (unchanged):** the touch model is the same underlying gap as `accessibility.md`'s keyboard/AT equivalence for the hover hero interaction — span-tap and keyboard-focus should drive the *same* "raise this card" entry point so the two land as one mechanism with two drivers. Reuses the UX-009 (`ui_interaction_mechanics.md`) click-to-locate + peek machinery. The smart-feed noisiness switch (if V2 earns it) must render inside the sheet's settings reachably by touch.
 
 ## Non-goals
 
