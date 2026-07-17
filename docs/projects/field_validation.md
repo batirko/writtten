@@ -70,6 +70,8 @@ The clarity-noisiness half of the original observation (5 low-severity cards on 
 
 ### V2 — External-PM sessions (×5) — 🟢 Med · 🧠 (audit #1, #4, #6) — protocol settled 2026-06-18
 
+> **Deferred to unscheduled 2026-07-17 (owner call).** Moved out of the active Phase-8 list to the `docs/plan.md` → _Discovered / unscheduled_ backlog — build-ready, not blocked, just not next. The framing below stands: this is still the cheapest falsification of the central bet and the highest-value item to pick back up.
+
 **Format (decided 2026-06-18): unmoderated use + structured debrief.** Each PM uses writtten **alone** on their own draft (lowest observer effect on the write-vs-paste behaviour we most want to measure — a moderator watching changes how people draft), with the session instrumented **locally** via the harness event stream; then a short debrief interview. This trades live-reaction richness for honest behaviour + scale; the debrief recovers the reactions.
 
 **Recruitment + setup (build-ready):**
