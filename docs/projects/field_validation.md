@@ -89,18 +89,18 @@ The clarity-noisiness half of the original observation (5 low-severity cards on 
 
 - [ ] **Output:** five session notes + a synthesis that explicitly marks each strategic open question (**free-tier**, **paste-vs-ambient**, **OBS-010/maturity-severity**) as _moved-toward-resolved_ or _still-open_, with the evidence. Land in `docs/snapshots/`. This is the cheapest falsification of the central bet; the polish and positioning items are better-aimed after it.
 
-### V3 — Hero-miss instrumentation — 🟢 Med–High · 🧠 (audit #2) — design settled 2026-06-18
+### V3 — Hero-miss instrumentation — ✅ shipped 2026-07-17 (audit #2) — design settled 2026-06-18
 
 The observation log structurally can't see **misses** (the user never reports the contradiction the tool missed). V3 makes recall visible by reusing the ratchet's Tier-2 scorer against **V1's labeling sheet** (the Bucket-1/Bucket-2 ground truth).
 
-**Recall harness (build-ready):**
+**Recall harness (shipped):**
 
-- [ ] **Recall scorer.** Extend the Tier-2 live scorer (`evalRatchet.live.test.ts` machinery) to run each V1 corpus doc through the strong-tier full-doc contradiction/tension check and **match emissions to V1's labeled pairs** (match on span/claim overlap, not exact offsets — reuse the substring-label approach the fixtures already use). Report **recall = matched labels / total labels**, separately for **Bucket 1 (strict contradiction)** and **Bucket 2 (tension)** — the hero-recall number the product has never had.
-- [ ] **Prefilter A/B — quantify the Jaccard cost.** Run the contradiction check twice per doc: **with** the Jaccard top-10 lexical prefilter and **with it disabled** (all-pairs). Diff the matched labels: the **prefilter-drop count** = true labeled pairs that only the no-prefilter run catches (the "Q2"/"the second quarter" class). This is the concrete trigger to revisit the **LEANN semantic-prefilter `(deferred)`** item (`docs/plan.md` → Discovered).
-- [ ] **Dev/eval-only.** This is measurement infrastructure, not a product feature — gated behind the `EVAL_LIVE` flag like the rest of Tier 2; **no product telemetry or egress** (runs over the local corpus only).
-- [ ] **Output:** a reproducible recall number (per bucket) for contradiction-at-distance + the prefilter-drop count, both regenerable from the eval harness over the V1 corpus.
+- [x] **Recall scorer.** _Already existed_ — `scoreCorpusRecall`/`stratifyRecall` in `src/services/evalScorer.ts` report per-bucket recall against `labels.csv`, consumed by the V1 runner (`evalV1Corpus.live.test.ts`). V3 reuses it unchanged.
+- [x] **Prefilter A/B — quantify the Jaccard cost.** `scorePrefilterDrop` (`evalScorer.ts`) diffs the prefilter arm against an **all-pairs** arm and splits each bucket's miss into `dropCount` (labels only all-pairs catches → the SELECTION cost) and `adjudicationMissCount` (labels neither catches). The bypass seam is an additive `contradictionCandidates: "prefilter" | "all-pairs"` at the contradiction call site (`evaluator.ts` — same line OBS-038 rewrites; default byte-identical). The all-pairs arm reuses the prefilter arm's fast-tier recordings via **fill-gaps record** (`mock.ts`/`factory.ts`, default-off) so it only spends RPD on the differing contradiction calls. Unit tests: `evalScorer.prefilterDrop.test.ts` (drop logic) + `evaluator.prefilterBypass.test.ts` (default-path identity). **Fixed en route:** the evaluator's module-level revert-snapshot store survived `runner.setup()`, so a second arm silently restored the first's snapshot (drop stuck at 0); `setup()` now clears it.
+- [x] **Dev/eval-only.** `EVAL_V1`-gated exactly like the rest of Tier 2 — CI stays offline and quota-free; corpus + labels + recordings stay in the gitignored `.v1-corpus/` (invariant #5); no telemetry, no egress.
+- [x] **Output:** per-bucket recall + prefilter-drop count, regenerable offline from dumped fixtures. **Baseline (2026-07-17, current main, pre-OBS-038):** on a 3-PRD slice (paid `gemini-2.5-pro`), of 6 B1 labels the prefilter arm catches 2 (33%); of the 4 misses **1 is selection** (all-pairs recovers it) and **3 are adjudication** (all-pairs misses too). So the prefilter drop is real (the `40%`/`20%` metric pair) but adjudication, not selection, is the dominant miss cause on this slice — see `docs/snapshots/2026-07-06_v1_base_rate_corpus_study.md` § 4. n=3; firms up with the full-PRD run.
 
-> **Dependency:** V3 consumes V1's labeling sheet, so it runs **after** V1's hand-labeling (not after V1's full report). The scorer code can be built in parallel; it just needs the labels to produce numbers.
+> **Dependency (met):** V3 consumes V1's verified `labels.csv`. The scorer + runner ship; the baseline used the current-main corpus at `#197`.
 
 ## The strategic open questions this work resolves
 

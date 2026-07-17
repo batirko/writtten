@@ -12,15 +12,26 @@
  *   3. Free-vs-paid delta — confident false contradictions the free tier emits
  *      that the paid tier / the labels don't support (R4.4).
  *
+ * V3 — Hero-miss instrumentation (field_validation.md § V3) rides the same runner:
+ * the paid tier's cross-document contradiction check runs TWICE per doc — with the
+ * Jaccard prefilter and with it bypassed (`contradictionCandidates: "all-pairs"`).
+ * Diffing which labeled pairs each arm catches yields the PREFILTER-DROP COUNT
+ * (labels only the no-prefilter arm catches — the candidate-SELECTION cost), split
+ * from the adjudication residual (labels neither arm catches). This is the gate for
+ * OBS-038 and the deferred LEANN/embeddings decision.
+ *
  * This is MEASUREMENT infra, not a ratchet gate: no hard asserts on the numbers.
  * Skipped unless EVAL_V1=1, so CI stays offline and quota-free.
  *
  * Corpus + labels are LOCAL and gitignored (invariant #5). Point at them with:
  *   V1_CORPUS_DIR   dir of *.md PRDs + labels.csv/emissions.csv  (default ./.v1-corpus)
  *   V1_RECORD=1     spend RPD once: real calls + dump replayable fixtures to
- *                   <dir>/recordings/<id>.<tier>.json
+ *                   <dir>/recordings/<id>.<tier>[.allpairs].json  (the all-pairs
+ *                   arm reuses the prefilter arm's fast-tier recordings via
+ *                   fill-gaps record, so only the differing contradiction calls
+ *                   spend RPD).
  *   (default)       offline re-score: replay the dumped fixtures in mock mode,
- *                   zero network — identical numbers.
+ *                   zero network — identical numbers (both arms).
  *   V1_LIMIT=N      only the first N docs (smoke runs).
  *
  * Requires (record mode): VITE_GEMINI_API_KEY (+ VITE_GEMINI_PAID_KEY for the paid tier).
@@ -42,8 +53,10 @@ import {
   stratifyWildPrecision,
   diffTierRuns,
   unlabeledContradictions,
+  scorePrefilterDrop,
   type CorpusRecallResult,
   type WildPrecisionResult,
+  type PrefilterDropResult,
   type PerDocRun,
 } from "./evalScorer";
 import type { EvalFixture } from "./eval-fixtures/types";
@@ -53,6 +66,13 @@ const V1 = !!process.env.EVAL_V1;
 const RECORD = !!process.env.V1_RECORD;
 const CORPUS_DIR = process.env.V1_CORPUS_DIR ?? path.resolve(process.cwd(), ".v1-corpus");
 const LIMIT = process.env.V1_LIMIT ? Number(process.env.V1_LIMIT) : Infinity;
+// V1_DOCS=P01,P04,P07 — record/replay ONLY these corpus ids. Filters the built
+// corpus AFTER id assignment (which spans the whole dir), so ids still match the
+// full-corpus labels.csv — unlike V1_LIMIT, which slices the first N. Lets a
+// bounded record pass target the docs that actually carry the labels of interest.
+const DOCS = process.env.V1_DOCS
+  ? new Set(process.env.V1_DOCS.split(",").map((s) => s.trim()).filter(Boolean))
+  : null;
 
 // Mock the DB (IndexedDB is unavailable in Node) and nanoid — mirrors the
 // Tier-2 live ratchet. Real Gemini calls go through in record mode; mock mode
@@ -102,7 +122,8 @@ function readCorpus(): CorpusEntry[] {
     for (const f of mdIn(CORPUS_DIR)) files.push({ ...f, docType: "spec" });
   }
   const corpus = buildCorpus(files);
-  return Number.isFinite(LIMIT) ? corpus.slice(0, LIMIT) : corpus;
+  const selected = DOCS ? corpus.filter((c) => DOCS.has(c.fixture.id)) : corpus;
+  return Number.isFinite(LIMIT) ? selected.slice(0, LIMIT) : selected;
 }
 
 function readSheet<T>(file: string, parse: (csv: string) => T[]): T[] {
@@ -110,8 +131,19 @@ function readSheet<T>(file: string, parse: (csv: string) => T[]): T[] {
   return fs.existsSync(p) ? parse(fs.readFileSync(p, "utf8")) : [];
 }
 
-function recordingPath(id: string, tier: "free" | "paid"): string {
-  return path.join(CORPUS_DIR, "recordings", `${id}.${tier}.json`);
+type Tier = "free" | "paid";
+type Arm = "prefilter" | "all-pairs";
+
+/** The prefilter arm keeps the historical `<id>.<tier>.json` path (so V1 Run 1's
+ *  dumps replay unchanged); the all-pairs arm gets a `.allpairs` suffix. */
+function recordingPath(id: string, tier: Tier, arm: Arm = "prefilter"): string {
+  const suffix = arm === "all-pairs" ? ".allpairs" : "";
+  return path.join(CORPUS_DIR, "recordings", `${id}.${tier}${suffix}.json`);
+}
+
+function readRecordingFile(id: string, tier: Tier, arm: Arm): Record<string, string> | undefined {
+  const p = recordingPath(id, tier, arm);
+  return fs.existsSync(p) ? (JSON.parse(fs.readFileSync(p, "utf8")) as Record<string, string>) : undefined;
 }
 
 function sectionTextsOf(fixture: EvalFixture): Map<string, string> {
@@ -130,49 +162,77 @@ function emissionRow(docId: string, docType: DocType, o: Observation): string {
 }
 
 // ---------------------------------------------------------------------------
-// Per-tier run: record (real calls + dump) or replay (offline from dump).
+// Per-arm run: record (real calls + dump) or replay (offline from dump).
+//
+// `arm` selects the contradiction candidate strategy. The all-pairs arm's record
+// pass seeds the prefilter arm's recordings (fill-gaps) so only the differing
+// contradiction calls hit the model — the fast-tier calls are byte-identical
+// between arms and are served from cache.
+//
+// Every arm is fully isolated by `runner.setup()` up front. The arms share a
+// docId (`fixture-<id>`) across the free/paid/all-pairs runs, and the evaluator's
+// revert-aware snapshot store is module-level: without a reset, a later arm would
+// "restore" the earlier arm's snapshot for the same (docId, membership, text)
+// and never re-run the model — so the all-pairs arm would silently reproduce the
+// prefilter arm (drop count stuck at 0), and free→paid would cross-contaminate.
+// `setup()` clears the snapshot store (and claims/observations), so each arm is a
+// genuine independent run. Run 1 dodged this only by recording the tiers in
+// separate processes; the in-process A/B must reset explicitly.
 // ---------------------------------------------------------------------------
-async function runTier(
+async function runArm(
   fixture: EvalFixture,
-  tier: "free" | "paid",
+  tier: Tier,
+  arm: Arm,
   freeKey: string,
-  paidKey: string | undefined
+  paidKey: string | undefined,
+  seedRecordings?: Record<string, string>
 ): Promise<Observation[]> {
+  const cc = arm;
+  runner.setup();
   if (RECORD) {
     // Resumable record (V1_RESUME): a corpus larger than a few docs can't finish
     // a real-call record pass inside one test timeout, and re-recording already-
     // dumped docs re-spends scarce free-tier RPD. When V1_RESUME is set, replay a
-    // doc/tier that already has a dump instead of calling the model again, so a
+    // doc/arm that already has a dump instead of calling the model again, so a
     // record run picks up where a timed-out one left off.
-    const existing = recordingPath(fixture.id, tier);
+    const existing = recordingPath(fixture.id, tier, arm);
     if (process.env.V1_RESUME && fs.existsSync(existing)) {
       const recordings = JSON.parse(fs.readFileSync(existing, "utf8")) as Record<string, string>;
-      return runner.run({ ...fixture, recordings });
+      return runner.run({ ...fixture, recordings }, { contradictionCandidates: cc });
     }
     const { observations, recordings } = await runner.runRecord(
       fixture,
       freeKey,
-      tier === "paid" ? paidKey : undefined
+      tier === "paid" ? paidKey : undefined,
+      { contradictionCandidates: cc, seedRecordings }
     );
-    fs.mkdirSync(path.dirname(recordingPath(fixture.id, tier)), { recursive: true });
-    fs.writeFileSync(recordingPath(fixture.id, tier), JSON.stringify(recordings, null, 2));
+    fs.mkdirSync(path.dirname(existing), { recursive: true });
+    fs.writeFileSync(existing, JSON.stringify(recordings, null, 2));
     return observations;
   }
   // Offline replay from the dumped fixture — mock mode, zero network.
-  const p = recordingPath(fixture.id, tier);
-  if (!fs.existsSync(p)) {
-    console.warn(`[V1] no ${tier} recording for ${fixture.id} — run with V1_RECORD=1 first`);
+  const recordings = readRecordingFile(fixture.id, tier, arm);
+  if (!recordings) {
+    console.warn(
+      `[V1] no ${tier}/${arm} recording for ${fixture.id} — run with V1_RECORD=1 first`
+    );
     return [];
   }
-  const recordings = JSON.parse(fs.readFileSync(p, "utf8")) as Record<string, string>;
-  return runner.run({ ...fixture, recordings });
+  return runner.run({ ...fixture, recordings }, { contradictionCandidates: cc });
 }
 
 // ---------------------------------------------------------------------------
 describe.skipIf(!V1)("V1 base-rate corpus study", () => {
   const corpus = readCorpus();
-  const labels = readSheet("labels.csv", parseLabels);
-  const emissions = readSheet("emissions.csv", parseEmissions);
+  // Scope labels/emissions to the docs actually in this run. A no-op for a full
+  // run (every label's doc is present); for a V1_DOCS/V1_LIMIT subset it stops an
+  // unmeasured doc's labels from counting as misses and tanking the ALL-slice
+  // recall (the per-type slices already scope by docId, so they'd disagree).
+  const corpusIds = new Set(corpus.map((c) => c.fixture.id));
+  const labels = readSheet("labels.csv", parseLabels).filter((l) => corpusIds.has(l.docId));
+  const emissions = readSheet("emissions.csv", parseEmissions).filter((e) =>
+    corpusIds.has(e.docId)
+  );
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -193,6 +253,10 @@ describe.skipIf(!V1)("V1 base-rate corpus study", () => {
 
     const perDocFree: PerDocRun[] = [];
     const perDocPaid: PerDocRun[] = [];
+    // V3 — all-pairs (prefilter-bypassed) paid arm; only docs actually measured.
+    const perDocPaidAllPairs: PerDocRun[] = [];
+    const abMeasuredDocIds = new Set<string>();
+    const runAB = !process.env.V1_SKIP_AB; // V1_SKIP_AB=1 → base-rate only, no A/B
     const emissionDraft: string[] = [
       "doc_id,doc_type,obs_type,anchored_span,message,verdict,verified",
     ];
@@ -201,8 +265,8 @@ describe.skipIf(!V1)("V1 base-rate corpus study", () => {
 
     for (const { fixture, docType } of corpus) {
       const sectionTexts = sectionTextsOf(fixture);
-      const free = await runTier(fixture, "free", freeKey ?? "", paidKey);
-      const paid = await runTier(fixture, "paid", freeKey ?? "", paidKey);
+      const free = await runArm(fixture, "free", "prefilter", freeKey ?? "", paidKey);
+      const paid = await runArm(fixture, "paid", "prefilter", freeKey ?? "", paidKey);
 
       const freeRun: PerDocRun = { docId: fixture.id, produced: free, sectionTexts, docType };
       const paidRun: PerDocRun = { docId: fixture.id, produced: paid, sectionTexts, docType };
@@ -223,6 +287,30 @@ describe.skipIf(!V1)("V1 base-rate corpus study", () => {
         "paid-only contra": diff.paidOnlyContradictions.length,
         "free false-contra*": unlabeledContradictions(freeRun, verifiedLabels).length,
       });
+
+      // V3 — prefilter A/B: re-run the PAID contradiction check with the Jaccard
+      // prefilter bypassed. In record mode this is measured for every doc (the
+      // all-pairs arm reuses the paid prefilter arm's fast-tier recordings via
+      // fill-gaps, so only the differing contradiction calls spend RPD); in replay
+      // it is measured only for docs whose all-pairs arm was previously recorded.
+      if (runAB && (RECORD || fs.existsSync(recordingPath(fixture.id, "paid", "all-pairs")))) {
+        const seed = RECORD ? readRecordingFile(fixture.id, "paid", "prefilter") : undefined;
+        const paidAllPairs = await runArm(
+          fixture,
+          "paid",
+          "all-pairs",
+          freeKey ?? "",
+          paidKey,
+          seed
+        );
+        perDocPaidAllPairs.push({
+          docId: fixture.id,
+          produced: paidAllPairs,
+          sectionTexts,
+          docType,
+        });
+        abMeasuredDocIds.add(fixture.id);
+      }
     }
 
     // Persist the emissions draft for hand-adjudication (never overwrites the
@@ -261,6 +349,34 @@ describe.skipIf(!V1)("V1 base-rate corpus study", () => {
         (verifiedLabels.length === 0 ? "  (⚠ no verified labels yet — not trustworthy)" : "")
     );
 
+    // V3 — prefilter A/B: the candidate-SELECTION drop, split from adjudication.
+    if (perDocPaidAllPairs.length > 0) {
+      const paidForDrop = perDocPaid.filter((d) => abMeasuredDocIds.has(d.docId));
+      const drop = scorePrefilterDrop(paidForDrop, perDocPaidAllPairs, labels, {
+        verifiedOnly: true,
+      });
+      console.log(
+        `\n--- V3 prefilter A/B — candidate-selection drop (paid tier, verified labels, ${perDocPaidAllPairs.length}/${corpus.length} docs measured) ---`
+      );
+      console.table(dropRows(drop));
+      const dropped = [
+        ...drop.strictContradiction.droppedLabels,
+        ...drop.tension.droppedLabels,
+      ];
+      if (dropped.length > 0) {
+        console.log(
+          "Pairs the prefilter dropped but all-pairs caught (selection cost — the LEANN/embeddings gate):"
+        );
+        for (const l of dropped) {
+          console.log(`  · [${l.docId} B${l.bucket}] "${l.spanA}" ⇄ "${l.spanB}"`);
+        }
+      }
+    } else if (runAB) {
+      console.log(
+        "\n--- V3 prefilter A/B ---\n(no all-pairs recordings yet — run `V1_RECORD=1 npm run eval:v1` with a paid key to capture the bypass arm)"
+      );
+    }
+
     if (emissions.length > 0) {
       const wild = stratifyWildPrecision(emissions, { verifiedOnly: true });
       console.log("\n--- Per-type wild precision (adjudicated emissions) — ALL doc types ---");
@@ -298,6 +414,24 @@ function recallRows(slice: string, r: CorpusRecallResult) {
   return [
     row("B1 strict contradiction (hero)", r.strictContradiction),
     row("B2 tension", r.tension),
+  ];
+}
+
+/** V3 prefilter A/B rows: how the two arms caught each bucket, and the split of
+ *  the miss into SELECTION (drop) vs ADJUDICATION residual. */
+function dropRows(d: PrefilterDropResult) {
+  const row = (name: string, b: PrefilterDropResult["strictContradiction"]) => ({
+    bucket: name,
+    docs: d.docCount,
+    labels: b.totalLabels,
+    "prefilter caught": b.prefilterMatched,
+    "all-pairs caught": b.allPairsMatched,
+    "PREFILTER DROP": b.dropCount,
+    "adjudication miss": b.adjudicationMissCount,
+  });
+  return [
+    row("B1 strict contradiction (hero)", d.strictContradiction),
+    row("B2 tension", d.tension),
   ];
 }
 

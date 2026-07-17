@@ -1,6 +1,6 @@
 # V1 — Base-rate corpus study
 
-**Date:** 2026-07-06 (machinery) · updated **2026-07-16** (Run 1) · **Status:** ✅ first keyed run done — cost-bounded 9-doc subset; full-corpus run still pending
+**Date:** 2026-07-06 (machinery) · updated **2026-07-16** (Run 1) · **2026-07-17** (V3 prefilter A/B baseline, §4) · **Status:** ✅ first keyed run done — cost-bounded 9-doc subset; V3 hero-miss instrumentation landed with a 3-PRD baseline; full-corpus run still pending
 **Track:** `docs/projects/field_validation.md` § V1 · **Lane:** Validation
 
 > This is the durable home for the three V1 numbers. The **runner + scorers +
@@ -137,6 +137,22 @@ _(Other types not formally adjudicated this run — but see the jargon volume no
   eyeballed as largely audience-inappropriate (domain vocabulary the doc's own intended reader
   would share). This, not the hero, is the most conspicuous real-PRD-experience finding.
 
+### 4. V3 — hero-miss instrumentation: the prefilter A/B (2026-07-17)
+
+> **V3 baseline — 3-PRD slice (`P01`, `P04`, `P07`), paid tier `gemini-2.5-pro` + `contradiction-hedged`** (same capability Run 1's paid arm reached). A **fresh** measurement on current main (`#197`, pre-OBS-038), not a re-key of Run 1's numbers — the corpus was re-keyed +6 since, so these are the current ids. V3 runs each doc's cross-document contradiction check **twice** — with the Jaccard top-10 prefilter and with it bypassed (`contradictionCandidates: "all-pairs"`) — and diffs which labeled pairs each arm catches. Regenerable offline (identical numbers, zero network): `EVAL_V1=1 V1_DOCS=P01,P04,P07 V1_CORPUS_DIR=<.v1-corpus> npm run eval:v1`. Artifacts: `.v1-corpus/runs/2026-07-17-v3-prefilter-ab/`.
+
+| Bucket | Labels | Prefilter caught | All-pairs caught | **Prefilter DROP** | Adjudication miss |
+| --- | --- | --- | --- | --- | --- |
+| B1 strict contradiction (hero) | 6 | 2 (33%) | 3 (50%) | **1** | 3 |
+| B2 tension | 3 | 0 | 0 | 0 | 3 |
+
+**The miss is now split into its two causes.** Of the **6** labeled B1 contradiction pairs on this slice, the production (prefilter) arm catches **2** (33% recall). Of the **4** it misses:
+
+- **1 is candidate SELECTION** — disabling the prefilter recovers it (all-pairs catches 3/6). This is the exact "Q2 vs the second quarter" class the audit flagged: the dropped pair is `P04`'s _"Achieve 40% of users creating at least one alert within first week"_ ⇄ _"Alert creation rate (target: 20% of active users)"_ — a goal vs its own success-metric target, lexically distant (40%/20%, "creating an alert"/"alert creation rate") so the Jaccard top-K crowds one out before the adjudicator sees the pair. **This is the OBS-038 / LEANN-embeddings gate number.**
+- **3 are ADJUDICATION** — even handed every candidate in context (all-pairs), `gemini-2.5-pro` does not flag them. Retrieval can't fix these; the adjudicator itself misses them.
+
+**Implication for the LEANN/embeddings decision:** on this slice a perfect prefilter recovers **1 of 4** misses (25%); the majority (3/4) is adjudication, not selection. So the prefilter drop is **real and worth fixing** (OBS-038's per-claim retrieval is the cheap, keep-lexical first move), but embeddings would **not** be the dominant lever for hero recall here — adjudication quality is. n=3 PRDs / 6 B1 labels: directional, firms up with the full-PRD run.
+
 ## Implications
 
 - **The contradiction hero, as built, does not survive real PRDs** — 0% recall *and* 0%
@@ -164,7 +180,7 @@ _(Other types not formally adjudicated this run — but see the jargon volume no
 
 ## Hand-off
 
-- The verified `labels.csv` is the ground truth **V3** (recall harness) reuses.
+- The verified `labels.csv` is the ground truth **V3** (recall harness) reuses — **landed 2026-07-17** (§4): the prefilter A/B splits hero-miss into selection vs adjudication.
 - The wild-precision numbers recalibrate the ratchet's per-type floors.
 
 ## Follow-up 2026-07-17 — jargon-calibration tie-back (OBS-003/OBS-005)

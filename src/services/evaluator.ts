@@ -200,7 +200,17 @@ export async function evaluateSection(
    *  set (the fast call is asked for a `suggested_stage` key — see the prompt
    *  build below). Threaded from `EvalContext.onStageSuggestion` by the
    *  orchestrator; surfaces as the confirm chip in `DocumentContext`. */
-  onStageSuggestion?: (suggestion: string) => void
+  onStageSuggestion?: (suggestion: string) => void,
+  /** Candidate-selection strategy for the cross-document contradiction check.
+   *  `"prefilter"` (default) keeps today's Jaccard top-10 lexical prefilter;
+   *  `"all-pairs"` bypasses it and hands the adjudicator every candidate claim.
+   *  A DEV/eval-only bypass seam — field_validation V3's prefilter A/B toggles
+   *  this to isolate how much hero-recall loss is candidate SELECTION (the
+   *  prefilter dropping a true pair before the adjudicator ever sees it — the
+   *  "Q2"/"the second quarter" class) vs adjudication. The default path is
+   *  byte-identical to prior behaviour, so no recorded fixture hash shifts.
+   *  See docs/projects/field_validation.md § V3. */
+  contradictionCandidates: "prefilter" | "all-pairs" = "prefilter"
 ): Promise<void> {
   // Mock mode replays canned responses, so it needs no key. Every other mode
   // hits the network and does.
@@ -607,8 +617,13 @@ export async function evaluateSection(
 
       // Prefilter to top-10 most semantically relevant claims so the contradiction
       // prompt stays bounded as documents grow. With ≤10 claims this is a no-op.
+      // The `"all-pairs"` bypass (V3 measurement only) hands over every candidate
+      // unfiltered so the prefilter's selection cost becomes measurable.
       const newClaimsText = extractedClaims.map((c) => c.text).join(" ");
-      const candidateClaims = prefilterClaims(newClaimsText, otherClaims, 10);
+      const candidateClaims =
+        contradictionCandidates === "all-pairs"
+          ? otherClaims
+          : prefilterClaims(newClaimsText, otherClaims, 10);
 
       // Sort existing claims to a stable order (text then blockId) so the
       // contradiction prompt is deterministic across runs — IDB auto-increment
