@@ -359,6 +359,123 @@ export function stratifyRecall(
   return { all: scoreCorpusRecall(perDoc, labels, opts), byType };
 }
 
+// ===========================================================================
+// V3 — Prefilter A/B: isolate SELECTION cost from adjudication
+// (docs/projects/field_validation.md § V3). Run the cross-document contradiction
+// check twice per doc — with the Jaccard prefilter and with it bypassed
+// (all-pairs) — and diff which labeled pairs each arm caught. The gap is the
+// **prefilter-drop count**: true pairs only the no-prefilter run catches (the
+// "Q2"/"the second quarter" class), i.e. hero misses attributable to candidate
+// SELECTION rather than adjudication. Concrete gate for OBS-038 and the deferred
+// LEANN/embeddings decision. Pure/offline: two dumped arms reproduce the number.
+// ===========================================================================
+
+/**
+ * Labels in `bucket` that at least one produced observation in `byDoc` catches,
+ * using the same greedy one-observation-per-label rule as `scoreBucket`. Returns
+ * the matched `LabelRow` objects **by reference** so two arms scored against the
+ * same label array can be diffed by identity.
+ */
+function matchedLabels(
+  bucket: LabelBucket,
+  labels: LabelRow[],
+  byDoc: Map<string, PerDocRun>
+): LabelRow[] {
+  const bucketLabels = labels.filter((l) => l.bucket === bucket);
+  const usedByDoc = new Map<string, Set<Observation>>();
+  const matched: LabelRow[] = [];
+  for (const label of bucketLabels) {
+    const run = byDoc.get(label.docId);
+    if (!run) continue;
+    const used = usedByDoc.get(label.docId) ?? new Set<Observation>();
+    const hit = run.produced.find(
+      (o) => !used.has(o) && observationMatchesLabel(o, label, run.sectionTexts)
+    );
+    if (hit) {
+      used.add(hit);
+      usedByDoc.set(label.docId, used);
+      matched.push(label);
+    }
+  }
+  return matched;
+}
+
+export interface PrefilterDropBucket {
+  bucket: LabelBucket;
+  /** Ground-truth labels in this bucket. */
+  totalLabels: number;
+  /** Labels the prefilter (production) arm caught. */
+  prefilterMatched: number;
+  /** Labels the all-pairs (bypass) arm caught. */
+  allPairsMatched: number;
+  /** Labels ONLY the all-pairs arm caught — recoverable purely by dropping the
+   *  prefilter. The prefilter-drop count: hero misses attributable to SELECTION. */
+  dropCount: number;
+  /** The specific dropped labels (for the snapshot write-up). */
+  droppedLabels: LabelRow[];
+  /** Labels NEITHER arm caught — even with every candidate in context the
+   *  adjudicator missed them: the adjudication-attributable residual. */
+  adjudicationMissCount: number;
+}
+
+export interface PrefilterDropResult {
+  docCount: number;
+  /** Bucket 1 — strict contradiction; the load-bearing hero measure. */
+  strictContradiction: PrefilterDropBucket;
+  /** Bucket 2 — softer tension / inconsistency; reported SEPARATELY. */
+  tension: PrefilterDropBucket;
+}
+
+/**
+ * Diff the prefilter arm against the all-pairs arm over the same corpus + labels.
+ * Both `PerDocRun[]` come from the SAME docs run twice through the contradiction
+ * check (prefilter on / off), matched by `docId`. Returns, per bucket:
+ *
+ *   dropCount            — labels only the all-pairs arm catches → the SELECTION
+ *                          cost (the prefilter crowded the true pair out before
+ *                          the adjudicator saw it).
+ *   adjudicationMissCount — labels neither arm catches → the ADJUDICATION residual
+ *                          (present in full context, still missed).
+ *
+ * dropCount + adjudicationMissCount + prefilterMatched === totalLabels, so the
+ * split between "the prefilter's fault" and "the model's fault" is exhaustive.
+ * Pure/offline: two dumped arms reproduce identical numbers with zero network.
+ */
+export function scorePrefilterDrop(
+  prefilter: PerDocRun[],
+  allPairs: PerDocRun[],
+  labels: LabelRow[],
+  opts: { verifiedOnly?: boolean } = {}
+): PrefilterDropResult {
+  const used = opts.verifiedOnly ? labels.filter((l) => l.verified) : labels;
+  const pfBy = new Map(prefilter.map((d) => [d.docId, d]));
+  const apBy = new Map(allPairs.map((d) => [d.docId, d]));
+
+  const scoreBucketDrop = (bucket: LabelBucket): PrefilterDropBucket => {
+    const bucketLabels = used.filter((l) => l.bucket === bucket);
+    const pfMatched = new Set(matchedLabels(bucket, used, pfBy));
+    const apMatched = matchedLabels(bucket, used, apBy);
+    const apSet = new Set(apMatched);
+    const dropped = apMatched.filter((l) => !pfMatched.has(l));
+    const adjudicationMisses = bucketLabels.filter((l) => !pfMatched.has(l) && !apSet.has(l));
+    return {
+      bucket,
+      totalLabels: bucketLabels.length,
+      prefilterMatched: pfMatched.size,
+      allPairsMatched: apMatched.length,
+      dropCount: dropped.length,
+      droppedLabels: dropped,
+      adjudicationMissCount: adjudicationMisses.length,
+    };
+  };
+
+  return {
+    docCount: prefilter.length,
+    strictContradiction: scoreBucketDrop(1),
+    tension: scoreBucketDrop(2),
+  };
+}
+
 export interface TypePrecision {
   type: Observation["type"];
   tp: number;

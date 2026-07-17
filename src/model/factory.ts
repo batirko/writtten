@@ -13,6 +13,7 @@ import { createRouterForAdapter } from "./rotation";
 import { resolveProvider, withSelection } from "./registry";
 import {
   getLlmMode,
+  getRecordFillGaps,
   reqHash,
   recordResponse,
   replayResponse,
@@ -54,6 +55,13 @@ function wrap(call: (req: LLMRequest) => Promise<LLMResponse>) {
     }
 
     // record
+    // Fill-gaps record (opt-in): reuse an already-recorded response for this hash
+    // instead of re-spending a network call. Off by default — normal record still
+    // calls and captures every request.
+    if (getRecordFillGaps()) {
+      const cached = replayResponse(hash);
+      if (cached !== undefined) return { text: cached };
+    }
     const res = await call(req);
     recordResponse(hash, res.text);
     return res;

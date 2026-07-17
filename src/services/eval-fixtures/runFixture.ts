@@ -22,7 +22,14 @@
 import { vi } from "vitest";
 import { evaluateSection, evaluateLedgerContradictions } from "../evaluator";
 import * as db from "../../store/db";
-import { loadRecordings, setLlmMode, clearRecordings, dumpRecordings } from "../../model/mock";
+import { clearAllSnapshots } from "../evalSnapshot";
+import {
+  loadRecordings,
+  setLlmMode,
+  clearRecordings,
+  dumpRecordings,
+  setRecordFillGaps,
+} from "../../model/mock";
 import type { ClaimLedgerEntry, Observation } from "../../store/db";
 import type { EvalFixture } from "./types";
 
@@ -38,6 +45,17 @@ import type { EvalFixture } from "./types";
 // In-memory state
 // ---------------------------------------------------------------------------
 
+/**
+ * Per-run knobs shared by `run` / `runLive` / `runRecord`. Additive: every field
+ * is optional and defaults to today's behaviour, so existing callers are
+ * unaffected. `contradictionCandidates` toggles the evaluator's cross-document
+ * candidate-selection bypass (field_validation V3's prefilter A/B) — `"prefilter"`
+ * (default) keeps the Jaccard top-10, `"all-pairs"` hands over every candidate.
+ */
+export interface RunOpts {
+  contradictionCandidates?: "prefilter" | "all-pairs";
+}
+
 export interface FixtureRunner {
   /** Call in beforeEach to reset state and install recordings. */
   setup(fixture?: EvalFixture): void;
@@ -48,7 +66,7 @@ export interface FixtureRunner {
    * Uses pre-recorded responses — no network calls.
    * Returns the active observations produced (auto_closed/superseded excluded).
    */
-  run(fixture: EvalFixture): Promise<Observation[]>;
+  run(fixture: EvalFixture, opts?: RunOpts): Promise<Observation[]>;
   /**
    * Run a `sweep` fixture (Tier 1): seed `seedClaims` straight into the ledger,
    * then run the ledger-internal contradiction sweep in mock mode. Exercises the
@@ -61,18 +79,30 @@ export interface FixtureRunner {
    * Makes real API calls using the provided key.
    * Returns the active observations produced.
    */
-  runLive(fixture: EvalFixture, apiKey: string, paidKey?: string): Promise<Observation[]>;
+  runLive(
+    fixture: EvalFixture,
+    apiKey: string,
+    paidKey?: string,
+    opts?: RunOpts
+  ): Promise<Observation[]>;
   /**
    * Like `runLive`, but in RECORD mode: makes real API calls AND captures every
    * response into a recordings map, so a real run can be frozen into a fixture
    * and re-scored offline in `mock` mode later (the record/replay batching the
    * V1 corpus study relies on to spend RPD once). Returns both the produced
    * observations and the recordings to persist locally.
+   *
+   * `opts.seedRecordings` pre-loads a recordings map before the run so cached
+   * request hashes are served without a network call (record fills gaps only) —
+   * V3's all-pairs arm reuses the prefilter arm's fast-tier recordings and pays
+   * RPD only for the differing contradiction calls. Requires the mock layer's
+   * fill-gaps record mode (`setRecordFillGaps`).
    */
   runRecord(
     fixture: EvalFixture,
     apiKey: string,
-    paidKey?: string
+    paidKey?: string,
+    opts?: RunOpts & { seedRecordings?: Record<string, string> }
   ): Promise<{ observations: Observation[]; recordings: Record<string, string> }>;
 }
 
@@ -95,6 +125,12 @@ export function createFixtureRunner(): FixtureRunner {
     claimIdCounter = 1;
     savedObservations.length = 0;
     supersededIds.clear();
+    // The revert-aware snapshot store is module-level (it must survive across
+    // evaluateSection calls within a real session), so it does NOT reset with the
+    // runner's closure state. Clear it here or a later run that reuses a docId +
+    // (membership, text) would "restore" the earlier run's snapshot (whose
+    // observation ids no longer exist) and emit nothing. See evalSnapshot.ts.
+    clearAllSnapshots();
 
     clearRecordings();
     if (fixture) loadRecordings(fixture.recordings);
@@ -170,7 +206,7 @@ export function createFixtureRunner(): FixtureRunner {
     clearRecordings();
   }
 
-  async function run(fixture: EvalFixture): Promise<Observation[]> {
+  async function run(fixture: EvalFixture, opts: RunOpts = {}): Promise<Observation[]> {
     // Reset per-run (setup may have been called without a fixture).
     if (fixture.recordings && Object.keys(fixture.recordings).length > 0) {
       loadRecordings(fixture.recordings);
@@ -187,7 +223,13 @@ export function createFixtureRunner(): FixtureRunner {
         fixture.stage,
         "mock-key", // not used in mock mode
         undefined, // no paid key
-        fixture.jargonAllowlist
+        fixture.jargonAllowlist,
+        false, // skipContradiction
+        undefined, // evalId
+        undefined, // capability → WEAK_CAPABILITY default
+        undefined, // isLive → always-live default
+        undefined, // onStageSuggestion
+        opts.contradictionCandidates ?? "prefilter"
       );
     }
 
@@ -224,7 +266,8 @@ export function createFixtureRunner(): FixtureRunner {
   async function runLive(
     fixture: EvalFixture,
     apiKey: string,
-    paidKey?: string
+    paidKey?: string,
+    opts: RunOpts = {}
   ): Promise<Observation[]> {
     // Reset per-run
     claimsStore.length = 0;
@@ -246,7 +289,13 @@ export function createFixtureRunner(): FixtureRunner {
         fixture.stage,
         apiKey,
         paidKey,
-        fixture.jargonAllowlist
+        fixture.jargonAllowlist,
+        false, // skipContradiction
+        undefined, // evalId
+        undefined, // capability → WEAK_CAPABILITY default
+        undefined, // isLive → always-live default
+        undefined, // onStageSuggestion
+        opts.contradictionCandidates ?? "prefilter"
       );
     }
 
@@ -256,7 +305,8 @@ export function createFixtureRunner(): FixtureRunner {
   async function runRecord(
     fixture: EvalFixture,
     apiKey: string,
-    paidKey?: string
+    paidKey?: string,
+    opts: RunOpts & { seedRecordings?: Record<string, string> } = {}
   ): Promise<{ observations: Observation[]; recordings: Record<string, string> }> {
     // Reset per-run
     claimsStore.length = 0;
@@ -265,21 +315,40 @@ export function createFixtureRunner(): FixtureRunner {
     supersededIds.clear();
 
     clearRecordings();
+    // Fill-gaps record: pre-load prior recordings so cached request hashes are
+    // served without a network call — only genuinely-new requests hit the model.
+    // V3's all-pairs arm seeds the prefilter arm's fast-tier recordings here and
+    // pays RPD only for the differing contradiction calls. `setRecordFillGaps`
+    // enables cache-first in the router's record branch; it is reset in finally.
+    if (opts.seedRecordings) {
+      loadRecordings(opts.seedRecordings);
+      setRecordFillGaps(true);
+    }
     setLlmMode("record"); // real calls AND capture
 
     const docId = `record-${fixture.id}`;
 
-    for (const section of fixture.sections) {
-      await evaluateSection(
-        docId,
-        section.id,
-        section.text,
-        [{ blockId: section.id, text: section.text }],
-        fixture.stage,
-        apiKey,
-        paidKey,
-        fixture.jargonAllowlist
-      );
+    try {
+      for (const section of fixture.sections) {
+        await evaluateSection(
+          docId,
+          section.id,
+          section.text,
+          [{ blockId: section.id, text: section.text }],
+          fixture.stage,
+          apiKey,
+          paidKey,
+          fixture.jargonAllowlist,
+          false, // skipContradiction
+          undefined, // evalId
+          undefined, // capability → WEAK_CAPABILITY default
+          undefined, // isLive → always-live default
+          undefined, // onStageSuggestion
+          opts.contradictionCandidates ?? "prefilter"
+        );
+      }
+    } finally {
+      setRecordFillGaps(false);
     }
 
     const recordings = dumpRecordings();
