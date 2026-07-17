@@ -166,3 +166,19 @@ _(Other types not formally adjudicated this run — but see the jargon volume no
 
 - The verified `labels.csv` is the ground truth **V3** (recall harness) reuses.
 - The wild-precision numbers recalibrate the ratchet's per-type floors.
+
+## Follow-up 2026-07-17 — jargon-calibration tie-back (OBS-003/OBS-005)
+
+The audience-relative jargon fix (once-per-term dedup + per-section cap + audience-relative prompt; `docs/projects/document_type_calibration.md` § Audience-relative jargon calibration) shipped and was tie-back-measured against this study's real-PRD slice. Method: 4 real PRDs run live at paid tier through the fast-call jargon check only, before (`main`) vs after (the fix branch), counting `undefined_jargon` cards and **distinct** terms/doc.
+
+| doc | sections | before cards / distinct | after cards / distinct |
+| --- | --- | --- | --- |
+| vi-01 | 9 | 16 / 9 | 15 / **7** |
+| vi-03 | 15 | 11 / 10 | 11 / **10** |
+| prd-trading-alerts | 67 | 18 / 17 | 14 / **14** (11 with a stated eng-audience) |
+| study-n8n | 33 | 25 / 21 | 20 / **20** |
+
+- **What the fix delivers:** the deterministic layers guarantee **one card per distinct term** (the duplicate wall §3 described is gone) and cut card volume ~20–40%.
+- **What it does not:** the **< 5 distinct-term/doc target was not reached** (7–20 after). The fast-tier model (`gemini-3.1-flash-lite`) still flags audience-known domain terms/acronyms (`rsi`, `macd`, `oauth`, `websocket`, `gdpr`, `n8n`, `rag`, `nlp`, `llm`) the audience-relative prompt can't suppress at that capability; a stated audience helps only marginally (14→11 on prd-trading-alerts).
+- **Decision (owner, 2026-07-17):** ship the deterministic layers + improved prompt as-is; re-scope the bar to "once-per-term, per-section-bounded, materially fewer cards." The `< 5` is a strong-tier property; the residual folds into the Phase-8 free-tier-expectations milestone (same fast-tier root cause). A doc-wide ranked cap and a bigger allow-list were declined — dropping a genuinely-unknown term to hit a count silences a live "should you explain this?" provocation.
+- **Also note:** the two earlier §3 before-numbers ("21–53×/doc") counted a larger/older run; this apples-to-apples same-doc before-run measured 9–21 distinct/doc, so the wall is real but this slice's magnitude is lower than the headline range.

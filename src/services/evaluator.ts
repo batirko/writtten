@@ -87,6 +87,14 @@ export { reconcileDocumentObservations } from "./evaluatorReconcile";
 // to this budget so token growth stays bounded on large documents.
 const CONTEXT_CLAIM_BUDGET_CHARS = 1200;
 
+// Audience-relative jargon calibration (OBS-003/OBS-005). The prompt now judges
+// terms against the doc's inferred audience and flags each once, but that is a
+// soft instruction — this caps the emitted volume per settle after doc-wide
+// dedup. Above this, a technical section becomes the "wall of flags" V1 Run 1
+// measured (21–53/doc); dropping the tail is the point. See
+// docs/projects/document_type_calibration.md § Audience-relative jargon calibration.
+const JARGON_SECTION_CAP = 3;
+
 interface SpanObservation {
   text: string;
   substring: string;
@@ -508,7 +516,49 @@ export async function evaluateSection(
 
     addSpanObs("clarity", clarityObservations);
     addSpanObs("unsupported_claim", unsupportedObservations);
-    addSpanObs("undefined_jargon", jargonObservations);
+
+    // Audience-relative jargon calibration (OBS-003/OBS-005): the prompt judges
+    // each term against the doc's inferred audience and asks for one flag per
+    // distinct term, but the guarantee is code. (1) Doc-wide once-per-term
+    // dedup: drop a term already flagged by an ACTIVE jargon card ELSEWHERE in
+    // the doc (first card wins) — `allActiveObs` is already loaded above, no new
+    // read. The "elsewhere" filter is deliberate: this section's own re-emitted
+    // terms must still flow to reconcileObservations so their existing cards keep
+    // their grace/re-emit lifecycle. (2) In-batch dedup: one flag per distinct
+    // term within this response. (3) Per-section cap in document order.
+    const activeJargonTerms = new Set(
+      allActiveObs
+        .filter(
+          (o) =>
+            o.type === "undefined_jargon" &&
+            o.scope === "span" &&
+            o.anchorText != null &&
+            o.blockId != null &&
+            !memberBlockIds.includes(o.blockId)
+        )
+        .map((o) => normalizeText(o.anchorText as string))
+    );
+    const seenJargonTerms = new Set<string>();
+    const rankedJargon = jargonObservations
+      .filter((obs) => {
+        if (!obs.substring) return false;
+        const key = normalizeText(obs.substring);
+        if (activeJargonTerms.has(key) || seenJargonTerms.has(key)) return false;
+        seenJargonTerms.add(key);
+        return true;
+      })
+      // Anchor now so the cap can order by document position deterministically
+      // (mock replay depends on it); addSpanObs re-anchors the survivors.
+      .map((obs) => ({ obs, anchor: anchorSubstring(members, obs.substring) }))
+      .filter((x) => x.anchor != null)
+      .sort((a, b) => {
+        const ai = memberBlockIds.indexOf(a.anchor!.blockId);
+        const bi = memberBlockIds.indexOf(b.anchor!.blockId);
+        return ai - bi || a.anchor!.startOffset - b.anchor!.startOffset;
+      })
+      .slice(0, JARGON_SECTION_CAP)
+      .map((x) => x.obs);
+    addSpanObs("undefined_jargon", rankedJargon);
 
     // 6. Contradiction check (cross-document, uses claim ledger).
     //    Skipped on bulk paste / import: a single ledger-internal sweep covers
