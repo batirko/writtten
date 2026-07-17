@@ -1,0 +1,183 @@
+// ---------------------------------------------------------------------------
+// Doc-pass materiality floor (Tier 1) — a pure, semantic dirty-check that sits
+// *behind* evaluateDocument's byte-exact `docStateHash` check. The hash says
+// "some text changed"; this asks "could it change a doc-level conclusion?"
+// before spending a strong-tier call — protecting the binding ~20-RPD free-tier
+// budget from reword-only churn.
+//
+// Pure by construction: no DB, no LLM, no imports beyond a type and a pure
+// string normalizer. The persistence + flush-streak wiring lives in
+// `evaluateDocument` (evaluator.ts); this module only *classifies* a delta.
+//
+// See docs/projects/trigger_rederivation.md § "Tier 1 — build spec".
+// ---------------------------------------------------------------------------
+
+import type { MaturityLevel } from "./documentMaturity";
+import { normalizeText } from "./evaluatorAnchoring";
+
+/** Provisional constants — recalibrated against V1 evidence (separate Todo),
+ *  the same way the maturity thresholds shipped provisional. */
+export const SUMMARY_DELTA_FLOOR = 2;
+export const SUBFLOOR_FLUSH_STREAK = 4;
+
+/**
+ * A snapshot of the inputs the last *executed* doc pass reviewed. Written only
+ * when a pass actually runs, so every idle diffs against the last executed pass
+ * — that is what makes sub-floor deltas *accumulate* (small edits across
+ * sections add up) rather than vanish.
+ */
+export interface DocPassSnapshot {
+  /** Stage/context string; "" when unset. */
+  stage: string;
+  /** Draft maturity level; "" on the legacy path where maturity isn't threaded. */
+  maturity: MaturityLevel | "";
+  /** Number of sections (meaningful summaries) at the last pass. */
+  sectionCount: number;
+  /** Ordered section heading texts — order matters for structure_flow. */
+  headings: string[];
+  /** blockId → normalized summary CONTENT (not the raw-text hash — comparing
+   *  what the section *says* is what absorbs reword-only churn). */
+  summaries: Record<string, string>;
+  /** Sorted `${sourceBlockId}:${normalizedText}` for every active claim. */
+  claimSigs: string[];
+  /** Consecutive hash-dirty-but-sub-floor idles since the last executed pass.
+   *  Bumped by the wiring on suppress; reset to 0 on every executed pass. */
+  subFloorDirtyStreak: number;
+}
+
+/** The candidate snapshot for the *current* idle. Omits the streak: whether the
+ *  streak flushes is a wiring decision, not a property of the delta itself. */
+export type CandidateSnapshot = Omit<DocPassSnapshot, "subFloorDirtyStreak">;
+
+/** True iff the two arrays differ in length or any positional element. */
+function orderedListsDiffer(a: string[], b: string[]): boolean {
+  if (a.length !== b.length) return true;
+  for (let i = 0; i < a.length; i++) {
+    if (a[i] !== b[i]) return true;
+  }
+  return false;
+}
+
+/** Count of blockIds whose normalized summary content changed between two
+ *  snapshots — a summary added, removed, or reworded past normalization all
+ *  count as one changed blockId. */
+function changedSummaryCount(
+  prev: Record<string, string>,
+  next: Record<string, string>
+): number {
+  let changed = 0;
+  const keys = new Set([...Object.keys(prev), ...Object.keys(next)]);
+  for (const k of keys) {
+    if (prev[k] !== next[k]) changed++;
+  }
+  return changed;
+}
+
+/**
+ * Classify the delta between the last executed pass (`prev`) and the current
+ * idle's inputs (`next`). Material if ANY of the five clauses holds. Owns no
+ * streak/flush logic — that is the caller's (see evaluateDocument).
+ */
+export function isMaterialDelta(
+  prev: DocPassSnapshot,
+  next: CandidateSnapshot
+): { material: boolean; reasons: string[] } {
+  const reasons: string[] = [];
+
+  // 1. Claim delta — any claim added / removed-orphaned / reworded past
+  //    normalization (set-difference non-empty in either direction).
+  const prevClaims = new Set(prev.claimSigs);
+  const nextClaims = new Set(next.claimSigs);
+  const claimDelta =
+    prevClaims.size !== nextClaims.size ||
+    next.claimSigs.some((s) => !prevClaims.has(s)) ||
+    prev.claimSigs.some((s) => !nextClaims.has(s));
+  if (claimDelta) reasons.push("claim");
+
+  // 2. Structure delta — section count or ordered headings differ.
+  if (prev.sectionCount !== next.sectionCount || orderedListsDiffer(prev.headings, next.headings)) {
+    reasons.push("structure");
+  }
+
+  // 3. Maturity edge.
+  if (prev.maturity !== next.maturity) reasons.push("maturity");
+
+  // 4. Stage change.
+  if (prev.stage !== next.stage) reasons.push("stage");
+
+  // 5. Summary delta ≥ K — enough sections changed what they *say*.
+  if (changedSummaryCount(prev.summaries, next.summaries) >= SUMMARY_DELTA_FLOOR) {
+    reasons.push("summaries");
+  }
+
+  return { material: reasons.length > 0, reasons };
+}
+
+// --- Persistence helpers (JSON under the string-KV doc-eval-state store) ------
+
+export function serializeDocPassSnapshot(s: DocPassSnapshot): string {
+  return JSON.stringify(s);
+}
+
+/**
+ * Parse a stored snapshot. Returns null on absent / corrupt / legacy-shaped
+ * data, which the caller treats as "no snapshot → run the pass" — the safe
+ * fallback (a strong call, never a wrongful suppression).
+ */
+export function parseDocPassSnapshot(raw: string | undefined | null): DocPassSnapshot | null {
+  if (!raw) return null;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return null;
+  }
+  if (typeof parsed !== "object" || parsed === null) return null;
+  const p = parsed as Record<string, unknown>;
+  if (
+    typeof p.stage !== "string" ||
+    typeof p.maturity !== "string" ||
+    typeof p.sectionCount !== "number" ||
+    !Array.isArray(p.headings) ||
+    typeof p.summaries !== "object" ||
+    p.summaries === null ||
+    !Array.isArray(p.claimSigs) ||
+    typeof p.subFloorDirtyStreak !== "number"
+  ) {
+    return null;
+  }
+  return {
+    stage: p.stage,
+    maturity: p.maturity as MaturityLevel | "",
+    sectionCount: p.sectionCount,
+    headings: (p.headings as unknown[]).map(String),
+    summaries: p.summaries as Record<string, string>,
+    claimSigs: (p.claimSigs as unknown[]).map(String),
+    subFloorDirtyStreak: p.subFloorDirtyStreak,
+  };
+}
+
+/** Build a candidate snapshot from raw inputs — the single place summary/claim
+ *  normalization is applied, so the wiring and tests stay in lockstep. */
+export function buildCandidateSnapshot(input: {
+  stage: string | undefined;
+  maturity: MaturityLevel | undefined;
+  sectionCount: number;
+  headings: string[];
+  summaries: Array<{ blockId: string; summary: string }>;
+  claims: Array<{ sourceBlockId: string; text: string }>;
+}): CandidateSnapshot {
+  const summaries: Record<string, string> = {};
+  for (const s of input.summaries) summaries[s.blockId] = normalizeText(s.summary);
+  const claimSigs = input.claims
+    .map((c) => `${c.sourceBlockId}:${normalizeText(c.text)}`)
+    .sort();
+  return {
+    stage: input.stage ?? "",
+    maturity: input.maturity ?? "",
+    sectionCount: input.sectionCount,
+    headings: input.headings,
+    summaries,
+    claimSigs,
+  };
+}

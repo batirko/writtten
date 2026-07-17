@@ -29,6 +29,13 @@ import { harness } from "../debug/harness";
 import { llmLogger } from "../model/logger";
 import type { SectionMember } from "./types";
 import { type ModelCapability, WEAK_CAPABILITY } from "../model/capability";
+import {
+  buildCandidateSnapshot,
+  isMaterialDelta,
+  parseDocPassSnapshot,
+  serializeDocPassSnapshot,
+  SUBFLOOR_FLUSH_STREAK,
+} from "./docPassMateriality";
 
 import {
   MERGED_SYSTEM_PROMPT,
@@ -847,6 +854,33 @@ function orderedBlockIdsFromContent(content: unknown): string[] {
   return ids;
 }
 
+/**
+ * Ordered heading texts from the persisted TipTap JSON (document order). Feeds
+ * the materiality floor's structure-delta clause (a heading renamed/reordered
+ * with no body change is otherwise invisible to the summary/claim deltas). Walks
+ * the same persisted content `orderedBlockIdsFromContent` reads. A non-persisted
+ * document (e.g. the keyless demo, loaded via `setContent`) yields `[]` — the
+ * floor there is a no-op because such docs never re-fire it. See OBS-035 for why
+ * the doc-level pass has the persisted content at hand.
+ */
+function orderedHeadingsFromContent(content: unknown): string[] {
+  const nodes = (content as { content?: Array<{ type?: unknown }> } | null | undefined)?.content;
+  if (!Array.isArray(nodes)) return [];
+  const collectText = (node: unknown): string => {
+    const n = node as { text?: unknown; content?: unknown[] } | null | undefined;
+    if (!n) return "";
+    if (typeof n.text === "string") return n.text;
+    if (Array.isArray(n.content)) return n.content.map(collectText).join("");
+    return "";
+  };
+  const headings: string[] = [];
+  for (const node of nodes) {
+    if ((node as { type?: unknown })?.type !== "heading") continue;
+    headings.push(collectText(node).trim());
+  }
+  return headings;
+}
+
 export async function evaluateDocument(
   docId: string,
   stage?: string,
@@ -912,6 +946,50 @@ export async function evaluateDocument(
     return;
   }
 
+  // Tier 1 materiality floor: a *semantic* dirty-check layered behind the
+  // byte-exact hash check above. The hash said some text changed; ask whether it
+  // could change a doc-level conclusion (missing_topic / structure_flow / …)
+  // before spending a strong-tier call — the pipeline's biggest unforced cost
+  // leak against the binding ~20-RPD free-tier budget. This sits entirely before
+  // prompt assembly and only ever *suppresses*; any pass that fires builds the
+  // identical prompt, so mock-replay/ratchet fixtures are unaffected (no re-key).
+  // docRecord is loaded here (rather than below) so heading texts are available
+  // to the floor; it is reused for the OBS-035 document-ordered prompt input.
+  // See docs/projects/trigger_rederivation.md § "Tier 1 — build spec".
+  const docRecord = await loadDocument(docId);
+  const floorKey = `${docId}::floor`;
+  const nextSnapshot = buildCandidateSnapshot({
+    stage,
+    maturity,
+    sectionCount: meaningful.length,
+    headings: orderedHeadingsFromContent(docRecord?.content),
+    summaries: meaningful,
+    claims,
+  });
+  const prevSnapshot = parseDocPassSnapshot(await loadDocEvalState(floorKey));
+  if (prevSnapshot) {
+    const { material, reasons } = isMaterialDelta(prevSnapshot, nextSnapshot);
+    if (!material) {
+      const streak = prevSnapshot.subFloorDirtyStreak + 1;
+      if (streak < SUBFLOOR_FLUSH_STREAK) {
+        // Sub-floor: accumulate, don't discard. Bump the streak and leave
+        // docStateHash unwritten (the doc stays hash-dirty so the next idle
+        // re-asks against this same last-executed snapshot), spend no call.
+        await saveDocEvalState(
+          floorKey,
+          serializeDocPassSnapshot({ ...prevSnapshot, subFloorDirtyStreak: streak })
+        );
+        if (import.meta.env.DEV) {
+          harness.emit("settle", { trigger: "doc-idle-subfloor", reasons });
+        }
+        return;
+      }
+      // Flush: a long tail of sub-floor edits must never dead-end (the UX-016
+      // failure shape in a new costume). At SUBFLOOR_FLUSH_STREAK the pass runs.
+    }
+  }
+  // prevSnapshot == null (legacy / first pass) → fall through and run the pass.
+
   // OBS-035: the alphabetical sort above exists *only* for docStateHash
   // determinism (so the expensive doc-level call can be dirty-checked and
   // mocked/replayed). Feeding that same order to the model as its positional
@@ -922,7 +1000,6 @@ export async function evaluateDocument(
   // alphabetical order. Blocks/claims whose blockId isn't in the persisted
   // content (e.g. not yet re-persisted this tick) sort to the tail, preserving
   // the prior order for them — a graceful degrade to today's behaviour.
-  const docRecord = await loadDocument(docId);
   const orderRank = new Map(
     orderedBlockIdsFromContent(docRecord?.content).map((id, i) => [id, i] as const)
   );
@@ -1086,6 +1163,15 @@ export async function evaluateDocument(
       maturity,
     });
     // Remember the inputs we just reviewed so an unchanged doc skips next time.
+    // Write the fresh floor snapshot (streak reset) FIRST, then docStateHash —
+    // both are atomic with reconcile (the L3 discipline: a thrown strong call
+    // leaves neither written, so the next trigger re-runs the whole eval). Order
+    // is load-bearing for signal-quality.test.ts, whose saveDocEvalState mock
+    // captures the *last* write into one shared var regardless of key.
+    await saveDocEvalState(
+      floorKey,
+      serializeDocPassSnapshot({ ...nextSnapshot, subFloorDirtyStreak: 0 })
+    );
     await saveDocEvalState(docId, docStateHash);
 
     if (
