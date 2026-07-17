@@ -1,5 +1,5 @@
 ---
-status: idea
+status: in-progress
 kind: quality
 phases: [8]
 summary: Verdict on the owner's "time-based triggers are dumb" hunch (2026-07-13) plus the re-derivation it earns. Finding — the timers are state-gated conjunctions, and the pause half detects *attention*, which manipulation events definitionally can't; the real defect is the doc pass's ~zero materiality floor (any text change in any section re-earns a strong-tier call). Tier 1 — a materiality floor on doc-pass arming. Tier 2 — arm off section-eval completion (state edges), demoting idle to the attention boundary. The 3s section pause stays.
@@ -11,7 +11,7 @@ summary: Verdict on the owner's "time-based triggers are dumb" hunch (2026-07-13
 
 ## Status
 
-**Idea — Phase 8.** Research done 2026-07-13; design settled at the tier level 2026-07-13; **Tier 1 build spec settled 2026-07-16** (§ _Tier 1 — build spec_ below: snapshot persistence, all five clauses made concrete, provisional constants `SUMMARY_DELTA_FLOOR = 2` / `SUBFLOOR_FLUSH_STREAK = 4`, the summary-**content** proxy adopted). Tier 2 remains an explicit decide-with-owner item, V1-informed. Scheduled into Phase 8 because the materiality floor directly protects the binding free-tier RPD budget V1's keyed runs will also draw on, and because V1's corpus evidence (which doc-pass re-runs actually change output) is the right calibration input for the floor constants.
+**In-progress — Phase 8.** Research done 2026-07-13; design settled at the tier level 2026-07-13; **Tier 1 build spec settled 2026-07-16** (§ _Tier 1 — build spec_ below: snapshot persistence, all five clauses made concrete, provisional constants `SUMMARY_DELTA_FLOOR = 2` / `SUBFLOOR_FLUSH_STREAK = 4`, the summary-**content** proxy adopted). **Tier 1 shipped 2026-07-17** — `src/services/docPassMateriality.ts` (pure classifier + snapshot serde) + the floor wired into `evaluateDocument` behind the `docStateHash` check, snapshot under `${docId}::floor` (no schema bump); unit + `evaluateDocument`-integration tests green (`docPassMateriality.test.ts`, `evaluator.test.ts`); `docs/mechanics/evaluation-triggers.md` updated. Remaining in this project: closure-latency measurement, V1 constant recalibration, and the **Tier 2 decide-with-owner** item (state-edge arming). Scheduled into Phase 8 because the materiality floor directly protects the binding free-tier RPD budget V1's keyed runs will also draw on, and because V1's corpus evidence (which doc-pass re-runs actually change output) is the right calibration input for the floor constants.
 
 Read alongside:
 
@@ -32,7 +32,7 @@ Read alongside:
 
 ### Phase 8
 
-- [ ] **Tier 1 — materiality floor (build-ready — see § _Tier 1 — build spec_).** `src/services/docPassMateriality.ts` (pure module: snapshot type + delta classifier) + the floor check wired into `evaluateDocument` directly after the existing `docStateHash` dirty check; snapshot persisted as JSON under the existing string-KV doc-eval-state store (`${docId}::floor` key — **no DB schema bump**). Constants provisional: `SUMMARY_DELTA_FLOOR = 2`, `SUBFLOOR_FLUSH_STREAK = 4`.
+- [x] **Tier 1 — materiality floor (shipped 2026-07-17).** `src/services/docPassMateriality.ts` (pure module: `DocPassSnapshot` + `isMaterialDelta` five-clause classifier + `buildCandidateSnapshot` + serde) + the floor check wired into `evaluateDocument` directly after the existing `docStateHash` dirty check; snapshot persisted as JSON under the existing string-KV doc-eval-state store (`${docId}::floor` key — **no DB schema bump**; cleared alongside `${docId}` / `${docId}::sweep`). Constants provisional: `SUMMARY_DELTA_FLOOR = 2`, `SUBFLOOR_FLUSH_STREAK = 4`. Suppressed passes emit a harness `settle` `{ trigger: "doc-idle-subfloor", reasons }`.
 - [ ] **Verify closure latency.** Doc-scope grace (`missCount` / `DOC_GRACE_THRESHOLD = 2`) closes stale cards only when doc passes run; with the flush streak at 4, the worst-case added delay is 4 sub-floor idle cycles per grace beat — measure it in a scripted browser session (`getApiStats()` before/after for the RPD saving; observe one stale doc-scope card's `auto_closed` latency) and record the numbers here.
 - [ ] **Tests** — `evaluator.test.ts` (the floor lives in `evaluateDocument`, not the orchestrator): one case per clause (claim delta fires · structure delta fires · maturity edge fires · stage change fires · K=2 summaries fire) + reword-only-single-summary is sub-floor (**no model call**) + streak flush runs the pass on the 4th sub-floor dirty idle + a fresh snapshot (streak 0) is written on every executed pass + legacy no-snapshot state runs the pass.
 - [ ] **Recalibrate constants via V1** — once the fuller V1 run lands, check which recorded doc-pass re-runs actually changed doc-level output and tune `SUMMARY_DELTA_FLOOR` / `SUBFLOOR_FLUSH_STREAK` against that evidence (they ship provisional, like the maturity thresholds did).
@@ -138,7 +138,7 @@ export function isMaterialDelta(prev: DocPassSnapshot, next: Omit<DocPassSnapsho
 
 - **Doc-scope closure latency.** The grace machinery (`missCount` / `DOC_GRACE_THRESHOLD = 2`, `doc_scope_reconciliation.md`) closes stale doc-scope cards only when doc passes run. Rarer passes ⇒ slower `auto_closed`. Floor constants must be picked with this bound in view; the Todo carries a measurement item.
 - **Never let accumulation dead-end.** A long tail of sub-threshold edits must eventually flush (the accumulate-toward-floor rule); otherwise a slowly-rewritten doc never gets a fresh doc pass and the feed goes stale — the UX-016 failure shape in a new costume.
-- **Verification:** `orchestrator.test.ts` cases per floor clause (fires / accumulates / flushes); mechanics doc updated in the same PR; RPD savings observable via `getApiStats()` in a scripted session before/after.
+- **Verification:** per-clause cases live in `evaluator.test.ts` (the floor lives in `evaluateDocument`, not the orchestrator) — fires / accumulates / flushes — plus pure-classifier unit tests in `docPassMateriality.test.ts`; mechanics doc updated in the same PR; RPD savings observable via `getApiStats()` in a scripted session before/after.
 
 ## Rejected alternatives
 

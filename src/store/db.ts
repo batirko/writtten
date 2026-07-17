@@ -485,6 +485,10 @@ export async function clearDocumentData(docId: string): Promise<void> {
   // evaluator.ts), so clear it too — otherwise a re-paste of an identically
   // hashing draft would skip the sweep.
   await db.delete("doc_eval_state", `${docId}::sweep`);
+  // The Tier 1 materiality floor stores its last-executed-pass snapshot under
+  // `${docId}::floor` (docPassMateriality.ts) — drop it too, so a cleared
+  // workspace starts the floor from a clean legacy/first-pass state.
+  await db.delete("doc_eval_state", `${docId}::floor`);
 }
 
 // Doc-level eval dirty-check: remember the hash of the inputs (block summaries +

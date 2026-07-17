@@ -11,6 +11,8 @@ import * as db from "../store/db";
 import type { Observation } from "../store/db";
 import { capabilityForTier } from "../model/capability";
 import { clearAllSnapshots } from "./evalSnapshot";
+import type { MaturityLevel } from "./documentMaturity";
+import { parseDocPassSnapshot } from "./docPassMateriality";
 
 const STRONG = capabilityForTier("strong");
 
@@ -2240,5 +2242,163 @@ describe("evaluator - evaluateDocument single-section pass (heading-cliff facet 
       memo
     );
     expect(mockStrong).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("evaluator - evaluateDocument Tier 1 materiality floor", () => {
+  // The floor is a second, semantic dirty-check behind the byte-exact
+  // docStateHash check: the hash says "some text changed"; the floor asks
+  // "could it change a doc-level conclusion?" before spending a strong call.
+  // A stateful KV mock is essential here so `${docId}` and `${docId}::floor` are
+  // distinct keys (the shared-var mocks elsewhere can't express the floor).
+  const docId = "doc-floor";
+  const floorKey = `${docId}::floor`;
+  let kv: Map<string, string>;
+
+  const emptyDocResponse = {
+    callId: "c",
+    text: JSON.stringify({
+      missing_topic_observations: [],
+      underexposed_topic_observations: [],
+      audience_mismatch_observations: [],
+      structure_flow_observations: [],
+    }),
+  };
+
+  const summary = (blockId: string, text: string, hash: string) => ({
+    blockId,
+    docId,
+    summary: text,
+    hash,
+  });
+  const twoSummaries = () => [summary("b1", "Summary A", "h1"), summary("b2", "Summary B", "h2")];
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    kv = new Map();
+    vi.mocked(db.loadSuppressionsForDocument).mockResolvedValue([]);
+    vi.mocked(db.loadActiveObservationsForDocument).mockResolvedValue([]);
+    vi.mocked(db.loadDocument).mockResolvedValue(undefined); // headings=[]
+    vi.mocked(db.loadActiveClaimsForDocument).mockResolvedValue([]);
+    vi.mocked(db.loadBlockSummariesForDocument).mockResolvedValue(twoSummaries());
+    // Stateful KV: `${docId}` (docStateHash) and `${docId}::floor` (snapshot)
+    // are stored/read under their own keys, exactly like production.
+    vi.mocked(db.loadDocEvalState).mockImplementation(async (k: string) => kv.get(k));
+    vi.mocked(db.saveDocEvalState).mockImplementation(async (k: string, v: string) => {
+      kv.set(k, v);
+    });
+    mockStrong.mockResolvedValue(emptyDocResponse);
+  });
+
+  const run = (opts: { stage?: string; maturity?: MaturityLevel } = {}) =>
+    evaluateDocument(
+      docId,
+      opts.stage,
+      "key",
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      opts.maturity
+    );
+
+  it("legacy no-snapshot state runs the pass and writes a fresh snapshot (streak 0)", async () => {
+    await run();
+    expect(mockStrong).toHaveBeenCalledTimes(1);
+    const snap = parseDocPassSnapshot(kv.get(floorKey));
+    expect(snap).not.toBeNull();
+    expect(snap?.subFloorDirtyStreak).toBe(0);
+    expect(kv.get(docId)).toBeTruthy(); // docStateHash also written
+  });
+
+  it("clause 1 — a claim delta re-fires the pass", async () => {
+    await run();
+    expect(mockStrong).toHaveBeenCalledTimes(1);
+    vi.mocked(db.loadActiveClaimsForDocument).mockResolvedValue([
+      {
+        id: 1,
+        docId,
+        sourceBlockId: "b1",
+        text: "Ships in Q3.",
+        kind: "commitment",
+        status: "active",
+      },
+    ]);
+    await run();
+    expect(mockStrong).toHaveBeenCalledTimes(2);
+  });
+
+  it("clause 2 — a structure delta (section count) re-fires the pass", async () => {
+    await run();
+    vi.mocked(db.loadBlockSummariesForDocument).mockResolvedValue([
+      ...twoSummaries(),
+      summary("b3", "Summary C", "h3"),
+    ]);
+    await run();
+    expect(mockStrong).toHaveBeenCalledTimes(2);
+  });
+
+  it("clause 3 — a maturity edge re-fires the pass (hash changed, content identical)", async () => {
+    await run({ maturity: "forming" });
+    expect(mockStrong).toHaveBeenCalledTimes(1);
+    // Same summary CONTENT, different hash (a settle re-summarized identically),
+    // so without the maturity clause this delta would be sub-floor.
+    vi.mocked(db.loadBlockSummariesForDocument).mockResolvedValue([
+      summary("b1", "Summary A", "h1b"),
+      summary("b2", "Summary B", "h2"),
+    ]);
+    await run({ maturity: "mature" });
+    expect(mockStrong).toHaveBeenCalledTimes(2);
+  });
+
+  it("clause 4 — a stage change re-fires the pass", async () => {
+    await run({ stage: "PRD" });
+    await run({ stage: "Comms" });
+    expect(mockStrong).toHaveBeenCalledTimes(2);
+  });
+
+  it("clause 5 — K=2 changed summaries re-fire the pass", async () => {
+    await run();
+    vi.mocked(db.loadBlockSummariesForDocument).mockResolvedValue([
+      summary("b1", "Rewritten A", "h1b"),
+      summary("b2", "Rewritten B", "h2b"),
+    ]);
+    await run();
+    expect(mockStrong).toHaveBeenCalledTimes(2);
+  });
+
+  it("reword-only single summary is sub-floor — no model call, streak bumped, hash unchanged", async () => {
+    await run();
+    expect(mockStrong).toHaveBeenCalledTimes(1);
+    const hashAfterPass1 = kv.get(docId);
+    // One summary reworded (content + hash change); nothing else changed.
+    vi.mocked(db.loadBlockSummariesForDocument).mockResolvedValue([
+      summary("b1", "Summary A, slightly reworded", "h1b"),
+      summary("b2", "Summary B", "h2"),
+    ]);
+    await run();
+    expect(mockStrong).toHaveBeenCalledTimes(1); // suppressed
+    const snap = parseDocPassSnapshot(kv.get(floorKey));
+    expect(snap?.subFloorDirtyStreak).toBe(1);
+    // docStateHash NOT rewritten → the doc stays hash-dirty for the next idle.
+    expect(kv.get(docId)).toBe(hashAfterPass1);
+  });
+
+  it("streak flush: the 4th consecutive sub-floor idle runs the pass anyway", async () => {
+    await run(); // pass 1
+    expect(mockStrong).toHaveBeenCalledTimes(1);
+    // Four sub-floor idles: each reworks only b1's content+hash, so exactly one
+    // summary differs from the pinned pass-1 snapshot each time (sub-floor).
+    for (let i = 2; i <= 5; i++) {
+      vi.mocked(db.loadBlockSummariesForDocument).mockResolvedValue([
+        summary("b1", `Summary A v${i}`, `h1_${i}`),
+        summary("b2", "Summary B", "h2"),
+      ]);
+      await run();
+    }
+    // Idles 2–4 suppressed; idle 5 (the 4th sub-floor idle) flushed → 2 calls.
+    expect(mockStrong).toHaveBeenCalledTimes(2);
+    const snap = parseDocPassSnapshot(kv.get(floorKey));
+    expect(snap?.subFloorDirtyStreak).toBe(0); // reset by the flush
   });
 });
