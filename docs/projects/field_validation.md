@@ -1,5 +1,5 @@
 ---
-status: idea
+status: in-progress
 kind: research
 phases: [8]
 summary: The 2026-06-10 due-diligence audit's headline work — falsify (or confirm) the central bet with evidence from outside the founder's own head. A base-rate corpus study over real PRDs, structured sessions with external PMs on their own drafts, and instrumentation that can finally see the hero capability's *misses* (not just its false positives). Scheduled as the heart of Phase 8 (2026-07-10, V1 first); the V1 machinery + a hand-labeled corpus already exist.
@@ -11,7 +11,7 @@ summary: The 2026-06-10 due-diligence audit's headline work — falsify (or conf
 
 ## Status
 
-**Idea — Phase 8 (deferred from Phase 6 on 2026-07-07; re-scheduled as the heart of Phase 8 on 2026-07-10, V1 first). Protocols settled 2026-06-18 (V1/V2/V3 all 🟢); V1 machinery + a stratified 21-doc corpus + human-verified labels landed 2026-07-06/07.** The run procedures, labeling rubric, session format, and instrumentation design are fully specified below; what remains is _running_ them (the keyed V1 free+paid run, the five sessions, the recall harness build) — not further design. **Was** scheduled as a Phase-6 parallel track (2026-06-13, over the audit's argument for a hard gate); the owner parked the track to the then-Phase 7 (post-traction) and re-scheduled it as Phase 8 in the 2026-07-10 plan re-cut. Everything below is build-ready when it's picked up; the V1 base rate is already partly readable from the verified labels (see the snapshot).
+**In-progress — Phase 8 (re-scheduled as the heart of Phase 8 on 2026-07-10, V1 first). Protocols settled 2026-06-18 (V1/V2/V3 all 🟢); V1 machinery + corpus + human-verified labels landed 2026-07-06→16; V1 Run 1 (cost-bounded 9-doc subset, both tiers) executed and written up 2026-07-16 — see the snapshot for the numbers (base rate real; hero recall/precision far under floor; jargon dominates felt noise).** The run procedures, labeling rubric, session format, and instrumentation design are fully specified below; what remains is _running_ them (the keyed V1 free+paid run, the five sessions, the recall harness build) — not further design. **Was** scheduled as a Phase-6 parallel track (2026-06-13, over the audit's argument for a hard gate); the owner parked the track to the then-Phase 7 (post-traction) and re-scheduled it as Phase 8 in the 2026-07-10 plan re-cut. Everything below is build-ready when it's picked up; the V1 base rate is already partly readable from the verified labels (see the snapshot).
 
 Read alongside:
 
@@ -57,6 +57,16 @@ If the hero fires rarely and the daily experience is the noisy supporting cast (
   - **Per-type precision in the wild** — for each observation type, tool emissions matched against labels / total emissions (feeds the ratchet's per-type floors, audit #7).
   - **Free-tier vs paid-tier delta** — the confident-false-contradiction count and any per-type precision gap.
 - [ ] **Output:** a `docs/snapshots/` entry with the numbers and the implications for (a) the **free-tier-real-or-demo** decision, (b) the **per-type ratchet floors**, (c) whether contradiction-at-distance is **frequent enough to be the hero**. **This is the gate the Phase-9 decision-rigor taxonomy was specified to wait behind.** The labeling sheet is handed to **V3** (recall ground truth) and the **ratchet** (independent labels — see `evaluator_quality_ratchet.md` audit #7).
+
+### Free-tier signal-quality expectations (Phase-8 milestone; deliverable settled 2026-07-16)
+
+V1 Run 1 confirmed the 2026-07-10 keyed-sweep observation at corpus scale: the free tier emitted **2** contradictions across the 9-doc subset — **both false** — against the paid tier's 13. The free tier is near-silent on the hero and wrong when it speaks. This milestone turns that from an observation into a stated product posture. Three deliverables:
+
+1. **The fuller free-tier read.** Extend the V1 run past the 9-doc subset (`V1_RESUME`; at minimum the remaining `prd` + `spec` docs) so the free-tier delta rests on more than n=2 emissions. Zero new design — the runner, scorers, and `diffTierRuns` already report it.
+2. **A pre-registered decision rule** (registered 2026-07-16, before the fuller run, so the outcome can't be argued into comfort): _if the fuller run's free-tier confident-contradiction wild precision is below the Tier-A floor (0.95 — realistically: if it is not dramatically better than Run 1's 0/2), the free tier stops presenting confident contradiction cards._ Recommended mechanism (owner ratifies at pickup): on `capability.adjudicateConfidently === false`, the per-section and sweep parse paths drop the `contradictions` bucket (the `tensions` bucket and all span checks stay) — an emit-side gate in `evaluator.ts`, no prompt/hash change on the paid path. A false hero card is the R4.4 maximum-damage failure; a free tier that stays quiet about contradictions and says so is more trustworthy than one that guesses.
+3. **The stated decision in the docs.** Whatever the rule produces, write the free-tier expectations plainly where users and readers meet them: the strategic open question's own terms ("if BYO-key is effectively mandatory to meet the bar, that should be a **stated decision** in `docs/concept.md`/`docs/features.md`, not an emergent one"), plus the first-run/BYOK copy if mechanism 2 ships (e.g. the key-entry note stating contradiction detection needs a paid-tier key). This also settles the quality half of the "Free tier: real tier or demo?" open question with evidence.
+
+The clarity-noisiness half of the original observation (5 low-severity cards on a 178-word draft) is deliberately **not** re-solved here — it is the same volume problem the audience-relative jargon calibration and the priority budget already own; this milestone's scope is the contradiction trust surface.
 
 ### V2 — External-PM sessions (×5) — 🟢 Med · 🧠 (audit #1, #4, #6) — protocol settled 2026-06-18
 

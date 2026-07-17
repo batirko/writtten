@@ -11,7 +11,7 @@ summary: Verdict on the owner's "time-based triggers are dumb" hunch (2026-07-13
 
 ## Status
 
-**Idea — Phase 8.** Research done 2026-07-13; design settled at the tier level (below), constants and one arming decision open. Scheduled into Phase 8 because the materiality floor directly protects the binding free-tier RPD budget V1's keyed runs will also draw on, and because V1's corpus evidence (which doc-pass re-runs actually change output) is the right calibration input for the floor constants.
+**Idea — Phase 8.** Research done 2026-07-13; design settled at the tier level 2026-07-13; **Tier 1 build spec settled 2026-07-16** (§ _Tier 1 — build spec_ below: snapshot persistence, all five clauses made concrete, provisional constants `SUMMARY_DELTA_FLOOR = 2` / `SUBFLOOR_FLUSH_STREAK = 4`, the summary-**content** proxy adopted). Tier 2 remains an explicit decide-with-owner item, V1-informed. Scheduled into Phase 8 because the materiality floor directly protects the binding free-tier RPD budget V1's keyed runs will also draw on, and because V1's corpus evidence (which doc-pass re-runs actually change output) is the right calibration input for the floor constants.
 
 Read alongside:
 
@@ -32,10 +32,11 @@ Read alongside:
 
 ### Phase 8
 
-- [ ] **Tier 1 — materiality floor.** Replace the doc pass's "any `docStateHash` change" arming condition with a delta classifier over the same inputs: run the strong call only if (claim added/changed/orphaned) ∨ (section count / heading structure changed) ∨ (maturity level crossed) ∨ (stage changed) ∨ (≥K summaries changed, K TBD). Sub-threshold deltas **accumulate** toward the floor rather than vanishing.
-- [ ] **Verify closure latency.** Doc-scope grace (`missCount` / `DOC_GRACE_THRESHOLD = 2`) closes stale cards only when doc passes run; measure/bound how much rarer passes delay `auto_closed`, and pick floor constants that keep it acceptable. Add `orchestrator.test.ts` cases per floor clause (fires / accumulates / flushes).
-- [ ] **Decide K** (summaries-changed clause) — desk-default 2–3; recalibrate against V1's corpus evidence of which re-runs changed doc-level output.
-- [ ] **Tier 2 decision — state-edge arming.** Decide (with the owner) whether to move arming from the raw 12s timer to section-eval-completion edges (the event that actually changes the pass's inputs), with idle demoted to the attention-boundary conjunct that *fires* an armed pass. Includes the maturity-edge case: crossing nascent→forming *arms* the first doc pass immediately instead of waiting to be noticed by a later idle window.
+- [ ] **Tier 1 — materiality floor (build-ready — see § _Tier 1 — build spec_).** `src/services/docPassMateriality.ts` (pure module: snapshot type + delta classifier) + the floor check wired into `evaluateDocument` directly after the existing `docStateHash` dirty check; snapshot persisted as JSON under the existing string-KV doc-eval-state store (`${docId}::floor` key — **no DB schema bump**). Constants provisional: `SUMMARY_DELTA_FLOOR = 2`, `SUBFLOOR_FLUSH_STREAK = 4`.
+- [ ] **Verify closure latency.** Doc-scope grace (`missCount` / `DOC_GRACE_THRESHOLD = 2`) closes stale cards only when doc passes run; with the flush streak at 4, the worst-case added delay is 4 sub-floor idle cycles per grace beat — measure it in a scripted browser session (`getApiStats()` before/after for the RPD saving; observe one stale doc-scope card's `auto_closed` latency) and record the numbers here.
+- [ ] **Tests** — `evaluator.test.ts` (the floor lives in `evaluateDocument`, not the orchestrator): one case per clause (claim delta fires · structure delta fires · maturity edge fires · stage change fires · K=2 summaries fire) + reword-only-single-summary is sub-floor (**no model call**) + streak flush runs the pass on the 4th sub-floor dirty idle + a fresh snapshot (streak 0) is written on every executed pass + legacy no-snapshot state runs the pass.
+- [ ] **Recalibrate constants via V1** — once the fuller V1 run lands, check which recorded doc-pass re-runs actually changed doc-level output and tune `SUMMARY_DELTA_FLOOR` / `SUBFLOOR_FLUSH_STREAK` against that evidence (they ship provisional, like the maturity thresholds did).
+- [ ] **Tier 2 decision — state-edge arming.** Decide (with the owner) whether to move arming from the raw 12s timer to section-eval-completion edges (the event that actually changes the pass's inputs), with idle demoted to the attention-boundary conjunct that *fires* an armed pass. Includes the maturity-edge case: crossing nascent→forming *arms* the first doc pass immediately instead of waiting to be noticed by a later idle window. Explicitly **not** part of the Tier-1 build; take it up only after Tier 1 has soaked and V1's fuller run is in.
 - [ ] **Optional tuning:** lengthen `EVAL_DEBOUNCE_MS` (3s → ~6s) now that `block-settle-completion` covers the responsive path — cuts the per-sentence eval cost for slow deliberate writers. Dogfood before committing; do not change without checking UX-013's original latency complaint stays fixed.
 - [ ] **Update `docs/mechanics/evaluation-triggers.md`** in the same PR as any of the above.
 
@@ -90,6 +91,49 @@ Sub-threshold deltas **accumulate** rather than vanish — a run of small edits 
 
 **Keep untouched:** the 3s section pause (R3.3-sanctioned, state-gated, irreplaceable — it detects the reflective stop) and the section-boundary commit debounce (revert-awareness is intrinsically "wait to see if the change sticks"; an event-only pipeline evaluates every transient — UX-014's whole lesson).
 
+## Tier 1 — build spec (settled 2026-07-16)
+
+The floor is a **second, semantic dirty-check layered behind the existing hash dirty-check**, not a replacement. The hash check stays byte-exact (it is the replay/mock identity and the free "nothing changed at all" short-circuit); the floor only engages when the hash says *something* changed and asks *whether it could matter*.
+
+**Persistence — no schema change.** The doc-eval-state store is already a string KV (`saveDocEvalState(key, value)` / `loadDocEvalState(key)`, `db.ts:493`), and the sweep already namespaces into it (`${docId}::sweep`). The floor snapshot rides the same store as JSON under **`${docId}::floor`**:
+
+```ts
+// src/services/docPassMateriality.ts (new, pure — no DB, no LLM)
+export interface DocPassSnapshot {
+  stage: string;                       // "" when unset
+  maturity: MaturityLevel | "";        // "" on the legacy no-maturity path
+  sectionCount: number;
+  headings: string[];                  // ordered section heading texts (order matters for structure_flow)
+  summaries: Record<string, string>;   // blockId → normalized summary CONTENT (not text hash — see below)
+  claimSigs: string[];                 // sorted `${sourceBlockId}:${normalizedText}`
+  subFloorDirtyStreak: number;         // consecutive hash-dirty-but-sub-floor idles
+}
+export function isMaterialDelta(prev: DocPassSnapshot, next: Omit<DocPassSnapshot, "subFloorDirtyStreak">):
+  { material: boolean; reasons: string[] };
+```
+
+**The five clauses** (`isMaterialDelta` returns material when any holds):
+
+1. **Claim delta** — `claimSigs` set difference non-empty in either direction (a claim added, removed/orphaned, or reworded past normalization).
+2. **Structure delta** — `sectionCount` differs, or the ordered `headings` list differs (a heading added/removed/renamed/reordered — the input `structure_flow` actually reasons over).
+3. **Maturity edge** — `prev.maturity !== next.maturity` (also delivers the "crossing nascent→forming earns the first pass at the next idle" arming case for free, since the pass is armed by the editor once maturity ≠ nascent and the floor then sees the edge).
+4. **Stage change** — `prev.stage !== next.stage` (belt-and-braces; the `stage-changed` trigger routes through `handleDocIdle` anyway, and this makes the floor independent of trigger ordering).
+5. **Summary delta ≥ K** — at least `SUMMARY_DELTA_FLOOR = 2` blockIds whose **normalized summary content** changed (added/removed count too). This adopts the "summary-content delta" open question as part of the spec: the fast call already returns each section's summary, so comparing normalized summary text instead of the raw-text hash absorbs reword-only churn at zero extra cost — a rewording that doesn't change what the section *says* (its summary) cannot change a `missing_topic`/`structure_flow` conclusion, which is precisely the materiality question.
+
+**Accumulation is structural, not a counter:** the snapshot is written only when a pass actually **runs**, so every idle diffs against the *last executed pass*, and small edits across sections accumulate until ≥K summaries differ — nothing is ever discarded. The one shape that would never accumulate (endless reword-only churn inside a single section) is caught by the flush rule: each hash-dirty-but-sub-floor idle increments `subFloorDirtyStreak` (persisted in the snapshot); at **`SUBFLOOR_FLUSH_STREAK = 4`** the pass runs anyway and the streak resets. This bounds both the staleness of the feed **and** the doc-scope grace-closure latency (a stale card's close is delayed by at most 4 sub-floor idles per grace beat).
+
+**Wiring (`evaluateDocument`, directly after the `docStateHash` check at `evaluator.ts:861`):**
+
+- hash unchanged → return (exactly today — the floor never runs).
+- hash changed → `loadDocEvalState(`${docId}::floor`)`; **no snapshot (legacy/first pass) → run** and write one.
+- snapshot present → build `next` from the already-loaded `meaningful` summaries + `claims` + stage + maturity (all in scope at that point; heading texts come from the summaries' section records — if a heading list isn't derivable there, thread it from the editor alongside `singleSectionText`, which already crosses the same boundary) → `isMaterialDelta`:
+  - material → run the pass; on completion write `docStateHash` + fresh snapshot (`subFloorDirtyStreak: 0`).
+  - sub-floor → increment the streak in the stored snapshot, **do not** write `docStateHash` (the doc stays hash-dirty so the next idle re-asks), return without a model call. At streak ≥ 4 → treat as material (reason `"flush"`).
+
+**Interaction notes:** the RPM-backpressure defer and the in-flight-section serialisation in `handleDocIdle` are untouched (they run before `evaluateDocument` is called); the single-section inline path (`singleSectionText`) flows through the same floor — its "summary" entry is the section's one summary, and clause 5 then rarely fires alone, which is correct (a one-section doc's materiality is carried by claims/structure/maturity/flush). Mock-replay fixtures are unaffected: the floor sits *before* prompt assembly and only ever suppresses calls; any run that does fire builds the identical prompt.
+
+**Dev observability:** emit a harness `settle` event with `{ trigger: "doc-idle-subfloor", reasons }` when the floor suppresses a pass, so a scripted session can count suppressed strong calls (the RPD saving) directly.
+
 ## Trade-offs & guards
 
 - **Doc-scope closure latency.** The grace machinery (`missCount` / `DOC_GRACE_THRESHOLD = 2`, `doc_scope_reconciliation.md`) closes stale doc-scope cards only when doc passes run. Rarer passes ⇒ slower `auto_closed`. Floor constants must be picked with this bound in view; the Todo carries a measurement item.
@@ -103,6 +147,6 @@ Sub-threshold deltas **accumulate** rather than vanish — a run of small edits 
 
 ## Open questions
 
-- **K** for the summaries-changed clause (2? 3? proportional to section count?) — calibrate against V1's evidence of which doc-pass re-runs actually changed output.
-- Whether Tier 2's extra boundary events (large cursor jump, export) earn their complexity over plain idle, or idle alone suffices as the firing edge.
-- Whether a summary-**content** delta (vs text-hash delta) is a cheap better proxy for "could change a doc-level conclusion" — the fast call already returns the summary; comparing normalized summary text instead of raw text hash may absorb most reword-only churn at zero extra cost.
+- ~~**K** for the summaries-changed clause~~ — **settled 2026-07-16:** `SUMMARY_DELTA_FLOOR = 2`, shipped provisional; recalibrate against V1's evidence of which doc-pass re-runs actually changed output (Todo).
+- ~~Whether a summary-**content** delta (vs text-hash delta) is a cheap better proxy~~ — **adopted 2026-07-16** as clause 5 of the build spec: the snapshot stores normalized summary content, so reword-only churn is absorbed at zero extra cost.
+- Whether Tier 2's extra boundary events (large cursor jump, export) earn their complexity over plain idle, or idle alone suffices as the firing edge. (Tier-2 decision, with the owner, after Tier 1 soaks.)
