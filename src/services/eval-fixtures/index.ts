@@ -38,6 +38,8 @@ import outOfScopeHeadingIntent from "./out-of-scope-heading-intent";
 import crossSectionGenuineGap from "./cross-section-genuine-gap";
 import looseTopicalOverlap from "./loose-topical-overlap";
 import contradictionSweepParaphrase from "./contradiction-sweep-paraphrase";
+import rhetoricExtraction from "./rhetoric-extraction";
+import reconciledTension from "./reconciled-tension";
 import type { EvalFixture } from "./types";
 
 export const corpus: EvalFixture[] = [
@@ -69,6 +71,8 @@ export const corpus: EvalFixture[] = [
   crossSectionGenuineGap,
   looseTopicalOverlap,
   contradictionSweepParaphrase,
+  rhetoricExtraction,
+  reconciledTension,
 ];
 
 export { type EvalFixture } from "./types";

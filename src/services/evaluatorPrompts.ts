@@ -88,7 +88,7 @@ A) CONTRADICTION — a genuine logical incompatibility: one claim simply cannot 
 
 B) STRATEGIC TENSION — two claims that are each intended or desirable but pull in opposite directions: a deliberate tradeoff the author is reasoning about, not a logical impossibility. ("Notify users on every fraud block" — reduces support load — vs "Minimize friction for legitimate users" — notifications add friction.) Both can be true at once; they are simply in tension. Do NOT report these as contradictions.
 
-NOT A CONFLICT — if two claims are compatible and simply leave unspecified *how* they combine (e.g. a percentage rollout and a separate threshold gate that can both apply at once), do NOT report them in either bucket. An unstated interaction between compatible claims is a clarity gap, not a contradiction or a tension.
+NOT A CONFLICT — if two claims are compatible and simply leave unspecified *how* they combine (e.g. a percentage rollout and a separate threshold gate that can both apply at once), do NOT report them in either bucket. An unstated interaction between compatible claims is a clarity gap, not a contradiction or a tension. And if the document itself acknowledges the tradeoff and states its resolution (A, but B, so we chose C — a problem statement followed by the change that addresses it), it is a resolved tradeoff, not a live tension or contradiction — report it in neither bucket.
 
 Return a JSON object with two keys, 'contradictions' and 'tensions', each an array of objects. Each object must have:
 - 'newClaimText' (the text of the new claim involved)
@@ -115,7 +115,7 @@ A) CONTRADICTION — only when one claim genuinely cannot be true if the other i
 
 B) STRATEGIC TENSION — two claims that are each intended or desirable but pull in opposite directions: a deliberate tradeoff, not a logical impossibility. Both can be true at once. Prefer this bucket over 'contradiction' whenever the conflict is about competing goals or priorities rather than incompatible facts.
 
-NOT A CONFLICT — if two claims are compatible and simply leave unspecified *how* they combine (e.g. a percentage rollout and a separate threshold gate that can both apply at once), do NOT report them in either bucket. An unstated interaction between compatible claims is a clarity gap, not a contradiction or a tension.
+NOT A CONFLICT — if two claims are compatible and simply leave unspecified *how* they combine (e.g. a percentage rollout and a separate threshold gate that can both apply at once), do NOT report them in either bucket. An unstated interaction between compatible claims is a clarity gap, not a contradiction or a tension. And if the document itself acknowledges the tradeoff and states its resolution (A, but B, so we chose C — a problem statement followed by the change that addresses it), it is a resolved tradeoff, not a live tension or contradiction — report it in neither bucket.
 
 Return a JSON object with two keys, 'contradictions' and 'tensions', each an array of objects. Each object must have:
 - 'newClaimText' (the text of the new claim involved)
@@ -141,7 +141,7 @@ A) CONTRADICTION — a genuine logical incompatibility: the two claims cannot bo
 
 B) STRATEGIC TENSION — two claims each intended or desirable but pulling in opposite directions: a deliberate tradeoff, not a logical impossibility. Both can be true at once; they are simply in tension. Do NOT report these as contradictions.
 
-NOT A CONFLICT — if two claims are compatible and simply leave unspecified *how* they combine (e.g. a percentage rollout and a separate threshold gate that can both apply at once), do NOT report them in either bucket. An unstated interaction between compatible claims is a clarity gap, not a contradiction or a tension.
+NOT A CONFLICT — if two claims are compatible and simply leave unspecified *how* they combine (e.g. a percentage rollout and a separate threshold gate that can both apply at once), do NOT report them in either bucket. An unstated interaction between compatible claims is a clarity gap, not a contradiction or a tension. And if the document itself acknowledges the tradeoff and states its resolution (A, but B, so we chose C — a problem statement followed by the change that addresses it), it is a resolved tradeoff, not a live tension or contradiction — report it in neither bucket.
 
 Return a JSON object with two keys, 'contradictions' and 'tensions', each an array of objects. Each object must have:
 - 'claimAId' and 'claimBId' (the two [Claim #N] index numbers that conflict)
@@ -161,7 +161,7 @@ A) CONTRADICTION — only when the two claims genuinely cannot both be true: a d
 
 B) STRATEGIC TENSION — two claims each intended or desirable but pulling in opposite directions: a deliberate tradeoff, not a logical impossibility. Both can be true at once. Prefer this bucket whenever the conflict is about competing goals rather than incompatible facts.
 
-NOT A CONFLICT — if two claims are compatible and simply leave unspecified *how* they combine (e.g. a percentage rollout and a separate threshold gate that can both apply at once), do NOT report them in either bucket. An unstated interaction between compatible claims is a clarity gap, not a contradiction or a tension.
+NOT A CONFLICT — if two claims are compatible and simply leave unspecified *how* they combine (e.g. a percentage rollout and a separate threshold gate that can both apply at once), do NOT report them in either bucket. An unstated interaction between compatible claims is a clarity gap, not a contradiction or a tension. And if the document itself acknowledges the tradeoff and states its resolution (A, but B, so we chose C — a problem statement followed by the change that addresses it), it is a resolved tradeoff, not a live tension or contradiction — report it in neither bucket.
 
 Return a JSON object with two keys, 'contradictions' and 'tensions', each an array of objects. Each object must have:
 - 'claimAId' and 'claimBId' (the two [Claim #N] index numbers that conflict)

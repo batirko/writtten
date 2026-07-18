@@ -28,8 +28,8 @@ const fixture: EvalFixture = {
     },
   ],
   recordings: {
-    "r1hwy7ec_8271": "{\n  \"summary\": \"The redesigned checkout is committed to a 100% Q2 launch and, separately, barred from any launch before Q4.\",\n  \"claims\": [\n    {\n      \"text\": \"We will launch the redesigned checkout to 100% of users in Q2.\",\n      \"kind\": \"commitment\"\n    },\n    {\n      \"text\": \"We will not launch the redesigned checkout to any users before Q4.\",\n      \"kind\": \"constraint\"\n    }\n  ],\n  \"clarity_observations\": [],\n  \"unsupported_claim_observations\": [],\n  \"undefined_jargon_observations\": []\n}",
-    "rv6gefj_4349": "{\n  \"contradictions\": [\n    {\n      \"newClaimText\": \"We will not launch the redesigned checkout to any users before Q4.\",\n      \"existingClaimId\": 0,\n      \"message\": \"The no-launch-before-Q4 constraint and the earlier commitment to launch to 100% of users in Q2 cannot both hold.\"\n    }\n  ],\n  \"tensions\": []\n}"
+    "roaj6l6_8549": "{\n  \"summary\": \"The redesigned checkout is committed to a 100% Q2 launch and, separately, barred from any launch before Q4.\",\n  \"claims\": [\n    {\n      \"text\": \"We will launch the redesigned checkout to 100% of users in Q2.\",\n      \"kind\": \"commitment\"\n    },\n    {\n      \"text\": \"We will not launch the redesigned checkout to any users before Q4.\",\n      \"kind\": \"constraint\"\n    }\n  ],\n  \"clarity_observations\": [],\n  \"unsupported_claim_observations\": [],\n  \"undefined_jargon_observations\": []\n}",
+    "rrfpyvf_4612": "{\n  \"contradictions\": [\n    {\n      \"newClaimText\": \"We will not launch the redesigned checkout to any users before Q4.\",\n      \"existingClaimId\": 0,\n      \"message\": \"The no-launch-before-Q4 constraint and the earlier commitment to launch to 100% of users in Q2 cannot both hold.\"\n    }\n  ],\n  \"tensions\": []\n}"
   },
   expected: [
     {

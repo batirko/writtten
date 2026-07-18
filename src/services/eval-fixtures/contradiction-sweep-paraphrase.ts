@@ -46,7 +46,7 @@ const fixture: EvalFixture = {
     },
   ],
   recordings: {
-    "rjbwxxf_4053": "{\n  \"contradictions\": [\n    {\n      \"claimAId\": 0,\n      \"claimBId\": 1,\n      \"message\": \"The requirement that launch is gated on keeping the error rate below the 2% SLO threshold directly conflicts with the commitment to ship to all users in week one even if the error rate reaches 5%.\"\n    }\n  ],\n  \"tensions\": []\n}"
+    "r12mncwx_4316": "{\n  \"contradictions\": [\n    {\n      \"claimAId\": 0,\n      \"claimBId\": 1,\n      \"message\": \"The requirement that launch is gated on keeping the error rate below the 2% SLO threshold directly conflicts with the commitment to ship to all users in week one even if the error rate reaches 5%.\"\n    }\n  ],\n  \"tensions\": []\n}"
   },
   expected: [
     {
