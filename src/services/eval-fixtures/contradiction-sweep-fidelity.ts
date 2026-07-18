@@ -28,7 +28,7 @@ const fixture: EvalFixture = {
     { text: "This will ship in Q3.", kind: "commitment", sourceBlockId: "b-timeline" },
   ],
   recordings: {
-    "rhb4cr3_3954": "{\n  \"contradictions\": [\n    {\n      \"claimAId\": 0,\n      \"claimBId\": 1,\n      \"message\": \"This sets a Q3 ship date, which conflicts with the earlier commitment to ship in Q2.\"\n    }\n  ],\n  \"tensions\": []\n}"
+    "rw57x81_4217": "{\n  \"contradictions\": [\n    {\n      \"claimAId\": 0,\n      \"claimBId\": 1,\n      \"message\": \"This sets a Q3 ship date, which conflicts with the earlier commitment to ship in Q2.\"\n    }\n  ],\n  \"tensions\": []\n}"
   },
   expected: [
     {

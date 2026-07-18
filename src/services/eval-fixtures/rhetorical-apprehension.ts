@@ -31,7 +31,7 @@ const fixture: EvalFixture = {
     },
   ],
   recordings: {
-    "rromclm_8310": "{\n  \"summary\": \"The author questions the impact of AI-assisted writing on cognitive skills, citing a statistic about handwriting and memory.\",\n  \"claims\": [\n    {\n      \"text\": \"Handwriting improves long-term memory retention by 40% compared to typing.\",\n      \"kind\": \"fact_claim\"\n    }\n  ],\n  \"clarity_observations\": [],\n  \"unsupported_claim_observations\": [\n    {\n      \"text\": \"No source or study is cited to support the 40% improvement figure for handwriting-based memory retention.\",\n      \"substring\": \"Handwriting improves long-term memory retention by 40% compared to typing.\"\n    }\n  ],\n  \"undefined_jargon_observations\": []\n}"
+    "r1j1p0q8_8588": "{\n  \"summary\": \"The author questions the impact of AI-assisted writing on cognitive skills, citing a statistic about handwriting and memory.\",\n  \"claims\": [\n    {\n      \"text\": \"Handwriting improves long-term memory retention by 40% compared to typing.\",\n      \"kind\": \"fact_claim\"\n    }\n  ],\n  \"clarity_observations\": [],\n  \"unsupported_claim_observations\": [\n    {\n      \"text\": \"No source or study is cited to support the 40% improvement figure for handwriting-based memory retention.\",\n      \"substring\": \"Handwriting improves long-term memory retention by 40% compared to typing.\"\n    }\n  ],\n  \"undefined_jargon_observations\": []\n}"
   },
   expected: [
     {

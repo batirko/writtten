@@ -95,13 +95,23 @@ export function classifyDocumentClass(stage?: string | null): DocumentClass {
  * `unsupported_claim` until a class is confirmed, while keeping
  * `contradiction`/`clarity`/`undefined_jargon` fully on. Instructions ride in
  * user content, not the static system prompt.
+ *
+ * OBS-037 (Lever 1): the relaxed genres AND `unknown` also carry an *extraction*
+ * rule — rhetorical/hyperbolic emphasis and narrative color are not claims of any
+ * kind. Keeping hyperbole ("a HUGE thing", "the tipping point") out of the ledger
+ * starves the downstream false-`unsupported_claim` + regenerating-false-tension
+ * cascade of its fuel. `prd_spec` stays untouched (hash-stable strict anchor); the
+ * rule grows the block for relaxed/`unknown` sections, so their recorded request
+ * hashes shift and are re-keyed byte-identically offline (responses unchanged).
+ * See docs/projects/document_type_calibration.md § Extraction & tension
+ * calibration for rhetoric.
  */
 export function sectionCalibrationBlock(c: DocumentClass): string {
   if (c === "prd_spec") return "";
   if (c === "unknown") {
-    return `\nDocument-type calibration — the document type is not yet identified. Until it is, do not assume this is a PRD or spec: apply unsupported_claim ONLY to hard, checkable external-fact assertions (statistics, claims about the current state of the world). Do NOT flag opinions, first-person reflection, rhetorical or narrative framing, or genre-normal statements as unsupported. Contradiction, clarity, and undefined-jargon checks are unchanged.`;
+    return `\nDocument-type calibration — the document type is not yet identified. Until it is, do not assume this is a PRD or spec: apply unsupported_claim ONLY to hard, checkable external-fact assertions (statistics, claims about the current state of the world). Do NOT flag opinions, first-person reflection, rhetorical or narrative framing, or genre-normal statements as unsupported. Also do NOT extract rhetorical or hyperbolic emphasis, narrative color, or evaluative flourishes ("X was a HUGE thing", "the tipping point for the revolution") as claims of any kind — extract only assertions the author is genuinely committing to, constrained by, or would cite. Contradiction, clarity, and undefined-jargon checks are unchanged.`;
   }
-  return `\nDocument-type calibration — this is ${CLASS_LABELS[c]}, not a PRD or spec. Apply unsupported_claim ONLY to hard, checkable external-fact assertions (statistics, claims about the current state of the world). Do NOT flag opinions, first-person reflection, rhetorical or narrative framing, or genre-normal statements as unsupported. Contradiction, clarity, and undefined-jargon checks are unchanged.`;
+  return `\nDocument-type calibration — this is ${CLASS_LABELS[c]}, not a PRD or spec. Apply unsupported_claim ONLY to hard, checkable external-fact assertions (statistics, claims about the current state of the world). Do NOT flag opinions, first-person reflection, rhetorical or narrative framing, or genre-normal statements as unsupported. Also do NOT extract rhetorical or hyperbolic emphasis, narrative color, or evaluative flourishes ("X was a HUGE thing", "the tipping point for the revolution") as claims of any kind — extract only assertions the author is genuinely committing to, constrained by, or would cite. Contradiction, clarity, and undefined-jargon checks are unchanged.`;
 }
 
 /**
