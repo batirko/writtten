@@ -54,4 +54,4 @@ The `block-paste` trigger (previously a no-op stub) routes to `handleBootstrapSw
 
 ### Threshold discipline
 
-The sweep is gated ≥150 words (`CONTENT_THRESHOLD_WORDS`) by the editor, so a short pasted draft lights up span observations but correctly stays silent on cross-document contradiction (Invariant #4 / R3.2). The user's ~102-word PRD is fully handled by Phase A alone.
+> **Superseded by UX-016 / Phase 8A (2026-07-18).** The sweep was originally gated ≥150 words (`CONTENT_THRESHOLD_WORDS`) by the editor — a short pasted draft lit up span observations but stayed silent on cross-document contradiction. That raw word cliff has been **removed**: the sweep now runs on every paste/import and gates on its own intrinsic `< 2 claims` no-call guard (plus the ledger dirty-check + RPM defer), which is the real precondition. A short, high-claim-density draft with a blatant conflict is exactly the hero case the word gate wrongly suppressed. See `docs/projects/contradiction_coverage.md` § Phase 8A and `docs/mechanics/evaluation-triggers.md` § "Sweep gating".

@@ -9,7 +9,7 @@ summary: Close the gaps where a genuine contradiction goes undetected depending 
 
 ## Status
 
-> Canonical status is the frontmatter (`in-progress`). **Phase 6 shipped:** mechanism A (widen the per-section check) was chosen with the owner on 2026-07-09 and **shipped the same day in #161** with the `contradiction-intra-section` ratchet fixture — see § Decided direction for the as-built shape. **Reopened for Phase 8 (2026-07-16):** the two remaining detection gaps now have settled build specs below — § _Phase 8A — ungate the paste sweep_ (UX-016's cross-section short-draft facet) and § _Phase 8B — per-claim candidate selection_ (OBS-038, the V1-diagnosed hero-recall failure). The resolution-side sibling (when a caught card *closes*) is `contradiction_resolution.md`, not here.
+> Canonical status is the frontmatter (`in-progress`). **Phase 6 shipped:** mechanism A (widen the per-section check) was chosen with the owner on 2026-07-09 and **shipped the same day in #161** with the `contradiction-intra-section` ratchet fixture — see § Decided direction for the as-built shape. **Reopened for Phase 8 (2026-07-16):** the two remaining detection gaps now have settled build specs below — § _Phase 8A — ungate the paste sweep_ (UX-016's cross-section short-draft facet) and § _Phase 8B — per-claim candidate selection_ (OBS-038, the V1-diagnosed hero-recall failure). **Phase 8A shipped 2026-07-18:** the editor-side word gate was removed; the sweep now runs on every paste/import and gates only on its intrinsic `< 2 claims` / dirty-check / RPM guards. The sequencing guard was already satisfied — OBS-030's scope-excluded tagging shipped in #205 — so no further coordination was needed. **8B's V3 acceptance re-run (§ Todo) is the only open item keeping this file `in-progress`.** The resolution-side sibling (when a caught card *closes*) is `contradiction_resolution.md`, not here.
 
 ## Decided direction (2026-07-09 — mechanism A)
 
@@ -40,7 +40,7 @@ Contradiction detection has two engines, plus a gate:
 
 2. **Ledger contradiction sweep** (`evaluateLedgerContradictions`, the all-pairs strong-tier call that _does_ compare same-section pairs). It is triggered **only** on `block-paste`: `if (trigger.kind === "block-paste") handleBootstrapSweep(...)` (`src/services/orchestrator.ts:475`). `handleDocIdle` runs `evaluateDocument` (doc-level observations), **not** the sweep. → **Typing never triggers the all-pairs sweep;** only a bulk paste does.
 
-3. **Maturity / word-count gate** silences short drafts (already logged as **UX-016**): the bulk-paste sweep is gated behind `CONTENT_THRESHOLD_WORDS` (150), so a short, punchy outline with a blatant flaw is skipped even on paste.
+3. **Maturity / word-count gate** silences short drafts (logged as **UX-016**): the bulk-paste sweep was gated behind `CONTENT_THRESHOLD_WORDS` (150), so a short, punchy outline with a blatant flaw was skipped even on paste. **Closed by Phase 8A (2026-07-18)** — the word gate is gone; the sweep runs on every paste and gates only on its intrinsic `< 2 claims` guard.
 
 Net effect by entry path:
 
@@ -49,7 +49,7 @@ Net effect by entry path:
 | Typed, in different sections | no | ✅ per-section check |
 | Typed, in the same section (e.g. no headings → one intro section) | yes | ❌ — surfaces as `clarity` at best |
 | Pasted together, long enough | either | ✅ ledger sweep |
-| Pasted together, short draft | either | ❌ — gated by UX-016 |
+| Pasted together, short draft | either | ✅ ledger sweep (Phase 8A ungated the word cliff) |
 
 ## Evidence (2026-07-09 session)
 
@@ -70,7 +70,9 @@ The `sourceBlockId !== sectionId` filter is there so a section's own freshly-ext
 
 Any option must compose with the discomfort-budget floor/ceiling (G4) and the maturity gate (hole 3 / UX-016), and preserve the fixed taxonomy.
 
-## Phase 8A — ungate the paste sweep (UX-016 cross-section short-draft facet; design settled 2026-07-16)
+## Phase 8A — ungate the paste sweep (UX-016 cross-section short-draft facet; design settled 2026-07-16, **shipped 2026-07-18**)
+
+**As built:** the two editor-side word gates (`Editor.tsx` paste + import arms) were deleted and the sweep is now scheduled unconditionally; `CONTENT_THRESHOLD_WORDS` was removed entirely (its only two uses). No evaluator change — the intrinsic `< 2 claims` no-call guard (`evaluateLedgerContradictions`), the `${docId}::sweep` dirty-check, and RPM deferral already were the real gate. The sequencing guard resolved itself: OBS-030's scope-excluded tagging had already shipped in #205, so the widened sweep runs on the repaired prompt. Guarded by the `contradiction-short-paste` ratchet fixture + the pre-existing `< 2 claims` no-call unit test (`evaluator.test.ts`); `docs/mechanics/evaluation-triggers.md` § "Sweep gating" updated in the same PR.
 
 **The gate being questioned:** the editor schedules the `block-paste` sweep only when `getWordCount(editor) >= CONTENT_THRESHOLD_WORDS` (150) — `src/editor/Editor.tsx:479` (paste arm) and `:1344` (load/import arm). Note this is the **raw word cliff**, not the maturity proxy that replaced the same cliff for doc-idle (UX-013) — the sweep never got that upgrade.
 
@@ -127,8 +129,8 @@ selectContradictionCandidates(newClaims, otherClaims, { perClaimK = 5, totalCap 
 - [x] **8B — build `selectContradictionCandidates`** (pure, `prefilter.ts`) + swap it in at the contradiction call site (`evaluator.ts`, the `"prefilter"` branch of V3's `contradictionCandidates` seam) with the byte-identical small-doc guarantee asserted in unit tests first. **Shipped:** `perClaimK=5`, `totalCap=15`, dedup `≥0.9` keep-first; byte-identity held on the whole corpus (self-inclusion property — each same-section new claim retrieves itself at Jaccard 1.0, so the union covers all candidates). Unit tests in `prefilter.test.ts`.
 - [x] **8B — `contradiction-sla-family` ratchet fixture** (synthetic α/β/γ SLA triplet, >10 candidates so the selector actively selects; free-tier recorded). **Shipped:** the strong contradiction fires end-to-end (β change-to-PR <5 min × γ change-to-PR up to 1 hour); the `evaluator.prefilterBypass.test.ts` all-pairs≡prefilter no-op case excludes this fixture by design (it exceeds the no-op threshold).
 - [ ] **8B — V3 acceptance:** re-run the recall harness over the V1 labels; P09's β×γ must co-occur in an assembled prompt; record the prefilter-drop count for the LEANN trigger.
-- [ ] **8A — remove the word gate** at `Editor.tsx:479` and `:1344`; add the `contradiction-short-paste` fixture + the no-claim no-call unit case; live-verify the UX-016 repro string; update `docs/mechanics/evaluation-triggers.md`. _(Owner ratification of the ungate decision at pickup — it spends one strong call per small paste; recommendation + cost analysis in § Phase 8A.)_
-- [ ] **8A sequencing** — do not ship 8A ahead of OBS-030 (scope-excluded tagging, its own Phase-8 milestone): the ungated sweep should run with the sweep-side FP class repaired so widened exposure doesn't widen the V1-measured false positives.
+- [x] **8A — remove the word gate** at `Editor.tsx` (paste + import arms) and delete the now-dead `CONTENT_THRESHOLD_WORDS`; added the `contradiction-short-paste` fixture; the no-claim no-call unit case already existed (`evaluator.test.ts` "does nothing with fewer than two claims"); updated `docs/mechanics/evaluation-triggers.md`. Owner ratified the spend (one strong call per small paste yielding ≥2 claims). **Shipped 2026-07-18.**
+- [x] **8A sequencing** — satisfied: OBS-030 (scope-excluded tagging) had already shipped in #205 before 8A landed, so the ungated sweep runs with the sweep-side FP class already repaired.
 
 ## Related
 

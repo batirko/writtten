@@ -14,8 +14,8 @@
  *
  * Consumed via the editor's existing `importContent` path (App → Editor),
  * which installs the doc and schedules the cross-document contradiction sweep
- * once the document clears CONTENT_THRESHOLD_WORDS (150). This fixture is kept
- * comfortably above that so the sweep fires.
+ * unconditionally (UX-016 / Phase 8A removed the old 150-word cliff); the
+ * sweep's own ≥2-claims guard decides whether a model call actually fires.
  *
  * Planted signals — one clean exemplar per type (the recorded weak-tier output
  * in exampleDocRecording.ts is what actually replays; this is the intent):

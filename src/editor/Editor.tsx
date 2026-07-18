@@ -42,11 +42,6 @@ const SAVE_DEBOUNCE_MS = 1000;
 const EVAL_DEBOUNCE_MS = 3000;
 /** No edits anywhere for this long → fire doc-level checks. */
 const DOC_IDLE_MS = 12000;
-/** Minimum word count before the bulk-paste contradiction sweep is worth
- *  running. (The doc-level "fit" pass now arms off the maturity proxy instead —
- *  see getMaturity / R2 UX-013 — so a structurally-complete short draft earns
- *  doc-level checks even under this word bar.) */
-const CONTENT_THRESHOLD_WORDS = 150;
 
 /** Reverse hover (UX-006): how long the pointer must rest on a highlighted span
  *  before its card surfaces — long enough that a mouse merely crossing the
@@ -474,16 +469,22 @@ export function Editor({
               );
             }
           }
-          // Once the ledger is built, run a single contradiction sweep — but
-          // only once the draft crosses the doc-level content threshold.
-          if (getWordCount(editor) >= CONTENT_THRESHOLD_WORDS) {
-            scheduleEval(
-              { kind: "block-paste", blockIds: [...prevBlockIds.current] },
-              null,
-              ctx,
-              () => onEvaluationCompleteRef.current()
-            );
-          }
+          // Once the ledger is built, run a single contradiction sweep. No
+          // word-count gate (UX-016 / contradiction_coverage.md § Phase 8A): a
+          // short, punchy outline with a blatant cross-section conflict is exactly
+          // the hero moment the old 150-word cliff silenced. The sweep's own guards
+          // are the right gate — evaluateLedgerContradictions no-ops before any
+          // model call when the ledger has < 2 claims, is dirty-checked on the
+          // ledger hash, and defers under RPM backpressure — so scheduling it
+          // unconditionally costs at most one strong call per paste that actually
+          // yields ≥2 claims (pasted sections already run skipContradiction, so the
+          // sweep replaces per-section strong calls, it doesn't add to them).
+          scheduleEval(
+            { kind: "block-paste", blockIds: [...prevBlockIds.current] },
+            null,
+            ctx,
+            () => onEvaluationCompleteRef.current()
+          );
         }, 0);
         return;
       }
@@ -1340,12 +1341,12 @@ export function Editor({
           );
         }
       }
-      // Cover contradiction with a single ledger sweep once past threshold.
-      if (getWordCount(editor) >= CONTENT_THRESHOLD_WORDS) {
-        scheduleEval({ kind: "block-paste", blockIds: [...prevBlockIds.current] }, null, ctx, () =>
-          onEvaluationCompleteRef.current()
-        );
-      }
+      // Cover contradiction with a single ledger sweep. Ungated (UX-016 / Phase
+      // 8A) — the sweep's intrinsic guards (< 2 claims → no call, ledger
+      // dirty-check, RPM defer) replace the old 150-word cliff.
+      scheduleEval({ kind: "block-paste", blockIds: [...prevBlockIds.current] }, null, ctx, () =>
+        onEvaluationCompleteRef.current()
+      );
       // Opt-in doc-level scan for imports that ask for it (the "See it in
       // action" example). The normal import path suppresses the update event
       // above, so the 12s doc-idle timer never arms — without this the demo

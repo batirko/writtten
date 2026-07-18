@@ -15,6 +15,7 @@
 import contradictionTimeline from "./contradiction-timeline";
 import contradictionIntraSection from "./contradiction-intra-section";
 import contradictionSweepFidelity from "./contradiction-sweep-fidelity";
+import contradictionShortPaste from "./contradiction-short-paste";
 import contradictionSlaFamily from "./contradiction-sla-family";
 import strategicTensionFraud from "./strategic-tension-fraud";
 import clarityVague from "./clarity-vague";
@@ -46,6 +47,7 @@ export const corpus: EvalFixture[] = [
   contradictionTimeline,
   contradictionIntraSection,
   contradictionSweepFidelity,
+  contradictionShortPaste,
   contradictionSlaFamily,
   strategicTensionFraud,
   clarityVague,
