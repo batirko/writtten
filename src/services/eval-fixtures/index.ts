@@ -33,6 +33,11 @@ import clarityTextInsight from "./clarity-text-insight";
 import opinionApprehension from "./opinion-apprehension";
 import commsNarrative from "./comms-narrative";
 import rhetoricalApprehension from "./rhetorical-apprehension";
+import crossSectionReferenceResolved from "./cross-section-reference-resolved";
+import outOfScopeHeadingIntent from "./out-of-scope-heading-intent";
+import crossSectionGenuineGap from "./cross-section-genuine-gap";
+import looseTopicalOverlap from "./loose-topical-overlap";
+import contradictionSweepParaphrase from "./contradiction-sweep-paraphrase";
 import type { EvalFixture } from "./types";
 
 export const corpus: EvalFixture[] = [
@@ -57,6 +62,13 @@ export const corpus: EvalFixture[] = [
   opinionApprehension,
   commsNarrative,
   rhetoricalApprehension,
+  // OBS-027 behavioural discrimination + OBS-031 message fidelity
+  // (Phase-8 consolidated live-recording session).
+  crossSectionReferenceResolved,
+  outOfScopeHeadingIntent,
+  crossSectionGenuineGap,
+  looseTopicalOverlap,
+  contradictionSweepParaphrase,
 ];
 
 export { type EvalFixture } from "./types";
