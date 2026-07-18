@@ -1777,11 +1777,13 @@ describe("evaluator - conflict identity unified on conflictPairKey (L5c)", () =>
 
     await evaluateBlock(docId, "block1", "We plan to launch in Q3.", "Stage", apiKey);
 
-    // Same pair → coalesce: no new card, and the existing one is kept (not
-    // superseded/auto-closed), so its grace state survives. Pre-5c this pair
-    // mismatched on contentSig and churned (supersede + insert).
-    expect(db.saveObservation).not.toHaveBeenCalled();
+    // Same pair → coalesce: no new card and no supersede/close. The span reconciler
+    // does not churn it, and the edit-scoped arm confirms the pair is re-emitted and
+    // clears its lingering grace (missCount 1 → 0) — a keep, not a flicker.
     expect(db.updateObservationStatus).not.toHaveBeenCalled();
+    const saves = vi.mocked(db.saveObservation).mock.calls.map(([o]) => o as Observation);
+    expect(saves.every((o) => o.id === "cx-old")).toBe(true); // no brand-new card inserted
+    expect(saves.find((o) => o.id === "cx-old")?.missCount).toBe(0);
   });
 
   it("collapses two same-pair conflicts in one batch into a single card", async () => {
@@ -1801,7 +1803,11 @@ describe("evaluator - conflict identity unified on conflictPairKey (L5c)", () =>
     expect(db.saveObservation).toHaveBeenCalledWith(expect.objectContaining({ type: "contradiction" }));
   });
 
-  it("regression-watch: an existing conflict whose pair is not re-emitted still auto-closes", async () => {
+  it("closes an existing conflict when the edited block's claim is gone (edit-scoped, smart-immediate)", async () => {
+    // The block1 claim used to be Q4 (the card's primary anchor); the user edited it
+    // to Q3, so the Q4 claim is gone from the block AND the fresh Q3 claim doesn't
+    // resemble it → the edit-scoped arm closes the card immediately (not step 4's old
+    // blanket close, which false-closed still-valid conflicts on any prefilter miss).
     const existingConflict: Observation = {
       id: "cx-old",
       docId,
@@ -1814,7 +1820,9 @@ describe("evaluator - conflict identity unified on conflictPairKey (L5c)", () =>
       text: "Q3 vs Q4.",
       status: "active",
       blockId: "block1",
+      anchorText: "Launch in Q4.",
       conflictingBlockId: "block2",
+      conflictingAnchorText: "Launch is delayed to Q4.",
       startOffset: 0,
       endOffset: 9999,
     };

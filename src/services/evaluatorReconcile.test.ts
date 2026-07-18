@@ -7,10 +7,15 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { reconcileSweepContradictions } from "./evaluatorReconcile";
+import {
+  reconcileSweepContradictions,
+  reconcileObservations,
+  reconcileConflictCardsOnEdit,
+  type FreshClaim,
+} from "./evaluatorReconcile";
 import type { Observation } from "../store/db";
 import { capabilityForTier } from "../model/capability";
-import type { NewObservation } from "./evaluatorAnchoring";
+import { conflictPairKey, type NewObservation } from "./evaluatorAnchoring";
 
 const STRONG = capabilityForTier("strong");
 
@@ -171,5 +176,237 @@ describe("reconcileSweepContradictions — cross-type precedence", () => {
     const saved = vi.mocked(db.saveObservation).mock.calls.map(([o]) => (o as Observation).type);
     expect(saved).toContain("contradiction");
     expect(saved).toContain("strategic_tension");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// reconcileConflictCardsOnEdit — edit-scoped either-side conflict resolution
+// ---------------------------------------------------------------------------
+
+const WEAK = capabilityForTier("weak");
+
+/** A cross-block contradiction card: primary anchor in Metrics (Q3), secondary in
+ *  Timeline (Q2) — the exact shape of the 2026-07-14 field bug. */
+function conflictCard(overrides: Partial<Observation> = {}): Observation {
+  return {
+    id: "c1",
+    docId: "doc1",
+    type: "contradiction",
+    scope: "span",
+    kind: "problem",
+    severity: "high",
+    confidence: "high",
+    priority: 5,
+    text: "This contradicts the public launch date of Q3 2026 set earlier.",
+    status: "active",
+    blockId: "bMetrics",
+    startOffset: 0,
+    endOffset: 43,
+    anchorText: "The public launch is firmly set for Q3 2026",
+    anchorQuote: "The public launch is firmly set for Q3 2026",
+    conflictingBlockId: "bTimeline",
+    conflictingStartOffset: 0,
+    conflictingEndOffset: 9999,
+    conflictingAnchorText: "We are committing to a public launch in Q2 2026",
+    missCount: 0,
+    ...overrides,
+  };
+}
+
+const freshClaim = (text: string, blockId = "bTimeline"): FreshClaim => ({
+  text,
+  anchorBlockId: blockId,
+  anchorStartOffset: 0,
+  anchorEndOffset: text.length,
+  anchorQuote: text,
+});
+
+describe("reconcileConflictCardsOnEdit — either-side edit resolution", () => {
+  it("(secondary-side resolve) closes when the edited secondary claim is gone", async () => {
+    vi.mocked(db.loadActiveObservationsForDocument).mockResolvedValue([conflictCard()]);
+    const confirm = vi.fn(async () => true);
+    // Timeline (secondary) block reworded to something unrelated; no fresh claim resembles
+    // the old Q2 commitment → genuinely gone.
+    await reconcileConflictCardsOnEdit(
+      "doc1",
+      [{ blockId: "bTimeline", text: "The timeline is now under review." }],
+      [],
+      new Set(),
+      STRONG,
+      confirm
+    );
+    expect(vi.mocked(db.updateObservationStatus)).toHaveBeenCalledWith(
+      "c1",
+      "auto_closed",
+      "resolved_by_edit"
+    );
+    expect(confirm).not.toHaveBeenCalled();
+  });
+
+  it("(primary-side resolve) closes when the edited primary claim is gone", async () => {
+    vi.mocked(db.loadActiveObservationsForDocument).mockResolvedValue([conflictCard()]);
+    await reconcileConflictCardsOnEdit(
+      "doc1",
+      [{ blockId: "bMetrics", text: "Success metrics are still to be defined." }],
+      [],
+      new Set(),
+      STRONG,
+      vi.fn(async () => true)
+    );
+    expect(vi.mocked(db.updateObservationStatus)).toHaveBeenCalledWith(
+      "c1",
+      "auto_closed",
+      "resolved_by_edit"
+    );
+  });
+
+  it("(re-emitted) keeps the card and resets grace, no B call", async () => {
+    const card = conflictCard({ missCount: 1 });
+    vi.mocked(db.loadActiveObservationsForDocument).mockResolvedValue([card]);
+    const confirm = vi.fn(async () => true);
+    await reconcileConflictCardsOnEdit(
+      "doc1",
+      [{ blockId: "bTimeline", text: "We are committing to a public launch in Q2 2026." }],
+      [freshClaim("We are committing to a public launch in Q2 2026")],
+      new Set([conflictPairKey(card)]),
+      STRONG,
+      confirm
+    );
+    expect(vi.mocked(db.updateObservationStatus)).not.toHaveBeenCalled();
+    const save = vi.mocked(db.saveObservation).mock.calls.find(([o]) => (o as Observation).id === "c1");
+    expect(save).toBeDefined();
+    expect((save![0] as Observation).missCount).toBe(0);
+    expect(confirm).not.toHaveBeenCalled();
+  });
+
+  it("(reworded, still conflicts) B keeps the card, re-anchors the edited side, freezes the message", async () => {
+    const card = conflictCard();
+    vi.mocked(db.loadActiveObservationsForDocument).mockResolvedValue([card]);
+    const reworded = "We are committing to a public launch in Q2, no slippage";
+    const confirm = vi.fn(async () => true); // B says: still conflicts
+    await reconcileConflictCardsOnEdit(
+      "doc1",
+      [{ blockId: "bTimeline", text: `${reworded}.` }],
+      [freshClaim(reworded)],
+      new Set(),
+      STRONG,
+      confirm
+    );
+    expect(confirm).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(db.updateObservationStatus)).not.toHaveBeenCalled();
+    const save = vi.mocked(db.saveObservation).mock.calls.find(([o]) => (o as Observation).id === "c1");
+    const saved = save![0] as Observation;
+    expect(saved.missCount).toBe(0);
+    // Edited side is the secondary (Timeline) anchor — it moves to the reworded claim.
+    expect(saved.conflictingAnchorText).toBe(reworded);
+    // Card message (prose) stays frozen.
+    expect(saved.text).toBe(card.text);
+  });
+
+  it("(reworded, resolved) B closes the card immediately", async () => {
+    const card = conflictCard();
+    vi.mocked(db.loadActiveObservationsForDocument).mockResolvedValue([card]);
+    // Lexically close to the old Q2 anchor (so the arm treats it as reworded-but-present
+    // → ambiguous → B), but now aligned to Q3, and B adjudicates it resolved.
+    const reworded = "We are committing to a public launch in Q3 2026 now";
+    const confirm = vi.fn(async () => false); // B says: no longer conflicts
+    await reconcileConflictCardsOnEdit(
+      "doc1",
+      [{ blockId: "bTimeline", text: `${reworded}.` }],
+      [freshClaim(reworded)],
+      new Set(),
+      STRONG,
+      confirm
+    );
+    expect(confirm).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(db.updateObservationStatus)).toHaveBeenCalledWith(
+      "c1",
+      "auto_closed",
+      "resolved_by_edit"
+    );
+  });
+
+  it("(weak tier) skips B; an ambiguous card takes the grace path (bump, no close)", async () => {
+    const card = conflictCard();
+    vi.mocked(db.loadActiveObservationsForDocument).mockResolvedValue([card]);
+    const reworded = "We are committing to a public launch in Q2, no slippage";
+    const confirm = vi.fn(async () => true);
+    await reconcileConflictCardsOnEdit(
+      "doc1",
+      [{ blockId: "bTimeline", text: `${reworded}.` }],
+      [freshClaim(reworded)],
+      new Set(),
+      WEAK,
+      confirm
+    );
+    expect(confirm).not.toHaveBeenCalled();
+    expect(vi.mocked(db.updateObservationStatus)).not.toHaveBeenCalled();
+    const save = vi.mocked(db.saveObservation).mock.calls.find(([o]) => (o as Observation).id === "c1");
+    expect((save![0] as Observation).missCount).toBe(1); // grace bump, threshold is 2
+  });
+
+  it("(B cap) confirms only the highest-priority ambiguous card; the rest grace-bump", async () => {
+    // Two ambiguous cards touching the edited Timeline block; both claims still present.
+    const c1 = conflictCard({ id: "c1", priority: 5, conflictingAnchorText: "claim one still here" });
+    const c2 = conflictCard({
+      id: "c2",
+      priority: 2,
+      blockId: "bOther",
+      conflictingBlockId: "bTimeline",
+      conflictingAnchorText: "claim two still here",
+    });
+    vi.mocked(db.loadActiveObservationsForDocument).mockResolvedValue([c1, c2]);
+    const confirm = vi.fn(async () => true);
+    await reconcileConflictCardsOnEdit(
+      "doc1",
+      [{ blockId: "bTimeline", text: "claim one still here. claim two still here." }],
+      [],
+      new Set(),
+      STRONG,
+      confirm
+    );
+    expect(confirm).toHaveBeenCalledTimes(1);
+    // The lower-priority card takes the grace path.
+    const c2Save = vi.mocked(db.saveObservation).mock.calls.find(([o]) => (o as Observation).id === "c2");
+    expect((c2Save![0] as Observation).missCount).toBe(1);
+  });
+});
+
+describe("reconcileObservations — conflicts leave the span-card decision table", () => {
+  it("does NOT step-4 false-close a primary-side conflict whose pair wasn't re-emitted", async () => {
+    const card = conflictCard({ id: "e1" }); // primary anchored in the edited section
+    vi.mocked(db.loadActiveObservationsForDocument).mockResolvedValue([card]);
+    // Edit the Metrics (primary) section; newObs carries no conflict for this pair.
+    await reconcileObservations("doc1", ["bMetrics"], []);
+    expect(vi.mocked(db.updateObservationStatus)).not.toHaveBeenCalled();
+  });
+
+  it("does NOT insert a duplicate when a secondary-side edit re-emits the pair", async () => {
+    const card = conflictCard({ id: "e1" }); // primary bMetrics, secondary bTimeline
+    vi.mocked(db.loadActiveObservationsForDocument).mockResolvedValue([card]);
+    // The Timeline (secondary) section re-emits the same pair (reversed block order).
+    const incoming: NewObservation = {
+      type: "contradiction",
+      scope: "span",
+      kind: "problem",
+      severity: "high",
+      confidence: "high",
+      priority: 5,
+      text: "Timeline conflicts with the Q3 launch date.",
+      blockId: "bTimeline",
+      startOffset: 0,
+      endOffset: 10,
+      anchorText: "launch in Q2",
+      conflictingBlockId: "bMetrics",
+      conflictingStartOffset: 0,
+      conflictingEndOffset: 9999,
+      conflictingAnchorText: "The public launch is firmly set for Q3 2026",
+    };
+    await reconcileObservations("doc1", ["bTimeline"], [incoming]);
+    // The pair matched the existing card (allActive search) → no new "mock-id" card.
+    const inserted = vi.mocked(db.saveObservation).mock.calls.find(
+      ([o]) => (o as Observation).id === "mock-id"
+    );
+    expect(inserted).toBeUndefined();
   });
 });

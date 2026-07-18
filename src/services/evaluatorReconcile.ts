@@ -36,6 +36,22 @@ import {
   type NewObservation,
 } from "./evaluatorAnchoring";
 
+/** Cross-claim observation types (a `contradiction` or a `strategic_tension`). Their
+ *  identity is the order-independent block pair, and their edit-time close/keep/re-anchor
+ *  is owned by `reconcileConflictCardsOnEdit`, not the span-card decision table. */
+export function isConflictType(t: Observation["type"]): boolean {
+  return t === "contradiction" || t === "strategic_tension";
+}
+
+/** Injected strong-tier "do these two claims still conflict?" adjudication (the B call).
+ *  Kept as a callback so the DB-only reconcile module never imports the model router;
+ *  `evaluateSection` builds it from `router.strong` + `CONTRADICTION_SYSTEM_PROMPT`, and
+ *  unit tests inject a stub. Returns true when the reworded pair still conflicts. */
+export type ConfirmConflictFn = (
+  newClaimText: string,
+  existingClaimText: string
+) => Promise<boolean>;
+
 /** Record a system-driven observation closure in the debug log (dev-only).
  *  Mirrors the user-driven archives emitted from App.tsx, so the log shows every
  *  status transition with its actor + reason. See docs/projects/debug_log.md.
@@ -151,7 +167,16 @@ export async function reconcileObservations(
   // blocks — not just a single block. Keep the section keyed by representative
   // id in memberBlockIds so contradictions (anchored there) reconcile too.
   const memberSet = new Set(memberBlockIds);
-  const existing = allActive.filter((o) => o.blockId != null && memberSet.has(o.blockId));
+  // Every active observation primary-anchored to one of this section's member blocks.
+  // Superset used by the resolved_prior 0-pre close (which mirrors the fast model's
+  // confirmation over prior span obs, conflicts included).
+  const memberAnchored = allActive.filter((o) => o.blockId != null && memberSet.has(o.blockId));
+  // Conflict cards (contradiction / strategic_tension) LEAVE the span-card decision
+  // table: their edit-time close/keep/re-anchor is owned by reconcileConflictCardsOnEdit
+  // (either side, grace/B). Excluding them from `existing` keeps step 4's blanket close —
+  // which has no grace and only sees the primary anchor — from false-closing a still-valid
+  // conflict whose pair merely wasn't re-emitted this settle.
+  const existing = memberAnchored.filter((o) => !isConflictType(o.type));
   const matchedExistingIds = new Set<string>();
   // Tracks content signatures already kept/inserted this pass, so two new
   // observations that say the same thing (or one that duplicates a kept
@@ -161,16 +186,19 @@ export async function reconcileObservations(
   // they coalesce across the per-section and ledger-sweep paths.
   const seenPairKeys = new Set<string>();
   // Cross-type precedence: a strategic_tension yields to a contradiction on the
-  // same block pair (existing or incoming this batch). The sweep reconciler does
-  // the symmetric superseding of existing tensions.
+  // same block pair. Seed from ALL active contradictions (not just this section's)
+  // so an incoming tension is dropped whenever any section already carries the
+  // covering contradiction. The sweep reconciler supersedes existing tensions.
   const contraPairs = new Set<string>();
-  for (const e of existing) if (e.type === "contradiction") contraPairs.add(blockPairKey(e));
+  for (const e of allActive) if (e.type === "contradiction") contraPairs.add(blockPairKey(e));
   for (const o of newObs) if (o.type === "contradiction") contraPairs.add(blockPairKey(o));
 
   // 0-pre. Force-close any observation the model explicitly confirmed resolved.
   // This happens before the normal loop so the force-closed obs are already
-  // matched and won't be re-inserted via content-sig dedup (OBS-021).
-  for (const obs of existing) {
+  // matched and won't be re-inserted via content-sig dedup (OBS-021). Iterates the
+  // member-anchored superset (incl. conflicts) so a conflict card the fast model
+  // confirms resolved still closes here, as before.
+  for (const obs of memberAnchored) {
     if (resolvedPriorIds.has(obs.id)) {
       await updateObservationStatus(obs.id, "auto_closed", "resolved_prior");
       archiveObs(obs, "resolved_prior", evalId);
@@ -194,11 +222,11 @@ export async function reconcileObservations(
       if (seenPairKeys.has(pk)) continue; // in-batch dupe
       // A contradiction outranks a tension on the same block pair — drop the tension.
       if (newO.type === "strategic_tension" && contraPairs.has(blockPairKey(newO))) continue;
-      const pairMatch = existing.find(
-        (e) =>
-          (e.type === "contradiction" || e.type === "strategic_tension") &&
-          conflictPairKey(e) === pk &&
-          !matchedExistingIds.has(e.id)
+      // Coalesce against ALL active conflicts, not just this section's primary-anchored
+      // ones: a re-emitted pair whose existing card is anchored primary-side in ANOTHER
+      // section (the secondary side sits here) must match its card, not insert a duplicate.
+      const pairMatch = allActive.find(
+        (e) => isConflictType(e.type) && conflictPairKey(e) === pk && !matchedExistingIds.has(e.id)
       );
       if (pairMatch) {
         matchedExistingIds.add(pairMatch.id);
@@ -541,6 +569,234 @@ export async function reconcileSweepContradictions(
       if (import.meta.env.DEV) {
         const blocks = [newO.blockId, newO.conflictingBlockId].filter(Boolean);
         harness.emit("observation", { type: newO.type, blocks });
+      }
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Edit-scoped conflict-card reconciler (either-side close / keep / re-anchor)
+// ---------------------------------------------------------------------------
+
+/** Minimal shape of this settle's freshly-extracted, member-anchored claims — the
+ *  fields the arm reads to judge presence and re-anchor a kept card. `evaluateSection`
+ *  passes `anchorClaimsToMembers(...)` output, which is structurally compatible. */
+export interface FreshClaim {
+  text: string;
+  anchorBlockId?: string;
+  anchorStartOffset?: number;
+  anchorEndOffset?: number;
+  anchorQuote?: string;
+}
+
+/** One side of a conflict card whose anchor block sits in the edited section. */
+interface EditedSide {
+  side: "primary" | "secondary";
+  blockId: string;
+  /** The card's stored claim text for this side. */
+  anchorText: string;
+  /** Verbatim source slice, when the card anchored precisely (primary side only today). */
+  anchorQuote?: string;
+}
+
+/** The conflict card's anchor sides that fall inside the edited section. */
+function editedSides(card: Observation, memberSet: Set<string>): EditedSide[] {
+  const sides: EditedSide[] = [];
+  if (card.blockId != null && memberSet.has(card.blockId)) {
+    sides.push({
+      side: "primary",
+      blockId: card.blockId,
+      anchorText: card.anchorText ?? "",
+      anchorQuote: card.anchorQuote,
+    });
+  }
+  if (card.conflictingBlockId != null && memberSet.has(card.conflictingBlockId)) {
+    sides.push({
+      side: "secondary",
+      blockId: card.conflictingBlockId,
+      anchorText: card.conflictingAnchorText ?? "",
+      // No conflictingAnchorQuote on the record — the secondary side relies on the
+      // extraction/containment signals below (never on a stored verbatim quote).
+    });
+  }
+  return sides;
+}
+
+/** Smart-immediate presence: is the edited side's claim still in the document? Only
+ *  ever asserts *present* (never *gone*), so no single signal can false-close a card:
+ *  a verbatim anchor still literally in the block (whiff-proof), the stored claim text
+ *  literally present, or a fresh extracted claim that still resembles it (reworded but
+ *  present). Absence of ALL three ⇒ genuinely gone. */
+function sideClaimPresent(
+  s: EditedSide,
+  memberText: Map<string, string>,
+  fresh: FreshClaim[]
+): boolean {
+  const a = normalizeText(s.anchorText);
+  if (!a) return true; // no claim text to judge — conservatively keep the card
+  const normBlock = normalizeText(memberText.get(s.blockId) ?? "");
+  if (s.anchorQuote && normBlock.includes(normalizeText(s.anchorQuote))) return true;
+  if (normBlock.includes(a)) return true;
+  return fresh.some((c) => {
+    const cn = normalizeText(c.text);
+    return cn === a || cn.includes(a) || a.includes(cn) || textSimilarity(c.text, s.anchorText) >= DOC_DEDUPE_FLOOR;
+  });
+}
+
+/** The fresh claim that best matches an edited side, used to re-anchor a B-kept card. */
+function bestFreshMatch(s: EditedSide, fresh: FreshClaim[]): FreshClaim | undefined {
+  const a = normalizeText(s.anchorText);
+  if (!a) return undefined;
+  let best: FreshClaim | undefined;
+  let bestScore = 0;
+  for (const c of fresh) {
+    const cn = normalizeText(c.text);
+    const score = cn === a ? 2 : cn.includes(a) || a.includes(cn) ? 1 : textSimilarity(c.text, s.anchorText);
+    if (score > bestScore) {
+      bestScore = score;
+      best = c;
+    }
+  }
+  return bestScore >= DOC_DEDUPE_FLOOR ? best : undefined;
+}
+
+/** Move the edited side's anchor onto the reworded claim; freeze the card message. */
+function reanchorEditedSide(
+  card: Observation,
+  side: "primary" | "secondary",
+  fresh: FreshClaim | undefined,
+  now: number
+): Observation {
+  const base: Observation = { ...card, missCount: 0, lastSeenAt: now };
+  if (!fresh || fresh.anchorBlockId == null) return base; // nothing better to point at
+  if (side === "primary") {
+    return {
+      ...base,
+      blockId: fresh.anchorBlockId,
+      startOffset: fresh.anchorStartOffset ?? 0,
+      endOffset: fresh.anchorEndOffset ?? 9999,
+      anchorText: fresh.text,
+      anchorQuote: fresh.anchorQuote,
+    };
+  }
+  return {
+    ...base,
+    conflictingBlockId: fresh.anchorBlockId,
+    conflictingStartOffset: fresh.anchorStartOffset ?? 0,
+    conflictingEndOffset: fresh.anchorEndOffset ?? 9999,
+    conflictingAnchorText: fresh.text,
+  };
+}
+
+/**
+ * Edit-scoped re-verification of the conflict cards an edit touched — the resolution
+ * counterpart to the detection-side per-section contradiction check. Runs on every
+ * section settle (after `reconcileObservations`), NOT a ledger sweep (invariant #3).
+ *
+ * For each active `contradiction`/`strategic_tension` touching a member block on EITHER
+ * side (mirroring `handleBlockRemoved`):
+ *   - re-emitted this settle (`freshPairKeys`)  → keep, reset grace;
+ *   - edited-side claim gone from the document  → close immediately (smart-immediate);
+ *   - present but not re-emitted (reworded/ambiguous) → one strong 2-claim confirm (B),
+ *     capped at one card per settle and skipped on the weak tier; the rest age out via
+ *     the shared absence grace.
+ *
+ * See docs/projects/contradiction_resolution.md § Build spec.
+ */
+export async function reconcileConflictCardsOnEdit(
+  docId: string,
+  members: { blockId: string; text: string }[],
+  extractedClaims: FreshClaim[],
+  freshPairKeys: ReadonlySet<string>,
+  capability: ModelCapability,
+  confirmConflict: ConfirmConflictFn | undefined,
+  evalId?: string,
+  isLive: () => boolean = () => true
+): Promise<void> {
+  const memberSet = new Set(members.map((m) => m.blockId));
+  const memberText = new Map(members.map((m) => [m.blockId, m.text] as const));
+  const allActive = await loadActiveObservationsForDocument(docId);
+  if (!isLive()) return; // a block-removed during the load already closed these cards
+  const relevant = allActive.filter(
+    (o) =>
+      isConflictType(o.type) &&
+      ((o.blockId != null && memberSet.has(o.blockId)) ||
+        (o.conflictingBlockId != null && memberSet.has(o.conflictingBlockId)))
+  );
+  if (relevant.length === 0) return;
+
+  const now = Date.now();
+  const ambiguous: {
+    card: Observation;
+    editedSide: "primary" | "secondary";
+    newText: string;
+    existingText: string;
+    freshMatch?: FreshClaim;
+  }[] = [];
+
+  for (const card of relevant) {
+    // Re-emitted this settle → still conflicts → keep, reset the absence counter.
+    // Only write when there is grace to clear, so a steadily-re-emitted conflict
+    // (the common case) costs no redundant DB write per settle.
+    if (freshPairKeys.has(conflictPairKey(card))) {
+      if ((card.missCount ?? 0) !== 0) {
+        await saveObservation({ ...card, missCount: 0, lastSeenAt: now });
+      }
+      continue;
+    }
+
+    const sides = editedSides(card, memberSet);
+    // A conflict needs both claims: if ANY edited side's claim is genuinely gone from
+    // the document, the conflict is resolved → close immediately (no grace wait).
+    if (sides.some((s) => !sideClaimPresent(s, memberText, extractedClaims))) {
+      await updateObservationStatus(card.id, "auto_closed", "resolved_by_edit");
+      archiveObs(card, "auto_closed", evalId);
+      continue;
+    }
+
+    // Present but not re-emitted → ambiguous. Re-confirm the edited side against the
+    // other side's frozen text. Prefer the primary anchor as the "new" side.
+    const s = sides.find((x) => x.side === "primary") ?? sides[0];
+    const existingText = (s.side === "primary" ? card.conflictingAnchorText : card.anchorText) ?? "";
+    const freshMatch = bestFreshMatch(s, extractedClaims);
+    ambiguous.push({
+      card,
+      editedSide: s.side,
+      newText: freshMatch?.text ?? s.anchorText,
+      existingText,
+      freshMatch,
+    });
+  }
+
+  if (ambiguous.length === 0) return;
+
+  // B — at most one targeted 2-claim confirm per settle (strong tier only), on the
+  // highest-priority ambiguous card; the rest take the grace path this settle.
+  const bTarget =
+    capability.adjudicateConfidently && confirmConflict
+      ? ambiguous.reduce((a, b) => ((b.card.priority ?? 0) > (a.card.priority ?? 0) ? b : a))
+      : undefined;
+
+  for (const item of ambiguous) {
+    if (item === bTarget) {
+      const stillConflicts = await confirmConflict!(item.newText, item.existingText);
+      if (!isLive()) return; // section removed while B was in flight — don't resurrect
+      if (!stillConflicts) {
+        await updateObservationStatus(item.card.id, "auto_closed", "resolved_by_edit");
+        archiveObs(item.card, "auto_closed", evalId);
+      } else {
+        // Keep: reset grace, move the edited side's highlight to the reworded claim,
+        // freeze the card message (D5 — anchor live, prose frozen).
+        await saveObservation(reanchorEditedSide(item.card, item.editedSide, item.freshMatch, now));
+      }
+    } else {
+      // Grace path — bump absence; close only after DOC_GRACE_THRESHOLD misses.
+      const miss = (item.card.missCount ?? 0) + 1;
+      if (miss >= DOC_GRACE_THRESHOLD) {
+        await updateObservationStatus(item.card.id, "auto_closed", "resolved_by_edit");
+        archiveObs(item.card, "auto_closed", evalId);
+      } else {
+        await saveObservation({ ...item.card, missCount: miss });
       }
     }
   }
