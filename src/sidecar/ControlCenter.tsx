@@ -1038,6 +1038,10 @@ export function ControlCenter({
             </div>
 
             <div className="settings-legal" data-testid="legal-link">
+              <a href="/why/" target="_blank" rel="noreferrer">
+                Why writtten
+              </a>
+              {" · "}
               <a href="/privacy/" target="_blank" rel="noreferrer">
                 Privacy &amp; Terms
               </a>

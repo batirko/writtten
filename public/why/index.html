@@ -1,0 +1,386 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Why I built writtten</title>
+    <meta
+      name="description"
+      content="Why I built writtten. A document where you write everything yourself, and the AI only highlights substantive issues in the text. It never edits anything for you."
+    />
+    <meta name="robots" content="index,follow" />
+    <link rel="icon" href="/favicon.svg" />
+
+    <!-- Open Graph / Twitter: this page is the link every launch post points at,
+         so it should unfurl with a title, blurb, and card image when shared. -->
+    <meta property="og:type" content="article" />
+    <meta property="og:url" content="https://writtten.com/why" />
+    <meta property="og:title" content="Why I built writtten" />
+    <meta
+      property="og:description"
+      content="A document where you write everything yourself, and the AI only highlights substantive issues in the text. It never edits anything for you."
+    />
+    <meta property="og:image" content="https://writtten.com/og.png" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Why I built writtten" />
+    <meta
+      name="twitter:description"
+      content="A document where you write everything yourself, and the AI only highlights substantive issues in the text. It never edits anything for you."
+    />
+    <meta name="twitter:image" content="https://writtten.com/og.png" />
+
+    <style>
+      /* Fonts self-hosted to match the app (@fontsource-variable, latin subset). */
+      @font-face {
+        font-family: "Faustina Variable";
+        font-style: normal;
+        font-display: swap;
+        font-weight: 300 700;
+        src: url("/fonts/faustina-latin-wght-normal.woff2") format("woff2");
+        unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC,
+          U+0304, U+0308, U+0329, U+2000-206F, U+2074, U+20AC, U+2122, U+2191, U+2193, U+2212,
+          U+2215, U+FEFF, U+FFFD;
+      }
+      @font-face {
+        font-family: "Inter Variable";
+        font-style: normal;
+        font-display: swap;
+        font-weight: 100 900;
+        src: url("/fonts/inter-latin-wght-normal.woff2") format("woff2");
+        unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC,
+          U+0304, U+0308, U+0329, U+2000-206F, U+2074, U+20AC, U+2122, U+2191, U+2193, U+2212,
+          U+2215, U+FEFF, U+FFFD;
+      }
+
+      :root {
+        --paper: oklch(98.4% 0.004 95);
+        --border: oklch(91% 0.004 95);
+        --ink: oklch(22% 0.004 95);
+        --ink-2: oklch(40% 0.005 95);
+        --muted: oklch(62% 0.006 95);
+        --accent: oklch(50% 0.12 274);
+        --accent-strong: oklch(44% 0.14 274);
+        --accent-tint: oklch(95% 0.02 274);
+        --caveat-bg: oklch(97% 0.02 75);
+        --caveat-rule: oklch(72% 0.17 60);
+        --font-serif: "Faustina Variable", "Faustina", Georgia, Cambria, "Times New Roman", serif;
+        --font-sans: "Inter Variable", "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI",
+          sans-serif;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+      /* Deliberately single-theme: matches the app, which is light-first (dark deferred). */
+      body {
+        background: var(--paper);
+        color: var(--ink);
+        font-family: var(--font-sans);
+        -webkit-font-smoothing: antialiased;
+        text-rendering: optimizeLegibility;
+        margin: 0;
+      }
+
+      .topbar {
+        max-width: 41rem;
+        margin: 0 auto;
+        padding: 1.5rem;
+      }
+      .home {
+        font-family: var(--font-serif);
+        font-size: 1.0625rem;
+        letter-spacing: -0.01em;
+        color: var(--ink-2);
+        text-decoration: none;
+        display: inline-flex;
+        align-items: baseline;
+        gap: 0.5rem;
+      }
+      .home:hover {
+        color: var(--accent-strong);
+      }
+      .home .arrow {
+        color: var(--muted);
+      }
+
+      main {
+        max-width: 41rem;
+        margin: 0 auto;
+        padding: 0 1.5rem 4rem;
+      }
+
+      h1 {
+        font-family: var(--font-serif);
+        font-weight: 600;
+        font-size: 2.375rem;
+        letter-spacing: -0.02em;
+        line-height: 1.08;
+        margin: 2.5rem 0 0.9rem;
+        text-wrap: balance;
+      }
+      .lede {
+        font-family: var(--font-serif);
+        font-size: 1.375rem;
+        line-height: 1.4;
+        color: var(--ink-2);
+        font-style: italic;
+        margin: 0 0 0.5rem;
+        text-wrap: balance;
+      }
+      .byline {
+        display: block;
+        font-family: var(--font-sans);
+        font-style: normal;
+        font-size: 0.8125rem;
+        color: var(--muted);
+        margin-top: 0.9rem;
+      }
+
+      h2 {
+        font-family: var(--font-serif);
+        font-weight: 600;
+        font-size: 1.375rem;
+        letter-spacing: -0.01em;
+        line-height: 1.25;
+        margin: 2.75rem 0 0.75rem;
+      }
+      p {
+        font-size: 1.0625rem;
+        line-height: 1.7;
+        color: var(--ink);
+        margin: 0 0 1.1rem;
+      }
+      .intro {
+        margin-top: 2rem;
+      }
+      strong {
+        font-weight: 600;
+      }
+
+      .observation {
+        margin: 1.9rem 0;
+        padding: 1.15rem 1.35rem;
+        background: var(--accent-tint);
+        border-left: 3px solid var(--accent);
+        border-radius: 0 10px 10px 0;
+      }
+      .observation p {
+        margin: 0;
+        font-family: var(--font-serif);
+        font-size: 1.15rem;
+        line-height: 1.4;
+        color: var(--ink);
+      }
+      .observation p + p {
+        margin-top: 0.7rem;
+      }
+
+      a.link {
+        color: var(--accent);
+        text-decoration: none;
+        border-bottom: 1px solid transparent;
+        transition: border-color 120ms ease;
+      }
+      a.link:hover {
+        border-bottom-color: var(--accent);
+      }
+      a:focus-visible,
+      .home:focus-visible,
+      .btn:focus-visible {
+        outline: 2px solid var(--accent);
+        outline-offset: 3px;
+        border-radius: 2px;
+      }
+
+      .caveat {
+        margin: 1.5rem 0;
+        padding: 1rem 1.25rem 1rem 1.15rem;
+        background: var(--caveat-bg);
+        border-left: 3px solid var(--caveat-rule);
+        border-radius: 0 8px 8px 0;
+      }
+      .caveat p {
+        margin: 0;
+        font-size: 1rem;
+        color: var(--ink);
+      }
+
+      .cta-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.75rem 1.1rem;
+        align-items: center;
+        margin: 1.9rem 0 0;
+      }
+      .btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+        background: var(--accent-strong);
+        color: oklch(98% 0.01 274);
+        padding: 0.65rem 1.2rem;
+        border-radius: 8px;
+        font-weight: 600;
+        font-size: 0.98rem;
+        text-decoration: none;
+      }
+      .btn:hover {
+        background: var(--accent);
+      }
+
+      hr {
+        border: none;
+        border-top: 0.5px solid var(--border);
+        margin: 3rem 0 0;
+      }
+      footer {
+        max-width: 41rem;
+        margin: 1.5rem auto 0;
+        padding: 0 1.5rem 3rem;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem 1.25rem;
+        font-size: 0.875rem;
+        color: var(--muted);
+      }
+      footer a {
+        color: var(--muted);
+        text-decoration: none;
+        border-bottom: 1px solid transparent;
+      }
+      footer a:hover {
+        color: var(--accent-strong);
+        border-bottom-color: var(--accent-strong);
+      }
+
+      @media (max-width: 480px) {
+        h1 {
+          font-size: 1.95rem;
+        }
+        .lede {
+          font-size: 1.2rem;
+        }
+        .topbar,
+        main,
+        footer {
+          padding-left: 1.25rem;
+          padding-right: 1.25rem;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="topbar">
+      <a class="home" href="/"><span class="arrow" aria-hidden="true">&larr;</span> writtten</a>
+    </div>
+
+    <main>
+      <h1>Why I built writtten</h1>
+      <p class="lede">
+        I am not as afraid that AI will take my job as I am afraid it will take my mental ability and
+        skills.
+      </p>
+      <span class="byline">By Vitalii, who makes writtten</span>
+
+      <p class="intro">
+        AI tools are awesome for productivity. But in some places where they made things easier, they
+        might have made them too easy.
+      </p>
+
+      <p>
+        For product managers and similar roles, the place where it got too easy is writing. Product
+        requirement documents, communications, tasks, emails: most of this text is now generated with
+        AI, usually through some form of chat. The chat interface is as native as it gets, we&rsquo;ve
+        been interacting with it for years. But it makes it feel too easy to delegate all the writing
+        that is (was?) a big chunk of the core work.
+      </p>
+
+      <p>
+        And moving from a document to a chat changes more than the interface. Writing in a document is
+        how I think via text, how I exercise my expression and voice. AI does some heavy lifting when
+        working on documents. But if I am only steering and never lifting anything myself, won&rsquo;t
+        my thinking and writing muscles atrophy?
+      </p>
+
+      <p>
+        Stopping AI use altogether is not really wise, seeing all the benefits it brings. What I wanted
+        was to &ldquo;regress&rdquo; back to the document view and have AI by my side while I work on
+        it. I didn&rsquo;t find a tool that would do exactly what I wanted, so I built one.
+      </p>
+
+      <h2>What writtten is</h2>
+
+      <p>
+        A document interface where you write everything yourself, and the AI only highlights
+        substantive issues in the text:
+      </p>
+
+      <div class="observation">
+        <p>&ldquo;this contradicts the success metric you set two sections ago,&rdquo;</p>
+        <p>&ldquo;this claim has nothing supporting it,&rdquo;</p>
+        <p>&ldquo;you never addressed the risk you promised to cover.&rdquo;</p>
+      </div>
+
+      <p>
+        It deliberately stays away from grammar and style fixes. The AI is always nearby to detect,
+        highlight, and support, but it never edits anything for you. You are the sole author of the
+        text.
+      </p>
+
+      <p>
+        It also tries to pick its moments: while you are still getting the words down it stays out of
+        the way, and it becomes more opinionated as the text settles and you start revising.
+      </p>
+
+      <p>
+        I don&rsquo;t expect writtten to pull people away from working on docs with agents. Even this
+        page was written in writtten, and I asked an agent to check some things after I finished. But
+        that&rsquo;s the whole point: I didn&rsquo;t prompt it to write anything. I focused on the
+        writing myself and benefited from a few notes I got along the way, without damaging the flow.
+      </p>
+
+      <h2>What to expect</h2>
+
+      <div class="caveat">
+        <p>
+          writtten is early, and there is a lot I still want to work on (the quality of the notes above
+          all). Expect some of them to miss the point, and expect some things worth catching to slip
+          by. Nevertheless, I find it already quite useful.
+        </p>
+      </div>
+
+      <p>
+        A few practical things: it&rsquo;s bring-your-own-key (your key, your data, everything stays
+        local in your browser), and there&rsquo;s a built-in &ldquo;See it in action&rdquo; example if
+        you want a feel for it before setting anything up. The project is also
+        <a class="link" href="https://github.com/batirko/writtten" target="_blank" rel="noreferrer"
+          >open source</a
+        >, and you can run it locally.
+      </p>
+
+      <p>
+        If you try it, share your feedback (especially the roasting kind). The best place for it is a
+        <a
+          class="link"
+          href="https://github.com/batirko/writtten/issues"
+          target="_blank"
+          rel="noreferrer"
+          >GitHub issue</a
+        >.
+      </p>
+
+      <div class="cta-row">
+        <a class="btn" href="/">Open writtten &rarr;</a>
+      </div>
+
+      <hr />
+    </main>
+
+    <footer>
+      <a href="https://github.com/batirko/writtten" target="_blank" rel="noreferrer"
+        >Open source &middot; github.com/batirko/writtten</a
+      >
+      <a href="/">&larr; Back to writtten</a>
+    </footer>
+  </body>
+</html>
