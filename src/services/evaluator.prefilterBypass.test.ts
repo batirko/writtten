@@ -104,12 +104,22 @@ describe("contradiction candidate-selection bypass", () => {
 
   it("all-pairs bypass reproduces the prefilter arm on the contradiction fixtures", async () => {
     // These seed fixtures carry far fewer than 10 candidate claims, so the
-    // Jaccard prefilter is already a no-op — the bypass must land on the same
+    // candidate selector is already a no-op — the bypass must land on the same
     // recorded contradiction call (same hash) and emit the same observations.
     // Per-section contradiction fixtures only (the sweep fixture has empty
     // `sections` and runs a different path — `runSweep`, not `run`).
+    //
+    // EXCEPTION — `contradiction-sla-family`: that fixture is deliberately built
+    // with >10 candidate claims so `selectContradictionCandidates` (OBS-038) does
+    // real per-claim selection rather than passing every candidate through. For it,
+    // all-pairs LEGITIMATELY differs from the selected set (the selector's raison
+    // d'être), so the no-op equivalence this case asserts does not apply — the
+    // ratchet fixture itself is recorded on the selected set and guards that path.
     const contradictionFixtures = corpus.filter(
-      (f) => f.id.startsWith("contradiction") && f.sections.length > 0
+      (f) =>
+        f.id.startsWith("contradiction") &&
+        f.sections.length > 0 &&
+        f.id !== "contradiction-sla-family"
     );
     expect(contradictionFixtures.length).toBeGreaterThan(0);
     for (const fixture of contradictionFixtures) {

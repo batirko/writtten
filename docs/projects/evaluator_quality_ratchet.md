@@ -94,7 +94,7 @@ The machinery shipped, but the _floor it guards_ is below the prose bar: R4.4 im
 
 | Tier | Covered today | Gap to close (Phase-8 fixtures) |
 | ---- | ------------- | -------------------------------- |
-| A `contradiction` | timeline · intra-section · sweep-fidelity | `contradiction-sla-family` (OBS-038 triplet) · `contradiction-short-paste` (UX-016) |
+| A `contradiction` | timeline · intra-section · sweep-fidelity · **`contradiction-sla-family`** (OBS-038 triplet, landed 2026-07-17 — free-tier recorded) | `contradiction-short-paste` (UX-016) |
 | B `unsupported_claim` | vs-attributed · success-metric · opinion/rhetorical-apprehension | — (well covered) |
 | B `audience_mismatch` | **zero** — doc-level type, `runFixture` drives `evaluateSection` only | see item 2 |
 | C `clarity` | 5 fixtures | — |

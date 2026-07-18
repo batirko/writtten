@@ -82,7 +82,7 @@ Any option must compose with the discomfort-budget floor/ceiling (G4) and the ma
 
 **Verification:** ratchet fixture `contradiction-short-paste` — a two-claim, ~30-word contradictory paste → sweep fires, `contradiction` card appears (mock replay); unit case — a no-claim short paste schedules the sweep but makes **no** model call; live: the original UX-016 repro string ("challenge window 60s / expires in 30s") caught on paste. Update `docs/mechanics/evaluation-triggers.md` (§ block-paste) in the same PR.
 
-## Phase 8B — per-claim candidate selection (OBS-038; design settled 2026-07-16)
+## Phase 8B — per-claim candidate selection (OBS-038; design settled 2026-07-16, **shipped 2026-07-17**)
 
 **The defect (V1 Run 1, doc P09):** `prefilterClaims` is queried with the **whole settling section's concatenated claim blob** and keeps a single global top-10 (`evaluator.ts:551–554`). Two composing failures: the blob query dilutes any one claim's retrieval signal, and a **compatible near-duplicate** of a claim (α, "change→detection < 5 min") outscores and evicts the **contradictory** claim (β, "change→PR < 5 min" vs γ, "detection→PR < 1 hr") — so the true pair β×γ never co-occurred in any prompt, in either direction. The adjudicator was never asked; 0% hero recall on real PRDs.
 
@@ -124,8 +124,8 @@ selectContradictionCandidates(newClaims, otherClaims, { perClaimK = 5, totalCap 
 
 ### Phase 8
 
-- [ ] **8B — build `selectContradictionCandidates`** (pure, `prefilter.ts`) + swap it in at `evaluator.ts:551` with the byte-identical small-doc guarantee asserted in unit tests first.
-- [ ] **8B — `contradiction-sla-family` ratchet fixture** (synthetic α/β/γ triplet + decoy near-duplicate; live-record in the shared Phase-8 recording session).
+- [x] **8B — build `selectContradictionCandidates`** (pure, `prefilter.ts`) + swap it in at the contradiction call site (`evaluator.ts`, the `"prefilter"` branch of V3's `contradictionCandidates` seam) with the byte-identical small-doc guarantee asserted in unit tests first. **Shipped:** `perClaimK=5`, `totalCap=15`, dedup `≥0.9` keep-first; byte-identity held on the whole corpus (self-inclusion property — each same-section new claim retrieves itself at Jaccard 1.0, so the union covers all candidates). Unit tests in `prefilter.test.ts`.
+- [x] **8B — `contradiction-sla-family` ratchet fixture** (synthetic α/β/γ SLA triplet, >10 candidates so the selector actively selects; free-tier recorded). **Shipped:** the strong contradiction fires end-to-end (β change-to-PR <5 min × γ change-to-PR up to 1 hour); the `evaluator.prefilterBypass.test.ts` all-pairs≡prefilter no-op case excludes this fixture by design (it exceeds the no-op threshold).
 - [ ] **8B — V3 acceptance:** re-run the recall harness over the V1 labels; P09's β×γ must co-occur in an assembled prompt; record the prefilter-drop count for the LEANN trigger.
 - [ ] **8A — remove the word gate** at `Editor.tsx:479` and `:1344`; add the `contradiction-short-paste` fixture + the no-claim no-call unit case; live-verify the UX-016 repro string; update `docs/mechanics/evaluation-triggers.md`. _(Owner ratification of the ungate decision at pickup — it spends one strong call per small paste; recommendation + cost analysis in § Phase 8A.)_
 - [ ] **8A sequencing** — do not ship 8A ahead of OBS-030 (scope-excluded tagging, its own Phase-8 milestone): the ungated sweep should run with the sweep-side FP class repaired so widened exposure doesn't widen the V1-measured false positives.

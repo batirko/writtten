@@ -144,3 +144,91 @@ export function prefilterClaims<T extends Filterable>(
   scored.sort((a, b) => b.score - a.score || a.index - b.index);
   return scored.slice(0, topK).map((s) => s.item);
 }
+
+/**
+ * Two claims whose token sets are at least this Jaccard-similar are treated as the
+ * same claim during candidate dedup (keep-first). 0.9 keeps genuine paraphrases
+ * (a compatible restatement of a claim) from each occupying a separate candidate
+ * slot, while leaving distinct claims — even lexically close ones — in place.
+ */
+const NEAR_DUP_THRESHOLD = 0.9;
+
+export interface SelectContradictionOptions {
+  /** How many candidates to retrieve per new claim (default 5). */
+  perClaimK?: number;
+  /** Hard cap on the unioned candidate set handed to the adjudicator (default 15). */
+  totalCap?: number;
+}
+
+/**
+ * Candidate selection for the per-section contradiction check (OBS-038 fix).
+ *
+ * Replaces the old whole-section blob query + single global top-10 (`prefilterClaims`
+ * called with every new claim's text concatenated). That blob query had two composing
+ * failures diagnosed on V1 Run 1's real PRDs (0% hero recall):
+ *   - it dilutes any one claim's retrieval signal across the whole section, and
+ *   - a *compatible* near-duplicate of a claim can outscore and evict the *contradictory*
+ *     claim from the top-K, so the true pair never co-occurs in a prompt and the
+ *     adjudicator is never asked (candidate SELECTION, not adjudication).
+ *
+ * A genuine contradiction almost always shares its subject with its counterpart, so
+ * *pairwise* claim-to-claim similarity is the right retrieval signal. Keeping lexical
+ * Jaccard (embeddings/LEANN stay deferred — see the module header):
+ *   1. Dedup near-duplicate candidates (>= NEAR_DUP_THRESHOLD Jaccard), keep-first —
+ *      stops a paraphrase cluster from monopolizing every per-claim list.
+ *   2. Retrieve the top-`perClaimK` deduped candidates for EACH new claim.
+ *   3. Union the per-claim lists, rank each candidate by its max per-claim score,
+ *      and slice to `totalCap`.
+ *
+ * Byte-identity on small docs: when the candidate set is small (<= totalCap) and each
+ * new claim is itself among the candidates (the Mechanism-A same-section pool folded
+ * in at >= 2 claims), a new claim retrieves itself at Jaccard 1.0, so the union covers
+ * every candidate and the output *set* equals `otherClaims`. The call site re-sorts the
+ * result by (text, sourceBlockId), so existing contradiction fixtures stay byte-identical.
+ *
+ * See docs/projects/contradiction_coverage.md § Phase 8B.
+ */
+export function selectContradictionCandidates<T extends Filterable>(
+  newClaims: Filterable[],
+  otherClaims: T[],
+  { perClaimK = 5, totalCap = 15 }: SelectContradictionOptions = {}
+): T[] {
+  // 1. Dedup near-duplicate candidates (keep-first, stable order). Cache each kept
+  //    candidate's token set so step 2 doesn't re-tokenize it per new claim.
+  const deduped: T[] = [];
+  const dedupedTokens: Set<string>[] = [];
+  for (const cand of otherClaims) {
+    const tokens = tokenize(cand.text);
+    if (dedupedTokens.some((seen) => jaccardSimilarity(seen, tokens) >= NEAR_DUP_THRESHOLD)) continue;
+    deduped.push(cand);
+    dedupedTokens.push(tokens);
+  }
+
+  const dedupedIndex = new Map<T, number>();
+  deduped.forEach((cand, index) => dedupedIndex.set(cand, index));
+
+  // 2 + 3. Per new claim, take the top-`perClaimK` deduped candidates by pairwise
+  //        Jaccard; union them, ranking each surviving candidate by its MAX similarity
+  //        to any new claim (a candidate contradicting even one new claim earns its slot).
+  const maxScore = new Map<T, number>();
+  for (const nc of newClaims) {
+    const queryTokens = tokenize(nc.text);
+    const perClaim = deduped
+      .map((cand, index) => ({
+        cand,
+        index,
+        score: jaccardSimilarity(queryTokens, dedupedTokens[index]),
+      }))
+      .sort((a, b) => b.score - a.score || a.index - b.index)
+      .slice(0, perClaimK);
+    for (const { cand, score } of perClaim) {
+      const prev = maxScore.get(cand);
+      if (prev === undefined || score > prev) maxScore.set(cand, score);
+    }
+  }
+
+  // Rank the union by max per-claim score, tie-break by deduped order, then cap.
+  return [...maxScore.keys()]
+    .sort((a, b) => maxScore.get(b)! - maxScore.get(a)! || dedupedIndex.get(a)! - dedupedIndex.get(b)!)
+    .slice(0, totalCap);
+}
