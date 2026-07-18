@@ -2,7 +2,7 @@ import { openDB, type IDBPDatabase } from "idb";
 import { harness } from "../debug/harness";
 
 const DB_NAME = "writtten";
-const DB_VERSION = 9;
+const DB_VERSION = 10;
 
 export interface DocumentRecord {
   id: string;
@@ -48,6 +48,14 @@ export interface ClaimLedgerEntry {
    *  the card can quote the user's own (possibly mid-sentence) words rather than
    *  the normalized claim `text`. Absent on the paraphrase fallback. */
   anchorQuote?: string;
+  /** Set when this claim's governing section heading is an explicit exclusion
+   *  ("Out of scope" / "Non-goals" / "Future work"), so the contradiction checks
+   *  skip it — an item under such a heading is a deliberate non-commitment, not a
+   *  live claim to conflict against (OBS-030). Set deterministically at extraction
+   *  time from the section heading (`isExcludedScopeHeading`), not by the model.
+   *  Optional/additive — legacy rows lack it and are re-derived on the next eval,
+   *  so no data backfill. NOT the same axis as `Observation.scope` (span|document). */
+  scope?: "excluded";
 }
 
 export interface Observation {
@@ -246,6 +254,13 @@ async function getDb(): Promise<IDBPDatabase> {
         // suppressions keep these undefined and continue to match on
         // spanSignature (offset fallback). The version bump is required because
         // new code writes the new shape; no object-store/index changes needed.
+      }
+      if (oldVersion < 10) {
+        // OBS-030: ClaimLedgerEntry gained an optional `scope: "excluded"` tag,
+        // set deterministically at extraction time from the governing section
+        // heading. No backfill: legacy claims lack it and are re-derived on the
+        // next eval; no object-store/index changes needed. The version bump is
+        // required only because new code writes the new shape. Mirrors v9.
       }
     },
   });
