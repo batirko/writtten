@@ -27,7 +27,7 @@ import { describe, it, vi, beforeAll, afterAll } from "vitest";
 import { readFileSync, writeFileSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { evaluateSection } from "../evaluator";
+import { evaluateSection, evaluateLedgerContradictions } from "../evaluator";
 import * as db from "../../store/db";
 import { setLlmMode, dumpRecordings, clearRecordings } from "../../model/mock";
 import type { ClaimLedgerEntry } from "../../store/db";
@@ -127,17 +127,36 @@ describe("eval:record — populate fixture recordings", () => {
       setLlmMode("record");
 
       const docId = `record-${fixture.id}`;
-      for (const section of fixture.sections) {
-        await evaluateSection(
-          docId,
-          section.id,
-          section.text,
-          [{ blockId: section.id, text: section.text }],
-          fixture.stage,
-          apiKey,
-          undefined,
-          fixture.jargonAllowlist
-        );
+      if (fixture.sweep) {
+        // Sweep fixture: seed claims straight into the ledger, then run the
+        // ledger-internal contradiction sweep in record mode (mirrors
+        // runFixture.runSweep, but with real API calls captured). `sections`
+        // is ignored for sweep fixtures.
+        claimsStore.length = 0;
+        for (const c of fixture.seedClaims ?? []) {
+          claimsStore.push({
+            id: claimIdCounter++,
+            docId,
+            sourceBlockId: c.sourceBlockId,
+            text: c.text,
+            kind: c.kind,
+            status: "active",
+          });
+        }
+        await evaluateLedgerContradictions(docId, fixture.stage, apiKey, undefined);
+      } else {
+        for (const section of fixture.sections) {
+          await evaluateSection(
+            docId,
+            section.id,
+            section.text,
+            [{ blockId: section.id, text: section.text }],
+            fixture.stage,
+            apiKey,
+            undefined,
+            fixture.jargonAllowlist
+          );
+        }
       }
 
       const recordings = dumpRecordings();
