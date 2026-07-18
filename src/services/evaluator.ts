@@ -58,9 +58,11 @@ import {
 } from "./evaluatorAnchoring";
 import {
   reconcileObservations,
+  reconcileConflictCardsOnEdit,
   reconcileDocumentObservations,
   reconcileSweepContradictions,
   archiveObs,
+  type ConfirmConflictFn,
 } from "./evaluatorReconcile";
 import {
   snapshotKey,
@@ -275,6 +277,19 @@ export async function evaluateSection(
     if (!isLive()) return;
     await saveClaimsForBlock(docId, sectionId, [], memberBlockIds);
     await reconcileObservations(docId, memberBlockIds, []);
+    // The section was wiped: no claims survive, so any conflict card touching it on
+    // either side is resolved → smart-immediate closes it (empty extract + empty
+    // block text ⇒ "gone"). No B on this path (no fresh claim to re-confirm against).
+    await reconcileConflictCardsOnEdit(
+      docId,
+      members,
+      [],
+      new Set<string>(),
+      capability,
+      undefined,
+      evalId,
+      isLive
+    );
     await saveBlockSummary({ blockId: sectionId, docId, summary: "", hash: textHash });
     return;
   }
@@ -790,6 +805,46 @@ export async function evaluateSection(
     if (!isLive()) return;
 
     await reconcileObservations(docId, memberBlockIds, newObs, resolvedPriorIds, evalId);
+
+    // 7b. Edit-scoped conflict-card resolution (either side). The pair keys emitted
+    //     this settle tell the arm which conflicts still hold; the fresh claims + live
+    //     member text tell it which have been resolved (smart-immediate close). A
+    //     strong-tier 2-claim confirm (B) disambiguates a reworded-but-present card,
+    //     capped at one/settle and skipped on the weak tier (V1: weak-tier contradiction
+    //     adjudication is untrustworthy). See docs/projects/contradiction_resolution.md.
+    const freshPairKeys = new Set(
+      newObs
+        .filter((o) => o.type === "contradiction" || o.type === "strategic_tension")
+        .map((o) => conflictPairKey(o))
+    );
+    const confirmConflict: ConfirmConflictFn | undefined = capability.adjudicateConfidently
+      ? async (newClaimText, existingClaimText) => {
+          const user = `New Claims:\n[New Claim #0]: "${newClaimText}"\n\nExisting Claims:\n[Existing Claim #0]: "${existingClaimText}"${
+            stage ? `\n\nDocument Context: ${stage}` : ""
+          }`;
+          const res = await router.strong({
+            system: CONTRADICTION_SYSTEM_PROMPT,
+            user,
+            json: true,
+            meta: { evalId, promptRef: "contradiction-reconfirm" },
+          });
+          const parsed = parseJSONResponse(res.text) as {
+            contradictions?: unknown[];
+            tensions?: unknown[];
+          };
+          return (parsed.contradictions?.length ?? 0) > 0 || (parsed.tensions?.length ?? 0) > 0;
+        }
+      : undefined;
+    await reconcileConflictCardsOnEdit(
+      docId,
+      members,
+      extractedClaims,
+      freshPairKeys,
+      capability,
+      confirmConflict,
+      evalId,
+      isLive
+    );
 
     // 8. Commit the dirty-check hash LAST. Only now — after the fast call, the
     //    contradiction call, and reconciliation have all succeeded — is the
