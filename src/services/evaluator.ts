@@ -4,6 +4,7 @@ import { selectContradictionCandidates } from "./prefilter";
 import { computePriority, docGapKind } from "./priority";
 import type { MaturityLevel } from "./documentMaturity";
 import { JARGON_PRESET } from "./jargonPreset";
+import { isExcludedScopeHeading } from "./scopeHeading";
 import {
   classifyDocumentClass,
   sectionCalibrationBlock,
@@ -446,6 +447,18 @@ export async function evaluateSection(
       members,
       (parsedMerged.claims || []).filter((c) => !isDocumentMetaClaim(c.text))
     );
+    // OBS-030: a section is exactly one heading + body, so its governing heading
+    // sets one intent for all its claims. When that heading is an explicit
+    // exclusion ("Out of scope"/"Non-goals"/"Future work"), tag every claim
+    // `scope: "excluded"` so the contradiction checks below (and the sweep) skip
+    // it — an item under such a heading is a deliberate non-commitment, not a
+    // live claim to conflict against. Deterministic on `isHeading` (set by
+    // resolveSections); the fixture harness builds members without it, so the
+    // corpus stays byte-identical. See docs/logs/prompt_quality_observations.md
+    // OBS-030.
+    if (isExcludedScopeHeading(members.find((m) => m.isHeading)?.text)) {
+      for (const c of extractedClaims) c.scope = "excluded";
+    }
     if (import.meta.env.DEV && extractedClaims.length > 0) {
       // Paraphrase residual: claims that weren't a verbatim substring and fell
       // back to the whole **body** block (OBS-032). `anchorExact === false` marks
@@ -623,10 +636,25 @@ export async function evaluateSection(
       // via `conflictPairKey`. No new call cadence: this widens the candidate set of
       // a strong call that already fires per settle and is not maturity-gated
       // (resolving UX-016's intra-section case).
-      const crossSectionClaims = existingClaims.filter((c) => c.sourceBlockId !== sectionId);
+      // OBS-030: an item under an "Out of scope"/"Non-goals"/"Future work" heading
+      // is a deliberate non-commitment — skip claims tagged `scope: "excluded"` on
+      // BOTH sides so a stated exclusion can't manufacture a false conflict against
+      // a real limit. Filtered in code here (not via a prompt rule) so no request
+      // hash shifts and no fixture re-keys. If the whole section is excluded, its
+      // new-claims list empties and the check simply doesn't fire.
+      const contradictionNewClaims = extractedClaims.filter((c) => c.scope !== "excluded");
+      const crossSectionClaims = existingClaims.filter(
+        (c) => c.sourceBlockId !== sectionId && c.scope !== "excluded"
+      );
       const sameSectionPool: ClaimLedgerEntry[] =
-        extractedClaims.length >= 2
-          ? extractedClaims.map((c) => ({ id: 0, docId, status: "active", sourceBlockId: sectionId, ...c }))
+        contradictionNewClaims.length >= 2
+          ? contradictionNewClaims.map((c) => ({
+              id: 0,
+              docId,
+              status: "active",
+              sourceBlockId: sectionId,
+              ...c,
+            }))
           : [];
       const otherClaims = [...crossSectionClaims, ...sameSectionPool];
 
@@ -641,7 +669,10 @@ export async function evaluateSection(
       const candidateClaims =
         contradictionCandidates === "all-pairs"
           ? otherClaims
-          : selectContradictionCandidates(extractedClaims, otherClaims, { perClaimK: 5, totalCap: 15 });
+          : selectContradictionCandidates(contradictionNewClaims, otherClaims, {
+              perClaimK: 5,
+              totalCap: 15,
+            });
 
       // Sort existing claims to a stable order (text then blockId) so the
       // contradiction prompt is deterministic across runs — IDB auto-increment
@@ -650,8 +681,8 @@ export async function evaluateSection(
         (a, b) => a.text.localeCompare(b.text) || a.sourceBlockId.localeCompare(b.sourceBlockId)
       );
 
-      if (extractedClaims.length > 0 && sortedOther.length > 0) {
-        const contradictionUser = `New Claims:\n${extractedClaims
+      if (contradictionNewClaims.length > 0 && sortedOther.length > 0) {
+        const contradictionUser = `New Claims:\n${contradictionNewClaims
           .map((c, i) => `[New Claim #${i}]: "${c.text}"`)
           .join("\n")}\n\nExisting Claims:\n${sortedOther
           .map((c, i) => `[Existing Claim #${i}]: "${c.text}"`)
@@ -1295,7 +1326,11 @@ export async function evaluateLedgerContradictions(
     return;
   }
 
-  const claims = await loadActiveClaimsForDocument(docId);
+  // OBS-030: exclude claims under "Out of scope"/"Non-goals"/"Future work" headings
+  // from the sweep too — a deliberate non-commitment can't conflict with a live
+  // claim. In-code filter (no prompt edit); everything below (the <2 guard, sort,
+  // dirty-check stateHash, prompt) then naturally omits them.
+  const claims = (await loadActiveClaimsForDocument(docId)).filter((c) => c.scope !== "excluded");
   if (claims.length < 2) return;
 
   // Stable order so the prompt + dirty-check hash are deterministic across runs

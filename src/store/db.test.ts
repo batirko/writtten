@@ -13,7 +13,7 @@ import { saveClaimsForBlock, loadActiveClaimsForDocument, type ClaimLedgerEntry 
 /** Read every claim row for a doc, regardless of status (no exported loader
  *  returns orphaned rows — open the same DB the module wrote to). */
 async function allClaims(docId: string): Promise<ClaimLedgerEntry[]> {
-  const db = await openDB("writtten", 9);
+  const db = await openDB("writtten", 10);
   const rows = (await db.getAllFromIndex("claim_ledger", "by_doc", docId)) as ClaimLedgerEntry[];
   db.close();
   return rows;

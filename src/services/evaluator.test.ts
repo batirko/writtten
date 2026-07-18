@@ -477,6 +477,132 @@ describe("evaluator - evaluateSection cross-section context (OBS-027)", () => {
   });
 });
 
+describe("evaluator - scope-excluded claims (OBS-030)", () => {
+  const docId = "doc1";
+  const headingId = "secH";
+  const bodyId = "secB";
+  const apiKey = "mock-key";
+  // An item under an "Out of scope" heading that would conflict with a real limit
+  // elsewhere in the doc — the canonical OBS-030 false-positive case.
+  const excludedBody = "Multiple concurrent retries across devices.";
+  const realLimit = {
+    id: 42,
+    docId,
+    sourceBlockId: "block2",
+    text: "Retries are capped at three.",
+    kind: "constraint" as const,
+    status: "active" as const,
+  };
+
+  const members = (headingText: string) => [
+    { blockId: headingId, text: headingText, isHeading: true },
+    { blockId: bodyId, text: excludedBody },
+  ];
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(db.loadBlockSummary).mockResolvedValue(undefined);
+    vi.mocked(db.loadActiveObservationsForDocument).mockResolvedValue([]);
+    mockFast.mockResolvedValue({
+      text: JSON.stringify({
+        summary: "s",
+        claims: [{ text: excludedBody, kind: "fact_claim" }],
+        clarity_observations: [],
+        unsupported_claim_observations: [],
+        undefined_jargon_observations: [],
+      }),
+    });
+  });
+
+  it("tags claims under an exclusion heading with scope:excluded", async () => {
+    await evaluateSection(
+      docId,
+      headingId,
+      `Out of scope\n${excludedBody}`,
+      members("Out of scope"),
+      "Stage",
+      apiKey,
+      undefined,
+      undefined,
+      true // skipContradiction — isolate the extraction/tagging step
+    );
+
+    const claimsArg = vi.mocked(db.saveClaimsForBlock).mock.calls[0][2];
+    expect(claimsArg.length).toBeGreaterThan(0);
+    expect(claimsArg.every((c) => c.scope === "excluded")).toBe(true);
+  });
+
+  it("does not tag claims under a normal heading", async () => {
+    await evaluateSection(
+      docId,
+      headingId,
+      `Solution\n${excludedBody}`,
+      members("Solution"),
+      "Stage",
+      apiKey,
+      undefined,
+      undefined,
+      true
+    );
+
+    const claimsArg = vi.mocked(db.saveClaimsForBlock).mock.calls[0][2];
+    expect(claimsArg.length).toBeGreaterThan(0);
+    expect(claimsArg.every((c) => c.scope === undefined)).toBe(true);
+  });
+
+  it("skips the contradiction check for an excluded-scope section (no false contradiction)", async () => {
+    vi.mocked(db.loadActiveClaimsForDocument).mockResolvedValue([realLimit]);
+
+    await evaluateSection(
+      docId,
+      headingId,
+      `Out of scope\n${excludedBody}`,
+      members("Out of scope"),
+      "Stage",
+      apiKey
+    );
+
+    // The new claim is excluded on both sides → the adjudicator is never called…
+    expect(mockStrong).not.toHaveBeenCalled();
+    // …and no contradiction observation is produced.
+    expect(db.saveObservation).not.toHaveBeenCalledWith(
+      expect.objectContaining({ type: "contradiction" })
+    );
+  });
+
+  it("still fires a genuine contradiction under a normal heading (discrimination)", async () => {
+    vi.mocked(db.loadActiveClaimsForDocument).mockResolvedValue([realLimit]);
+    mockStrong.mockResolvedValueOnce({
+      text: JSON.stringify({
+        contradictions: [
+          {
+            newClaimText: excludedBody,
+            existingClaimId: 0,
+            message: "This exceeds the stated three-retry cap.",
+          },
+        ],
+        tensions: [],
+      }),
+    });
+
+    await evaluateSection(
+      docId,
+      headingId,
+      `Solution\n${excludedBody}`,
+      members("Solution"),
+      "Stage",
+      apiKey
+    );
+
+    // Same body + same conflicting limit — but under a normal heading the claim is
+    // not excluded, so the contradiction surfaces as before.
+    expect(mockStrong).toHaveBeenCalled();
+    expect(db.saveObservation).toHaveBeenCalledWith(
+      expect.objectContaining({ type: "contradiction" })
+    );
+  });
+});
+
 describe("evaluator - evaluateLedgerContradictions (bootstrap sweep)", () => {
   const docId = "doc1";
   const apiKey = "mock-key";
