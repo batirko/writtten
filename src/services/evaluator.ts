@@ -1,6 +1,6 @@
 import { createRouter } from "../model/factory";
 import { getLlmMode } from "../model/mock";
-import { prefilterClaims } from "./prefilter";
+import { selectContradictionCandidates } from "./prefilter";
 import { computePriority, docGapKind } from "./priority";
 import type { MaturityLevel } from "./documentMaturity";
 import { JARGON_PRESET } from "./jargonPreset";
@@ -615,15 +615,18 @@ export async function evaluateSection(
           : [];
       const otherClaims = [...crossSectionClaims, ...sameSectionPool];
 
-      // Prefilter to top-10 most semantically relevant claims so the contradiction
-      // prompt stays bounded as documents grow. With ≤10 claims this is a no-op.
+      // Select the candidate claims the adjudicator compares against, kept bounded as
+      // documents grow. `selectContradictionCandidates` does per-claim retrieval +
+      // near-duplicate dedup (OBS-038: the old whole-section blob query let a compatible
+      // near-duplicate crowd the contradictory claim out of the top-K, so the true pair
+      // never co-occurred — candidate selection, not adjudication). On a small candidate
+      // set it degrades to "all candidates", keeping small-doc prompts byte-identical.
       // The `"all-pairs"` bypass (V3 measurement only) hands over every candidate
-      // unfiltered so the prefilter's selection cost becomes measurable.
-      const newClaimsText = extractedClaims.map((c) => c.text).join(" ");
+      // unfiltered so the selection cost stays measurable — leave it untouched.
       const candidateClaims =
         contradictionCandidates === "all-pairs"
           ? otherClaims
-          : prefilterClaims(newClaimsText, otherClaims, 10);
+          : selectContradictionCandidates(extractedClaims, otherClaims, { perClaimK: 5, totalCap: 15 });
 
       // Sort existing claims to a stable order (text then blockId) so the
       // contradiction prompt is deterministic across runs — IDB auto-increment

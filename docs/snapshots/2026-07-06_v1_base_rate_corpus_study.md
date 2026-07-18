@@ -1,6 +1,6 @@
 # V1 — Base-rate corpus study
 
-**Date:** 2026-07-06 (machinery) · updated **2026-07-16** (Run 1) · **2026-07-17** (V3 prefilter A/B baseline, §4) · **Status:** ✅ first keyed run done — cost-bounded 9-doc subset; V3 hero-miss instrumentation landed with a 3-PRD baseline; full-corpus run still pending
+**Date:** 2026-07-06 (machinery) · updated **2026-07-16** (Run 1) · **2026-07-17** (V3 prefilter A/B baseline §4; OBS-038 post-fix re-measure §4b) · **Status:** ✅ first keyed run done — cost-bounded 9-doc subset; V3 hero-miss instrumentation landed with a 3-PRD baseline; OBS-038 per-claim selection landed + re-measured (§4b); full-corpus run still pending
 **Track:** `docs/projects/field_validation.md` § V1 · **Lane:** Validation
 
 > This is the durable home for the three V1 numbers. The **runner + scorers +
@@ -152,6 +152,22 @@ _(Other types not formally adjudicated this run — but see the jargon volume no
 - **3 are ADJUDICATION** — even handed every candidate in context (all-pairs), `gemini-2.5-pro` does not flag them. Retrieval can't fix these; the adjudicator itself misses them.
 
 **Implication for the LEANN/embeddings decision:** on this slice a perfect prefilter recovers **1 of 4** misses (25%); the majority (3/4) is adjudication, not selection. So the prefilter drop is **real and worth fixing** (OBS-038's per-claim retrieval is the cheap, keep-lexical first move), but embeddings would **not** be the dominant lever for hero recall here — adjudication quality is. n=3 PRDs / 6 B1 labels: directional, firms up with the full-PRD run.
+
+### 4b. Post-fix re-measure — OBS-038 per-claim selection (2026-07-17)
+
+> **After landing `selectContradictionCandidates`** (per-claim retrieval + ≥0.9 near-duplicate dedup, keeping lexical Jaccard), the prefilter A/B was re-recorded at the paid tier over **P04** (the §4 baseline drop) **and P09** (`vi-04` — the OBS-038 field-report doc, not in the §4 slice). Regenerate: `EVAL_V1=1 V1_DOCS=P04,P09 V1_RECORD=1 V1_RESUME=1 V1_CORPUS_DIR=<.v1-corpus> npm run eval:v1` (paid). Artifacts: `.v1-corpus/recordings/P0{4,9}.paid*.json`.
+
+| Doc | Labeled B1 pair | Pre-fix | Post-fix (per-section prefilter arm) |
+| --- | --- | --- | --- |
+| **P09** `vi-04` | `<5 min change→detection+PR` × `<1 hr detection→PR` | **never co-occurred** in any prompt → miss (OBS-038 field report) | **co-occurs and is caught** ✅ |
+| **P04** `prd-trading-alerts` | `40%` first-week alert-creation goal × `20%` alert-creation-rate metric | dropped (§4) | **still dropped** — never co-occurs |
+
+**The fix does exactly what its mechanism predicts, and the two drop causes now separate cleanly:**
+
+- **P09 = near-duplicate occupancy** (a compatible `<5 min` near-dup of the contradictory claim occupied the top-K slot). Per-claim retrieval + dedup **recovers it** — the true β×γ pair co-occurs and `gemini-2.5-pro` fires the contradiction. This is the class OBS-038 diagnosed, now closed. _(Note: the all-pairs arm actually **missed** P09's pair — handed every candidate, the adjudicator didn't flag it — while the **focused** selected set caught it. Selection can aid adjudication, not just cost it.)_
+- **P04 = lexical distance** (the two claims share ~2 tokens — `40%`≠`20%`, "creating an alert"≠"alert creation rate"). Keep-lexical per-claim retrieval **cannot** co-locate a pair that shares almost no vocabulary, so it stays dropped. This is the **`Q2` vs "the second quarter"** class the LEANN/embeddings item owns — the residual §4 DROP is now attributable specifically to it, not to near-dup crowding.
+
+**Net:** the earlier §4 framing that the OBS-038 per-claim fix would recover the P04 `40%`/`20%` pair was mechanistically imprecise — that pair is the *embeddings* case. The per-claim fix recovers the *near-dup* case (P09). The standing prefilter DROP is now a clean, small **lexical-distance** signal for the LEANN decision; adjudication remains the larger hero-recall lever. n=2 PRDs / 5 B1 labels: directional, firms up with the full-PRD run.
 
 ## Implications
 
