@@ -789,6 +789,54 @@ describe("evaluator - evaluateLedgerContradictions (bootstrap sweep)", () => {
 
     expect(mockStrong).not.toHaveBeenCalled();
   });
+
+  // OBS-030 × UX-016/8A: the sweep now runs on short pastes, so it must filter
+  // scope-excluded claims before adjudicating — an "Out of scope" item can't be a
+  // live contradiction. (Verified live 2026-07-18: the bootstrap sweep reads the
+  // excluded tag and short-circuits; there is no read-after-write race because
+  // handleBootstrapSweep defers until the section writes are committed.)
+  it("filters scope:excluded claims (OBS-030): no model call when only one live claim remains", async () => {
+    const excludedB = { ...claimB, scope: "excluded" as const };
+    vi.mocked(db.loadActiveClaimsForDocument).mockResolvedValue([claimA, excludedB]);
+    // No loadActiveObservationsForDocument mock: the sweep short-circuits at the
+    // < 2-live-claims guard before reconcile, so queuing a `…Once` here would leak
+    // an unconsumed value into a later test (clearAllMocks doesn't drain the queue).
+
+    await evaluateLedgerContradictions(docId, "Stage", apiKey);
+
+    // Only claimA survives the scope filter → < 2 live claims → the adjudicator is
+    // never called and no false contradiction is emitted.
+    expect(mockStrong).not.toHaveBeenCalled();
+    expect(db.saveObservation).not.toHaveBeenCalledWith(
+      expect.objectContaining({ type: "contradiction" })
+    );
+  });
+
+  it("keeps a scope:excluded claim out of the sweep prompt even when the sweep runs (OBS-030)", async () => {
+    const claimC = {
+      id: 3,
+      docId,
+      sourceBlockId: "blockC",
+      text: "Budget is fixed at $10k.",
+      kind: "constraint" as const,
+      status: "active" as const,
+    };
+    const excludedB = { ...claimB, scope: "excluded" as const };
+    // Two live claims (so the sweep proceeds) plus one excluded claim that would
+    // conflict with claimA — the excluded one must not reach the adjudicator.
+    vi.mocked(db.loadActiveClaimsForDocument).mockResolvedValue([claimA, claimC, excludedB]);
+    vi.mocked(db.loadActiveObservationsForDocument).mockResolvedValueOnce([]);
+    mockStrong.mockResolvedValueOnce({
+      text: JSON.stringify({ contradictions: [], tensions: [] }),
+    });
+
+    await evaluateLedgerContradictions(docId, "Stage", apiKey);
+
+    expect(mockStrong).toHaveBeenCalledTimes(1);
+    const userPrompt = mockStrong.mock.calls[0][0].user as string;
+    expect(userPrompt).toContain(claimA.text);
+    expect(userPrompt).not.toContain(claimB.text); // the excluded claim is absent
+  });
 });
 
 describe("evaluator - reconcileDocumentObservations (doc-scope grace period)", () => {
