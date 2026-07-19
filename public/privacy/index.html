@@ -220,7 +220,7 @@
       <h1>Privacy &amp; Terms</h1>
       <p class="lede">
         How writtten handles your writing, in plain language.
-        <span class="updated">Last updated 15 July 2026</span>
+        <span class="updated">Last updated 20 July 2026</span>
       </p>
 
       <div class="summary">
@@ -228,9 +228,9 @@
         <p>
           writtten runs in your browser. Your document and everything the tool derives from it are
           stored only on your device — there are no accounts and no writtten server holding your
-          work. The one time your writing leaves your device is when it&rsquo;s sent to the AI
-          provider you chose, using your own API key, to generate observations. writtten sets no
-          analytics and no tracking cookies.
+          work. To generate observations your writing is sent to the AI provider you chose, using
+          your own API key; if you connect your own agent instead, it is sent only to a program
+          running on your own machine. writtten sets no analytics and no tracking cookies.
         </p>
       </div>
 
@@ -271,6 +271,22 @@
           >.
         </p>
       </div>
+
+      <h2>If you connect your own agent</h2>
+      <p>
+        writtten can be driven by a coding agent you already run instead of an API key. On that
+        path writtten sends your document nowhere: it travels over a loopback connection to a
+        program running on your own machine, and writtten itself makes no network request with your
+        text in it at all. There is no key to store and no provider for writtten to call.
+      </p>
+      <p class="muted-note">
+        The honest edge: your text does not stop at that program. Your agent sends whatever context
+        it needs to whichever model it runs on, under the terms you already accepted when you set it
+        up — and once the text leaves writtten&rsquo;s side of the loopback connection, writtten has
+        no visibility into it and no control over it. It is a stronger privacy position than the API
+        key path, not an absolute one. See
+        <a class="link" href="/agent/">Connect your agent</a> for how it works.
+      </p>
 
       <h2>Your API keys</h2>
       <p>

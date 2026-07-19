@@ -1094,6 +1094,17 @@ export function ControlCenter({
                 Why writtten
               </a>
               {" · "}
+              {FEATURE_AGENT_BRIDGE && (
+                <>
+                  {/* Trailing slash is load-bearing: Cloudflare serves the real
+                      file at the directory path, and the SW denylist covers the
+                      no-slash form. */}
+                  <a href="/agent/" target="_blank" rel="noreferrer">
+                    Connect your agent
+                  </a>
+                  {" · "}
+                </>
+              )}
               <a href="/privacy/" target="_blank" rel="noreferrer">
                 Privacy &amp; Terms
               </a>

@@ -29,11 +29,15 @@ export default defineConfig({
       registerType: 'autoUpdate',
       workbox: {
         // The SW's default NavigationRoute rewrites every in-scope navigation to
-        // the SPA shell (index.html). The static legal pages under /privacy are
-        // real files, not app routes — deny them the fallback so the request
-        // reaches the network (Cloudflare serves /privacy/index.html directly);
+        // the SPA shell (index.html). The static pages under public/ are real
+        // files, not app routes — deny them the fallback so the request reaches
+        // the network (Cloudflare serves e.g. /privacy/index.html directly);
         // otherwise a no-trailing-slash hit on /privacy would render the app shell.
-        navigateFallbackDenylist: [/^\/privacy/],
+        //
+        // Every static page must be listed here. /why was missed when it shipped,
+        // so an installed PWA has been rendering the app shell for /why (no
+        // trailing slash) since then — fixed alongside adding /agent.
+        navigateFallbackDenylist: [/^\/privacy/, /^\/why/, /^\/agent/],
       },
       manifest: {
         name: 'writtten',
