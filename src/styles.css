@@ -3142,6 +3142,15 @@ body,
     /* Belt and braces over the base rule's overflow-wrap. */
     word-break: break-word;
   }
+  /* Pairing is desktop-only, but the controls are not unreachable on a phone: a
+     pairing made on desktop shows up here, and Disconnect/Forget is the one thing
+     a phone user can still legitimately do to it. `.connect-btn-sm` renders 22px
+     tall, well under a comfortable touch target, so the small variant gets real
+     height on touch widths. Padding stays put — only the box grows. */
+  .connect-btn-sm {
+    min-height: 36px;
+    padding-block: 8px;
+  }
 }
 
 /* Top-level ErrorBoundary fallback (lifecycle_integrity.md § L9). Calm recovery
