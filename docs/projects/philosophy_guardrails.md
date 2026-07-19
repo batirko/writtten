@@ -1,7 +1,7 @@
 ---
-status: done
+status: in-progress
 kind: quality
-phases: [4, 6]
+phases: [4, 6, 8]
 summary: Build the three unguarded philosophy guardrails — flattery-resistant dismissal, an explicit anti-taxonomy, and no-disguised-fix register discipline — plus a discomfort-budget ceiling, so the qualitative half of the fidelity bar is enforced in code and CI rather than left to model goodwill.
 ---
 
@@ -56,6 +56,16 @@ Read alongside:
   - [x] Hand the felt-tone half to `emotional_register.md`.
 - [x] **G4 — Discomfort-budget ceiling (R6.3).** _Decision settled 2026-06-17: **floor + ceiling hybrid** (§ G4). Shipped 2026-06-19: `CONTRADICTION_CEILING=3` in `feedBudget.ts`, floor+ceiling partition logic, "N more contradictions" signpost in `SidecarFeed.tsx`, 3 new unit tests (a/b/c per spec)._
 
+### Phase 8 — G3 reopened
+
+- [ ] **G3b — Structural register rules + an adversarial lint corpus.** The G3 checkbox above was ticked in Phase 6, but its own second bullet named the patterns to catch as `"you need…"`, `"add…"`, `"change…"` — and **only the first was ever implemented**. Measured 2026-07-19: 28/28 realistic critic phrasings pass the lint, including every bare imperative. See § _G3b_ below.
+  - [ ] Imperative-initial rule (closed ~40-verb editing list, first-word match).
+  - [ ] Copula-anchored evaluative rule (`is|are|reads|feels` + quality adjective).
+  - [ ] Modal/epistemic hedge family as a word-boundary regex.
+  - [ ] Re-probe `CLAIM_INDEX_RE` / `SECTION_NUMBER_RE` in the same pass.
+  - [ ] `src/services/eval-fixtures/register-lint-corpus.ts` — paired violating/clean rows, `tone-corpus.ts` style; clean rows guard against over-rejection.
+  - [ ] Triage whatever the stricter rules break in the Tier-1 ratchet — a failure there means the evaluator emits phrasings we would reject from an agent, which is a finding, not just a fixture to re-record.
+
 ## Design
 
 ### G1 — Flattery-resistant dismissal
@@ -74,6 +84,28 @@ Enforced in two layers (see `docs/features.md` → _Anti-taxonomy_): structural 
 ### G3 — No-disguised-fix register
 
 The disguised fix (leading questions) and the cold fix (hostile tone) are the two ways register discipline rots. The prompt rule is cheap; the durable guard is a lint/fixture over generated messages. Tone (the cold-fix half) is qualitative and lives with `emotional_register.md`.
+
+### G3b — The lint is a near-empty denylist (reopened 2026-07-19)
+
+**How it surfaced.** Building the BYOA boundary (`externalObservations.ts`, PR #213) promoted `lintRegister` from a backstop on our own prompt-tuned model to the **hard-reject enforcement gate on untrusted external input**. Probing it with the phrasings the BYOA spec itself names as prescriptive found them passing; a wider probe of 28 realistic critic phrasings found **all 28** passing, across all three lexical families.
+
+**The design defect.** `lintRegister` matches literal lowercased substrings from three hand-written lists (`registerLint.ts:52–99`). Natural language has unbounded surface; a denylist cannot cover it. The most consequential omission is the **bare-imperative** family — `"Add a measurement window."`, `"Define adoption first."`, `"Make this measurable."`, `"Clarify what counts as active."` — which is both the commonest prescriptive form and the most direct violation of the principle. PR #213 added twelve patterns and still left it, because it patched *within* the lexical design rather than replacing it.
+
+Note the ticked G3 bullet above named `"add…"` explicitly. The rule was specified correctly in Phase 6 and implemented only for the `"you need…"` case; nothing tested the gap, so the checkbox closed over it.
+
+**The fix — grammar anchors, not vocabulary.** Three rules, each retiring a whole family:
+
+| Rule                    | Shape                                                     | Retires                                                    |
+| ----------------------- | --------------------------------------------------------- | ---------------------------------------------------------- |
+| **imperative-initial**  | first word ∈ closed ~40-verb editing list                 | every bare command, regardless of object                   |
+| **copula-anchored verdict** | `is\|are\|reads\|feels` + quality adjective            | `"is vague"`, `"is thin"`, `"reads awkwardly"`             |
+| **modal/epistemic hedge**   | word-boundary family, not literals                    | `might\|may\|could\|seems\|appears\|possibly\|arguably\|I think` |
+
+The copula anchor is load-bearing: it is what distinguishes `"this is vague"` (a quality verdict — forbidden) from `"the target is stated without a window"` (a structural location — the product's whole voice). A bare adjective denylist would kill both.
+
+**Why the corpus is the real deliverable.** This survived two phases because nothing ever probed the lint with text built to defeat it — the eval fixtures only contain text that happens to be clean, so the lint passing them proved nothing. `register-lint-corpus.ts` fixes the *process*, not just the rules. Its **clean rows matter as much as its violating ones**: over-rejection is the failure mode of a stricter lint, and the anti-taxonomy vocabulary genuinely overlaps the taxonomy's own ("unclear" is both a verdict and a legitimate `clarity` finding).
+
+**Sequencing.** Must land before BYOA PR4 flips `FEATURE_AGENT_BRIDGE` on. Until then the lint guards only our own tuned model and leakage is tolerable; after, it is the sole register enforcement on an unratcheted external critic.
 
 ### G4 — Discomfort-budget ceiling
 
