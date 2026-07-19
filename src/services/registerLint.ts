@@ -49,72 +49,339 @@ export interface RegisterViolation {
 // --- Shared lexicons -------------------------------------------------------
 // Kept module-private so lintRegister and classifyTone can't drift apart.
 
-/** Prescriptive / imperative "here's the fix" patterns (G3: locate, don't prescribe).
+// G3b (2026-07-19) — the three lexicons below used to be literal-substring
+// denylists. They were replaced by grammar anchors after a probe pass found
+// 28/28 realistic critic phrasings passing (docs/projects/philosophy_guardrails.md
+// § G3b). A denylist against natural language is unwinnable: every widening both
+// misses the next phrasing and risks *over*-rejection, because the anti-taxonomy
+// vocabulary overlaps the taxonomy's own ("unclear" is a quality verdict AND a
+// legitimate `clarity` finding). Each rule below is anchored on a grammatical
+// position rather than a word, so it retires a whole family at once.
+//
+// The adversarial corpus that keeps this honest: eval-fixtures/register-lint-corpus.ts.
+
+/**
+ * RULE 1 — imperative-initial. A closed list of editing/revision verbs in *base
+ * form*. The rule fires when a sentence *opens* with one, which is what makes it
+ * an imperative ("Add a measurement window.") rather than a noun or a gerund
+ * ("Migration of accounts is mentioned once."; "Blocking every transaction pulls
+ * against…" — both stay clean, and both are real observation phrasings).
  *
- *  The `consider <verb>ing` and bare-imperative families were extended
- *  2026-07-19 while building the external-observation boundary
- *  (docs/projects/agent_connected_eval.md), which makes this lint a **hard
- *  reject** on untrusted input. Probing it with the most archetypal
- *  prescriptions an agent would send — "Change this to…", "Consider
- *  rewriting…", "Replace this with…" — found all of them passing: the list
- *  covered the *polite* prescriptions ("I suggest", "you should") but not the
- *  *imperative* ones, which are the more direct violation of the principle.
- *  The additions apply to our own model output too, which is correct — the
- *  evaluator should never emit these either. */
-const PRESCRIPTIVE_PATTERNS = [
-  "you need to",
-  "you should",
-  "we should",
-  "consider changing",
-  "consider adding",
-  "consider rewriting",
-  "consider revising",
-  "consider rephrasing",
-  "consider removing",
-  "consider moving",
-  "consider replacing",
-  "consider clarifying",
-  "it might be helpful",
-  "it would be helpful",
-  "i suggest",
-  "i recommend",
-  "change this to",
-  "change it to",
-  "replace this with",
-  "rewrite this",
-  "reword this",
+ * Base form only, deliberately: the gerund and third-person forms of these same
+ * verbs are how the product's own voice *locates* things ("The section adds…",
+ * "Defining adoption is left to the reader"), so inflected forms must not fire.
+ */
+const EDITING_VERBS = [
+  // add / remove
+  "add",
+  "include",
+  "insert",
+  "append",
+  "remove",
+  "delete",
+  "cut",
+  "drop",
+  "omit",
+  // replace / rewrite
+  "change",
+  "replace",
+  "swap",
+  "rewrite",
+  "reword",
+  "rephrase",
+  "revise",
+  "edit",
+  "update",
+  "fix",
+  "correct",
+  "adjust",
+  "amend",
+  // restructure
+  "move",
+  "reorder",
+  "restructure",
+  "reorganize",
+  "split",
+  "merge",
+  "combine",
+  "expand",
+  "shorten",
+  "tighten",
+  "trim",
+  "condense",
+  "simplify",
+  "break",
+  // specify / justify
+  "define",
+  "clarify",
+  "specify",
+  "state",
+  "explain",
+  "describe",
+  "detail",
+  "document",
+  "justify",
+  "support",
+  "cite",
+  "quantify",
+  "measure",
+  "name",
+  "list",
+  "provide",
+  "give",
+  "show",
+  "spell",
+  "flesh",
+  // directive framing
+  "make",
+  "consider",
+  "ensure",
+  "avoid",
+  "use",
+  "try",
+  "check",
+  "review",
+  "reconsider",
+  "rethink",
+  "address",
+  "resolve",
+  "align",
+  "tie",
+  "link",
+  "connect",
+  "set",
+  "pick",
+  "choose",
+  "note",
+  "mention",
 ];
 
-/** Hedge / softener words (emotional register rule 4 — a sure colleague doesn't hedge). */
-const HEDGE_WORDS = ["perhaps", "you may want to", "feels like", "i'd suggest", "i would suggest"];
+/**
+ * Words that, following an editing verb, mark it as a *noun* rather than an
+ * imperative — "Support for the 40% figure is absent.", "Use of 'shadow ledger'
+ * is inconsistent.", "Note that…" is caught separately as meta-commentary.
+ * Without this guard the ~40-verb list would reject legitimate noun-initial
+ * observations, which is the over-rejection failure mode the corpus guards.
+ */
+const NOUN_AFTER_VERB = new Set(["of", "for", "is", "are", "was", "were", "in", "from"]);
 
-/** Evaluative quality verdicts on the work (emotional register rule 5). */
-const EVALUATIVE_PATTERNS = [
-  "is weak",
-  "is bad",
-  "is poor",
-  "is insufficient",
-  "won't convince",
-  "will not convince",
+/**
+ * RULE 2 — copula-anchored quality verdicts. `is|are|reads|feels|sounds|looks`
+ * + optional intensifier + a **quality adjective**.
+ *
+ * The copula anchor is the load-bearing part. It separates "this is vague" (a
+ * verdict on the work — forbidden) from "the target is stated without a window"
+ * (a structural location — the product's entire voice). A bare adjective
+ * denylist would kill both.
+ *
+ * Two deliberate exclusions, both spec rather than oversight:
+ *
+ *  - **Surface-style adjectives are absent** (wordy, verbose, passive, clunky,
+ *    repetitive, awkward). The anti-taxonomy is enforced by the fixed
+ *    Observation type enum — no type admits a surface nit — NOT by this lint.
+ *    Widening here would start rejecting legitimate observations that quote the
+ *    author's own wording. Pinned by agentSkillExamples.test.ts.
+ *  - **Structural-absence adjectives are absent** (unsupported, undefined,
+ *    unstated, undocumented, missing, absent). Those name a fact about the
+ *    document, not a judgement of its quality, and are core product voice.
+ */
+const QUALITY_ADJECTIVES = [
+  "vague",
+  "unclear",
+  "ambiguous",
+  "confusing",
+  "weak",
+  "thin",
+  "poor",
+  "bad",
+  "insufficient",
+  "inadequate",
+  "sloppy",
+  "lacking",
+  "problematic",
+  "misleading",
+  "incomplete",
+  "underdeveloped",
+  "underspecified",
+  "unconvincing",
+  "unpersuasive",
+  "mediocre",
+  "subpar",
+  "imprecise",
+  "muddled",
+  "disorganized",
+  "flawed",
+  "questionable",
+  "unclear-cut",
+  "wrong",
+  "incorrect",
+  "hand-wavy",
+  "handwavy",
 ];
+
+/** Intensifiers/qualifiers that may sit between the copula and the adjective. */
+const INTENSIFIERS = [
+  "a bit",
+  "a little",
+  "quite",
+  "rather",
+  "somewhat",
+  "very",
+  "too",
+  "fairly",
+  "pretty",
+  "highly",
+  "extremely",
+  "overly",
+  "slightly",
+  "so",
+  "really",
+  "still",
+];
+
+/**
+ * Continuations that turn a quality adjective back into a *location*. "It is
+ * unclear whether the date is Q2 or Q3" names an ambiguity in the document; "This
+ * section is unclear" passes judgement on it. Same adjective, different act —
+ * which is exactly why the plan flagged "unclear" as the hard case.
+ */
+const LOCATING_CONTINUATIONS = [
+  "whether",
+  "if",
+  "what",
+  "which",
+  "how",
+  "why",
+  "who",
+  "when",
+  "about",
+  "that",
+];
+
+/**
+ * RULE 3 — modal / epistemic hedges, as word-boundary matches rather than five
+ * literals. A colleague who is sure does not hedge the finding itself.
+ */
+const HEDGE_PATTERNS = [
+  /\bperhaps\b/,
+  /\bmaybe\b/,
+  /\bpossibly\b/,
+  /\barguably\b/,
+  /\bpotentially\b/,
+  /\bpresumably\b/,
+  /\bsomewhat\b/,
+  /\bsort of\b/,
+  /\bkind of\b/,
+  /\bit seems\b/,
+  /\bseems (?:to|like|that)\b/,
+  /\bappears (?:to|like|that)\b/,
+  /\bfeels like\b/,
+  /\bi think\b/,
+  /\bi believe\b/,
+  /\bit (?:might|would) be (?:helpful|worth|better|good)\b/,
+];
+
+/**
+ * Advice framings. These are *prescriptions* wearing a polite hedge, so they
+ * report as `prescriptive` rather than `hedge` — the boundary hands `rule` back
+ * to the submitting agent (`register_violation`, docs/skills/writtten-agent.md),
+ * and "you hedged" would send it to reword when the actual fault is that it told
+ * the author what to do.
+ */
+const ADVICE_PATTERNS = [
+  /\bi'd suggest\b/,
+  /\bi would suggest\b/,
+  /\bi suggest\b/,
+  /\bi recommend\b/,
+  /\bmy recommendation\b/,
+  /\byou (?:may|might) want to\b/,
+  /\byou (?:should|need to|ought to|must)\b/,
+  /\bwe (?:should|need to|ought to)\b/,
+  /\bit (?:would|might) (?:be better|help) to\b/,
+  /\bthe fix (?:is|here)\b/,
+];
+
+/**
+ * `might|may|could` are hedges only when they modalise the observation's *own*
+ * assertion ("This might conflict with §2"). Two constructions put the modal
+ * inside the *document's* voice instead, where it must not fire — both found by
+ * probing shipped copy rather than reasoned up front:
+ *
+ *  - a **relative clause** describing the document — "anything the reader could
+ *    disagree with" (the shipped `clarity` taxonomy example);
+ *  - an **embedded complement clause** reporting what the document says — "the
+ *    statement that the end-to-end flow *may* take up to one hour" (the
+ *    `contradiction-sla-family` ratchet fixture). Here the modality is the
+ *    author's, quoted back at them; flagging it would reject the product's most
+ *    characteristic move, naming both sides of a contradiction in their own words.
+ *
+ * Both reduce to the same test: a marker of embedding earlier in the sentence.
+ */
+const BARE_MODAL_RE = /\b(?:might|may|could)\b/;
+const EMBEDDED_CLAUSE_RE =
+  /\b(?:that|anything|nothing|something|anyone|someone|whether|whoever|whatever|reader|readers|audience|claim|claims|statement|says|state|states|asserts|assertion|note|notes)\b/;
 
 /**
  * Evaluator-internal bookkeeping-index leak into user-facing copy. Catches the
  * contradiction/tension `Claim #N` form (UX-017) AND the doc-level `claim [3]` /
- * `claims [1] and [2]` / `block [2]` bracket forms (OBS-034). Matches
- * claim(s)/block + optional `#`/`[` + digit; the bare phrase "the existing
- * claim" (no number) is ordinary English and does NOT match.
+ * `claims [1] and [2]` / `block [2]` bracket forms (OBS-034).
+ *
+ * **Widened 2026-07-19 (G3b)**, when the same adversarial probe pass that killed
+ * the lexicons was turned on this regex. It matched the digit forms only, so
+ * every *worded* index walked through: `claim number 3` · `claim (3)` · `the
+ * second claim` · `claim two` · `item [4]`. All of them leak the same
+ * bookkeeping — the author has no numbered claim list to look at, whichever way
+ * the number is spelled. Three additions: the noun set covers the numbered-list
+ * vocabulary (`item`/`entry`/`point`), the number may be worded or ordinal, and
+ * an ordinal may precede the noun.
+ *
+ * The bare phrase "the existing claim" (no number at all) is ordinary English and
+ * still does NOT match — that near miss is pinned in the corpus.
  */
-const CLAIM_INDEX_RE = /\b(?:claims?|blocks?)\s*#?\s*\[?\s*\d+/i;
+const INDEX_NOUNS = "claims?|blocks?|items?|entries|entry|points?";
+const WORD_NUMBERS = "one|two|three|four|five|six|seven|eight|nine|ten";
+const ORDINALS = "first|second|third|fourth|fifth|sixth|seventh|eighth|ninth|tenth";
+/**
+ * `claims` and `blocks` are also *verbs*, and the digit branch cannot tell
+ * "claim 3" (an index) from "claims 40% adoption" (product voice). An index is a
+ * bare small integer; a measurement carries a unit. So the digit branch is capped
+ * at two digits and refuses a following unit.
+ *
+ * This one is a **pre-existing false positive**, not a G3b regression: the
+ * original regex matched "claims 40" too, so `"The section claims 40% adoption
+ * within a quarter of launch."` — an entirely ordinary `unsupported_claim` /
+ * contradiction phrasing — was being hard-rejected at the boundary. It went
+ * unnoticed for the same reason the lexicons did: nothing probed the rule with
+ * text built to break it. Pinned as a clean row in the corpus.
+ */
+const NOT_A_MEASUREMENT = `(?!\\s*(?:%|percent|per\\b|x\\b|bps\\b))`;
+const CLAIM_INDEX_RE = new RegExp(
+  [
+    // claim #3 · claim [3] · claim (3) · claim number 3 · claim no. 3 · claim 3
+    `\\b(?:${INDEX_NOUNS})\\s*(?:number|no\\.?)?\\s*[#[(]?\\s*\\d{1,2}\\b${NOT_A_MEASUREMENT}`,
+    // claim two · claims one and two
+    `\\b(?:${INDEX_NOUNS})\\s+(?:${WORD_NUMBERS})\\b`,
+    // the second claim · the first block
+    `\\b(?:${ORDINALS})\\s+(?:${INDEX_NOUNS})\\b`,
+  ].join("|"),
+  "i"
+);
 
 /**
- * A fabricated `§N` section reference (OBS-034). The doc-level model receives a
+ * A fabricated section reference (OBS-034). The doc-level model receives a
  * numbered `[N]` summary list, not the document's own section numbers, so any
  * `§3` it emits addresses nothing the author can see. Only meaningful for the
  * doc-level observation types (a real span-scoped note can legitimately quote a
  * `§2` the author actually wrote).
+ *
+ * **Widened 2026-07-19 (G3b):** the probe pass found the rule caught the `§`
+ * glyph only, while the spelled-out `Section 3` / `Sect. 2` form — which the
+ * model fabricates just as readily, and which reads *more* authoritative to the
+ * author — passed untouched. `part` is deliberately excluded: "the first part of
+ * the flow" is ordinary English, so it carries real false-positive risk for the
+ * least gain.
  */
-const SECTION_NUMBER_RE = /§\s*\d+/;
+const SECTION_NUMBER_RE = /§\s*\d+|\b(?:sections?|sect\.?)\s+\d+/i;
 
 /** The doc-level (unanchored) observation types — their `text` is the whole card. */
 const DOC_LEVEL_TYPES: ReadonlySet<Observation["type"]> = new Set([
@@ -126,6 +393,65 @@ const DOC_LEVEL_TYPES: ReadonlySet<Observation["type"]> = new Set([
 
 /** Length soft cap — one observation is one thought (§ Voice & copy guide rule 1). */
 const LENGTH_SOFT_CAP = 240;
+
+// --- Grammar helpers -------------------------------------------------------
+
+/**
+ * Split into sentences on `.?!` + whitespace, and additionally on `;` — a
+ * semicolon-joined clause can carry its own imperative ("The date is Q3; change
+ * it to Q2."). Abbreviations are not special-cased: a false split only ever
+ * costs a missed imperative-initial match on the fragment after it, never a
+ * false positive, because the fragment would have to start with an editing verb.
+ */
+function splitSentences(text: string): string[] {
+  return text
+    .split(/(?<=[.?!;])\s+|\n+/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
+/** Strip leading markup/politeness so "**Add a window**" and "Please add a window" both match. */
+const LEAD_NOISE_RE = /^(?:[-*_"'“‘(\s]+|please\s+|now\s+|instead,?\s+|so\s+)+/i;
+
+/**
+ * The imperative-initial test. Returns the offending verb, or `null`.
+ * Also catches negative imperatives ("Don't use…", "Do not use…"), which are
+ * prescriptions with a `not` in them.
+ */
+function findImperative(sentence: string): string | null {
+  const cleaned = sentence.replace(LEAD_NOISE_RE, "").toLowerCase();
+  const negative = cleaned.match(/^(?:don't|do not|never)\s+([a-z']+)/);
+  if (negative && EDITING_VERBS.includes(negative[1])) return `do not ${negative[1]}`;
+
+  const words = cleaned.split(/[^a-z'-]+/).filter(Boolean);
+  if (words.length === 0) return null;
+  const [first, second] = words;
+  if (!EDITING_VERBS.includes(first)) return null;
+  // "Support for…", "Use of…", "Note is…" — the verb is being used as a noun.
+  if (second && NOUN_AFTER_VERB.has(second)) return null;
+  return first;
+}
+
+/**
+ * The copula-anchored verdict test. Returns the matched phrase, or `null`.
+ * A quality adjective followed by a *locating* continuation ("unclear whether…",
+ * "vague about…") is a location, not a verdict, and passes.
+ */
+function findCopulaVerdict(textLow: string): string | null {
+  const copula = "(?:is|are|isn't|aren't|was|were|reads|feels|sounds|looks|seems|remains|becomes)";
+  const intens = INTENSIFIERS.map((i) => i.replace(/ /g, "\\s+")).join("|");
+  const adjs = QUALITY_ADJECTIVES.join("|");
+  const re = new RegExp(
+    `\\b${copula}\\s+(?:(?:${intens})\\s+){0,2}(?:a\\s+|an\\s+)?(${adjs})\\b(?:\\s+(\\w+))?`,
+    "g"
+  );
+  for (const m of textLow.matchAll(re)) {
+    const continuation = m[2];
+    if (continuation && LOCATING_CONTINUATIONS.includes(continuation)) continue;
+    return m[0].trim();
+  }
+  return null;
+}
 
 /**
  * The structural register lint. Returns every violation found; an empty array
@@ -147,34 +473,71 @@ export function lintRegister(
     });
   }
 
-  // 2. No prescriptive / imperative patterns — locate, don't prescribe.
-  for (const pattern of PRESCRIPTIVE_PATTERNS) {
-    if (textLow.includes(pattern)) {
+  // 2. No prescription — locate, don't prescribe. Grammar-anchored: a sentence
+  //    that OPENS with a base-form editing verb is an imperative, whatever its
+  //    object ("Add a window." / "Clarify what counts as active."). Checked per
+  //    sentence, since the prescription often trails a legitimate observation
+  //    ("The target has no window. Add one.").
+  for (const sentence of splitSentences(message)) {
+    const imperative = findImperative(sentence);
+    if (imperative) {
       violations.push({
         rule: "prescriptive",
-        detail: `message contains prescriptive pattern "${pattern}" — "${message}"`,
+        detail: `sentence opens with the imperative "${imperative}" — locate the problem, don't prescribe the fix — "${message}"`,
       });
     }
   }
 
-  // 3. No hedge words — the colleague voice is confident.
-  for (const hedge of HEDGE_WORDS) {
-    if (textLow.includes(hedge)) {
+  //    Advice framings ("you should", "I recommend") are prescriptions too —
+  //    politeness is not the distinguishing feature, telling the author what to
+  //    do is.
+  for (const re of ADVICE_PATTERNS) {
+    const m = textLow.match(re);
+    if (m) {
+      violations.push({
+        rule: "prescriptive",
+        detail: `message advises the author ("${m[0]}") instead of naming what it found — "${message}"`,
+      });
+    }
+  }
+
+  // 3. No hedges — the colleague voice is confident about the finding itself.
+  for (const re of HEDGE_PATTERNS) {
+    const m = textLow.match(re);
+    if (m) {
       violations.push({
         rule: "hedge",
-        detail: `message contains hedge word "${hedge}" — "${message}"`,
+        detail: `message hedges with "${m[0]}" — "${message}"`,
+      });
+    }
+  }
+  //    `might|may|could` only count when they modalise our own assertion, not
+  //    when they sit in a relative clause about the document (see BARE_MODAL_RE).
+  for (const sentence of splitSentences(textLow)) {
+    const m = sentence.match(BARE_MODAL_RE);
+    if (m && !EMBEDDED_CLAUSE_RE.test(sentence.slice(0, m.index))) {
+      violations.push({
+        rule: "hedge",
+        detail: `message hedges the finding with the modal "${m[0]}" — "${message}"`,
       });
     }
   }
 
-  // 4. No evaluative adjectives — name structural facts, not quality verdicts.
-  for (const adj of EVALUATIVE_PATTERNS) {
-    if (textLow.includes(adj)) {
-      violations.push({
-        rule: "evaluative",
-        detail: `message contains evaluative judgment "${adj}" — "${message}"`,
-      });
-    }
+  // 4. No quality verdicts — name structural facts, not judgements. Anchored on
+  //    a copula so "is vague" (verdict) fires and "is stated without a window"
+  //    (location) does not.
+  const verdict = findCopulaVerdict(textLow);
+  if (verdict) {
+    violations.push({
+      rule: "evaluative",
+      detail: `message passes a quality verdict ("${verdict}") rather than naming what is structurally wrong — "${message}"`,
+    });
+  }
+  if (/\b(?:won't|will not|would not|wouldn't) convince\b/.test(textLow)) {
+    violations.push({
+      rule: "evaluative",
+      detail: `message predicts the work will fail to persuade — a verdict, not an observation — "${message}"`,
+    });
   }
 
   // 5. No evaluator-internal index labels in message-bearing copy. Applies to
