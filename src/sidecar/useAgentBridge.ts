@@ -19,6 +19,18 @@ import {
 import { buildAgentPrompt } from "../services/agentPrompt";
 import { buildAgentSnapshot } from "../services/agentSnapshot";
 import { FEATURE_AGENT_BRIDGE } from "../services/featureFlags";
+import {
+  submitExternalObservation,
+  sanitizeSourceName,
+} from "../services/externalObservations";
+import { readLiveDoc } from "../model/docSnapshotSource";
+import { notifyObservationsChanged } from "../model/observationsSignal";
+import {
+  saveObservation,
+  loadActiveObservationsForDocument,
+  loadSuppressionsForDocument,
+} from "../store/db";
+import { nanoid } from "nanoid";
 
 /** Single-document app; mirrors the constant in App.tsx / Editor.tsx. */
 const DOC_ID = "default";
@@ -46,21 +58,65 @@ export function useAgentBridge(): AgentBridgeView {
   const [prompt, setPrompt] = useState<string | null>(null);
   const [promptError, setPromptError] = useState<string | null>(null);
   const handleRef = useRef<AgentBridgeHandle | null>(null);
+  /** Feeds the boundary's rate check — survives re-renders, resets with the pairing. */
+  const lastSubmissionAtRef = useRef<number | undefined>(undefined);
 
   const start = useCallback((pairing: Pairing) => {
     handleRef.current?.stop();
     handleRef.current = startAgentBridge({
       pairing,
       readSnapshot: () => buildAgentSnapshot(DOC_ID),
-      // PR1 (src/services/externalObservations.ts) lands the real boundary — taxonomy,
-      // register lint, anchor resolution, suppression + budget checks. Until it merges
-      // this rejects everything, which is the safe direction: the transport is verified
-      // end to end while no unvalidated observation can reach the feed.
-      onSubmission: async (): Promise<VerdictBody> => ({
-        result: "rejected",
-        code: "not_implemented",
-        hint: "This build of writtten cannot accept observations yet.",
-      }),
+      onSubmission: async (payload, meta): Promise<VerdictBody> => {
+        const live = readLiveDoc();
+        if (!live) {
+          return {
+            result: "rejected",
+            code: "internal_error",
+            hint: "No document is open. Pull /doc again before submitting.",
+          };
+        }
+        const [activeObservations, suppressions] = await Promise.all([
+          loadActiveObservationsForDocument(DOC_ID),
+          loadSuppressionsForDocument(DOC_ID),
+        ]);
+
+        const verdict = submitExternalObservation(payload, {
+          members: live.members,
+          activeObservations,
+          suppressions,
+          source: {
+            kind: "agent",
+            name: sanitizeSourceName(meta.agentName),
+            sessionId: meta.sessionId,
+          },
+          now: Date.now(),
+          lastSubmissionAt: lastSubmissionAtRef.current,
+        });
+        // Rate limiting is scored on submissions the boundary actually considered, so the
+        // clock advances whatever the verdict — otherwise a rejected burst would reset it.
+        lastSubmissionAtRef.current = Date.now();
+
+        if (!verdict.ok) {
+          return {
+            result: "rejected",
+            code: verdict.code,
+            rule: verdict.rule,
+            hint: verdict.hint,
+            observationId: verdict.observationId,
+          };
+        }
+
+        const id = nanoid();
+        await saveObservation({
+          ...verdict.observation,
+          id,
+          docId: DOC_ID,
+          status: "active",
+        });
+        // No eval pass ran, so nothing else will tell the feed to reload.
+        notifyObservationsChanged();
+        return { result: "accepted", observationId: id };
+      },
     });
     return handleRef.current.subscribe(setStatus);
   }, []);

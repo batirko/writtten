@@ -8,11 +8,16 @@
  * production), and it hands out `blockId`s alongside a matching *write* affordance. The
  * agent bridge ships in production and must have neither.
  *
- * Deliberately id-free: this returns headings and text only. The connected agent must
- * never learn block identity (docs/projects/agent_connected_eval.md § The boundary #4),
- * so the narrowing happens here, at the seam, rather than being left to each consumer to
- * remember.
+ * This seam is **app-internal**, and it does carry block ids: the external-observation
+ * boundary resolves an agent's `anchorText` against real blocks locally, which is
+ * precisely how the agent gets anchoring without ever being told an id.
+ *
+ * The invariant is about the *wire*, not this module: nothing carrying block identity may
+ * reach a connected agent (docs/projects/agent_connected_eval.md § The boundary #4). That
+ * narrowing happens in `agentSnapshot.ts`, which projects `sections` through an explicit
+ * allowlist and never touches `members` — guarded by a test asserting the projected keys.
  */
+import type { SectionMember } from "../services/types";
 
 export interface SnapshotSection {
   heading: string;
@@ -24,7 +29,14 @@ export interface LiveDocSnapshot {
   title: string;
   /** The Document Context the author wrote: what this document is, and for whom. */
   stage: string;
+  /** Id-free — this is what the wire projection is built from. */
   sections: SnapshotSection[];
+  /**
+   * Flat, **document-ordered** blocks with their ids. App-internal only: the boundary
+   * needs these to resolve `anchorText` (multi-match resolves to the first in document
+   * order, so the ordering is load-bearing). Never projected onto the wire.
+   */
+  members: SectionMember[];
 }
 
 type Reader = () => LiveDocSnapshot;

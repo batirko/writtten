@@ -1171,14 +1171,15 @@ export function Editor({
     if (!editor) return;
     return registerDocSnapshotReader(() => {
       const first = editor.state.doc.firstChild;
+      const sections = resolveSections(editor.state.doc);
       return {
         // writtten has no document-title field; a leading heading is the honest proxy.
         title: first?.type.name === "heading" ? first.textContent : "",
         stage: stageRef.current ?? "",
-        sections: resolveSections(editor.state.doc).map((s) => ({
-          heading: s.headingText,
-          text: s.combinedText,
-        })),
+        sections: sections.map((s) => ({ heading: s.headingText, text: s.combinedText })),
+        // Flattening section-by-section preserves document order, which the boundary's
+        // first-match anchor resolution depends on.
+        members: sections.flatMap((s) => s.members),
       };
     });
   }, [editor]);

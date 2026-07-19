@@ -33,6 +33,7 @@ import type { ProviderId } from "./model/provider";
 import { llmLogger, type LLMLogEntry, type SessionStats } from "./model/logger";
 import { harness } from "./debug/harness";
 import { subscribeActivity } from "./model/activitySignal";
+import { subscribeObservationsChanged } from "./model/observationsSignal";
 import { nanoid } from "nanoid";
 import type { Editor as TiptapEditor } from "@tiptap/react";
 import { downloadMarkdown, exportPdf, copyMarkdown, copyRichText } from "./services/export";
@@ -438,6 +439,10 @@ export default function App() {
       setArchivedObservations(all.filter((o) => o.status !== "active"));
     });
   };
+
+  // An agent-submitted observation never goes through an eval pass, so it has no
+  // scheduleEval onComplete to refresh the feed — it announces itself instead.
+  useEffect(() => subscribeObservationsChanged(refreshObservations), []);
 
   // Initial load
   useEffect(() => {

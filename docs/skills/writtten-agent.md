@@ -74,7 +74,7 @@ rejected.
 | `underexposed_topic` | A topic the document raises but never develops. | "Migration of existing accounts is mentioned once and never returned to." |
 | `missing_topic` | Something this *kind* of document usually covers and this one omits. | "The document sets no success metric." |
 | `structure_flow` | Ordering or flow problems across sections. | "The rollout plan precedes the problem statement, so the constraints arrive after the solution." |
-| `audience_mismatch` | Tone or depth misaligned with the stated audience. | "The stage names an executive audience; the API schema detail in §4 is written for implementers." |
+| `audience_mismatch` | Tone or depth misaligned with the stated audience. | "The stage names an executive audience; the API schema detail in the Integration section is written for implementers." |
 
 `contradiction` is the one users care about most. It means genuine logical incompatibility
 — a conflict in a number, date, commitment, or fact — not "these are in tension" (that is

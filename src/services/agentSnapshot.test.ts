@@ -57,7 +57,7 @@ describe("agent observation projection", () => {
 });
 
 describe("docSnapshotSource", () => {
-  afterEach(() => registerDocSnapshotReader(() => ({ title: "", stage: "", sections: [] }))());
+  afterEach(() => registerDocSnapshotReader(() => ({ title: "", stage: "", sections: [], members: [] }))());
 
   it("returns null when no editor is mounted", () => {
     expect(readLiveDoc()).toBeNull();
@@ -68,6 +68,7 @@ describe("docSnapshotSource", () => {
       title: "Fraud PRD",
       stage: "internal PRD",
       sections: [{ heading: "Goals", text: "Cut chargebacks." }],
+      members: [{ blockId: "b1", text: "Cut chargebacks." }],
     }));
     expect(readLiveDoc()?.title).toBe("Fraud PRD");
     unregister();
@@ -75,8 +76,8 @@ describe("docSnapshotSource", () => {
   });
 
   it("a stale cleanup does not clobber a newer registration", () => {
-    const stale = registerDocSnapshotReader(() => ({ title: "old", stage: "", sections: [] }));
-    registerDocSnapshotReader(() => ({ title: "new", stage: "", sections: [] }));
+    const stale = registerDocSnapshotReader(() => ({ title: "old", stage: "", sections: [], members: [] }));
+    registerDocSnapshotReader(() => ({ title: "new", stage: "", sections: [], members: [] }));
     stale();
     expect(readLiveDoc()?.title).toBe("new");
   });
