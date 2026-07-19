@@ -8,6 +8,21 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 > conventional-commit PR titles; a new version section is prepended when a release PR merges.
 > See `docs/mechanics/release_and_deploy.md`.
 
+## [0.7.0](https://github.com/batirko/writtten/compare/writtten-v0.6.0...writtten-v0.7.0) (2026-07-18)
+
+
+### Added
+
+* **eval:** audience-relative jargon calibration (OBS-003/OBS-005) ([#196](https://github.com/batirko/writtten/issues/196)) ([eadab94](https://github.com/batirko/writtten/commit/eadab9448302e2db26e9b264b4986a9641ea680a))
+* **eval:** close conflict cards when the fix is on the secondary anchor ([#202](https://github.com/batirko/writtten/issues/202)) ([8a3c548](https://github.com/batirko/writtten/commit/8a3c5489ba0670a8d23700943eed644a16ac4ffe))
+* **eval:** essay/relaxed rhetoric extraction + author-reconciled tension (OBS-037) ([#207](https://github.com/batirko/writtten/issues/207)) ([1f54c17](https://github.com/batirko/writtten/commit/1f54c17a37dfe2397abc05bc9304475b5cb4520e))
+* **eval:** per-claim contradiction candidate selection (OBS-038) ([#201](https://github.com/batirko/writtten/issues/201)) ([2631eca](https://github.com/batirko/writtten/commit/2631eca27544556a7e55b7a5e48c4bebf08f3eb4))
+* **eval:** scope-excluded claim tagging skips false contradictions (OBS-030) ([#205](https://github.com/batirko/writtten/issues/205)) ([2552cae](https://github.com/batirko/writtten/commit/2552caec6c36bc3b0486b2f3f2bc0a3672198740))
+* **eval:** Tier 1 doc-pass materiality floor (R3.3) ([#197](https://github.com/batirko/writtten/issues/197)) ([6964994](https://github.com/batirko/writtten/commit/6964994a76d40cb7f232d9031ae8b7bf86bbb96d))
+* **eval:** ungate the bulk-paste contradiction sweep on short drafts (UX-016) ([#208](https://github.com/batirko/writtten/issues/208)) ([cbd4cdb](https://github.com/batirko/writtten/commit/cbd4cdbba20da4c4850ae5d20db2cfb6b966f765))
+* **eval:** V3 hero-miss instrumentation — prefilter A/B drop count ([#199](https://github.com/batirko/writtten/issues/199)) ([3d0c902](https://github.com/batirko/writtten/commit/3d0c902ef0d67b0da3b8d6171c3830604f54e137))
+* **site:** add /why manifesto landing page + in-app link ([#209](https://github.com/batirko/writtten/issues/209)) ([82e8f2f](https://github.com/batirko/writtten/commit/82e8f2feb517d524655fa77cad71672d9a6175c2))
+
 ## [0.6.0](https://github.com/batirko/writtten/compare/writtten-v0.5.1...writtten-v0.6.0) (2026-07-15)
 
 
