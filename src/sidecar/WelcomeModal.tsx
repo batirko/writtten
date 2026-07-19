@@ -39,6 +39,9 @@ interface WelcomeModalProps {
   onClose: () => void;
   /** Deep-link into the BYOK Settings modal (the accent, activation-first CTA). */
   onAddKey: () => void;
+  /** Deep-link into the connect section and start pairing. Omitted (and the
+   *  button hidden) while FEATURE_AGENT_BRIDGE is off. */
+  onConnectAgent?: () => void;
   /** Load the recorded "See it in action" example (keyless mock replay). */
   onLoadExample: () => void;
   /** Whether loading the example is safe — only on a blank doc, so it never
@@ -49,6 +52,7 @@ interface WelcomeModalProps {
 export function WelcomeModal({
   onClose,
   onAddKey,
+  onConnectAgent,
   onLoadExample,
   canLoadExample,
 }: WelcomeModalProps) {
@@ -130,11 +134,26 @@ export function WelcomeModal({
 
         <div className="welcome-modal-keynote">
           <p>
-            To read <em>your</em> writing I need an API key &mdash; free to start with Gemini, and
-            it stays on this device. No key yet? Watch a recorded example first.
+            {onConnectAgent ? (
+              <>
+                To read <em>your</em> writing I need model access &mdash; an API key that stays on
+                this device, free to start with Gemini, or a coding agent you already run. Neither
+                yet? Watch a recorded example first.
+              </>
+            ) : (
+              <>
+                To read <em>your</em> writing I need an API key &mdash; free to start with Gemini,
+                and it stays on this device. No key yet? Watch a recorded example first.
+              </>
+            )}
           </p>
         </div>
 
+        {/* The two on-ramps carry identical weight: they are alternative routes to
+            the same capability, and outlining one would rank them (spec decision 3,
+            "two equal paths"). The example is separated below rather than sitting
+            third in this row — it is a different kind of choice (watch, don't set
+            up), and reading as a third peer flattened that. */}
         <div className="welcome-modal-actions">
           <button
             className="welcome-modal-primary"
@@ -143,20 +162,35 @@ export function WelcomeModal({
           >
             Add your key
           </button>
-          <button
-            className="welcome-modal-secondary"
-            data-testid="see-example"
-            onClick={onLoadExample}
-            disabled={!canLoadExample}
-            title={
-              canLoadExample
-                ? "Load a short example and watch the feed react"
-                : "Clear the workspace to load the example"
-            }
-          >
-            See it in action
-          </button>
+          {onConnectAgent && (
+            <>
+              <span className="welcome-modal-or">or</span>
+              <button
+                className="welcome-modal-secondary"
+                data-testid="welcome-connect-agent"
+                onClick={onConnectAgent}
+              >
+                Connect your agent
+              </button>
+            </>
+          )}
         </div>
+
+        <hr className="welcome-modal-divider" />
+
+        <button
+          className="welcome-modal-tertiary"
+          data-testid="see-example"
+          onClick={onLoadExample}
+          disabled={!canLoadExample}
+          title={
+            canLoadExample
+              ? "Load a short example and watch the feed react"
+              : "Clear the workspace to load the example"
+          }
+        >
+          See it in action
+        </button>
 
         <button className="welcome-modal-later" data-testid="welcome-later" onClick={onClose}>
           Maybe later

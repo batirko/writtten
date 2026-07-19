@@ -476,16 +476,46 @@ export function ControlCenter({
     }
   }, [inflightTier]);
   useEffect(() => () => strongHoldRef.current && clearTimeout(strongHoldRef.current), []);
-  // Deep-link seam: the first-run welcome modal + the standing keyless banner
-  // open Settings without owning its state. See sidecar/settingsGate.ts.
-  useEffect(() => subscribeOpenSettings(() => setShowSettings(true)), []);
-
   // Agent bridge lifecycle. Held here rather than inside the settings modal so closing
   // Settings never tears down a live pairing; the section below is presentational.
   const agentBridge = useAgentBridge();
   const [agentSource, setAgentSource] = useState<AgentSourceStatus>(getAgentSourceStatus);
   useEffect(() => subscribeAgentSource(setAgentSource), []);
   const agentStatus = FEATURE_AGENT_BRIDGE ? agentStatusView(agentSource) : null;
+
+  // Read the bridge through a ref inside the subscription below: re-subscribing
+  // on every status change would tear down and rebuild the listener continuously.
+  const agentBridgeRef = useRef(agentBridge);
+  agentBridgeRef.current = agentBridge;
+  const connectRef = useRef<HTMLDivElement>(null);
+
+  // Deep-link seam: the first-run welcome modal + the standing keyless banner
+  // open Settings without owning its state. See sidecar/settingsGate.ts.
+  //
+  // A "connect-agent" intent also starts the pairing and scrolls the section
+  // into view, so the prompt is already there to copy. The alternative — landing
+  // on a collapsed section showing a button with the same label the user just
+  // pressed — reads as though the first press failed. Starting is cheap and
+  // reversible: `createPairing` only writes localStorage, and Cancel sits
+  // directly beneath. Only start from `idle`; re-starting a live pairing would
+  // invalidate the token the user's agent is already holding.
+  useEffect(
+    () =>
+      subscribeOpenSettings((intent) => {
+        setShowSettings(true);
+        if (intent !== "connect-agent" || !FEATURE_AGENT_BRIDGE) return;
+        if (agentBridgeRef.current.status.state === "idle") agentBridgeRef.current.connect();
+        // The modal mounts this frame; scroll once it exists. Optional-call the
+        // method as well as the ref: this runs inside rAF, where a throw is
+        // unhandled, and `scrollIntoView` is absent in jsdom and stubbed out by
+        // some embedded webviews. Scrolling is a nicety — the section is already
+        // open and started, so losing it must not take the callback down with it.
+        requestAnimationFrame(() =>
+          connectRef.current?.scrollIntoView?.({ block: "nearest", behavior: "smooth" })
+        );
+      }),
+    []
+  );
 
   // Touch open: the actions reveal on hover / focus-within on desktop, but a
   // phone has neither — tapping the anchor pins the control-center open so its
@@ -1036,7 +1066,11 @@ export function ControlCenter({
               only on this device — never on a server of ours.
             </div>
 
-            {FEATURE_AGENT_BRIDGE && <ConnectAgent {...agentBridge} />}
+            {FEATURE_AGENT_BRIDGE && (
+              <div ref={connectRef}>
+                <ConnectAgent {...agentBridge} />
+              </div>
+            )}
 
             {/* In-app OSS discoverability: a hosted-demo visitor should be able
                 to find the source — and learn they can self-host — without

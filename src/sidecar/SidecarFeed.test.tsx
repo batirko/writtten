@@ -22,6 +22,7 @@ import { ControlCenter } from "./ControlCenter";
 import { openSettings } from "./settingsGate";
 import type { Observation } from "../store/db";
 import { setAgentSourceStatus, __resetAgentSourceStatus } from "../model/agentSourceSignal";
+import { FEATURE_AGENT_BRIDGE } from "../services/featureFlags";
 
 const minProps = {
   observations: [] as never[],
@@ -449,6 +450,52 @@ describe("SidecarFeed — keyless banner + empty-state split", () => {
     });
     window.removeEventListener("writtten:open-settings", handler);
     expect(opened).toBe(1);
+  });
+
+  // The banner is the only re-entry point once the welcome modal is dismissed,
+  // so it carries both on-ramps too (spec decision 3). Asserted against the live
+  // flag so the test stays honest whichever way the flag is set.
+  it("offers the agent path alongside the key path exactly when the flag allows it", () => {
+    const div = renderWith({ hasKey: false });
+    const connect = div.querySelector('[data-testid="keyless-banner-connect"]');
+    const key = div.querySelector('[data-testid="keyless-banner-settings"]');
+
+    // The key path is unconditional.
+    expect(key?.textContent).toMatch(/add your key/i);
+
+    if (FEATURE_AGENT_BRIDGE) {
+      expect(connect).not.toBeNull();
+      expect(div.querySelector(".keyless-banner-or")?.textContent).toBe("or");
+      // Neither route may look like the lesser one: both take the arrow.
+      expect(key?.textContent).toContain("→");
+      expect(connect?.textContent).toContain("→");
+    } else {
+      expect(connect).toBeNull();
+      expect(div.querySelector(".keyless-banner-or")).toBeNull();
+    }
+  });
+
+  it("the agent link deep-links with the connect-agent intent, not a bare open", () => {
+    if (!FEATURE_AGENT_BRIDGE) return;
+    const div = renderWith({ hasKey: false });
+    const intents: (string | undefined)[] = [];
+    const handler = (e: Event) => intents.push((e as CustomEvent<string | undefined>).detail);
+    window.addEventListener("writtten:open-settings", handler);
+    act(() => {
+      div
+        .querySelector('[data-testid="keyless-banner-connect"]')
+        ?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      div
+        .querySelector('[data-testid="keyless-banner-settings"]')
+        ?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+    window.removeEventListener("writtten:open-settings", handler);
+    // Order matters: the agent link must carry the intent and the key link must not,
+    // or the key path would start a pairing nobody asked for. (A CustomEvent with
+    // no detail reports `null`, not `undefined` — assert "absent", not a literal.)
+    expect(intents).toHaveLength(2);
+    expect(intents[0]).toBe("connect-agent");
+    expect(intents[1] ?? undefined).toBeUndefined();
   });
 
   it("tunes the banner copy for the demo vs. the general keyless state", () => {

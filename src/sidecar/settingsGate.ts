@@ -10,16 +10,26 @@
 
 const OPEN_SETTINGS_EVENT = "writtten:open-settings";
 
+/**
+ * Why the caller can name an intent: the modal has two on-ramps now, and
+ * "Connect your agent" in the welcome modal / keyless banner carries the same
+ * label as the button inside the connect section. Landing the user on a closed
+ * section and asking them to press the same words again is the worse read, so
+ * the opener says which one it meant and ControlCenter starts it.
+ */
+export type SettingsIntent = "connect-agent";
+
 /** Request that the BYOK Settings modal open. Safe to call from anywhere. */
-export function openSettings(): void {
-  window.dispatchEvent(new Event(OPEN_SETTINGS_EVENT));
+export function openSettings(intent?: SettingsIntent): void {
+  window.dispatchEvent(new CustomEvent(OPEN_SETTINGS_EVENT, { detail: intent }));
 }
 
 /**
  * Subscribe to open-settings requests. Returns an unsubscribe fn (wire it up in
  * a `useEffect` cleanup). Only ControlCenter should subscribe.
  */
-export function subscribeOpenSettings(handler: () => void): () => void {
-  window.addEventListener(OPEN_SETTINGS_EVENT, handler);
-  return () => window.removeEventListener(OPEN_SETTINGS_EVENT, handler);
+export function subscribeOpenSettings(handler: (intent?: SettingsIntent) => void): () => void {
+  const listener = (e: Event) => handler((e as CustomEvent<SettingsIntent | undefined>).detail);
+  window.addEventListener(OPEN_SETTINGS_EVENT, listener);
+  return () => window.removeEventListener(OPEN_SETTINGS_EVENT, listener);
 }

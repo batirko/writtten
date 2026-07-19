@@ -4,6 +4,7 @@ import { partitionFeed, DEFAULT_FEED_BUDGET } from "./feedBudget";
 import { formatAnchorExcerpt } from "./anchorExcerpt";
 import type { GroupedObservation } from "./feedBudget";
 import { openSettings } from "./settingsGate";
+import { FEATURE_AGENT_BRIDGE } from "../services/featureFlags";
 import { SourceChip } from "./SourceChip";
 import { closureReasonLabel } from "./closureLabel";
 
@@ -95,6 +96,7 @@ function KeyIcon() {
 }
 
 function KeylessBanner({ demoActive }: { demoActive: boolean }) {
+  const agent = FEATURE_AGENT_BRIDGE;
   return (
     <div className="keyless-banner" data-testid="keyless-banner" role="note">
       <span className="keyless-banner-icon">
@@ -104,21 +106,45 @@ function KeylessBanner({ demoActive }: { demoActive: boolean }) {
         <p className="keyless-banner-lead">
           {demoActive
             ? "This is a demo running on recorded responses."
-            : "Add a key to read your own writing."}
+            : agent
+              ? "Add a key or connect your agent to read your own writing."
+              : "Add a key to read your own writing."}
         </p>
         <p className="keyless-banner-sub">
           {demoActive
-            ? "Analyzing your own writing needs an API key. "
-            : "writtten needs an API key to read your text — it stays on this device. "}
+            ? agent
+              ? "Reading your own writing needs a key or a connected agent."
+              : "Analyzing your own writing needs an API key."
+            : agent
+              ? "writtten needs model access to read your text. A key stays on this device; an agent keeps it on your machine entirely."
+              : "writtten needs an API key to read your text — it stays on this device."}
+        </p>
+        {/* Plain accent text links, never button-shaped: this opens Settings, and
+            a button here would read as an apply affordance. Both take an arrow so
+            neither looks like the lesser route. */}
+        <div className="keyless-banner-actions">
           <button
             type="button"
             className="keyless-banner-link"
             data-testid="keyless-banner-settings"
-            onClick={openSettings}
+            onClick={() => openSettings()}
           >
-            Add your key in Settings <span aria-hidden="true">→</span>
+            Add your key <span aria-hidden="true">→</span>
           </button>
-        </p>
+          {agent && (
+            <>
+              <span className="keyless-banner-or">or</span>
+              <button
+                type="button"
+                className="keyless-banner-link"
+                data-testid="keyless-banner-connect"
+                onClick={() => openSettings("connect-agent")}
+              >
+                Connect your agent <span aria-hidden="true">→</span>
+              </button>
+            </>
+          )}
+        </div>
       </div>
     </div>
   );
