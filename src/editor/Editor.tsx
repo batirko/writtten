@@ -33,6 +33,7 @@ import type { EvalContext } from "../services/types";
 import { documentMaturity, type MaturityLevel } from "../services/documentMaturity";
 import type { ModelCapability } from "../model/capability";
 import { harness } from "../debug/harness";
+import { registerDocSnapshotReader } from "../model/docSnapshotSource";
 import { nanoid } from "nanoid";
 import { Markdown } from "tiptap-markdown";
 import { SemanticPaste } from "./extensions/SemanticPaste";
@@ -1160,6 +1161,26 @@ export function Editor({
     return () => {
       if (docIdleTimer.current) clearTimeout(docIdleTimer.current);
     };
+  }, [editor]);
+
+  // Production-safe live-document reader for the agent bridge. Distinct from the dev
+  // harness registration below in both directions: it ships in prod, and it exposes no
+  // block ids and no write counterpart — the connected agent gets headings and text only.
+  // Reads stageRef inside the closure so a stage edit never re-runs the effect.
+  useEffect(() => {
+    if (!editor) return;
+    return registerDocSnapshotReader(() => {
+      const first = editor.state.doc.firstChild;
+      return {
+        // writtten has no document-title field; a leading heading is the honest proxy.
+        title: first?.type.name === "heading" ? first.textContent : "",
+        stage: stageRef.current ?? "",
+        sections: resolveSections(editor.state.doc).map((s) => ({
+          heading: s.headingText,
+          text: s.combinedText,
+        })),
+      };
+    });
   }, [editor]);
 
   // Register live block read + fixture-doc write with the dev harness
