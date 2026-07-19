@@ -54,6 +54,11 @@ export interface BridgeStatus {
   error: BridgeError;
   /** Last successfully-pushed docVersion; null before the first push. */
   docVersion: number | null;
+  /** The bridge's per-run id, learned from the `hello` event; null until then.
+   *  Attribution scopes on this, not on the display name: two runs of the same
+   *  agent are two sources, so a card from a previous run must not read as live
+   *  just because something with the same name reconnected. */
+  sessionId: string | null;
 }
 
 export interface SubmissionMeta {
@@ -274,7 +279,14 @@ export function startAgentBridge(deps: BridgeDeps): AgentBridgeHandle {
   const listeners = new Set<(s: BridgeStatus) => void>();
 
   function status(): BridgeStatus {
-    return { state, agentName, port, error, docVersion: lastPushedVersion };
+    return {
+      state,
+      agentName,
+      port,
+      error,
+      docVersion: lastPushedVersion,
+      sessionId: sessionId || null,
+    };
   }
 
   function emit(): void {

@@ -21,11 +21,14 @@ function render(view: Partial<AgentBridgeView> & { state: BridgeState }) {
       port: 8787,
       error: null,
       docVersion: null,
+      sessionId: "sess-1",
     },
     prompt: rest.prompt ?? null,
     promptError: rest.promptError ?? null,
     connect: rest.connect ?? vi.fn(),
     cancel: rest.cancel ?? vi.fn(),
+    activeFromSource: rest.activeFromSource ?? 0,
+    revoke: rest.revoke ?? vi.fn(async () => undefined),
   };
   act(() => {
     createRoot(container).render(createElement(ConnectAgent, props));
@@ -66,7 +69,14 @@ describe("ConnectAgent — states", () => {
     const text = render({
       state: "waiting",
       prompt: "x",
-      status: { state: "waiting", agentName: null, port: null, error: "version_mismatch", docVersion: null },
+      status: {
+        state: "waiting",
+        agentName: null,
+        port: null,
+        error: "version_mismatch",
+        docVersion: null,
+        sessionId: null,
+      },
     });
     expect(text).toMatch(/older protocol/);
   });
@@ -88,8 +98,115 @@ describe("ConnectAgent — states", () => {
   it("falls back to a neutral label when the agent reported no name", () => {
     const text = render({
       state: "connected",
-      status: { state: "connected", agentName: null, port: 8788, error: null, docVersion: null },
+      status: {
+        state: "connected",
+        agentName: null,
+        port: 8788,
+        error: null,
+        docVersion: null,
+        sessionId: null,
+      },
     });
     expect(text).toContain("Connected · agent");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// BYOA (PR3) — teardown when the source left observations behind.
+//
+// Disconnecting is only a decision when there are cards to strand. The archive
+// option is opt-in: the observations belong to the user, not to the connection.
+// ---------------------------------------------------------------------------
+
+describe("ConnectAgent — teardown", () => {
+  it("disconnects immediately when the source submitted nothing", () => {
+    const cancel = vi.fn();
+    const revoke = vi.fn(async () => undefined);
+    render({ state: "connected", activeFromSource: 0, cancel, revoke });
+
+    act(() => {
+      container.querySelector<HTMLButtonElement>('[data-testid="connect-agent-disconnect"]')!.click();
+    });
+
+    expect(cancel).toHaveBeenCalled();
+    expect(revoke).not.toHaveBeenCalled();
+    expect(container.querySelector('[data-testid="connect-agent-confirm"]')).toBeNull();
+  });
+
+  it("asks first when the source has active cards, and names how many", () => {
+    render({ state: "connected", activeFromSource: 4 });
+
+    act(() => {
+      container.querySelector<HTMLButtonElement>('[data-testid="connect-agent-disconnect"]')!.click();
+    });
+
+    const confirm = container.querySelector('[data-testid="connect-agent-confirm"]');
+    expect(confirm).not.toBeNull();
+    expect(confirm?.textContent).toContain("4 observations");
+  });
+
+  it("keeps the cards by default", () => {
+    const revoke = vi.fn(async () => undefined);
+    render({ state: "connected", activeFromSource: 2, revoke });
+
+    act(() => {
+      container.querySelector<HTMLButtonElement>('[data-testid="connect-agent-disconnect"]')!.click();
+    });
+    act(() => {
+      container.querySelector<HTMLButtonElement>('[data-testid="connect-agent-confirm-ok"]')!.click();
+    });
+
+    expect(revoke).toHaveBeenCalledWith(false);
+  });
+
+  it("archives them only when the option is checked", () => {
+    const revoke = vi.fn(async () => undefined);
+    render({ state: "connected", activeFromSource: 2, revoke });
+
+    act(() => {
+      container.querySelector<HTMLButtonElement>('[data-testid="connect-agent-disconnect"]')!.click();
+    });
+    act(() => {
+      container
+        .querySelector<HTMLInputElement>('[data-testid="connect-agent-archive-opt"]')!
+        .click();
+    });
+    act(() => {
+      container.querySelector<HTMLButtonElement>('[data-testid="connect-agent-confirm-ok"]')!.click();
+    });
+
+    expect(revoke).toHaveBeenCalledWith(true);
+  });
+
+  it("cancelling the confirm leaves the pairing alone", () => {
+    const cancel = vi.fn();
+    const revoke = vi.fn(async () => undefined);
+    render({ state: "connected", activeFromSource: 3, cancel, revoke });
+
+    act(() => {
+      container.querySelector<HTMLButtonElement>('[data-testid="connect-agent-disconnect"]')!.click();
+    });
+    act(() => {
+      container
+        .querySelector<HTMLButtonElement>('[data-testid="connect-agent-confirm-cancel"]')!
+        .click();
+    });
+
+    expect(revoke).not.toHaveBeenCalled();
+    expect(cancel).not.toHaveBeenCalled();
+    expect(container.querySelector('[data-testid="connect-agent-confirm"]')).toBeNull();
+  });
+
+  it("offers the same choice from the disconnected state's Forget action", () => {
+    // A dropped bridge still leaves its cards behind, so Forget has the same
+    // decision attached to it as Disconnect.
+    render({ state: "disconnected", activeFromSource: 1 });
+
+    act(() => {
+      container.querySelector<HTMLButtonElement>('[data-testid="connect-agent-forget"]')!.click();
+    });
+
+    const confirm = container.querySelector('[data-testid="connect-agent-confirm"]');
+    expect(confirm?.textContent).toContain("1 observation ");
   });
 });

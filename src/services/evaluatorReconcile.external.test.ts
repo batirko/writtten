@@ -349,7 +349,8 @@ describe("reconcileConflictCardsOnEdit — edit-time conflict arms", () => {
       [{ blockId: "b1", text: "The timeline section was rewritten entirely." }],
       [],
       new Set(),
-      STRONG
+      STRONG,
+      undefined
     );
 
     expect(vi.mocked(db.updateObservationStatus)).toHaveBeenCalledWith(

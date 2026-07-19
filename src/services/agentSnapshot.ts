@@ -42,8 +42,11 @@ export function toAgentObservation(o: Observation): AgentSnapshotObservation {
     scope: o.scope,
     text: o.text,
     ...(o.anchorText ? { anchorText: o.anchorText } : {}),
-    // PR3 gives external cards a real `source`; until then everything active is ours.
-    source: "writtten",
+    // Active observations are shown so the agent doesn't duplicate what the feed
+    // already carries — which only works if it can tell whose is whose. The
+    // display name only: `sessionId` is internal identity the agent has no use
+    // for, and it is what revoke/retract scope on.
+    source: o.source?.name ?? "writtten",
   };
 }
 

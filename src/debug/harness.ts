@@ -34,6 +34,7 @@ import {
 } from "../store/db";
 import { nanoid } from "nanoid";
 import { setAgentSourceStatus, type AgentConnectionState } from "../model/agentSourceSignal";
+import { notifyObservationsChanged } from "../model/observationsSignal";
 import {
   llmLogger,
   type LLMLogEntry,
@@ -295,6 +296,9 @@ class Harness {
       },
     });
     this.emit("observation", { type: fixture.type, blocks: [fixture.blockId ?? ""] });
+    // No eval pass ran, so nothing else tells the feed to reload — same reason
+    // the boundary's accept path calls this.
+    notifyObservationsChanged();
     return id;
   }
 

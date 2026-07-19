@@ -11,9 +11,38 @@ import type { AgentBridgeView } from "./useAgentBridge";
  *  affordance; this just proves something real is there. */
 const PREVIEW_CHARS = 420;
 
-export function ConnectAgent({ status, prompt, promptError, connect, cancel }: AgentBridgeView) {
+export function ConnectAgent({
+  status,
+  prompt,
+  promptError,
+  connect,
+  cancel,
+  activeFromSource,
+  revoke,
+}: AgentBridgeView) {
   const [copied, setCopied] = useState(false);
   const [copyFailed, setCopyFailed] = useState(false);
+  const [confirming, setConfirming] = useState(false);
+  const [archiveCards, setArchiveCards] = useState(false);
+
+  /** Tearing a pairing down is only a decision when the source left something
+   *  behind. With no cards to strand, Disconnect just disconnects — a dialog
+   *  there would be ceremony over an empty choice. */
+  const teardown = () => {
+    if (activeFromSource > 0) {
+      setArchiveCards(false);
+      setConfirming(true);
+      return;
+    }
+    cancel();
+  };
+
+  const confirmTeardown = () => {
+    setConfirming(false);
+    void revoke(archiveCards);
+  };
+
+  const cardCount = `${activeFromSource} observation${activeFromSource === 1 ? "" : "s"}`;
 
   useEffect(() => {
     if (!copied) return;
@@ -155,7 +184,7 @@ export function ConnectAgent({ status, prompt, promptError, connect, cancel }: A
               type="button"
               className="connect-btn connect-btn-sm"
               data-testid="connect-agent-disconnect"
-              onClick={cancel}
+              onClick={teardown}
             >
               Disconnect
             </button>
@@ -177,7 +206,12 @@ export function ConnectAgent({ status, prompt, promptError, connect, cancel }: A
               <span className="connect-dot connect-dot-off" aria-hidden="true" />
               Disconnected · {status.agentName ?? "agent"}
             </div>
-            <button type="button" className="connect-btn connect-btn-sm" onClick={cancel}>
+            <button
+              type="button"
+              className="connect-btn connect-btn-sm"
+              data-testid="connect-agent-forget"
+              onClick={teardown}
+            >
               Forget
             </button>
           </div>
@@ -185,6 +219,53 @@ export function ConnectAgent({ status, prompt, promptError, connect, cancel }: A
             Its cards stay in your feed. Re-run the bridge and it reclaims them.
           </p>
         </>
+      )}
+
+      {confirming && (
+        <div
+          className="modal-scrim"
+          data-testid="connect-agent-confirm"
+          onClick={() => setConfirming(false)}
+        >
+          <div className="modal-card" onClick={(e) => e.stopPropagation()}>
+            <p style={{ margin: "0 0 var(--space-2xs)", fontWeight: 500 }}>
+              Disconnect {status.agentName ?? "this agent"}?
+            </p>
+            <p style={{ margin: "0 0 var(--space-md)", color: "var(--color-ink-2)" }}>
+              It submitted {cardCount} that {activeFromSource === 1 ? "is" : "are"} still in
+              your feed.
+            </p>
+            {/* Unchecked by default: the observations belong to the user, not to
+                the connection. Clearing them is a separate, deliberate act. */}
+            <label className="connect-archive-opt">
+              <input
+                type="checkbox"
+                data-testid="connect-agent-archive-opt"
+                checked={archiveCards}
+                onChange={(e) => setArchiveCards(e.target.checked)}
+              />
+              <span>Archive its {cardCount} too</span>
+            </label>
+            <div className="connect-actions">
+              <button
+                type="button"
+                className="modal-ghost-btn"
+                data-testid="connect-agent-confirm-cancel"
+                onClick={() => setConfirming(false)}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="modal-danger-btn"
+                data-testid="connect-agent-confirm-ok"
+                onClick={confirmTeardown}
+              >
+                Disconnect
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
