@@ -6,6 +6,9 @@ import {
   isLoopbackHost,
   assertLoopbackUrl,
   subscribeSettled,
+  createPairing,
+  loadPairing,
+  clearPairing,
   AGENT_PROTOCOL_VERSION,
   CANDIDATE_PORTS,
   type EventSourceLike,
@@ -180,6 +183,99 @@ async function until<T>(fn: () => T | undefined | false, ms = 1500): Promise<T> 
     await tick(5);
   }
 }
+
+// ---------------------------------------------------------------------------
+// Pairing persistence — surviving a Storage that exists but doesn't work
+// ---------------------------------------------------------------------------
+
+/**
+ * A Map-backed Storage, with an override seam so a *failing* store can be driven
+ * honestly: a real browser throws on `getItem` in some privacy modes and on
+ * `setItem` at quota, and making the backing store throw is the only way to
+ * exercise the module's try/catch. (Recovered from the deleted
+ * `agentOnlyMode.test.ts`, which needed exactly this.)
+ */
+function installStorage(over: Partial<Storage> = {}) {
+  const map = new Map<string, string>();
+  const store = {
+    getItem: (k: string) => map.get(k) ?? null,
+    setItem: (k: string, v: string) => void map.set(k, v),
+    removeItem: (k: string) => void map.delete(k),
+    clear: () => map.clear(),
+    key: (i: number) => [...map.keys()][i] ?? null,
+    get length() {
+      return map.size;
+    },
+    ...over,
+  };
+  vi.stubGlobal("localStorage", store);
+  return store;
+}
+
+describe("pairing persistence", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("round-trips a pairing through a working Storage", () => {
+    installStorage();
+    const made = createPairing("https://writtten.com");
+    expect(made.token).toBeTruthy();
+    expect(made.ports).toEqual(CANDIDATE_PORTS);
+
+    const loaded = loadPairing();
+    expect(loaded?.token).toBe(made.token);
+    expect(loaded?.origin).toBe("https://writtten.com");
+
+    clearPairing();
+    expect(loadPairing()).toBeNull();
+  });
+
+  /**
+   * The regression this file exists for. `localStorage` can be *defined but
+   * inert* — Node ≥ 22 installs a bare `{}` when `--localstorage-file` is absent,
+   * which is why this bit the moment FEATURE_AGENT_BRIDGE was flipped on and
+   * `useAgentBridge`'s resume effect ran `loadPairing()`. An existence check
+   * ("is the binding defined?") hands that object back as a `Storage` and the
+   * first method call throws; only a capability check refuses it.
+   */
+  it("degrades to no-persistence when Storage exists but has no methods", () => {
+    vi.stubGlobal("localStorage", {});
+
+    expect(() => loadPairing()).not.toThrow();
+    expect(loadPairing()).toBeNull();
+
+    // The pairing is still minted — it just isn't remembered across reloads.
+    let made: Pairing | null = null;
+    expect(() => (made = createPairing("https://writtten.com"))).not.toThrow();
+    expect(made!.token).toBeTruthy();
+
+    expect(() => clearPairing()).not.toThrow();
+  });
+
+  it("degrades when the Storage getter itself throws (private-mode shape)", () => {
+    vi.stubGlobal("localStorage", {
+      get getItem(): never {
+        throw new DOMException("The operation is insecure.", "SecurityError");
+      },
+    });
+
+    expect(() => loadPairing()).not.toThrow();
+    expect(loadPairing()).toBeNull();
+  });
+
+  it("degrades when a present method throws at call time (quota shape)", () => {
+    installStorage({
+      setItem: () => {
+        throw new DOMException("QuotaExceededError");
+      },
+    });
+
+    // A quota failure must not cost the user their pairing — the token is
+    // returned and the session works; only the reload-resume is lost.
+    expect(() => createPairing("https://writtten.com")).not.toThrow();
+  });
+});
 
 // ---------------------------------------------------------------------------
 // State machine
