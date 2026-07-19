@@ -1,8 +1,8 @@
 ---
 status: in-progress
 kind: research
-phases: [8, 9]
-summary: The go-to-market strategy for writtten — the manifesto-as-distribution thesis, a ranked channel taxonomy beyond the obvious LinkedIn/friends/PM-communities push, the sequencing plan, and the GTM-skill/tooling landscape research (two-motion split; which skills fit an OSS bottom-up product and which are actively wrong for it). Complements `oss_launch_readiness.md` (launch venues/checklist) and `field_validation.md` (soft-launch = V2 validation).
+phases: []
+summary: The go-to-market strategy for writtten, run as a parallel workstream (not phase-bound, moved out of the dev plan 2026-07-19) — the manifesto-as-distribution thesis, a ranked channel taxonomy beyond the obvious LinkedIn/friends/PM-communities push, the sequencing plan, and the GTM-skill/tooling landscape research (two-motion split; which skills fit an OSS bottom-up product and which are actively wrong for it). Complements `oss_launch_readiness.md` (launch venues/checklist) and `field_validation.md` (soft-launch = V2 validation).
 ---
 
 # Go-to-market
@@ -10,37 +10,55 @@ summary: The go-to-market strategy for writtten — the manifesto-as-distributio
 > **What this is.** The deliberate distribution strategy for writtten, captured 2026-07-18 in a working session with the owner. It starts from the owner's own shortlist — post to LinkedIn, send to relevant friends, share in a couple of closed PM communities (Lenny's newsletter community + a Ukrainian PM community) — and widens it into a ranked channel taxonomy, a sequencing plan, and a survey of the emerging "GTM-engineer skill" tooling (prompted by the owner sharing the `reddit-opportunity-research` skill).
 >
 > **What this is not.** Not a launch-readiness checklist (that's `oss_launch_readiness.md` — repo hygiene, positioning assets, the launch-venue sequence). Not a metrics/telemetry plan — invariant #5 (local-first / no telemetry) means GitHub-side signals + qualitative feedback are the measurement, and that stance is unchanged here. This doc is the **why + where + in-what-order** of getting writtten in front of people, plus the tools that help do it.
+>
+> **How it's tracked.** GTM is a **parallel workstream**, not a phase — it runs continuously alongside development (moved out of Phase 8 on 2026-07-19, owner call) and neither gates nor is gated by product work. Live status + decisions are below; the tactical playbook (targeting, channel copy, competitor read) lives in private, gitignored internal GTM notes, not this public doc.
 
 ## Status
 
-> Canonical status lives in the frontmatter above and is mirrored in the Projects Index in `docs/plan.md`. This block carries the human-readable scope only.
+> Canonical frontmatter status is `in-progress` (ongoing); it is mirrored in the Projects Index. This block carries the human-readable state.
 
-- **Phase 8 (active outreach, now):** public launch happened 2026-07-10 and outreach has started. The near-term GTM push — manifesto essay, warm circle, the concentrated Show HN / Product Hunt spike, newsletter follow-on — runs in the current phase. It is the **same motion as external-PM (V2) recruiting** (`field_validation.md` § V2 — itself deferred to unscheduled 2026-07-17 by owner call): getting writtten in front of PMs and recruiting session participants are the same act, and the attention this outreach creates is what makes reviving V2 cheaper ("V2 recruiting is easier while launch attention lasts", plan.md, Phase 8 intro).
-- **Phase 9 (compounding depth, post-traction):** the slower-burning channels — deliberate GEO/AEO content, systematic Reddit participation, backlink/directory work — accrete once the drafting habit shows signs of taking hold. Don't pre-build the depth work; the near-term push is what earns the traction that unlocks it.
+**Parallel workstream — not phase-bound.** Moved out of the plan's dev phases on 2026-07-19 (owner call) so distribution never blocks, or waits on, product work. It runs on its own clock in four trigger-gated tiers:
+
+- **Shipped** — manifesto landing page (**writtten.com/why**, PR #209, 2026-07-19); warm circle (LinkedIn post + Lenny's community, owner); the two research probes (Reddit-opportunity + GEO baseline, 2026-07-18 — findings in internal GTM notes).
+- **Now — small, direct, non-broadcast** — 1:1 DMs to aligned individuals + genuine participation in the live "cognitive-debt / is-AI-making-me-a-worse-writer" and PM self-review threads (lead with the argument; /why only where it genuinely fits).
+- **Held — the one concentrated public spike (Show HN · Product Hunt · newsletter pitches)** — gated on the **bring-your-own-agent (BYOA)** on-ramp (Phase-9 `agent_connected_eval.md`, build currently ungated). **Decided 2026-07-19 (owner):** BYOA removes the API-key-paste friction and completes the no-egress privacy story for exactly the HN/dev audience, so the one-shot spike launches *with* it, not before. Small direct outreach compounds standing meanwhile.
+- **Parked — post-traction compounding (don't pre-build)** — deliberate GEO/AEO content, systematic Reddit participation via a keyword listener, directory/awesome-list backlinks.
+
+Still the **same motion as external-PM (V2) recruiting** (`field_validation.md` § V2, deferred to unscheduled 2026-07-17): getting writtten in front of PMs and recruiting session participants are the same act, and the attention this outreach creates is what makes reviving V2 cheaper.
 
 ## Phased Plan
 
-- **Phase 8 — the launch push.** Write and publish the manifesto. Run the warm circle (owner's shortlist). Fire the one concentrated public spike (Show HN + Product Hunt, sequenced, not big-banged). Pitch the highest-fit newsletters. Run the two zero-cost research probes below (Reddit-opportunity + GEO baseline) to sharpen framing and target threads.
-- **Phase 9 — compounding channels.** Treat GEO/AEO as a standing workstream (a tool about AI should be findable *by* AI). Systematic authentic Reddit participation via a keyword listener. Awesome-list / directory backlinks. This is the "go-to-market execution" depth that `oss_launch_readiness.md` parks in its Phase-9 Superb tier.
+> Not phase-bound — a parallel workstream with **trigger-gated tiers** (see § Status), restated as triggers rather than phases:
+
+- **Now (no trigger; runs continuously):** manifesto (done) → small direct outreach — 1:1 DMs + genuine community participation.
+- **On the BYOA on-ramp landing:** the one concentrated spike — Show HN + Product Hunt (warm circle marshalled for first-hour engagement) + newsletter pitches.
+- **On traction (the drafting habit taking hold):** the compounding channels — GEO/AEO, keyword-listener Reddit participation, directory/awesome-list backlinks.
 
 ## Todo
 
-**Phase 8 — launch push**
+**Shipped**
 
-- [ ] **Write the manifesto essay** — *"I built an AI writing tool that refuses to write for you."* Adapt from `docs/launch/why-writtten.md` (already drafted) + `docs/concept.md` + `docs/product-requirements.md`. This is the load-bearing asset; every channel is a delivery vehicle for it. Hand-written, not AI-generated (off-brand otherwise).
-- [ ] **Warm circle** (owner's shortlist) — LinkedIn post; DM relevant friends; share in Lenny's community + the Ukrainian PM community. Lead with the argument, mention the tool second.
-- [ ] **Show HN** — *"Show HN: writtten – an AI writing tool that never writes for you."* Line up first-hour engagement from the warm circle rather than spraying. (Already flagged in `oss_launch_readiness.md` § Go-to-market.)
-- [ ] **Product Hunt** — needs the hero visual + demo GIF. Concentrate warm-circle upvotes/comments in the first hour.
-- [ ] **Newsletter pitches** — one good placement beats ten community posts. Shortlist below.
-- [x] **Research probe: Reddit-opportunity** — ran 2026-07-18. Ran `reddit-opportunity-research` (onvoyage-ai) with `concept.md` + `product-requirements.md` as brand DNA; the pain-point/community map and the search/AI-prompt language it produced are kept in internal GTM notes and feed the manifesto. See § Tooling.
-- [x] **Research probe: GEO baseline** — ran 2026-07-18. Search-surface + assistant-answer proxy establishing the Phase-9 GEO baseline (writtten's current discoverability + the uncontested category terms); details kept in internal GTM notes.
+- [x] **Manifesto landing page** — writtten.com/why (PR #209, 2026-07-19). The canonical argument every channel points at; adapted from `docs/launch/why-writtten.md`.
+- [x] **Warm circle** — LinkedIn post + Lenny's community (owner, done in parallel).
+- [x] **Research probe: Reddit-opportunity** — ran 2026-07-18; findings in internal GTM notes. See § Tooling.
+- [x] **Research probe: GEO baseline** — ran 2026-07-18; the current-discoverability baseline + uncontested category terms, in internal GTM notes.
 
-**Phase 9 — compounding channels (parked; don't pre-build)**
+**Now — small direct outreach**
 
-- [ ] GEO/AEO as a standing workstream — structured, citable content on writtten.com so AI engines cite it for category queries.
+- [ ] **1:1 DMs** to aligned individuals (PMs posting on AI-and-writing, tools-for-thought folks, writers on the cognitive-debt question). Personal, not broadcast. Copy in internal GTM notes.
+- [ ] **Genuine community participation** in the live cognitive-debt / PM-self-review threads. Lead with the argument; /why where it fits.
+
+**Held — gated on the BYOA on-ramp (fire once, frictionless)**
+
+- [ ] **Show HN** — *"an AI writing tool that never writes for you."* Marshal first-hour engagement from the warm circle.
+- [ ] **Product Hunt** — hero GIF ready; concentrate first-hour upvotes/comments.
+- [ ] **Newsletter pitches** — one good placement beats ten community posts.
+
+**Parked — post-traction compounding (don't pre-build)**
+
+- [ ] GEO/AEO as a standing workstream — structured, citable content on writtten.com.
 - [ ] Systematic authentic Reddit/forum participation via a keyword listener (GummySearch / F5Bot / Syften).
 - [ ] Awesome-list + directory backlinks (`awesome-local-first`, `awesome-privacy`, `awesome-selfhosted`, `awesome-productivity`).
-
 ---
 
 ## The governing thesis: for this product, the manifesto *is* the distribution
@@ -75,14 +93,15 @@ The owner's shortlist (LinkedIn, friends, Lenny's + Ukrainian PM communities) is
 
 ## Sequencing (don't big-bang)
 
-Aligned with `oss_launch_readiness.md` § Go-to-market:
+Reframed 2026-07-19 to reflect what's shipped and the BYOA gate. Aligned with `oss_launch_readiness.md` § Go-to-market:
 
-1. **Manifesto essay** published first — the asset everything points at.
-2. **Warm circle** — friends, LinkedIn, PM communities. Lead with the argument.
-3. **Concentrated public spike** — Show HN + Product Hunt, with the warm circle marshalled for first-hour engagement. One spike, not the same link sprayed everywhere the same day.
-4. **Newsletter follow-on** — the second wave, once there's a launch story to point at.
+1. **Manifesto** — ✅ published at writtten.com/why. The asset everything points at.
+2. **Warm circle** — ✅ LinkedIn + Lenny's community (owner). Lead with the argument.
+3. **Small direct outreach — now** — 1:1 DMs + genuine community participation. Compounds standing; not a broadcast.
+4. **Concentrated public spike — HELD for the BYOA on-ramp** — Show HN + Product Hunt, warm circle marshalled for first-hour engagement. One spike, not the same link sprayed everywhere. Fires *once BYOA lands* so the dev audience's try-it moment is frictionless (see § Status).
+5. **Newsletter follow-on** — the second wave, with the spike, once there's a launch story to point at.
 
-**What not to do:** don't spray the identical link across 20 groups (spam; burns goodwill); don't launch everywhere simultaneously; don't auto-generate SEO content (off-brand for a tool that mocks AI slop).
+**What not to do:** don't spray the identical link across 20 groups (spam; burns goodwill); don't launch everywhere simultaneously; **don't fire the spike before BYOA** (a one-shot HN launch on a higher-friction version wastes it); don't auto-generate SEO content (off-brand for a tool that mocks AI slop).
 
 ## Tooling — the GTM-engineer skill landscape
 
