@@ -49,17 +49,40 @@ export interface RegisterViolation {
 // --- Shared lexicons -------------------------------------------------------
 // Kept module-private so lintRegister and classifyTone can't drift apart.
 
-/** Prescriptive / imperative "here's the fix" patterns (G3: locate, don't prescribe). */
+/** Prescriptive / imperative "here's the fix" patterns (G3: locate, don't prescribe).
+ *
+ *  The `consider <verb>ing` and bare-imperative families were extended
+ *  2026-07-19 while building the external-observation boundary
+ *  (docs/projects/agent_connected_eval.md), which makes this lint a **hard
+ *  reject** on untrusted input. Probing it with the most archetypal
+ *  prescriptions an agent would send — "Change this to…", "Consider
+ *  rewriting…", "Replace this with…" — found all of them passing: the list
+ *  covered the *polite* prescriptions ("I suggest", "you should") but not the
+ *  *imperative* ones, which are the more direct violation of the principle.
+ *  The additions apply to our own model output too, which is correct — the
+ *  evaluator should never emit these either. */
 const PRESCRIPTIVE_PATTERNS = [
   "you need to",
   "you should",
   "we should",
   "consider changing",
   "consider adding",
+  "consider rewriting",
+  "consider revising",
+  "consider rephrasing",
+  "consider removing",
+  "consider moving",
+  "consider replacing",
+  "consider clarifying",
   "it might be helpful",
   "it would be helpful",
   "i suggest",
   "i recommend",
+  "change this to",
+  "change it to",
+  "replace this with",
+  "rewrite this",
+  "reword this",
 ];
 
 /** Hedge / softener words (emotional register rule 4 — a sure colleague doesn't hedge). */

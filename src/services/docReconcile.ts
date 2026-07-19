@@ -21,6 +21,13 @@ import type { Observation } from "../store/db";
 /** An incoming (freshly-computed) observation has no id/status yet. */
 export type IncomingObservation = Omit<Observation, "id" | "docId" | "status">;
 
+/** Floor similarity for treating two doc-scope notes as "the same note" (D6).
+ *  Inherited from the OBS-012 dedupe threshold. Lives here — beside the planner
+ *  it is injected into — so the external-observation boundary can dedupe an
+ *  agent's doc-scope submission against the feed at the *same* threshold the
+ *  evaluator uses, without importing the DB-touching reconcile module. */
+export const DOC_DEDUPE_FLOOR = 0.6;
+
 export interface DocReconcilePlan {
   /** Incoming note matched an existing one → keep the existing record (and id);
    *  caller resets its absence counter. Existing wording is preserved (D5: freeze). */

@@ -62,6 +62,35 @@ const CONFIDENCE_FACTOR: Record<Confidence, number> = {
   high: 1.0,
 };
 
+/** Ordering for the external-confidence clamp. */
+const CONFIDENCE_RANK: Record<Confidence, number> = { low: 0, medium: 1, high: 2 };
+
+/**
+ * The canonical observation type → kind map. `kind` is a fixed, intrinsic
+ * attribute of the *type*, not a per-instance judgement
+ * (docs/projects/observation_taxonomy_and_priority.md § kind).
+ *
+ * Introduced for the external-observation boundary, which must assign `kind`
+ * itself — an agent submits a type and never sets its own kind. The evaluator
+ * still derives kind at three inline sites (`evaluator.ts` addSpanObs / the two
+ * conflict emitters) plus `docGapKind` below; this table reproduces exactly what
+ * those produce, with `maturity` undefined. Folding those call sites onto this
+ * map is a worthwhile follow-up, deliberately not done here: `evaluator.ts` is a
+ * hub file owned by another lane.
+ */
+export const KIND_BY_TYPE: Record<Observation["type"], Observation["kind"]> = {
+  clarity: "problem",
+  contradiction: "problem",
+  unsupported_claim: "problem",
+  undefined_jargon: "problem",
+  strategic_tension: "opportunity",
+  // The four doc-level gap types, matching docGapKind(type, undefined):
+  missing_topic: "opportunity",
+  underexposed_topic: "opportunity",
+  audience_mismatch: "problem",
+  structure_flow: "problem",
+};
+
 // ---------------------------------------------------------------------------
 // Public API
 // ---------------------------------------------------------------------------
@@ -94,6 +123,17 @@ export interface PriorityInput {
    * docs/projects/maturity_aware_severity.md.
    */
   maturity?: MaturityLevel;
+  /**
+   * External (agent-submitted) observations only: the submitting agent's
+   * self-reported confidence. Applied as a **downward-only clamp** on the
+   * computed confidence — an agent can quiet its own card but can never raise
+   * it above what the type earns. That asymmetry is the point: external
+   * observations sit behind no precision floor and no fixture ratchet, so
+   * letting a source set its own volume upward would let an unratcheted critic
+   * outrank the guarded one. Omit for built-in evaluator observations.
+   * See docs/projects/agent_connected_eval.md § The boundary.
+   */
+  externalConfidence?: Confidence;
 }
 
 export interface PriorityResult {
@@ -117,12 +157,19 @@ export function computePriority(input: PriorityInput): PriorityResult {
   let severity: Severity = TYPE_PRIOR[input.type] ?? "low";
 
   // Confidence: contradiction is tier-calibrated; everything else is "medium".
-  const confidence: Confidence =
+  const earned: Confidence =
     input.type === "contradiction"
       ? input.contradictionTier === "confident"
         ? "high"
         : "low"
       : "medium";
+
+  // Downward-only clamp for agent-submitted observations (see PriorityInput).
+  const confidence: Confidence =
+    input.externalConfidence != null &&
+    CONFIDENCE_RANK[input.externalConfidence] < CONFIDENCE_RANK[earned]
+      ? input.externalConfidence
+      : earned;
 
   // Structural escalation — bumps severity one step; "high" stays "high".
   if (input.type === "contradiction" && input.claimKinds) {
