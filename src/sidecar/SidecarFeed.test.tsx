@@ -21,6 +21,7 @@ import { SidecarFeed } from "./SidecarFeed";
 import { ControlCenter } from "./ControlCenter";
 import { openSettings } from "./settingsGate";
 import type { Observation } from "../store/db";
+import { setAgentSourceStatus, __resetAgentSourceStatus } from "../model/agentSourceSignal";
 
 const minProps = {
   observations: [] as never[],
@@ -754,5 +755,144 @@ describe("SidecarFeed — truncation-honesty note", () => {
     // A different section crosses the cap → new information, note returns.
     renderSet([{ sectionId: "h2", headingText: "Appendix" }]);
     expect(div.querySelector('[data-testid="trunc-note"]')).not.toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// BYOA (PR3) — source attribution on cards.
+//
+// External observations are first-class in lifecycle but visibly second-party in
+// origin: the user must always be able to tell which critic is speaking, because
+// an agent's output is not covered by the precision floors and fixture ratchets
+// that guard our own. These tests pin that the chip is present when it should
+// be, absent when it shouldn't, and that grouping never hides it.
+// ---------------------------------------------------------------------------
+
+describe("SidecarFeed — source attribution (BYOA)", () => {
+  const containers: HTMLDivElement[] = [];
+
+  const AGENT = { kind: "agent" as const, name: "Claude Code", sessionId: "sess-1" };
+
+  function renderWith(observations: Observation[]): HTMLDivElement {
+    const div = document.createElement("div");
+    document.body.appendChild(div);
+    containers.push(div);
+    act(() => {
+      createRoot(div).render(createElement(SidecarFeed, { ...minProps, observations }));
+    });
+    return div;
+  }
+
+  afterEach(() => {
+    for (const c of containers) act(() => c.remove());
+    containers.length = 0;
+    __resetAgentSourceStatus();
+  });
+
+  it("names the agent on an external card and shows nothing on a built-in one", () => {
+    const div = renderWith([
+      obs({
+        id: "ext-1",
+        source: AGENT,
+        blockId: "b1",
+        startOffset: 0,
+        endOffset: 10,
+        text: "No evidence is given for the adoption figure.",
+      }),
+    ]);
+    expect(div.querySelector('[data-testid="obs-source"]')?.textContent).toContain("Claude Code");
+    expect(div.querySelector('[data-testid="obs-card"]')?.getAttribute("data-obs-source")).toBe(
+      "agent"
+    );
+
+    const nativeDiv = renderWith([
+      obs({ id: "n1", blockId: "b1", startOffset: 0, endOffset: 10, text: "Vague." }),
+    ]);
+    expect(nativeDiv.querySelector('[data-testid="obs-source"]')).toBeNull();
+    expect(
+      nativeDiv.querySelector('[data-testid="obs-card"]')?.getAttribute("data-obs-source")
+    ).toBeNull();
+  });
+
+  it("reads live while that session is connected and flips to disconnected when the bridge drops", () => {
+    act(() => {
+      setAgentSourceStatus({ state: "connected", name: "Claude Code", sessionId: "sess-1" });
+    });
+    const div = renderWith([
+      obs({ id: "ext-1", source: AGENT, blockId: "b1", startOffset: 0, endOffset: 10, text: "x" }),
+    ]);
+    expect(div.querySelector('[data-testid="obs-source"]')?.getAttribute("data-source-state")).toBe(
+      "live"
+    );
+
+    // The card survives the disconnect — only its chip changes state.
+    act(() => {
+      setAgentSourceStatus({ state: "disconnected", name: "Claude Code", sessionId: "sess-1" });
+    });
+    expect(div.querySelector('[data-testid="obs-source"]')?.getAttribute("data-source-state")).toBe(
+      "disconnected"
+    );
+    expect(div.querySelectorAll('[data-testid="obs-card"]')).toHaveLength(1);
+  });
+
+  it("a doc-scoped external card carries both the scope marker and the source chip", () => {
+    const div = renderWith([
+      obs({
+        id: "ext-doc",
+        source: AGENT,
+        scope: "document",
+        type: "missing_topic",
+        priority: 1.5,
+        blockId: undefined,
+        text: "Nothing covers the support handoff.",
+      }),
+    ]);
+    expect(div.querySelector('[data-testid="obs-scope"]')).not.toBeNull();
+    expect(div.querySelector('[data-testid="obs-source"]')).not.toBeNull();
+  });
+
+  it("never groups an external card under a built-in primary — attribution can't hide in 'N more'", () => {
+    // Same span, same type. Pre-BYOA these collapsed into one card whose
+    // collapsed rows render bare tag+text, so the agent's observation would have
+    // shown with no attribution at all until expanded.
+    const span = { blockId: "b1", startOffset: 0, endOffset: 24 };
+    const div = renderWith([
+      obs({ id: "native", ...span, priority: 2.0, text: "The metric is undefined." }),
+      obs({ id: "ext-1", source: AGENT, ...span, priority: 1.0, text: "No baseline is given." }),
+    ]);
+
+    expect(div.querySelectorAll('[data-testid="obs-card"]')).toHaveLength(2);
+    expect(div.querySelectorAll('[data-testid="obs-source"]')).toHaveLength(1);
+    expect(div.querySelector('[data-testid="obs-group-also"]')).toBeNull();
+  });
+
+  it("the archive names the source that retracted a card", () => {
+    const div = document.createElement("div");
+    document.body.appendChild(div);
+    containers.push(div);
+    act(() => {
+      createRoot(div).render(
+        createElement(SidecarFeed, {
+          ...minProps,
+          observations: [],
+          archivedObservations: [
+            obs({
+              id: "ext-1",
+              source: AGENT,
+              status: "auto_closed",
+              closureReason: "retracted",
+              blockId: "b1",
+              text: "Withdrawn.",
+            }),
+          ],
+        })
+      );
+    });
+    act(() => {
+      div.querySelector<HTMLButtonElement>(".drawer-toggle")?.click();
+    });
+    expect(div.querySelector('[data-testid="archive-list"]')?.textContent).toContain(
+      "retracted by Claude Code"
+    );
   });
 });

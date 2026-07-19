@@ -2104,6 +2104,44 @@ describe("evaluator - revert-aware snapshot restore (UX-014 Mechanism 2)", () =>
     expect(obs.closureReason).toBeUndefined();
   });
 
+  it("the restore's stray-close spares external cards (BYOA exemption)", async () => {
+    // A snapshot only ever records what *our* evaluator held, so an agent's card
+    // is always absent from `snapshot.observationIds`. Unguarded, the stray-close
+    // arm would read that absence as "stale" and a plain undo would silently
+    // close every external card in the section.
+    // See docs/mechanics/agent-bridge.md.
+    mockFast.mockResolvedValueOnce(fastWithClarity);
+    await evaluateSection(docId, "intro", combinedText, introMembers, undefined, apiKey);
+
+    // An agent submits a card on the same section, after the snapshot was taken.
+    stored.push({
+      id: "ext-1",
+      docId,
+      type: "unsupported_claim",
+      scope: "span",
+      kind: "problem",
+      severity: "medium",
+      confidence: "medium",
+      priority: 1.4,
+      text: "No evidence is given for the adoption figure.",
+      status: "active",
+      blockId: "intro",
+      startOffset: 0,
+      endOffset: 5,
+      anchorText: "Some",
+      source: { kind: "agent", name: "Claude Code", sessionId: "sess-1" },
+    } as Observation);
+
+    // Shrink, then revert — the revert takes the snapshot-restore path.
+    mockFast.mockResolvedValueOnce(fastEmpty);
+    await evaluateSection(docId, "intro", shrunkText, shrunkMembers, undefined, apiKey);
+    await evaluateSection(docId, "intro", combinedText, introMembers, undefined, apiKey);
+
+    const external = stored.find((o) => o.id === "ext-1")!;
+    expect(external.status).toBe("active");
+    expect(external.closureReason).toBeUndefined();
+  });
+
   it("does not restore when the text differs even if membership matches (a real edit, not a revert)", async () => {
     mockFast.mockResolvedValueOnce(fastWithClarity);
     await evaluateSection(docId, "intro", combinedText, introMembers, undefined, apiKey);

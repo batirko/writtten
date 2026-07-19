@@ -24,7 +24,15 @@ import {
   sanitizeSourceName,
 } from "../services/externalObservations";
 import { readLiveDoc } from "../model/docSnapshotSource";
-import { notifyObservationsChanged } from "../model/observationsSignal";
+import {
+  notifyObservationsChanged,
+  subscribeObservationsChanged,
+} from "../model/observationsSignal";
+import { setAgentSourceStatus } from "../model/agentSourceSignal";
+import {
+  archiveExternalSource,
+  countActiveFromSource,
+} from "../services/externalObservationLifecycle";
 import {
   saveObservation,
   loadActiveObservationsForDocument,
@@ -41,6 +49,7 @@ const IDLE: BridgeStatus = {
   port: null,
   error: null,
   docVersion: null,
+  sessionId: null,
 };
 
 export interface AgentBridgeView {
@@ -51,12 +60,21 @@ export interface AgentBridgeView {
   promptError: string | null;
   connect: () => void;
   cancel: () => void;
+  /** How many active cards the current source has submitted. Drives the
+   *  teardown confirm, so the user is told the size of what they'd be clearing
+   *  rather than agreeing to an unknown. */
+  activeFromSource: number;
+  /** Tear the pairing down. `archive: true` also closes everything this source
+   *  submitted (closure reason `source_revoked`); `false` keeps the cards, which
+   *  then read as revoked-but-kept on their chips. */
+  revoke: (archive: boolean) => Promise<void>;
 }
 
 export function useAgentBridge(): AgentBridgeView {
   const [status, setStatus] = useState<BridgeStatus>(IDLE);
   const [prompt, setPrompt] = useState<string | null>(null);
   const [promptError, setPromptError] = useState<string | null>(null);
+  const [activeFromSource, setActiveFromSource] = useState(0);
   const handleRef = useRef<AgentBridgeHandle | null>(null);
   /** Feeds the boundary's rate check — survives re-renders, resets with the pairing. */
   const lastSubmissionAtRef = useRef<number | undefined>(undefined);
@@ -162,5 +180,77 @@ export function useAgentBridge(): AgentBridgeView {
     setStatus(IDLE);
   }, []);
 
-  return { enabled: FEATURE_AGENT_BRIDGE, status, prompt, promptError, connect, cancel };
+  // Republish the pairing state to the app-wide signal. The source chip renders
+  // inside the feed — a different React tree from ControlCenter — so a module
+  // signal, not a prop, is what reaches it. This hook is the only writer.
+  useEffect(() => {
+    setAgentSourceStatus(
+      status.state === "idle"
+        ? { state: "idle" }
+        : {
+            state: status.state,
+            name: status.agentName ?? undefined,
+            sessionId: status.sessionId ?? undefined,
+          }
+    );
+  }, [status.state, status.agentName, status.sessionId]);
+
+  // Keep the teardown confirm's count honest: recount whenever the source
+  // changes or its cards do (a submission, a dismissal, an eval pass).
+  useEffect(() => {
+    const sessionId = status.sessionId;
+    if (!sessionId) {
+      setActiveFromSource(0);
+      return;
+    }
+    let cancelled = false;
+    const recount = async () => {
+      const active = await loadActiveObservationsForDocument(DOC_ID);
+      if (!cancelled) setActiveFromSource(countActiveFromSource(active, sessionId));
+    };
+    void recount();
+    const unsubscribe = subscribeObservationsChanged(() => void recount());
+    return () => {
+      cancelled = true;
+      unsubscribe();
+    };
+  }, [status.sessionId]);
+
+  const revoke = useCallback(
+    async (archive: boolean) => {
+      const sessionId = status.sessionId;
+      if (archive && sessionId) {
+        await archiveExternalSource(DOC_ID, sessionId);
+        // Closing cards outside an eval pass — nothing else refreshes the feed.
+        notifyObservationsChanged();
+      }
+      handleRef.current?.stop();
+      handleRef.current = null;
+      clearPairing();
+      setPrompt(null);
+      setPromptError(null);
+      setStatus(IDLE);
+      // Cards the user chose to keep should not read as merely "disconnected" —
+      // the source is gone deliberately, and the chip says so.
+      if (!archive && sessionId) {
+        setAgentSourceStatus({
+          state: "revoked",
+          name: status.agentName ?? undefined,
+          sessionId,
+        });
+      }
+    },
+    [status.sessionId, status.agentName]
+  );
+
+  return {
+    enabled: FEATURE_AGENT_BRIDGE,
+    status,
+    prompt,
+    promptError,
+    connect,
+    cancel,
+    activeFromSource,
+    revoke,
+  };
 }

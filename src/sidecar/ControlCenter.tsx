@@ -22,6 +22,12 @@ import { buildEnvelope } from "../model/debugLog";
 import { FEATURE_AGENT_BRIDGE } from "../services/featureFlags";
 import { ConnectAgent } from "./ConnectAgent";
 import { useAgentBridge } from "./useAgentBridge";
+import { agentStatusView } from "./agentStatusView";
+import {
+  subscribeAgentSource,
+  getAgentSourceStatus,
+  type AgentSourceStatus,
+} from "../model/agentSourceSignal";
 import { getLlmMode } from "../model/mock";
 import { subscribeStall } from "../model/stallSignal";
 import { subscribeOpenSettings } from "./settingsGate";
@@ -477,6 +483,9 @@ export function ControlCenter({
   // Agent bridge lifecycle. Held here rather than inside the settings modal so closing
   // Settings never tears down a live pairing; the section below is presentational.
   const agentBridge = useAgentBridge();
+  const [agentSource, setAgentSource] = useState<AgentSourceStatus>(getAgentSourceStatus);
+  useEffect(() => subscribeAgentSource(setAgentSource), []);
+  const agentStatus = FEATURE_AGENT_BRIDGE ? agentStatusView(agentSource) : null;
 
   // Touch open: the actions reveal on hover / focus-within on desktop, but a
   // phone has neither — tapping the anchor pins the control-center open so its
@@ -1097,6 +1106,25 @@ export function ControlCenter({
               {statusText}
             </span>
           </div>
+          {/* A connected agent is a second critic writing into the feed; that
+              belongs in the always-on readout, not only inside Settings. Absent
+              entirely when no pairing exists. */}
+          {agentStatus && (
+            <div className="control-process-row">
+              <span>agent</span>
+              <span
+                className="agent-chip"
+                data-testid="agent-chip"
+                data-agent-state={agentStatus.state}
+                role="status"
+                aria-live="polite"
+                aria-label={agentStatus.label}
+              >
+                <span className="agent-chip-dot" aria-hidden="true" />
+                {agentStatus.text}
+              </span>
+            </div>
+          )}
           {sessionStats && sessionStats.totalCalls > 0 && (
             <div className="control-process-row">
               <span>this session</span>

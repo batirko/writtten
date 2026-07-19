@@ -63,6 +63,7 @@ import {
   reconcileDocumentObservations,
   reconcileSweepContradictions,
   archiveObs,
+  isEvaluatorOwned,
   type ConfirmConflictFn,
 } from "./evaluatorReconcile";
 import {
@@ -148,8 +149,17 @@ async function restoreSectionFromSnapshot(
 
   const memberSet = new Set(memberBlockIds);
   const active = await loadActiveObservationsForDocument(docId);
+  // External cards are exempt (isEvaluatorOwned): a snapshot captures what *our*
+  // evaluator had at the time, so an agent's card is always "missing" from it —
+  // unguarded, a plain undo would silently close every external card in the
+  // section. See docs/mechanics/agent-bridge.md.
   for (const o of active) {
-    if (o.blockId != null && memberSet.has(o.blockId) && !restoreIds.has(o.id)) {
+    if (
+      o.blockId != null &&
+      memberSet.has(o.blockId) &&
+      !restoreIds.has(o.id) &&
+      isEvaluatorOwned(o)
+    ) {
       await updateObservationStatus(o.id, "auto_closed", "resolved_by_edit");
       archiveObs(o, "auto_closed");
     }

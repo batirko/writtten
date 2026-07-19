@@ -34,6 +34,31 @@ describe("agent observation projection", () => {
     expect(Object.keys(projected).sort()).toEqual([...AGENT_OBSERVATION_FIELDS].sort());
   });
 
+  it("attributes each active observation to the critic that produced it", () => {
+    // The snapshot exists so the agent doesn't re-file what the feed already
+    // shows; that only works if it can tell its own prior cards from ours.
+    expect(toAgentObservation(fullObservation).source).toBe("writtten");
+    expect(
+      toAgentObservation({
+        ...fullObservation,
+        source: { kind: "agent", name: "Claude Code", sessionId: "sess-1" },
+      }).source
+    ).toBe("Claude Code");
+  });
+
+  it("gives the agent a source name but never a sessionId", () => {
+    // sessionId is internal identity — it is what revoke and retract scope on,
+    // and the agent has no use for another session's.
+    const serialized = JSON.stringify(
+      toAgentObservation({
+        ...fullObservation,
+        source: { kind: "agent", name: "Codex", sessionId: "sess-secret" },
+      })
+    );
+    expect(serialized).toContain("Codex");
+    expect(serialized).not.toContain("sess-secret");
+  });
+
   it("leaks no internal identifier or offset", () => {
     const serialized = JSON.stringify(toAgentObservation(fullObservation));
     for (const leak of [

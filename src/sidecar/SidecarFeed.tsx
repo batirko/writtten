@@ -4,6 +4,8 @@ import { partitionFeed, DEFAULT_FEED_BUDGET } from "./feedBudget";
 import { formatAnchorExcerpt } from "./anchorExcerpt";
 import type { GroupedObservation } from "./feedBudget";
 import { openSettings } from "./settingsGate";
+import { SourceChip } from "./SourceChip";
+import { closureReasonLabel } from "./closureLabel";
 
 // Stable per-group key for the pending-dismiss map — mirrors obsAggregation's
 // grouping key (span coords, or a per-obs doc-scope key). Deliberately NOT
@@ -239,6 +241,7 @@ export function GroupedObsCard({
       data-obs-type={primary.type}
       data-obs-id={primary.id}
       data-obs-scope={primary.scope}
+      data-obs-source={primary.source ? primary.source.kind : undefined}
       data-kind={primary.kind}
       data-severity={primary.severity}
       data-confidence={primary.confidence}
@@ -323,6 +326,12 @@ export function GroupedObsCard({
           </p>
         )
       )}
+      {/* Attribution sits on its own line below the context slot rather than in
+          the header: the header already carries the two highest-signal elements
+          (type tag + severity), and a scope marker or quote must not compete
+          with them (doc_scope_legibility.md). A doc-scoped external card
+          correctly stacks two quiet chips. */}
+      <SourceChip source={primary.source} />
       <div className="card-body">
         <p>{primary.text}</p>
       </div>
@@ -676,18 +685,7 @@ export function SidecarFeed({
             {showArchive && (
               <div id="archive-list" data-testid="archive-list" className="archive-list">
                 {archivedObservations.map((obs) => {
-                  const reasonText =
-                    obs.closureReason === "resolved_by_edit"
-                      ? "resolved by edit"
-                      : obs.closureReason === "text_removed"
-                        ? "text removed"
-                        : obs.closureReason === "superseded"
-                          ? "superseded"
-                          : obs.closureReason === "dismissed"
-                            ? "dismissed"
-                            : obs.closureReason === "resolved_prior"
-                              ? "resolved"
-                              : obs.status.replace(/_/g, " ");
+                  const reasonText = closureReasonLabel(obs);
                   return (
                     <div
                       key={obs.id}

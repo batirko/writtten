@@ -142,4 +142,35 @@ describe("groupObservations", () => {
   it("empty input returns empty array", () => {
     expect(groupObservations([])).toEqual([]);
   });
+
+  it("never groups across sources — an agent card and a built-in one on the same span stay separate", () => {
+    // Grouping keeps only `primary` prominent; the rest render as bare tag+text
+    // in "N more on this passage", with no room for attribution. Collapsing an
+    // external card under a built-in primary would launder it as writtten's own.
+    const span = { blockId: "b1", startOffset: 10, endOffset: 30 };
+    const native = makeObs({ id: "native", priority: 2.0, ...span });
+    const external = makeObs({
+      id: "ext",
+      priority: 0.5,
+      ...span,
+      source: { kind: "agent", name: "Claude Code", sessionId: "sess-1" },
+    });
+
+    const groups = groupObservations([native, external]);
+
+    expect(groups).toHaveLength(2);
+    expect(groups.every((g) => g.others.length === 0)).toBe(true);
+  });
+
+  it("two cards from the same agent session on one span still group", () => {
+    const span = { blockId: "b1", startOffset: 10, endOffset: 30 };
+    const source = { kind: "agent" as const, name: "Claude Code", sessionId: "sess-1" };
+    const groups = groupObservations([
+      makeObs({ id: "e1", priority: 2.0, ...span, source }),
+      makeObs({ id: "e2", priority: 0.5, ...span, source }),
+    ]);
+
+    expect(groups).toHaveLength(1);
+    expect(groups[0].others).toHaveLength(1);
+  });
 });
