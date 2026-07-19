@@ -82,6 +82,27 @@ export function archiveObs(
   );
 }
 
+/** Whether this observation is the evaluator's to close.
+ *
+ *  Externally-submitted cards (those carrying `source`) are first-class in the
+ *  feed but are NOT the evaluator's property: our model has no standing to
+ *  decide that another critic's finding is resolved, and its own precision
+ *  floors don't cover that judgement. So every system-driven closure arm below
+ *  is guarded by this predicate.
+ *
+ *  Deliberately applied at the *close* sites, never as a filter when `existing`
+ *  is loaded. External cards must still take part in matching and dedup — an
+ *  incoming evaluator observation that lands on an external card's span should
+ *  be absorbed by it, not rendered a second time. Filtering at load would
+ *  exempt them and double the feed at once.
+ *
+ *  Not exempt: `text_removed` (orchestrator.ts `handleBlockRemoved`). That isn't
+ *  an evaluator judgement — the anchored block is gone, so the card is dead
+ *  whoever wrote it. See docs/mechanics/agent-bridge.md. */
+export function isEvaluatorOwned(o: Pick<Observation, "source">): boolean {
+  return o.source == null;
+}
+
 // ---------------------------------------------------------------------------
 // Suppression check
 //
@@ -157,7 +178,7 @@ export async function reconcileObservations(
   // member-anchored superset (incl. conflicts) so a conflict card the fast model
   // confirms resolved still closes here, as before.
   for (const obs of memberAnchored) {
-    if (resolvedPriorIds.has(obs.id)) {
+    if (resolvedPriorIds.has(obs.id) && isEvaluatorOwned(obs)) {
       await updateObservationStatus(obs.id, "auto_closed", "resolved_prior");
       archiveObs(obs, "resolved_prior", evalId);
       matchedExistingIds.add(obs.id);
@@ -232,8 +253,14 @@ export async function reconcileObservations(
 
     // 2. Same type + overlapping span, different text → supersede old, insert new
     const newId = nanoid(10);
+    // An external card is never *chosen* as supersedable — it stays active and
+    // the fresh native card inserts alongside it. Two critics, two cards.
     const supersedable = existing.find(
-      (e) => e.type === newO.type && spansOverlap(e, newO) && !matchedExistingIds.has(e.id)
+      (e) =>
+        e.type === newO.type &&
+        spansOverlap(e, newO) &&
+        !matchedExistingIds.has(e.id) &&
+        isEvaluatorOwned(e)
     );
     if (supersedable) {
       await updateObservationStatus(supersedable.id, "superseded", "superseded");
@@ -259,8 +286,10 @@ export async function reconcileObservations(
   // All entries in `existing` are pre-filtered to memberBlockIds (see the filter
   // above), so closureReason is always "resolved_by_edit" — "text_removed" is
   // unreachable here (L6 dead-code removal).
+  // External cards are exempt: absence from *our* model's output says nothing
+  // about whether another critic's finding still stands.
   for (const e of existing) {
-    if (!matchedExistingIds.has(e.id)) {
+    if (!matchedExistingIds.has(e.id) && isEvaluatorOwned(e)) {
       await updateObservationStatus(e.id, "auto_closed", "resolved_by_edit");
       archiveObs(e, "auto_closed", evalId);
     }
@@ -329,7 +358,7 @@ export async function reconcileDocumentObservations(
   // Mirrors section-eval's resolved_prior handling at line ~853.
   const modelResolved = new Set<string>();
   for (const e of existing) {
-    if (resolvedPriorIds.has(e.id)) {
+    if (resolvedPriorIds.has(e.id) && isEvaluatorOwned(e)) {
       await updateObservationStatus(e.id, "auto_closed", "resolved_prior");
       archiveObs(e, "resolved_prior", evalId);
       modelResolved.add(e.id);
@@ -382,7 +411,11 @@ export async function reconcileDocumentObservations(
   // for DOC_GRACE_THRESHOLD consecutive runs; otherwise bump its counter and
   // leave it active. Closures are honestly labelled `auto_closed` (never a
   // positional `superseded`).
+  // External cards skip the whole arm — not just the close, but the miss-count
+  // bump too. Letting an exempt card silently accrue misses would leave a
+  // primed counter for any close site that later forgets the guard.
   for (const e of plan.orphans) {
+    if (!isEvaluatorOwned(e)) continue;
     const miss = (e.missCount ?? 0) + 1;
     if (miss >= DOC_GRACE_THRESHOLD) {
       await updateObservationStatus(e.id, "auto_closed", "resolved_by_edit");
@@ -458,7 +491,11 @@ export async function reconcileSweepContradictions(
 
   const supersededByContra = new Set<string>();
   for (const ex of existingConflicts) {
-    if (ex.type === "strategic_tension" && contraPairs.has(blockPairKey(ex))) {
+    if (
+      ex.type === "strategic_tension" &&
+      contraPairs.has(blockPairKey(ex)) &&
+      isEvaluatorOwned(ex)
+    ) {
       await updateObservationStatus(ex.id, "superseded", "superseded");
       archiveObs(ex, "superseded", evalId);
       supersededByContra.add(ex.id);
@@ -483,7 +520,11 @@ export async function reconcileSweepContradictions(
         await saveObservation({ ...ex, missCount: 0, lastSeenAt: now });
         insertedKeys.add(key); // suppress re-insert below
       } else {
-        // Absent → bump grace counter; close if threshold reached.
+        // Absent → bump grace counter; close if threshold reached. External
+        // cards skip the arm entirely (no close, no counter bump) — the re-emit
+        // branch above still dedups them, so a matching native conflict is
+        // absorbed rather than doubled.
+        if (!isEvaluatorOwned(ex)) continue;
         const miss = (ex.missCount ?? 0) + 1;
         if (miss >= DOC_GRACE_THRESHOLD) {
           await updateObservationStatus(ex.id, "auto_closed", "resolved_by_edit");
@@ -699,6 +740,12 @@ export async function reconcileConflictCardsOnEdit(
       }
       continue;
     }
+
+    // External conflict cards are exempt from every arm below — the immediate
+    // close, the strong-tier re-confirm, and the grace path. They are also
+    // single-anchor by construction (decision 4: no conflictingBlockId
+    // machinery), so two-sided re-anchoring has nothing to work with anyway.
+    if (!isEvaluatorOwned(card)) continue;
 
     const sides = editedSides(card, memberSet);
     // A conflict needs both claims: if ANY edited side's claim is genuinely gone from

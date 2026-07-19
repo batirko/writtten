@@ -2140,6 +2140,47 @@ body,
   height: 13px;
   flex-shrink: 0;
 }
+/* BYOA attribution chip: which critic produced this observation. Deliberately
+   the same box as .card-scope (sans, muted, 0.5px hairline, faint fill) — the
+   spec puts it in that weight class so it never competes with the kind×severity
+   tag, and so the feed reads as one voice-with-labels rather than two UIs.
+   Sits on its own line below the quote / scope marker, never in the header.
+   See docs/mechanics/agent-bridge.md · docs/projects/doc_scope_legibility.md. */
+.card-source {
+  margin: 6px 0 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  align-self: flex-start;
+  padding: 3px 9px;
+  border: 0.5px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-sidecar);
+  font-family: var(--font-sans);
+  font-size: var(--text-label);
+  line-height: 1;
+  color: var(--color-muted);
+}
+.card-source-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--activity-idle);
+  flex-shrink: 0;
+}
+/* Disconnected / revoked: the source is gone but its card stays. Marked by
+   border style + a hollow dot, never by hue alone — same a11y rule the process
+   readout follows (a state must survive greyscale and colour-blindness). */
+.card-source[data-source-state="disconnected"],
+.card-source[data-source-state="revoked"] {
+  border-style: dashed;
+}
+.card-source[data-source-state="disconnected"] .card-source-dot,
+.card-source[data-source-state="revoked"] .card-source-dot {
+  background: transparent;
+  border: 1px solid currentColor;
+}
+
 /* No passage to locate → the card is inert. Drop the hover-lift so it doesn't
    advertise a click that does nothing (cursor is already default card-wide). */
 .observation-card-docscope:hover {

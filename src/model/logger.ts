@@ -67,7 +67,13 @@ export interface ArchiveInfo {
     | "auto_closed"
     | "superseded"
     | "resolved_prior"
-    | "block_removed";
+    | "block_removed"
+    // BYOA: an external source closing its own card, and the user tearing down
+    // a pairing with "archive everything from this source". Neither is an
+    // evaluator judgement, so they get their own reasons rather than being
+    // laundered as `auto_closed`. See docs/mechanics/agent-bridge.md.
+    | "retracted"
+    | "source_revoked";
   actor: "user" | "system";
   /** observationId of the replacement, when reason = "superseded". */
   supersededBy?: string;

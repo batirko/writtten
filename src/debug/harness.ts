@@ -27,11 +27,13 @@ import {
   loadSuppressionsForDocument,
   saveClaimsForBlock,
   saveDismissalSuppression,
+  saveObservation,
   type ClaimLedgerEntry,
   type DismissalSuppression,
   type Observation,
 } from "../store/db";
 import { nanoid } from "nanoid";
+import { setAgentSourceStatus, type AgentConnectionState } from "../model/agentSourceSignal";
 import {
   llmLogger,
   type LLMLogEntry,
@@ -96,6 +98,27 @@ export type LedgerFixture = Array<{
   text: string;
   kind: ClaimLedgerEntry["kind"];
 }>;
+
+/** An agent-submitted observation to seed directly, bypassing the bridge and
+ *  the boundary (BYOA / PR3). Exists so the attribution + lifecycle behaviour
+ *  can be driven without a live agent session — the real path is
+ *  `submitExternalObservation`, which validates; this one does not, and is
+ *  DEV-only for exactly that reason. */
+export type ExternalObsFixture = {
+  type: Observation["type"];
+  text: string;
+  /** Omit for a doc-scoped card. */
+  blockId?: string;
+  startOffset?: number;
+  endOffset?: number;
+  anchorText?: string;
+  severity?: Observation["severity"];
+  kind?: Observation["kind"];
+  priority?: number;
+  /** The agent's display name and run id, as the chip will show them. */
+  name?: string;
+  sessionId?: string;
+};
 
 /** Suppressions to seed directly, bypassing the dismissal UI. */
 export type SuppressionsFixture = Array<{
@@ -246,6 +269,41 @@ class Harness {
     }
   }
 
+  /** Seed an agent-submitted observation straight into the feed, so attribution
+   *  and lifecycle can be exercised without a live bridge. Returns the new id. */
+  async seedObservation(fixture: ExternalObsFixture): Promise<string> {
+    const id = nanoid(10);
+    await saveObservation({
+      id,
+      docId: this.docId,
+      type: fixture.type,
+      scope: fixture.blockId != null ? "span" : "document",
+      kind: fixture.kind ?? "problem",
+      severity: fixture.severity ?? "medium",
+      confidence: "medium",
+      priority: fixture.priority ?? 1.5,
+      text: fixture.text,
+      status: "active",
+      blockId: fixture.blockId,
+      startOffset: fixture.startOffset,
+      endOffset: fixture.endOffset,
+      anchorText: fixture.anchorText,
+      source: {
+        kind: "agent",
+        name: fixture.name ?? "Claude Code",
+        sessionId: fixture.sessionId ?? "dev-session",
+      },
+    });
+    this.emit("observation", { type: fixture.type, blocks: [fixture.blockId ?? ""] });
+    return id;
+  }
+
+  /** Drive the pairing-state signal directly — the chip's disconnected state and
+   *  the connection indicator without running a bridge. */
+  setAgentStatus(state: AgentConnectionState, name = "Claude Code", sessionId = "dev-session"): void {
+    setAgentSourceStatus(state === "idle" ? { state } : { state, name, sessionId });
+  }
+
   /** Clear the workspace without the confirm modal. */
   clear(): void {
     if (!this.clearFn) {
@@ -288,6 +346,10 @@ class Harness {
       loadDoc: (fixture: DocFixture) => this.loadDoc(fixture),
       loadLedger: (fixture: LedgerFixture) => this.loadLedger(fixture),
       loadSuppressions: (fixture: SuppressionsFixture) => this.loadSuppressions(fixture),
+      // BYOA (dev-only): seed agent-attributed cards + drive the pairing state
+      seedObservation: (fixture: ExternalObsFixture) => this.seedObservation(fixture),
+      setAgentStatus: (state: AgentConnectionState, name?: string, sessionId?: string) =>
+        this.setAgentStatus(state, name, sessionId),
       // LLM mock / record-replay
       setLlmMode: (mode: LlmMode) => setLlmMode(mode),
       getLlmMode: () => getLlmMode(),
