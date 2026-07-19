@@ -1,5 +1,5 @@
 ---
-status: in-progress
+status: done
 kind: quality
 phases: [4, 6, 8]
 summary: Build the three unguarded philosophy guardrails — flattery-resistant dismissal, an explicit anti-taxonomy, and no-disguised-fix register discipline — plus a discomfort-budget ceiling, so the qualitative half of the fidelity bar is enforced in code and CI rather than left to model goodwill.
@@ -58,12 +58,12 @@ Read alongside:
 
 ### Phase 8 — G3 reopened
 
-- [ ] **G3b — Structural register rules + an adversarial lint corpus.** The G3 checkbox above was ticked in Phase 6, but its own second bullet named the patterns to catch as `"you need…"`, `"add…"`, `"change…"` — and **only the first was ever implemented**. Measured 2026-07-19: 28/28 realistic critic phrasings pass the lint, including every bare imperative. See § _G3b_ below.
-  - [ ] Imperative-initial rule (closed ~40-verb editing list, first-word match).
-  - [ ] Copula-anchored evaluative rule (`is|are|reads|feels` + quality adjective).
-  - [ ] Modal/epistemic hedge family as a word-boundary regex.
-  - [ ] Re-probe `CLAIM_INDEX_RE` / `SECTION_NUMBER_RE` in the same pass.
-  - [ ] `src/services/eval-fixtures/register-lint-corpus.ts` — paired violating/clean rows, `tone-corpus.ts` style; clean rows guard against over-rejection.
+- [x] **G3b — Structural register rules + an adversarial lint corpus.** _Shipped 2026-07-19._ The G3 checkbox above was ticked in Phase 6, but its own second bullet named the patterns to catch as `"you need…"`, `"add…"`, `"change…"` — and **only the first was ever implemented**. Measured 2026-07-19: 28/28 realistic critic phrasings pass the lint, including every bare imperative. See § _G3b_ below.
+  - [x] Imperative-initial rule (closed ~40-verb editing list, base form, checked per sentence; noun guard for `Support for…` / `Use of…`).
+  - [x] Copula-anchored evaluative rule (`is|are|reads|feels|sounds|looks` + optional intensifier + quality adjective; locating-continuation carve-out for `unclear whether…`).
+  - [x] Modal/epistemic hedge family as word-boundary matches; advice framings split out to report as `prescriptive`.
+  - [x] Re-probe `CLAIM_INDEX_RE` / `SECTION_NUMBER_RE` — both widened, and a pre-existing false positive fixed (see below).
+  - [x] `src/services/eval-fixtures/register-lint-corpus.ts` — 34 paired rows + a rule-coverage test.
   - [ ] Triage whatever the stricter rules break in the Tier-1 ratchet — a failure there means the evaluator emits phrasings we would reject from an agent, which is a finding, not just a fixture to re-record.
 
 ## Design
@@ -106,6 +106,20 @@ The copula anchor is load-bearing: it is what distinguishes `"this is vague"` (a
 **Why the corpus is the real deliverable.** This survived two phases because nothing ever probed the lint with text built to defeat it — the eval fixtures only contain text that happens to be clean, so the lint passing them proved nothing. `register-lint-corpus.ts` fixes the *process*, not just the rules. Its **clean rows matter as much as its violating ones**: over-rejection is the failure mode of a stricter lint, and the anti-taxonomy vocabulary genuinely overlaps the taxonomy's own ("unclear" is both a verdict and a legitimate `clarity` finding).
 
 **Sequencing.** Must land before BYOA PR4 flips `FEATURE_AGENT_BRIDGE` on. Until then the lint guards only our own tuned model and leakage is tolerable; after, it is the sole register enforcement on an unratcheted external critic.
+
+### G3b as built (shipped 2026-07-19)
+
+The three rules landed as specced. Four things worth carrying forward, three of which were found by *running* the probe rather than reasoning about it:
+
+**1. Advice framings report as `prescriptive`, not `hedge`.** `"you should"` / `"I recommend"` were initially folded into the hedge family on surface similarity. The boundary hands `rule` straight back to the submitting agent (`register_violation`), so a mislabelled rule sends it to reword the wrong thing — politeness is not the fault, telling the author what to do is.
+
+**2. A modal inside an embedded clause is the *author's*, not ours.** The one Tier-1 ratchet failure was an **over-rejection**, not bad model output: `contradiction-sla-family` quotes the document's own `"may take up to one hour"` back at the author. Flagging that would reject the product's most characteristic move — naming both sides of a contradiction in their own words. The modal rule now skips when a relative or complement-clause marker precedes it in the sentence. The same guard is what keeps the shipped `clarity` taxonomy example (`"anything the reader could disagree with"`) clean.
+
+**3. Fixture triage came back clean, which is itself the finding.** The plan anticipated that stricter rules might fail texts our own evaluator emits — which would have meant the evaluator was emitting phrasings we'd reject from an agent. After the carve-out above, every Tier-1 fixture passes unchanged. No prompt edits, no re-recording, no hash churn. `agentSkillExamples.test.ts` also held green: no worked example in the skill needed changing.
+
+**4. The type-conditional re-probe found real gaps and a pre-existing false positive.** `CLAIM_INDEX_RE` matched digit forms only, so every *worded* index walked through (`claim number 3` · `claim (3)` · `the second claim` · `claim two` · `item [4]`); `SECTION_NUMBER_RE` caught the `§` glyph but not the spelled-out `Section 3`, which the model fabricates just as readily and which reads *more* authoritative to the author. Both widened. Separately — and this predates G3b — `claims`/`blocks` are also **verbs**, so the original regex matched `"The section claims 40% adoption"` as readily as `"claim 3"`, hard-rejecting an entirely ordinary phrasing at the boundary. Now guarded by a two-digit bound plus a unit lookahead. Known narrow residual, left rather than over-fitted: `"blocks 3 transactions"` still trips it.
+
+> **Rule of the road.** Adding a rule to `lintRegister` without adding rows to `register-lint-corpus.ts` rebuilds the exact blind spot G3b existed to close. The corpus test asserts every emittable rule has adversarial coverage, so the omission fails CI rather than going unnoticed — and the **clean** column is the half that catches over-tightening.
 
 ### G4 — Discomfort-budget ceiling
 

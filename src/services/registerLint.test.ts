@@ -15,6 +15,7 @@
 import { describe, it, expect } from "vitest";
 import { lintRegister, classifyTone } from "./registerLint";
 import { toneCorpus } from "./eval-fixtures/tone-corpus";
+import { registerLintCorpus } from "./eval-fixtures/register-lint-corpus";
 
 describe("lintRegister — structural register rules", () => {
   it("passes a clean colleague message", () => {
@@ -27,7 +28,9 @@ describe("lintRegister — structural register rules", () => {
   });
 
   it("flags prescriptive patterns", () => {
-    expect(lintRegister("You need to add a baseline.").map((x) => x.rule)).toContain("prescriptive");
+    expect(lintRegister("You need to add a baseline.").map((x) => x.rule)).toContain(
+      "prescriptive"
+    );
     expect(lintRegister("I recommend defining the metric.").map((x) => x.rule)).toContain(
       "prescriptive"
     );
@@ -115,6 +118,55 @@ describe("lintRegister — structural register rules", () => {
     const v = lintRegister(long);
     const lengthV = v.find((x) => x.rule === "length");
     expect(lengthV?.soft).toBe(true);
+  });
+});
+
+/**
+ * G3b — the adversarial corpus. Both directions are load-bearing:
+ *   · every `violating` row must trip its named rule (the lint catches what it claims);
+ *   · every `clean` row must lint EMPTY (the lint hasn't been over-tightened).
+ *
+ * The clean column is a set of deliberate near misses — each shares vocabulary
+ * with its violating partner and differs only in the grammatical feature the rule
+ * is anchored on. A change that passes the first loop and fails the second has
+ * broken the lint, not tightened it. See eval-fixtures/register-lint-corpus.ts.
+ */
+describe("lintRegister — adversarial corpus (G3b)", () => {
+  for (const c of registerLintCorpus) {
+    const opts = c.type ? { type: c.type } : undefined;
+
+    it(`${c.id}: violating trips "${c.rule}"`, () => {
+      const rules = lintRegister(c.violating, opts)
+        .filter((v) => !v.soft)
+        .map((v) => v.rule);
+      expect(rules, `"${c.violating}" — ${c.why}`).toContain(c.rule);
+    });
+
+    it(`${c.id}: clean near-miss passes`, () => {
+      const hard = lintRegister(c.clean, opts).filter((v) => !v.soft);
+      expect(
+        hard,
+        `OVER-REJECTION — "${c.clean}" is legitimate product voice.\n  ${c.why}\n  ${hard
+          .map((v) => v.detail)
+          .join("\n  ")}`
+      ).toEqual([]);
+    });
+  }
+
+  it("covers every rule the lint can emit", () => {
+    // Stops a rule being added without adversarial rows — the exact gap that let
+    // the denylist survive two phases unprobed.
+    const covered = new Set(registerLintCorpus.map((c) => c.rule));
+    for (const rule of [
+      "question",
+      "prescriptive",
+      "hedge",
+      "evaluative",
+      "claim-index",
+      "section-number",
+    ]) {
+      expect(covered, `no corpus row probes the "${rule}" rule`).toContain(rule);
+    }
   });
 });
 
