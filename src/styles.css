@@ -892,6 +892,155 @@ body,
   margin-top: 0;
 }
 
+/* "Connect your agent" (docs/projects/agent_connected_eval.md) — the bring-your-own-agent
+   pairing surface. Sits in the shared .setting-section rhythm; adds only what the flow
+   needs: a status line with a state dot, the copyable prompt block, and a disclosure. */
+.connect-lede,
+.connect-meta {
+  font-size: var(--text-ui-sm);
+  line-height: 1.55;
+  color: var(--color-ink-2);
+}
+.connect-lede {
+  margin-bottom: var(--space-sm);
+}
+.connect-meta {
+  margin-top: var(--space-2xs);
+  font-size: var(--text-label);
+  color: var(--color-muted);
+}
+
+.connect-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-xs);
+}
+.connect-status {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: var(--text-ui-sm);
+  font-weight: 500;
+}
+.connect-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex: none;
+}
+/* Reuses the activity-center "working" vocabulary and its pulse rather than introducing
+   a spinner — waiting for the agent is the same kind of state as waiting for a model. */
+.connect-dot-waiting {
+  background: var(--activity-working);
+  animation: dotPulse var(--dur-pulse) var(--ease-in-out) infinite;
+}
+.connect-dot-on {
+  background: var(--sem-good);
+}
+.connect-dot-off {
+  border: 1.5px solid var(--color-border-strong);
+}
+@media (prefers-reduced-motion: reduce) {
+  .connect-dot-waiting {
+    animation: none;
+  }
+}
+
+.connect-btn {
+  font-family: inherit;
+  font-size: var(--text-ui-sm);
+  padding: 6px 12px;
+  border-radius: var(--radius-sm);
+  border: 0.5px solid var(--color-border-strong);
+  background: var(--color-surface);
+  color: var(--color-ink);
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease-out);
+}
+.connect-btn:hover:not(:disabled) {
+  background: var(--color-sidecar);
+}
+.connect-btn:disabled {
+  color: var(--color-muted);
+  cursor: default;
+}
+.connect-btn-primary {
+  border-color: var(--color-accent);
+  background: var(--color-accent);
+  color: var(--color-surface);
+}
+.connect-btn-primary:hover:not(:disabled) {
+  background: var(--color-accent-strong);
+}
+.connect-btn-sm {
+  font-size: var(--text-label);
+  padding: 4px 9px;
+}
+.connect-actions {
+  display: flex;
+  gap: var(--space-xs);
+  margin-top: var(--space-sm);
+}
+
+/* The full prompt is ~27 KB — clipped with a fade so it proves itself without burying
+   the modal. Copy is the real affordance. */
+.connect-prompt {
+  position: relative;
+  margin-top: 10px;
+  border: 0.5px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-paper);
+  max-height: 96px;
+  overflow: hidden;
+}
+.connect-prompt pre {
+  margin: 0;
+  padding: 10px 12px;
+  font-family: var(--font-mono);
+  font-size: var(--text-label);
+  line-height: 1.6;
+  color: var(--color-ink-2);
+  white-space: pre-wrap;
+  /* The prompt contains long unbroken tokens (a UUID, a URL) and the modal has no other
+     rule constraining them — without this it forces horizontal overflow at 375px. */
+  overflow-wrap: anywhere;
+}
+.connect-prompt-fade {
+  position: absolute;
+  inset: auto 0 0 0;
+  height: 34px;
+  background: linear-gradient(to bottom, transparent, var(--color-paper));
+  pointer-events: none;
+}
+.connect-copy {
+  position: absolute;
+  top: var(--space-xs);
+  right: var(--space-xs);
+}
+
+.connect-disclosure {
+  margin-top: 10px;
+  font-size: var(--text-label);
+  color: var(--color-muted);
+}
+.connect-disclosure summary {
+  cursor: pointer;
+}
+.connect-disclosure-body {
+  margin-top: var(--space-2xs);
+  padding-left: var(--space-sm);
+  border-left: 0.5px solid var(--color-border);
+  line-height: 1.6;
+}
+
+.connect-warn {
+  margin-top: 10px;
+  font-size: var(--text-label);
+  line-height: 1.5;
+  color: var(--sem-problem-med);
+}
+
 /* In-app OSS discoverability — a quiet two-line block above the build stamp so
    a hosted-demo visitor can find the source and learn they can self-host. Same
    hairline-divider rhythm as .settings-build; the repo link uses the brand
@@ -2837,6 +2986,22 @@ body,
      narrow phone (Hallmark gate 59). Both stay full-width and tappable. */
   .welcome-modal-actions {
     flex-direction: column;
+  }
+
+  /* Connect-your-agent: the pairing flow is desktop-only (it needs a terminal running an
+     agent), but the section must still be readable and must not push the modal wide.
+     .modal-card is max-width:88vw, so the long unbreakable tokens in the prompt preview —
+     a UUID, an origin URL — are the one real overflow risk on a phone. */
+  .connect-row {
+    flex-wrap: wrap;
+  }
+  .connect-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .connect-prompt pre {
+    /* Belt and braces over the base rule's overflow-wrap. */
+    word-break: break-word;
   }
 }
 

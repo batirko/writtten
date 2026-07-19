@@ -19,6 +19,9 @@ import {
   type GeminiTier,
 } from "../model/ping";
 import { buildEnvelope } from "../model/debugLog";
+import { FEATURE_AGENT_BRIDGE } from "../services/featureFlags";
+import { ConnectAgent } from "./ConnectAgent";
+import { useAgentBridge } from "./useAgentBridge";
 import { getLlmMode } from "../model/mock";
 import { subscribeStall } from "../model/stallSignal";
 import { subscribeOpenSettings } from "./settingsGate";
@@ -470,6 +473,10 @@ export function ControlCenter({
   // Deep-link seam: the first-run welcome modal + the standing keyless banner
   // open Settings without owning its state. See sidecar/settingsGate.ts.
   useEffect(() => subscribeOpenSettings(() => setShowSettings(true)), []);
+
+  // Agent bridge lifecycle. Held here rather than inside the settings modal so closing
+  // Settings never tears down a live pairing; the section below is presentational.
+  const agentBridge = useAgentBridge();
 
   // Touch open: the actions reveal on hover / focus-within on desktop, but a
   // phone has neither — tapping the anchor pins the control-center open so its
@@ -1019,6 +1026,8 @@ export function ControlCenter({
               Your {meta.label} key goes straight from this browser to {meta.label}, and is stored
               only on this device — never on a server of ours.
             </div>
+
+            {FEATURE_AGENT_BRIDGE && <ConnectAgent {...agentBridge} />}
 
             {/* In-app OSS discoverability: a hosted-demo visitor should be able
                 to find the source — and learn they can self-host — without
