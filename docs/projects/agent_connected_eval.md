@@ -37,7 +37,7 @@ Read alongside:
 
 Build checklist (PR slices — see § _Build map_ for contents):
 
-- [ ] **PR1 — Boundary module + adversarial fixtures** (`externalObservations.ts` + `externalObservations.test.ts`). Pure, no transport, no UI.
+- [x] **PR1 — Boundary module + adversarial fixtures** (`externalObservations.ts` + `externalObservations.test.ts`). Pure, no transport, no UI. **Shipped 2026-07-19** — see § _PR1 as built_ for the four deviations from this spec's letter (all owner-approved or found while building; PR2/PR3 build against the as-built interface, not the prose above).
 - [ ] **PR2 — Bridge + pairing + skill** (`agentBridgeClient.ts`, `agentPrompt.ts`, the connect section in Settings, `docs/skills/writtten-agent.md` with the inline bridge script, the spawn-the-real-bridge integration test). Flag-gated.
 - [ ] **PR3 — Attribution, lifecycle, toggle** (source chip, disconnect states, revoke + bulk archive, reconciler exemptions, source toggle, `Observation.source` field, `docs/mechanics/agent-bridge.md`).
 - [ ] **PR4 — First-run + site + landing** (WelcomeModal second path, keyless card copy, writtten.com/agent page, /privacy paragraph, features/architecture doc touch-ups, 375px check, flag ON + deployed-origin verification). Landing this PR un-holds the GTM spike.
@@ -160,6 +160,17 @@ One pure entry point: `submitExternalObservation(input, ctx): Accepted | Rejecte
 **On accept:** resolve `blockId`/`startOffset`/`endOffset`/`anchorQuote` from the anchor; `kind` from the type's intrinsic mapping; `severity`/`priority` via the existing `computePriority` path (the agent's optional `confidence` is clamped in as an input — the agent never sets its own volume); persist with `source: { kind: "agent", name, sessionId }`; the feed re-partitions through `feedBudget.ts` as usual — external cards **compete for the same top-N attention slots**, no reserved lane.
 
 **Schema change:** `Observation` gains optional `source?: { kind: "agent"; name: string; sessionId: string }` (absent = built-in evaluator). Additive and optional → no IDB migration, no version bump.
+
+### PR1 as built (2026-07-19)
+
+The frozen contract held: `submitExternalObservation(input, ctx)`, the nine rejection codes, and the stage order are as specced above. Four things differ from this document's letter — recorded here because PR2/PR3 build against the as-built module.
+
+1. **`Observation.source` shipped in PR1, not PR3** (owner-approved). The boundary cannot count a per-source budget or emit a complete observation without it. `ObservationSource { kind: "agent"; name; sessionId }` is in `src/store/db.ts`, optional and additive — no `DB_VERSION` bump. PR3 consumes it rather than introducing it.
+2. **Agent `confidence` is a downward-only clamp** (owner-approved). `computePriority` had no confidence input at all — it hardcodes `medium` except for tier-calibrated contradictions — so the spec's "clamped in as an input" had nowhere to land. `PriorityInput.externalConfidence` now lowers the earned confidence and can never raise it: an agent can quiet its own card, never inflate it past what the type earns. A contradiction submitted with `confidence: "high"` still lands at `low`, same as a free-tier hedged one.
+3. **Three helpers moved down into the pure layer** so the boundary's purity is real and not just claimed: `isSpanSuppressed` → `evaluatorAnchoring.ts` (re-exported from `evaluatorReconcile.ts`, callers untouched), `DOC_DEDUPE_FLOOR` → `docReconcile.ts`, and a new canonical `KIND_BY_TYPE` map in `priority.ts`. Verified: `externalObservations.ts`'s value-import graph reaches only `registerLint` · `priority` · `docReconcile` · `evaluatorAnchoring` — never `db.ts`, `harness.ts`, or `idb`. **Follow-up not done here:** `evaluator.ts` still derives `kind` at three inline sites; folding them onto `KIND_BY_TYPE` needs the Prompt/signal lane's hub file.
+4. **`lintRegister`'s prescriptive pattern list was extended** — a real gap, found by probing the lint with the exact phrasings this spec names. `"Change this to…"`, `"Consider rewriting…"`, `"Replace this with…"` **all passed**: the list covered the polite prescriptions ("I suggest", "you should") but not the imperative ones, which are the more direct violation of "provoke, don't prescribe". Twelve patterns added; the full fixture ratchet stays green, so the evaluator was not relying on them. The narrower `EVALUATIVE_PATTERNS` list has the same shape of gap (`"is a poorly written sentence"` passes, because the match is the literal substring `"is poor"`) — **not** fixed here, deliberately: it wants the same probe-driven pass across all four lists rather than a one-off widening.
+
+**The honest limit, pinned as a test.** A surface/grammar nit typed as `clarity` and phrased in clean declarative register **is accepted** (`grammar-nit-in-clean-register` in the corpus). The anti-taxonomy is enforced by the absence of a grammar type and by the register lint catching the phrasings such nits usually arrive in — not by semantic judgement. The containment is the source chip (PR3) and the user learning to discount a source, exactly as § _Trust & attribution_ says. This is asserted as an `"accepted"` expectation so the limit stays visible in CI rather than being rediscovered in the field.
 
 ### Trust & attribution
 

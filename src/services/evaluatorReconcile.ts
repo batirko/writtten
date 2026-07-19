@@ -18,10 +18,9 @@ import {
   loadActiveObservationsForDocument,
   updateObservationStatus,
   loadSuppressionsForDocument,
-  type DismissalSuppression,
   type Observation,
 } from "../store/db";
-import { planDocReconciliation } from "./docReconcile";
+import { planDocReconciliation, DOC_DEDUPE_FLOOR } from "./docReconcile";
 import { type ModelCapability } from "../model/capability";
 import { computePriority, docGapKind } from "./priority";
 import { type MaturityLevel } from "./documentMaturity";
@@ -33,6 +32,7 @@ import {
   spansOverlap,
   conflictPairKey,
   blockPairKey,
+  isSpanSuppressed,
   type NewObservation,
 } from "./evaluatorAnchoring";
 
@@ -84,55 +84,13 @@ export function archiveObs(
 
 // ---------------------------------------------------------------------------
 // Suppression check
+//
+// Moved to the pure anchoring layer so the external-observation boundary can
+// run the identical check without importing this DB-touching module. Re-exported
+// here because this is where every existing caller imports it from.
 // ---------------------------------------------------------------------------
 
-export function isSpanSuppressed(newO: NewObservation, suppressions: DismissalSuppression[]): boolean {
-  const spanKey =
-    newO.blockId != null
-      ? `${newO.blockId}:${newO.startOffset ?? ""}:${newO.endOffset ?? ""}`
-      : undefined;
-  const isConflict = newO.type === "contradiction" || newO.type === "strategic_tension";
-  const newAnchorNorm = newO.anchorText ? normalizeText(newO.anchorText) : "";
-  return suppressions.some((s) => {
-    if (s.type !== newO.type) return false;
-
-    // G1: Flattery-resistant dismissal
-    // High-severity observations and critical defects are span-only suppressions.
-    // Low/medium severity observations are category-wide.
-    const isSpanOnly =
-      s.severity === "high" || s.type === "contradiction" || s.type === "unsupported_claim";
-
-    if (!isSpanOnly) {
-      // Category-wide suppression for this document
-      return true;
-    }
-
-    // L5 — match by content identity, with the offset signature as fallback so
-    // legacy suppressions (and observations without anchor text) still work.
-    if (isConflict) {
-      // Conflicts are identified by their (order-independent) block pair, which
-      // is offset-free — so a dismissal holds whether the pair is re-emitted by
-      // the per-section path (precise offsets) or the ledger sweep (0:9999).
-      if (s.conflictPairKey) return s.conflictPairKey === conflictPairKey(newO);
-      return s.spanSignature != null && s.spanSignature === spanKey;
-    }
-
-    // Span observations (clarity / unsupported_claim / undefined_jargon): match
-    // on (blockId + normalized anchor text) so the dismissal survives edits that
-    // shift offsets. blockId keeps it precise (the same phrase in another block
-    // is a genuinely different span). blockId is recovered from the suppression's
-    // spanSignature ("blockId:start:end").
-    if (s.anchorText && s.anchorText.trim() && newAnchorNorm) {
-      const suppressedBlockId = s.spanSignature?.split(":")[0];
-      return (
-        suppressedBlockId != null &&
-        suppressedBlockId === newO.blockId &&
-        normalizeText(s.anchorText) === newAnchorNorm
-      );
-    }
-    return s.spanSignature != null && s.spanSignature === spanKey;
-  });
-}
+export { isSpanSuppressed };
 
 // ---------------------------------------------------------------------------
 // Section-scope reconciler
@@ -319,9 +277,6 @@ export async function reconcileObservations(
  *  See docs/projects/doc_scope_reconciliation.md (D4 — starting policy). */
 const DOC_GRACE_THRESHOLD = 2;
 
-/** Floor similarity for treating two doc-scope notes as "the same note" (D6).
- *  Inherited from the OBS-012 dedupe threshold. */
-const DOC_DEDUPE_FLOOR = 0.6;
 
 /**
  * Reconcile freshly-regenerated document-scope observations against the active

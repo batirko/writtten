@@ -58,6 +58,21 @@ export interface ClaimLedgerEntry {
   scope?: "excluded";
 }
 
+/** Where an observation came from, when it did **not** come from the built-in
+ *  evaluator. Set only on observations admitted through the external-observation
+ *  boundary (`src/services/externalObservations.ts`) — a connected agent session
+ *  submitting through the loopback bridge. Attribution metadata, never a
+ *  permission tier: the boundary validates every submission identically
+ *  regardless of who sent it.
+ *  See docs/projects/agent_connected_eval.md § Trust & attribution. */
+export interface ObservationSource {
+  kind: "agent";
+  /** The agent's self-reported product name, sanitized to ≤32 printable chars. */
+  name: string;
+  /** Bridge-generated UUID, one per bridge run. */
+  sessionId: string;
+}
+
 export interface Observation {
   id: string; // unique ID
   docId: string;
@@ -125,6 +140,13 @@ export interface Observation {
 
   /** Reason why the observation was closed, for archive trust */
   closureReason?: string;
+
+  /** Absent = the built-in evaluator produced this. Present = it arrived through
+   *  the external-observation boundary from a connected agent. Additive and
+   *  optional, so no DB version bump and no migration — legacy rows simply lack
+   *  it and read as built-in, which is what they are.
+   *  See docs/projects/agent_connected_eval.md. */
+  source?: ObservationSource;
 }
 
 export interface DismissalSuppression {

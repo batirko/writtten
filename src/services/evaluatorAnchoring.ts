@@ -8,7 +8,7 @@
 // docReconcile.ts — pure functions, injected inputs, no ambient state.
 // ---------------------------------------------------------------------------
 
-import type { Observation } from "../store/db";
+import type { DismissalSuppression, Observation } from "../store/db";
 import type { SectionMember } from "./types";
 
 export type NewObservation = Omit<Observation, "id" | "docId" | "status">;
@@ -107,6 +107,67 @@ export function blockPairKey(o: Pick<Observation, "blockId" | "conflictingBlockI
   const b = o.conflictingBlockId ?? "";
   const [lo, hi] = a < b ? [a, b] : [b, a];
   return `${lo}|${hi}`;
+}
+
+// ---------------------------------------------------------------------------
+// Suppression check
+//
+// Lives here rather than in evaluatorReconcile.ts (which re-exports it for its
+// existing callers) so the *pure* layer owns it: the external-observation
+// boundary must run the identical check without importing the DB module.
+// One suppression rule, two sources — an agent's re-submission of a dismissed
+// observation is filtered by exactly the logic that filters the evaluator's.
+// ---------------------------------------------------------------------------
+
+export function isSpanSuppressed(
+  newO: NewObservation,
+  suppressions: DismissalSuppression[]
+): boolean {
+  const spanKey =
+    newO.blockId != null
+      ? `${newO.blockId}:${newO.startOffset ?? ""}:${newO.endOffset ?? ""}`
+      : undefined;
+  const isConflict = newO.type === "contradiction" || newO.type === "strategic_tension";
+  const newAnchorNorm = newO.anchorText ? normalizeText(newO.anchorText) : "";
+  return suppressions.some((s) => {
+    if (s.type !== newO.type) return false;
+
+    // G1: Flattery-resistant dismissal
+    // High-severity observations and critical defects are span-only suppressions.
+    // Low/medium severity observations are category-wide.
+    const isSpanOnly =
+      s.severity === "high" || s.type === "contradiction" || s.type === "unsupported_claim";
+
+    if (!isSpanOnly) {
+      // Category-wide suppression for this document
+      return true;
+    }
+
+    // L5 — match by content identity, with the offset signature as fallback so
+    // legacy suppressions (and observations without anchor text) still work.
+    if (isConflict) {
+      // Conflicts are identified by their (order-independent) block pair, which
+      // is offset-free — so a dismissal holds whether the pair is re-emitted by
+      // the per-section path (precise offsets) or the ledger sweep (0:9999).
+      if (s.conflictPairKey) return s.conflictPairKey === conflictPairKey(newO);
+      return s.spanSignature != null && s.spanSignature === spanKey;
+    }
+
+    // Span observations (clarity / unsupported_claim / undefined_jargon): match
+    // on (blockId + normalized anchor text) so the dismissal survives edits that
+    // shift offsets. blockId keeps it precise (the same phrase in another block
+    // is a genuinely different span). blockId is recovered from the suppression's
+    // spanSignature ("blockId:start:end").
+    if (s.anchorText && s.anchorText.trim() && newAnchorNorm) {
+      const suppressedBlockId = s.spanSignature?.split(":")[0];
+      return (
+        suppressedBlockId != null &&
+        suppressedBlockId === newO.blockId &&
+        normalizeText(s.anchorText) === newAnchorNorm
+      );
+    }
+    return s.spanSignature != null && s.spanSignature === spanKey;
+  });
 }
 
 // ---------------------------------------------------------------------------
