@@ -22,6 +22,7 @@ import { ControlCenter } from "./ControlCenter";
 import { openSettings } from "./settingsGate";
 import type { Observation } from "../store/db";
 import { setAgentSourceStatus, __resetAgentSourceStatus } from "../model/agentSourceSignal";
+import { setEngine, __resetEngine } from "../services/evalEngine";
 
 const minProps = {
   observations: [] as never[],
@@ -37,6 +38,17 @@ const minProps = {
   // keyless-banner tests opt into hasKey: false explicitly.
   hasKey: true,
 };
+
+// The engine selection is module-global, and these describes detach their
+// containers without unmounting the React roots — so a still-subscribed
+// ControlCenter can answer a later describe's `open-settings` event and flip the
+// slot to the agent, which then gates the empty state everywhere downstream.
+// Reset between cases rather than leaving each describe's outcome dependent on
+// the order the file happens to run in.
+afterEach(() => {
+  __resetEngine();
+  __resetAgentSourceStatus();
+});
 
 describe("SidecarFeed debug panel (L7 — prod prompt-leak)", () => {
   const containers: HTMLDivElement[] = [];
@@ -370,9 +382,9 @@ describe("SidecarFeed — click-to-locate (C2)", () => {
     const handler = (e: Event) => events.push((e as CustomEvent<{ id: string }>).detail.id);
     window.addEventListener("obs-card-activate", handler);
     act(() => {
-      div.querySelector('[data-testid="obs-card"]')?.dispatchEvent(
-        new MouseEvent("click", { bubbles: true })
-      );
+      div
+        .querySelector('[data-testid="obs-card"]')
+        ?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     });
     window.removeEventListener("obs-card-activate", handler);
     expect(events).toEqual(["x"]);
@@ -384,9 +396,9 @@ describe("SidecarFeed — click-to-locate (C2)", () => {
     const handler = (e: Event) => events.push((e as CustomEvent<{ id: string }>).detail.id);
     window.addEventListener("obs-card-activate", handler);
     act(() => {
-      div.querySelector('[data-testid="obs-dismiss"]')?.dispatchEvent(
-        new MouseEvent("click", { bubbles: true })
-      );
+      div
+        .querySelector('[data-testid="obs-dismiss"]')
+        ?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     });
     window.removeEventListener("obs-card-activate", handler);
     expect(events).toEqual([]);
@@ -425,6 +437,40 @@ describe("SidecarFeed — keyless banner + empty-state split", () => {
     ).not.toBeNull();
   });
 
+  /**
+   * Engine exclusivity makes `hasKey` the wrong question on its own. A user whose
+   * agent holds the slot and is connected is fully served with no key at all —
+   * telling them to add one would be false, and the calm empty state is the honest
+   * surface. The banner keys on "is anything reading", not "is there a key".
+   */
+  it("stays away while a connected agent holds the slot with no key", () => {
+    setAgentPreview(true);
+    setEngine("agent");
+    act(() => {
+      setAgentSourceStatus({ state: "connected", name: "Claude Code", sessionId: "s1" });
+    });
+
+    const div = renderWith({ hasKey: false, observations: [] });
+    expect(div.querySelector('[data-testid="keyless-banner"]')).toBeNull();
+    expect(div.querySelector(".sidecar-empty")).not.toBeNull();
+  });
+
+  it("returns the moment that agent is no longer reading, key or not", () => {
+    setAgentPreview(true);
+    setEngine("agent");
+    act(() => {
+      setAgentSourceStatus({ state: "disconnected", name: "Claude Code", sessionId: "s1" });
+    });
+
+    // A key exists, but it is NOT the selected engine — so nothing is reading.
+    const div = renderWith({ hasKey: true, observations: [] });
+    expect(div.querySelector('[data-testid="keyless-banner"]')).not.toBeNull();
+    expect(div.querySelector(".sidecar-empty")).toBeNull();
+    expect(div.querySelector('[data-testid="agent-dropped-note"]')?.textContent).toContain(
+      "nothing is reading your document"
+    );
+  });
+
   it("reserves the quiet empty state for the keyed state (keyless shows the banner instead)", () => {
     // Keyed + no observations → the calm empty state.
     const keyed = renderWith({ hasKey: true, observations: [] });
@@ -443,9 +489,9 @@ describe("SidecarFeed — keyless banner + empty-state split", () => {
     const handler = () => (opened += 1);
     window.addEventListener("writtten:open-settings", handler);
     act(() => {
-      div.querySelector('[data-testid="keyless-banner-settings"]')?.dispatchEvent(
-        new MouseEvent("click", { bubbles: true })
-      );
+      div
+        .querySelector('[data-testid="keyless-banner-settings"]')
+        ?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     });
     window.removeEventListener("writtten:open-settings", handler);
     expect(opened).toBe(1);
@@ -620,9 +666,8 @@ describe("SidecarFeed — in-place dismiss + Undo (C3)", () => {
 
   function clickDismissAt(div: HTMLDivElement, i = 0) {
     act(() => {
-      div.querySelectorAll('[data-testid="obs-dismiss"]')[i]?.dispatchEvent(
-        new MouseEvent("click", { bubbles: true })
-      );
+      const targets = div.querySelectorAll('[data-testid="obs-dismiss"]');
+      targets[i]?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     });
   }
 
@@ -668,9 +713,9 @@ describe("SidecarFeed — in-place dismiss + Undo (C3)", () => {
     expect(div.querySelector('[data-testid="undo-placeholder"]')).not.toBeNull();
 
     act(() => {
-      div.querySelector('[data-testid="undo-action"]')?.dispatchEvent(
-        new MouseEvent("click", { bubbles: true })
-      );
+      div
+        .querySelector('[data-testid="undo-action"]')
+        ?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     });
 
     // Card back in its slot, placeholder gone, and onDismissObservation never fired.
@@ -685,7 +730,14 @@ describe("SidecarFeed — in-place dismiss + Undo (C3)", () => {
     const div = renderWith({
       // Same span → aggregated into one group (primary + others).
       observations: [
-        obs({ id: "g1", type: "clarity", blockId: "b1", startOffset: 2, endOffset: 8, priority: 0.9 }),
+        obs({
+          id: "g1",
+          type: "clarity",
+          blockId: "b1",
+          startOffset: 2,
+          endOffset: 8,
+          priority: 0.9,
+        }),
         obs({
           id: "g2",
           type: "undefined_jargon",

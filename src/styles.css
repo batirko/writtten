@@ -639,6 +639,47 @@ body,
   font-weight: 600;
 }
 
+/* --- The engine slot: a key or a connected agent (agent_connected_eval.md
+   § Engine exclusivity). Same segmented box as .provider-seg, one level up and
+   slightly taller, because this is the coarser choice and the provider strip
+   nests under it. Two segments only — the three key vendors are sub-choices of
+   the key path, not peers of the agent — so it never crowds at 375px. --- */
+.engine-seg {
+  display: flex;
+  border: 0.5px solid var(--color-border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+.engine-seg button {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  font-size: var(--text-ui-sm);
+  padding: 9px 4px;
+  color: var(--color-muted);
+  cursor: pointer;
+  white-space: nowrap;
+  transition:
+    background var(--dur-fast) var(--ease-out),
+    color var(--dur-fast) var(--ease-out);
+}
+.engine-seg button:hover {
+  color: var(--color-ink-2);
+}
+.engine-seg button.is-active {
+  background: var(--color-accent-tint);
+  color: var(--color-accent-strong);
+  font-weight: 500;
+}
+.engine-seg svg {
+  flex: none;
+}
+
 /* --- Multi-provider BYOK settings (docs/projects/multi_provider_router.md §D) --- */
 .provider-seg {
   display: flex;

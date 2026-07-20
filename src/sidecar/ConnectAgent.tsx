@@ -213,9 +213,15 @@ export function ConnectAgent({
           <p className="connect-meta">
             127.0.0.1:{status.port} · sent a snapshot at every settle
           </p>
+          {/* Both halves of the old sentence went false at once. There is no
+              per-card label any more (one engine, nothing to disambiguate), and
+              the built-in checks are precisely what a connected agent replaces —
+              saying they "keep running" would promise the double-billing this
+              design exists to end. Naming the pause here, where the user chose
+              it, is the honest version. */}
           <span className="setting-help">
-            Its observations appear in your feed, labelled with its name. Built-in checks
-            keep running.
+            Its observations appear in your feed. writtten&rsquo;s own checks are paused
+            while it holds the slot.
           </span>
         </>
       )}

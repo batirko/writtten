@@ -5,6 +5,7 @@ import { formatAnchorExcerpt } from "./anchorExcerpt";
 import type { GroupedObservation } from "./feedBudget";
 import { openSettings } from "./settingsGate";
 import { agentBridgeEnabled } from "../services/featureFlags";
+import { getEngine, subscribeEngine, type EngineId } from "../services/evalEngine";
 import { closureReasonLabel } from "./closureLabel";
 import {
   getAgentSourceStatus,
@@ -182,15 +183,18 @@ function KeylessBanner({ demoActive }: { demoActive: boolean }) {
 // and doesn't need to — the honest message is the same either way.
 // ---------------------------------------------------------------------------
 
-function AgentDroppedNote({ name, hasKey }: { name: string; hasKey: boolean }) {
+// Engine exclusivity collapsed the old two-branch copy. It used to say "writtten's
+// own checks keep running" whenever a key existed — now false by construction: this
+// strip only renders while the agent holds the eval slot, so a dropped bridge always
+// means nothing is reading, key or no key. One honest sentence. Deliberately no
+// "switch to your key" link either: an engine switch costs RPD and must not sit one
+// stray click away inside a transient error strip.
+function AgentDroppedNote({ name }: { name: string }) {
   return (
     <div className="agent-dropped-note" data-testid="agent-dropped-note" role="note">
       <p className="agent-dropped-text">
-        {name} disconnected.{" "}
-        {hasKey
-          ? "Its observations stay in your feed; writtten’s own checks keep running."
-          : "Nothing is reading your document."}{" "}
-        Retrying every few seconds.
+        {name} disconnected. Its observations stay in your feed; nothing is reading your
+        document. Retrying every few seconds.
       </p>
     </div>
   );
@@ -398,17 +402,16 @@ export function GroupedObsCard({
           </p>
         )
       )}
-      {/* No per-card source chip. It existed to contain a real trust cost while a
-          connected agent ran *alongside* the built-in evaluator — external cards
-          bypass the precision floors and fixture ratchets, and the chip taught the
-          user to discount that source rather than the feed. Engine exclusivity
-          (owner, 2026-07-20) removed the condition: one engine holds the slot, so
-          there is nothing to disambiguate, and the containment moved to the moment
-          of choosing — which is explicit. A feed spanning a switch shows both eras
-          identically; that is accepted, because the user made the switch and knew
-          the engine at production time. `Observation.source` stays in the model —
-          the reconciler exemptions and revoke/bulk-archive key on it, and the
-          archive still names the source on closure. */}
+      {/* No per-card source chip. It existed only because both engines ran: with a
+          concurrent critic in the feed, the user had to be able to tell which one
+          was speaking and discount a bad SOURCE rather than the whole feed. Engine
+          exclusivity (owner, 2026-07-20) removed the premise — one engine holds the
+          slot, so there is nothing to disambiguate, and the containment moved to
+          the moment of choosing, which is explicit. A feed spanning a switch shows
+          both eras identically; accepted, because the user made the switch knowing
+          the engine. `Observation.source` stays in the model — the reconciler
+          exemptions and revoke/bulk-archive key on it, and the archive still names
+          the source on closure. */}
       <div className="card-body">
         <p>{primary.text}</p>
       </div>
@@ -523,10 +526,21 @@ export function SidecarFeed({
   // there, and the signal is the one carrier both already read.
   const [agentSource, setAgentSource] = useState<AgentSourceStatus>(getAgentSourceStatus);
   useEffect(() => subscribeAgentSource(setAgentSource), []);
+  const [engine, setEngineState] = useState<EngineId>(getEngine);
+  useEffect(() => subscribeEngine(setEngineState), []);
   // Only `disconnected` — `revoked` is the user's own deliberate teardown, and
   // telling someone their agent is gone right after they disconnected it is
-  // noise, not honesty.
-  const agentDropped = agentBridgeEnabled() && agentSource.state === "disconnected";
+  // noise, not honesty. Gated on the engine too: a stale pairing from before a
+  // switch back to a key isn't a problem, it's history.
+  const agentDropped =
+    agentBridgeEnabled() && engine === "agent" && agentSource.state === "disconnected";
+
+  // Whether anything is actually reading the document — which is what the keyless
+  // banner and the empty state are really about, and which `hasKey` alone stopped
+  // answering under engine exclusivity. With the agent holding the slot and a live
+  // bridge, a user with no key is fully served; telling them to add one would be
+  // false. Conversely a key is irrelevant while the agent holds the slot.
+  const nothingIsReading = engine === "agent" ? agentSource.state !== "connected" : !hasKey;
 
   // --- Truncation-honesty note dismissal (per truncated-set) ---
   // Dismissing stores the current set's signature; the note stays hidden while
@@ -690,14 +704,12 @@ export function SidecarFeed({
           {/* Standing keyless banner: shown in any keyless state (during the demo
               and when a keyless user just writes), so quiet-by-design never masks
               the key requirement. */}
-          {!hasKey && <KeylessBanner demoActive={demoActive} />}
+          {nothingIsReading && <KeylessBanner demoActive={demoActive} />}
           {/* Losing the thing that reads your document is a state change worth
               being told about, once, where you already are (UX-022). Severity
               rises under engine exclusivity: keyless, a dropped agent means
               nothing is reading at all. */}
-          {agentDropped && (
-            <AgentDroppedNote name={agentSource.name ?? "Your agent"} hasKey={hasKey} />
-          )}
+          {agentDropped && <AgentDroppedNote name={agentSource.name ?? "Your agent"} />}
           {/* Standing truncation-honesty note: while any section exceeds the
               reading cap, silence on its tail must not read as "nothing to flag"
               (heading-cliff facet 2). */}
@@ -709,10 +721,11 @@ export function SidecarFeed({
             />
           )}
           {observations.length === 0 ? (
-            // The quiet empty state is reserved for the KEYED "working, quietly"
-            // state. Keyless, the banner above carries the honest message instead
-            // — the calm empty copy must never stand in for silent-nothing.
-            hasKey ? (
+            // The quiet empty state is reserved for the CONNECTED "working, quietly"
+            // state — whichever engine is doing the working. With nothing reading,
+            // the banner above carries the honest message instead; the calm empty
+            // copy must never stand in for silent-nothing.
+            !nothingIsReading ? (
               <div className="sidecar-empty">
                 <p>Quiet while you draft — I'll speak up as you revise.</p>
                 <span className="empty-subtext">
