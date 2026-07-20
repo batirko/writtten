@@ -143,10 +143,12 @@ describe("groupObservations", () => {
     expect(groupObservations([])).toEqual([]);
   });
 
-  it("never groups across sources — an agent card and a built-in one on the same span stay separate", () => {
-    // Grouping keeps only `primary` prominent; the rest render as bare tag+text
-    // in "N more on this passage", with no room for attribution. Collapsing an
-    // external card under a built-in primary would launder it as writtten's own.
+  it("groups across sources — an agent-era and a key-era card on one span collapse", () => {
+    // Engine exclusivity: only one engine ever produces new cards, so cards from
+    // different sources on the same passage are the user's own history across a
+    // switch they performed. Grouping is about the span, not about who spoke —
+    // keeping them apart would show an unexplained duplicate now that no per-card
+    // chip exists to say why.
     const span = { blockId: "b1", startOffset: 10, endOffset: 30 };
     const native = makeObs({ id: "native", priority: 2.0, ...span });
     const external = makeObs({
@@ -158,8 +160,9 @@ describe("groupObservations", () => {
 
     const groups = groupObservations([native, external]);
 
-    expect(groups).toHaveLength(2);
-    expect(groups.every((g) => g.others.length === 0)).toBe(true);
+    expect(groups).toHaveLength(1);
+    expect(groups[0].primary.id).toBe("native"); // highest priority still leads
+    expect(groups[0].others).toHaveLength(1);
   });
 
   it("two cards from the same agent session on one span still group", () => {

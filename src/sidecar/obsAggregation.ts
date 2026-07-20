@@ -28,17 +28,24 @@ export interface GroupedObservation {
 /**
  * Collapse observations that share the same exact span into grouped cards.
  *
- * Grouping key: `blockId:startOffset:endOffset:source` for span observations.
- * Doc-scoped observations (no blockId) never aggregate — each becomes its own
- * singleton group because `missing_topic` and `structure_flow` are unrelated
- * even though both lack a span anchor.
+ * Grouping key: `blockId:startOffset:endOffset` for span observations. Doc-scoped
+ * observations (no blockId) never aggregate — each becomes its own singleton group
+ * because `missing_topic` and `structure_flow` are unrelated even though both lack
+ * a span anchor.
  *
- * The key includes the source (BYOA), so an agent's observation never groups
- * with a built-in one. Grouping keeps only `primary` prominent and renders the
- * rest as bare tag+text inside "N more on this passage" — which would hide an
- * external card's attribution behind a built-in primary. That is precisely the
- * laundering the source chip exists to prevent, so two critics on one passage
- * stay two cards. See docs/mechanics/agent-bridge.md.
+ * **Grouping is about the span, not about who spoke.** The key briefly carried the
+ * source too, back when a connected agent ran *alongside* the built-in evaluator and
+ * a per-card chip disambiguated them: collapsing an external card under a built-in
+ * primary would have hidden its attribution. Engine exclusivity removed both halves
+ * of that argument (owner, 2026-07-20). Exactly one engine holds the slot, so no two
+ * critics ever produce new cards at once — cards from a different source can only be
+ * *historical*, from before a switch the user performed themselves. Keeping them
+ * apart would now put two cards on one passage for a reason the reader can no longer
+ * see, which reads as an unexplained duplicate.
+ *
+ * This is presentational only. Near-duplicate absorption happens upstream, at the
+ * external-observation boundary and in `evaluatorReconcile` — which deliberately
+ * still *matches* against external cards even though it never closes them.
  *
  * Within each group, the highest-priority observation becomes `primary`; the
  * rest go into `others`. Group priority = primary.priority = max(members).
@@ -50,7 +57,7 @@ export function groupObservations(observations: Observation[]): GroupedObservati
     // Unique key per doc-scoped observation → no aggregation across doc-level obs
     const key =
       obs.blockId != null
-        ? `${obs.blockId}:${obs.startOffset ?? ""}:${obs.endOffset ?? ""}:${obs.source?.sessionId ?? "writtten"}`
+        ? `${obs.blockId}:${obs.startOffset ?? ""}:${obs.endOffset ?? ""}`
         : `__doc__:${obs.id}`;
 
     const bucket = buckets.get(key) ?? [];

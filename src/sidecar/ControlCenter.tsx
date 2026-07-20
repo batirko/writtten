@@ -20,6 +20,7 @@ import {
 } from "../model/ping";
 import { buildEnvelope } from "../model/debugLog";
 import { agentBridgeEnabled } from "../services/featureFlags";
+import { getEngine, subscribeEngine, type EngineId } from "../services/evalEngine";
 import { ConnectAgent } from "./ConnectAgent";
 import { useAgentBridge } from "./useAgentBridge";
 import { agentStatusView } from "./agentStatusView";
@@ -484,6 +485,11 @@ export function ControlCenter({
   const [agentSource, setAgentSource] = useState<AgentSourceStatus>(getAgentSourceStatus);
   useEffect(() => subscribeAgentSource(setAgentSource), []);
   const agentStatus = agentBridgeEnabled() ? agentStatusView(agentSource) : null;
+  // Which engine holds the one slot. Same subscribe-plus-useState idiom as the
+  // signals above — the module is the source of truth so non-React services
+  // (the orchestrator) can read it without prop-drilling.
+  const [engine, setEngineState] = useState<EngineId>(getEngine);
+  useEffect(() => subscribeEngine(setEngineState), []);
 
   // The agent row's second line is a live elapsed counter while a pass is
   // running, so it needs a tick. Deliberately NOT a spinner: writtten cannot
@@ -794,11 +800,12 @@ export function ControlCenter({
   };
 
   const modelName = activeProvider.replace(" [paid]", "") || "…";
-  // One activity signal for both engines — the dot answers "is something reading
-  // my document", which an agent pass makes true just as a model call does.
-  // Tier hue stays gated on our own in-flight work inside the view. See
+  // One activity signal, whichever engine holds the slot — the dot answers "is
+  // something reading my document", which an agent pass makes true just as a model
+  // call does. Tier hue stays gated on our own in-flight work inside the view. See
   // processStatusView for why the agent shares the state but not the hue.
   const { anchorState, statusText, dotTier } = processStatusView({
+    engine,
     pending,
     stalled,
     agentPhrase,

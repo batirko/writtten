@@ -24,6 +24,7 @@ import { llmLogger } from "../model/logger";
 import { harness } from "../debug/harness";
 import { setActivityPending } from "../model/activitySignal";
 import { isNearLimit } from "../model/rpmBudget";
+import { isBuiltinEngineActive } from "./evalEngine";
 import { nanoid } from "nanoid";
 
 /**
@@ -212,6 +213,15 @@ async function dispatch(
     return;
   }
 
+  // Second engine gate, at the fire site. `scheduleEval` stops new work from being
+  // ARMED; this stops already-armed work from FIRING after the user switched engines
+  // mid-flight — a coalesce timer or the drain below can re-enter here without
+  // passing the arming gate again.
+  if (!isBuiltinEngineActive()) {
+    onComplete?.();
+    return;
+  }
+
   inFlightSections.add(sectionId);
   recomputePending();
   const evalId = logTrigger(triggerKind, sectionId);
@@ -309,6 +319,14 @@ async function handleDocIdle(ctx: EvalContext, onComplete?: () => void): Promise
     return;
   }
 
+  // Engine gate at the fire site: a doc-idle deferred for RPM re-enters here 30s
+  // later via setTimeout, long enough for the user to have switched to their agent
+  // in between. Firing then would burn the strong call they just opted out of.
+  if (!isBuiltinEngineActive()) {
+    onComplete?.();
+    return;
+  }
+
   // RPM backpressure: doc-idle is low priority. If we're near the free-tier
   // limit, defer by DOC_IDLE_RPM_DEFER_MS rather than burning a strong call
   // that competes with settling blocks.
@@ -376,6 +394,12 @@ async function handleBootstrapSweep(ctx: EvalContext, onComplete?: () => void): 
   if (inFlightSections.size > 0 || coalesceTimers.size > 0) {
     pendingBootstrapSweep = { ctx, onComplete };
     recomputePending();
+    return;
+  }
+
+  // Engine gate at the fire site — same 30s deferral window as doc-idle above.
+  if (!isBuiltinEngineActive()) {
+    onComplete?.();
     return;
   }
 
@@ -465,6 +489,27 @@ export function scheduleEval(
 ): void {
   if (trigger.kind === "block-removed") {
     handleBlockRemoved(trigger.blockId, ctx, onComplete);
+    return;
+  }
+
+  // Engine exclusivity: the built-in evaluator only arms when it holds the slot
+  // (`docs/projects/agent_connected_eval.md` § Engine exclusivity). A key and a
+  // connected agent are two ways to get model access, not two sources — running
+  // both would bill the user twice for observations competing over one feed budget.
+  //
+  // `block-removed` sits ABOVE this line deliberately: it fires no LLM call, and a
+  // card anchored to a deleted block is dead whoever wrote it (the one auto-close
+  // that is not an evaluator judgement — see `isEvaluatorOwned` in
+  // evaluatorReconcile.ts). Gating it would strand agent-era cards on deleted blocks.
+  //
+  // Gating here rather than deeper also keeps the readout honest: no coalesce timer
+  // is created, so `recomputePending()` stays at 0 and the activity dot rests instead
+  // of pulsing "evaluating · 1" for work that will never run.
+  if (!isBuiltinEngineActive()) {
+    // Callers treat this as "the scheduled work finished" — App's completion handler
+    // retires the welcome modal off it. Same contract the keyless path already has,
+    // where evaluateSection returns early and dispatch's `finally` still fires.
+    onComplete?.();
     return;
   }
 

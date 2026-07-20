@@ -5,7 +5,6 @@ import { formatAnchorExcerpt } from "./anchorExcerpt";
 import type { GroupedObservation } from "./feedBudget";
 import { openSettings } from "./settingsGate";
 import { agentBridgeEnabled } from "../services/featureFlags";
-import { SourceChip } from "./SourceChip";
 import { closureReasonLabel } from "./closureLabel";
 import {
   getAgentSourceStatus,
@@ -399,12 +398,17 @@ export function GroupedObsCard({
           </p>
         )
       )}
-      {/* Attribution sits on its own line below the context slot rather than in
-          the header: the header already carries the two highest-signal elements
-          (type tag + severity), and a scope marker or quote must not compete
-          with them (doc_scope_legibility.md). A doc-scoped external card
-          correctly stacks two quiet chips. */}
-      <SourceChip source={primary.source} />
+      {/* No per-card source chip. It existed to contain a real trust cost while a
+          connected agent ran *alongside* the built-in evaluator — external cards
+          bypass the precision floors and fixture ratchets, and the chip taught the
+          user to discount that source rather than the feed. Engine exclusivity
+          (owner, 2026-07-20) removed the condition: one engine holds the slot, so
+          there is nothing to disambiguate, and the containment moved to the moment
+          of choosing — which is explicit. A feed spanning a switch shows both eras
+          identically; that is accepted, because the user made the switch and knew
+          the engine at production time. `Observation.source` stays in the model —
+          the reconciler exemptions and revoke/bulk-archive key on it, and the
+          archive still names the source on closure. */}
       <div className="card-body">
         <p>{primary.text}</p>
       </div>

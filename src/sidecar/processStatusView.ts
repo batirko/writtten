@@ -1,15 +1,23 @@
 /**
- * The control-center activity state — one vocabulary, both engines.
+ * The control-center activity state — one vocabulary, whichever engine holds the slot.
  *
  * Two jobs, split by part of speech:
  *
  * - **`status` is the verb.** What is happening right now, whichever engine is
- *   responsible. One place, said once. The dot mirrors it by one rule: the
+ *   selected. One place, said once. The dot mirrors it by one rule: the
  *   states that mean *something is computing* pulse, everything else rests.
- * - **`agent` is the noun.** Who is attached and whether they are still there.
- *   It carries no phase word of its own — an earlier draft had the status row
- *   say "agent reading" while the agent row said "reading · 0:20", which is the
- *   same fact twice in adjacent lines.
+ * - **The identity row is the noun.** Which engine is reading — a model name
+ *   under the built-in engine, the agent's name under a connected one. It
+ *   carries no phase word of its own: an earlier draft had the status row say
+ *   "agent reading" while a second row said "reading · 0:20", the same fact
+ *   twice in adjacent lines.
+ *
+ * **Exactly one engine reads the document** (owner, 2026-07-20 —
+ * `docs/projects/agent_connected_eval.md` § Engine exclusivity). That is why
+ * `engine` is a required input rather than something inferred from whether an
+ * agent happens to be attached: an agent's `pass` facts outlive a revoke, so a
+ * recently-torn-down source would otherwise keep painting "reading · 0:05" with
+ * nothing reading.
  *
  * The dot answers exactly one question: *is something reading my document right
  * now?* That is equally true whether writtten is calling a model or an agent is
@@ -35,11 +43,16 @@
  * Burying that under a name would hide the difference that matters most.
  */
 
+import type { EngineId } from "../services/evalEngine";
+
 export interface ProcessStatusInput {
+  /** Which engine currently holds the slot. Only the selected one may speak. */
+  engine: EngineId;
   /** writtten's own outstanding eval work. */
   pending: number;
   stalled: boolean;
-  /** From `agentStatusPhrase` — the agent's claim on the verb slot, or `null`. */
+  /** From `agentStatusPhrase` — the agent's claim on the verb slot, or `null`.
+   *  Consulted only while the agent engine is selected. */
   agentPhrase: string | null;
   /** Tier of our in-flight call, floored for visibility. */
   displayTier: "fast" | "strong" | null;
@@ -61,22 +74,32 @@ function phraseIsActive(phrase: string | null): boolean {
 }
 
 export function processStatusView({
+  engine,
   pending,
   stalled,
   agentPhrase,
   displayTier,
 }: ProcessStatusInput): ProcessStatusView {
-  const agentActive = phraseIsActive(agentPhrase);
+  // Only the selected engine may claim the verb. `pass` facts survive a revoke,
+  // so an unselected agent's phrase is stale by construction.
+  const phrase = engine === "agent" ? agentPhrase : null;
+  const agentActive = phraseIsActive(phrase);
   const anchorState = stalled ? "stalled" : pending > 0 || agentActive ? "working" : "idle";
 
-  // Our own work names itself specifically (the count is actionable). Otherwise
-  // the agent's phrase takes the row verbatim — never rewritten into
-  // "evaluating", which would claim a model call that never happened.
+  // `pending` and `stalled` stay unconditional, on purpose. Under the agent engine
+  // a non-zero `pending` is not stale — it is a call armed before the switch, which
+  // is deliberately never cancelled. Suppressing it for symmetry would print "idle"
+  // while writtten is demonstrably computing, in exactly the window a user is most
+  // likely to be confused about who is doing what.
+  //
+  // Our own work names itself specifically (the count is actionable). Otherwise the
+  // agent's phrase takes the row verbatim — never rewritten into "evaluating", which
+  // would claim a model call that never happened.
   const statusText = stalled
     ? "still working…"
     : pending > 0
       ? `evaluating · ${pending}`
-      : (agentPhrase ?? "idle");
+      : (phrase ?? "idle");
 
   return {
     anchorState,

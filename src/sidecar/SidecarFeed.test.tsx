@@ -829,11 +829,12 @@ describe("SidecarFeed — truncation-honesty note", () => {
 // ---------------------------------------------------------------------------
 // BYOA (PR3) — source attribution on cards.
 //
-// External observations are first-class in lifecycle but visibly second-party in
-// origin: the user must always be able to tell which critic is speaking, because
-// an agent's output is not covered by the precision floors and fixture ratchets
-// that guard our own. These tests pin that the chip is present when it should
-// be, absent when it shouldn't, and that grouping never hides it.
+// External observations are first-class in lifecycle, and — since engine
+// exclusivity (owner, 2026-07-20) — no longer marked in the card face. Exactly one
+// engine holds the slot, so there is no concurrent critic to disambiguate; the
+// trust containment moved to the moment of choosing, which is explicit. These tests
+// pin the removal, and pin that `Observation.source` survived it in the model and in
+// the archive, where it is still load-bearing.
 // ---------------------------------------------------------------------------
 
 describe("SidecarFeed — source attribution (BYOA)", () => {
@@ -857,7 +858,7 @@ describe("SidecarFeed — source attribution (BYOA)", () => {
     __resetAgentSourceStatus();
   });
 
-  it("names the agent on an external card and shows nothing on a built-in one", () => {
+  it("shows no per-card attribution, while keeping the source in the model", () => {
     const div = renderWith([
       obs({
         id: "ext-1",
@@ -868,7 +869,12 @@ describe("SidecarFeed — source attribution (BYOA)", () => {
         text: "No evidence is given for the adoption figure.",
       }),
     ]);
-    expect(div.querySelector('[data-testid="obs-source"]')?.textContent).toContain("Claude Code");
+    // The visible chip is gone outright — one engine, nothing to disambiguate.
+    expect(div.querySelector('[data-testid="obs-source"]')).toBeNull();
+    expect(div.textContent).not.toContain("Claude Code");
+    // …but `Observation.source` survives: removing the chip was a VIEW change.
+    // The reconciler exemptions and revoke/bulk-archive key on this field, and it
+    // gets more load-bearing after an agent→key switch, not less.
     expect(div.querySelector('[data-testid="obs-card"]')?.getAttribute("data-obs-source")).toBe(
       "agent"
     );
@@ -876,34 +882,29 @@ describe("SidecarFeed — source attribution (BYOA)", () => {
     const nativeDiv = renderWith([
       obs({ id: "n1", blockId: "b1", startOffset: 0, endOffset: 10, text: "Vague." }),
     ]);
-    expect(nativeDiv.querySelector('[data-testid="obs-source"]')).toBeNull();
     expect(
       nativeDiv.querySelector('[data-testid="obs-card"]')?.getAttribute("data-obs-source")
     ).toBeNull();
   });
 
-  it("reads live while that session is connected and flips to disconnected when the bridge drops", () => {
+  it("keeps an external card through a disconnect, unchanged", () => {
     act(() => {
       setAgentSourceStatus({ state: "connected", name: "Claude Code", sessionId: "sess-1" });
     });
     const div = renderWith([
       obs({ id: "ext-1", source: AGENT, blockId: "b1", startOffset: 0, endOffset: 10, text: "x" }),
     ]);
-    expect(div.querySelector('[data-testid="obs-source"]')?.getAttribute("data-source-state")).toBe(
-      "live"
-    );
+    expect(div.querySelectorAll('[data-testid="obs-card"]')).toHaveLength(1);
 
-    // The card survives the disconnect — only its chip changes state.
+    // Cards outlive the socket (decision 7) — and now nothing about the card
+    // reacts to the connection at all.
     act(() => {
       setAgentSourceStatus({ state: "disconnected", name: "Claude Code", sessionId: "sess-1" });
     });
-    expect(div.querySelector('[data-testid="obs-source"]')?.getAttribute("data-source-state")).toBe(
-      "disconnected"
-    );
     expect(div.querySelectorAll('[data-testid="obs-card"]')).toHaveLength(1);
   });
 
-  it("a doc-scoped external card carries both the scope marker and the source chip", () => {
+  it("a doc-scoped external card carries the scope marker and nothing else", () => {
     const div = renderWith([
       obs({
         id: "ext-doc",
@@ -916,22 +917,21 @@ describe("SidecarFeed — source attribution (BYOA)", () => {
       }),
     ]);
     expect(div.querySelector('[data-testid="obs-scope"]')).not.toBeNull();
-    expect(div.querySelector('[data-testid="obs-source"]')).not.toBeNull();
+    expect(div.querySelector('[data-testid="obs-source"]')).toBeNull();
   });
 
-  it("never groups an external card under a built-in primary — attribution can't hide in 'N more'", () => {
-    // Same span, same type. Pre-BYOA these collapsed into one card whose
-    // collapsed rows render bare tag+text, so the agent's observation would have
-    // shown with no attribution at all until expanded.
+  it("groups an agent-era card with a key-era one on the same span", () => {
+    // The inverse of the pre-exclusivity rule. Only one engine produces new cards,
+    // so a mixed span is the user's own history across a switch they performed —
+    // and with no chip to explain a split, two cards would read as a duplicate.
     const span = { blockId: "b1", startOffset: 0, endOffset: 24 };
     const div = renderWith([
       obs({ id: "native", ...span, priority: 2.0, text: "The metric is undefined." }),
       obs({ id: "ext-1", source: AGENT, ...span, priority: 1.0, text: "No baseline is given." }),
     ]);
 
-    expect(div.querySelectorAll('[data-testid="obs-card"]')).toHaveLength(2);
-    expect(div.querySelectorAll('[data-testid="obs-source"]')).toHaveLength(1);
-    expect(div.querySelector('[data-testid="obs-group-also"]')).toBeNull();
+    expect(div.querySelectorAll('[data-testid="obs-card"]')).toHaveLength(1);
+    expect(div.querySelector('[data-testid="obs-group-also"]')).not.toBeNull();
   });
 
   it("the archive names the source that retracted a card", () => {
