@@ -26,6 +26,16 @@ import { Extension } from "@tiptap/core";
  *
  * Priority sits above ListKeymap (100) so this runs before its own Backspace
  * handling, which would otherwise do the joining described above.
+ *
+ * On ListKeymap: its Backspace path ends in a catch-all `liftListItem` for
+ * anything it can't join, which is wrong at the start of a list item's second
+ * or later block — there it lifts the entire item out of the list instead of
+ * merging the block upward. StarterKit alone gets that case right, so
+ * registering ListKeymap regressed it; the `index !== 0` branch above restores
+ * the base behaviour. ListKeymap stays registered because it is still the only
+ * thing that gets **Delete** right: at the end of an item with a following
+ * item, it merges the two items, where the base keymap leaves a single item
+ * holding two paragraphs.
  */
 export const ListEscape = Extension.create({
   name: "listEscape",
@@ -53,11 +63,18 @@ export const ListEscape = Extension.create({
 
         // The cursor must be in a block that is a direct child of the item…
         if ($from.depth !== itemDepth + 1) return false;
-        // …that block must be the item's first…
-        if ($from.index(itemDepth) !== 0) return false;
-        // …and the cursor must be at its very start. Anywhere else, Backspace
-        // means "delete a character" and must keep meaning that.
+        // …and at that block's very start. Anywhere else, Backspace means
+        // "delete a character" and must keep meaning that.
         if ($from.parentOffset !== 0) return false;
+
+        // Start of a *later* block inside the item (a list item can hold more
+        // than one paragraph): merge it into the block above, which is what the
+        // base keymap does on its own. ListKeymap would otherwise fall through
+        // to its catch-all `liftListItem` and yank the whole item out of the
+        // list — see the note on why it is still registered, below.
+        if ($from.index(itemDepth) !== 0) {
+          return this.editor.commands.joinBackward();
+        }
 
         return this.editor.commands.liftListItem(listItem.name);
       },
