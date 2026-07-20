@@ -123,6 +123,18 @@ export function ConnectAgent({
             </p>
           )}
 
+          {/* Promoted out of the "Not working?" disclosure (2026-07-20 field report).
+              Firefox asks "wants to access other apps and services on this device" the
+              moment we probe loopback — an unannounced permission prompt that a user
+              reasonably dismisses. Blocking it is near-unrecoverable: the app waits
+              forever with nothing on screen explaining why, and the fix is buried in
+              browser site permissions. Warn before it appears, not after it's refused. */}
+          <p className="connect-warn-soft">
+            Your browser may ask for permission to reach your local network &mdash; that
+            prompt is this connection. <strong>Allow it</strong>, or the bridge can never
+            answer.
+          </p>
+
           <p className="connect-meta">
             Paste this into your agent session. It has your connection details baked in.
           </p>
@@ -157,11 +169,15 @@ export function ConnectAgent({
           <details className="connect-disclosure">
             <summary>Not working?</summary>
             <div className="connect-disclosure-body">
-              Chrome may ask to allow local network access — allow it.
+              Did you block the local-network permission prompt? Clear it in your
+              browser&rsquo;s site settings for writtten and connect again.
               <br />
               Safari can&rsquo;t connect to a local bridge; use Chrome, Edge, or Firefox.
               <br />
               All ports busy? Cancel and connect again for a fresh list.
+              <br />
+              The bridge script is written to a file on your machine. Your agent should say
+              where; delete it when you&rsquo;re done.
             </div>
           </details>
 

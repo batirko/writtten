@@ -1019,6 +1019,19 @@ body,
   right: var(--space-xs);
 }
 
+/* A warning that must be read BEFORE the thing it warns about, so it cannot sit
+   in the collapsed disclosure. Softer than .connect-warn (which reports a failure
+   that already happened) — this one is anticipatory. */
+.connect-warn-soft {
+  margin: var(--space-xs) 0 0;
+  font-size: var(--text-ui-sm);
+  line-height: 1.45;
+  color: var(--color-ink-2);
+  background: var(--color-accent-tint);
+  border-radius: var(--radius-md);
+  padding: 8px 10px;
+}
+
 .connect-disclosure {
   margin-top: 10px;
   font-size: var(--text-label);

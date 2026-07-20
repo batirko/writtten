@@ -219,7 +219,13 @@ Three caveats worth keeping attached, because this is the load-bearing result:
 - **Our connect copy currently over-warns.** The waiting state says "Chrome may ask to allow local network access — allow it", and on 150 nothing asks. The hedge ("may") keeps it honest, so this is not urgent — but if no shipping Chrome prompts, the line describes a phantom and should go.
 - **The verification was nearly derailed by the service worker**, which served the previous bundle on first load after the deploy (UX-023). The `?agent=1` gate looked un-shipped for ten minutes. Any future release check must confirm the loaded asset hash matches the network's before concluding anything.
 
-**Not yet verified: Firefox and Safari against the deployed origin.** Both are installed locally; each is a ~30-second human check and neither is drivable from here at Chrome's fidelity. Firefox is expected to work (loopback mixed-content exemption); Safari is expected to fail and show the connect UI's unsupported note.
+**Firefox verified 2026-07-20, and it corrected two published claims.** Pairing works end to end against writtten.com — with **Antigravity**, not Claude Code, which is the first evidence the skill is genuinely cross-agent rather than tuned to one product. But Firefox **does** show a local-network permission prompt ("writtten.com wants to access other apps and services on this device"), and current Chrome **does not** — the exact inverse of what `/agent` and the connect UI said. Both were written from this spec's assumption rather than measurement, and both shipped wrong; corrected in the same change as this note. The durable framing is *"your browser may ask — allow it"*, not a per-browser claim that rots with each release.
+
+**Blocking that prompt is near-unrecoverable**, which is why the warning moved out of the "Not working?" disclosure and above the prompt text: a blocked permission leaves the app waiting forever with nothing on screen explaining why, and the remedy is buried in browser site permissions. Recorded as the reason `.connect-warn-soft` exists.
+
+**Safari confirmed unsupported, as designed** (decision (c)) — but see UX-025: it currently *spins* rather than saying so, even though we can detect it before the first probe. Withholding an answer the product already has.
+
+**Not yet fixed: the stray bridge script** (UX-024) — the skill writes `writtten-bridge.mjs` into the agent's CWD, usually the user's own repo, unannounced and never cleaned up. It can be committed and pushed. A third argument for the script-delivery change already on the slimming milestone. Both are installed locally; each is a ~30-second human check and neither is drivable from here at Chrome's fidelity. Firefox is expected to work (loopback mixed-content exemption); Safari is expected to fail and show the connect UI's unsupported note.
 
 ### Engine exclusivity (owner, 2026-07-20 — supersedes decisions 2 and 8)
 
