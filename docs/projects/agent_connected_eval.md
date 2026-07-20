@@ -47,13 +47,13 @@ Build checklist (PR slices — see § _Build map_ for contents):
 Every previously-open call, resolved. The first eleven were decided interactively; the lettered ones are recommendations recorded during the session for veto at build pickup (each has its rationale in the relevant section below).
 
 1. **Rhythm: on-demand default, watch opt-in.** The skill's default loop is a single review pass (pull snapshot → review → submit → report). A watch mode (long-poll for new settled snapshots, re-review each) is documented in the same skill as an explicit opt-in the user asks their agent for. § _User flow_.
-2. **Coexistence: explicit source toggle, default = both run.** Connecting an agent never silently pauses the built-in evaluator; a Settings toggle ("Agent only") lets the user pause built-in checks while connected — e.g. to save RPD. § _Trust & attribution_.
+2. **Coexistence: explicit source toggle, default = both run.** Connecting an agent never silently pauses the built-in evaluator; a Settings toggle ("Agent only") lets the user pause built-in checks while connected — e.g. to save RPD. § _Trust & attribution_. — ⚠️ **Superseded 2026-07-20 (owner), see § _Engine exclusivity_ below.** The toggle was already dropped at PR3; the whole coexistence premise is now reversed.
 3. **Keyless positioning: first-class on-ramp.** The welcome modal and the standing keyless card offer two equal paths: "add a key" or "connect your agent". § _User flow_.
 4. **Taxonomy scope: the full 9-type enum**, including `contradiction`/`strategic_tension`. External conflict-type cards are single-anchor (no `conflictingBlockId` machinery) and exempt from evaluator-owned conflict lifecycle. The hero-type trust risk is accepted — the chip is the containment, and "my agent caught the Q2-vs-Q3 conflict" is the demo moment.
 5. **Pairing: app-generated, one-way paste.** writtten generates the token + candidate ports and emits **one copyable prompt** containing the full skill text with the connection specifics baked in. The user pastes it into their agent; the app waits and retries until the bridge answers. Nothing is ever carried back from the agent to the app by hand. § _User flow_ · § _Bridge protocol_.
 6. **Distribution: canonical markdown with the bridge script inline.** One skill file (`docs/skills/writtten-agent.md`, served at writtten.com/agent) whose personalized instantiation is what the app's copy button emits. Zero-dependency Node bridge embedded as a fenced block the agent writes to disk and runs. No npm package, no per-agent packaging (can layer later). Version-stamped (§ _Bridge protocol_ → versioning).
 7. **Disconnect: persist quietly.** Cards outlive the socket; the source chip gains a "disconnected" state; reconnecting reclaims the source. Explicit revoke (distinct from disconnect) offers "archive everything from this source".
-8. **Toggle default: both run** (see 2 — recorded separately because the default is the trust-relevant half).
+8. **Toggle default: both run** (see 2 — recorded separately because the default is the trust-relevant half). — ⚠️ **Superseded 2026-07-20 (owner), see § _Engine exclusivity_ below.**
 9. **Placement: Phase 8 milestone, Lane: Platform.** The Phase-9 spec-written record stays as history; the build is a live Phase-8 item.
 10. **Ship strategy: flagged → verify → enable → spike.** Build behind `FEATURE_AGENT_BRIDGE` across PRs; verify on the deployed origin (Chrome + Firefox); enable; brief soak with the small-direct-outreach users; then the spike fires.
 11. **Naming: "Connect your agent"** in all UI copy; BYOA stays the internal/plan/marketing shorthand.
@@ -193,7 +193,25 @@ Discovery, the site pages, and the flag. Four things differ from this document's
 
 **On the page's length:** the first draft ran ~1,100 words across eight sections and was cut to ~770 across six at the owner's request, with the explicit condition that quality not suffer. The two structural cuts carried it: the standalone injection section became a caveat box inside _Where your document goes_ (it qualifies that claim rather than standing beside it), and the opening two paragraphs merged. Both caveat boxes were deliberately **not** shortened — they carry the admissions (unratcheted quality, the loopback limit) that keep the page honest rather than promotional.
 
+### Engine exclusivity (owner, 2026-07-20 — supersedes decisions 2 and 8)
+
+Decided after using the shipped build: **a connected agent is the fourth _connection option_, not a second source running in parallel.** writtten needs model access; a key is one way to get it and an agent is another, so they occupy the **same slot**. Scheduled as a Phase-8 milestone, to land during the post-landing soak and before the GTM spike.
+
+Why the reversal is not a loss:
+
+- **Running both bills the user twice** — RPD on the key _and_ tokens in their agent — for overlapping observations competing for a single feed budget.
+- **The source chip existed only because both ran.** Gate 1's accepted cost (external observations bypass the precision floors and fixture ratchets) was contained by teaching the user to discount _that source_. With one engine there is nothing to disambiguate: containment moves to the moment of choosing, which is **explicit**, so decision 2's real worry — that connecting must never _silently_ pause the precision-guarded source — is satisfied by the engine selector rather than violated.
+- PR3 had already half-conceded this by dropping the "Agent only" toggle once its beneficiary set collapsed to "a free-tier BYOK user who _also_ connects an agent — a group BYOA exists to shrink." That was an argument against the coexistence, not just the toggle.
+
+Owner decisions in the same session: the chip is **removed outright** (not made conditional on a mixed feed), and observations from the previous engine **persist on switch** (decision 7's logic — they belong to the user, not the connection). **Accepted consequence, recorded so it is not later rediscovered as a bug:** a feed spanning an engine switch shows agent-era and key-era cards identically. Judged acceptable because the user performed the switch and knew the selected engine at production time — their own history, not a concurrent source masquerading as the ratcheted pipeline.
+
+**`Observation.source` stays in the model.** Removing the chip is a _view_ change. The field is load-bearing for the reconciler exemptions and for revoke + bulk archive, and the archive keeps naming the source on closure — so attribution survives in the record without a tag on the card face. The exemptions in fact matter **more** after this lands: on an agent→key switch the built-in evaluator wakes up with stale agent cards it must still never auto-close.
+
+Out of scope by owner: the **first-run screen keeps both paths**. They are genuinely different on-ramps; the exclusivity is about the engine slot, not the invitation.
+
 ### Trust & attribution
+
+> ⚠️ **Partially superseded 2026-07-20** — the per-card source chip described below is removed by § _Engine exclusivity_ above. The lifecycle and reconciler-exemption rules in this section are unaffected and still hold.
 
 External observations are **first-class in lifecycle, visibly second-party in origin**:
 
