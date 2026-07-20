@@ -8,7 +8,11 @@
       name="description"
       content="Review your writtten draft with a coding agent you already run. No API key, and the document never leaves your machine."
     />
-    <meta name="robots" content="index,follow" />
+    <!-- noindex during the PR4 verification window: the connect prompt is ~18x the size
+         it should be until the slimming milestone lands, and a search result is a bad
+         first impression for a feature nobody is being pointed at yet. Flip back to
+         "index,follow" when the agent preview gate is removed (services/featureFlags.ts). -->
+    <meta name="robots" content="noindex,follow" />
     <link rel="icon" href="/favicon.svg" />
 
     <!-- Open Graph / Twitter: the bridge script writtten hands an agent prints

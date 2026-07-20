@@ -19,7 +19,7 @@ import {
   type GeminiTier,
 } from "../model/ping";
 import { buildEnvelope } from "../model/debugLog";
-import { FEATURE_AGENT_BRIDGE } from "../services/featureFlags";
+import { agentBridgeEnabled } from "../services/featureFlags";
 import { ConnectAgent } from "./ConnectAgent";
 import { useAgentBridge } from "./useAgentBridge";
 import { agentStatusView } from "./agentStatusView";
@@ -481,7 +481,7 @@ export function ControlCenter({
   const agentBridge = useAgentBridge();
   const [agentSource, setAgentSource] = useState<AgentSourceStatus>(getAgentSourceStatus);
   useEffect(() => subscribeAgentSource(setAgentSource), []);
-  const agentStatus = FEATURE_AGENT_BRIDGE ? agentStatusView(agentSource) : null;
+  const agentStatus = agentBridgeEnabled() ? agentStatusView(agentSource) : null;
 
   // Read the bridge through a ref inside the subscription below: re-subscribing
   // on every status change would tear down and rebuild the listener continuously.
@@ -503,7 +503,7 @@ export function ControlCenter({
     () =>
       subscribeOpenSettings((intent) => {
         setShowSettings(true);
-        if (intent !== "connect-agent" || !FEATURE_AGENT_BRIDGE) return;
+        if (intent !== "connect-agent" || !agentBridgeEnabled()) return;
         if (agentBridgeRef.current.status.state === "idle") agentBridgeRef.current.connect();
         // The modal mounts this frame; scroll once it exists. Optional-call the
         // method as well as the ref: this runs inside rAF, where a throw is
@@ -1066,7 +1066,7 @@ export function ControlCenter({
               only on this device — never on a server of ours.
             </div>
 
-            {FEATURE_AGENT_BRIDGE && (
+            {agentBridgeEnabled() && (
               <div ref={connectRef}>
                 <ConnectAgent {...agentBridge} />
               </div>
@@ -1094,7 +1094,7 @@ export function ControlCenter({
                 Why writtten
               </a>
               {" · "}
-              {FEATURE_AGENT_BRIDGE && (
+              {agentBridgeEnabled() && (
                 <>
                   {/* Trailing slash is load-bearing: Cloudflare serves the real
                       file at the directory path, and the SW denylist covers the

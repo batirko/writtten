@@ -44,9 +44,22 @@ This is a correctness rule, not a preference. Grouping keeps only `primary` prom
 
 Two observations from the *same* session on one span still group normally.
 
+## Reaching it at all: the preview gate
+
+Shipped ON but **runtime-gated** (`agentBridgeEnabled()`, `src/services/featureFlags.ts`). A session sees BYOA only after opting in with **`?agent=1`**, which is remembered in `localStorage["writtten_agent_preview"]` so it survives reloads and in-app navigation — without persistence the query string would have to be re-appended for every step of the flow, and the first-run modal would lose it the moment anything navigated.
+
+```
+https://writtten.com/?agent=1     → opts this browser in, permanently
+https://writtten.com/             → still on, from the stored key
+```
+
+The gate is temporary and exists for one reason: Chrome's Local Network Access prompt only fires from a **public** origin, so it is untestable anywhere but production. PR4 ships to writtten.com to answer that, and is a *verification release*, not a launch. `public/agent/index.html` carries `noindex` for the same window.
+
+**Removing the gate is the launch action** — replace the body of `agentBridgeEnabled()` with `true` and restore `index,follow` on the page. Do it after the Phase-8 follow-ups (prompt slimming, engine exclusivity, observability), not before.
+
 ## How a user reaches the connect section
 
-Three entry points, all landing in the same section of the Settings modal. All three are gated on `FEATURE_AGENT_BRIDGE` (ON since 2026-07-20).
+Three entry points, all landing in the same section of the Settings modal. All three are gated on `agentBridgeEnabled()` — see the preview gate above.
 
 | Entry point | Carries |
 | --- | --- |

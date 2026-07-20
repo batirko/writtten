@@ -40,7 +40,7 @@ interface WelcomeModalProps {
   /** Deep-link into the BYOK Settings modal (the accent, activation-first CTA). */
   onAddKey: () => void;
   /** Deep-link into the connect section and start pairing. Omitted (and the
-   *  button hidden) while FEATURE_AGENT_BRIDGE is off. */
+   *  button hidden) unless the session has opted into the agent preview. */
   onConnectAgent?: () => void;
   /** Load the recorded "See it in action" example (keyless mock replay). */
   onLoadExample: () => void;

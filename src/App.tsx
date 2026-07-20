@@ -4,7 +4,7 @@ import { SidecarFeed } from "./sidecar/SidecarFeed";
 import { WelcomeModal } from "./sidecar/WelcomeModal";
 import { DemoCoachmarks } from "./sidecar/DemoCoachmarks";
 import { openSettings } from "./sidecar/settingsGate";
-import { FEATURE_AGENT_BRIDGE } from "./services/featureFlags";
+import { agentBridgeEnabled } from "./services/featureFlags";
 import { SpanPeek } from "./sidecar/SpanPeek";
 import { ControlCenter } from "./sidecar/ControlCenter";
 import { DocumentContext } from "./sidecar/DocumentContext";
@@ -772,7 +772,7 @@ export default function App() {
           onClose={handleDismissWelcome}
           onAddKey={handleAddKey}
           // Undefined while the flag is off, which is also what hides the button.
-          onConnectAgent={FEATURE_AGENT_BRIDGE ? handleConnectAgent : undefined}
+          onConnectAgent={agentBridgeEnabled() ? handleConnectAgent : undefined}
           onLoadExample={handleLoadExample}
           // A blank editor still holds one empty paragraph block, so "brand-new,
           // nothing to clobber" is <= 1 block (not === 0). Gates the example off

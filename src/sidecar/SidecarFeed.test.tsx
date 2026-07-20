@@ -22,7 +22,6 @@ import { ControlCenter } from "./ControlCenter";
 import { openSettings } from "./settingsGate";
 import type { Observation } from "../store/db";
 import { setAgentSourceStatus, __resetAgentSourceStatus } from "../model/agentSourceSignal";
-import { FEATURE_AGENT_BRIDGE } from "../services/featureFlags";
 
 const minProps = {
   observations: [] as never[],
@@ -452,31 +451,53 @@ describe("SidecarFeed — keyless banner + empty-state split", () => {
     expect(opened).toBe(1);
   });
 
-  // The banner is the only re-entry point once the welcome modal is dismissed,
-  // so it carries both on-ramps too (spec decision 3). Asserted against the live
-  // flag so the test stays honest whichever way the flag is set.
-  it("offers the agent path alongside the key path exactly when the flag allows it", () => {
+  // The banner is the only re-entry point once the welcome modal is dismissed, so
+  // it carries both on-ramps too (spec decision 3). The gate is runtime (`?agent=1`
+  // remembered in localStorage), so drive it by controlling the store rather than
+  // reading the ambient flag — otherwise the enabled branch would silently never
+  // run, since this tree's Node exposes an inert localStorage.
+  function setAgentPreview(on: boolean) {
+    const map = new Map<string, string>(on ? [["writtten_agent_preview", "1"]] : []);
+    vi.stubGlobal("localStorage", {
+      getItem: (k: string) => map.get(k) ?? null,
+      setItem: (k: string, v: string) => void map.set(k, v),
+      removeItem: (k: string) => void map.delete(k),
+      clear: () => map.clear(),
+      key: (i: number) => [...map.keys()][i] ?? null,
+      get length() {
+        return map.size;
+      },
+    });
+  }
+
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("hides the agent path when the session has not opted in", () => {
+    setAgentPreview(false);
+    const div = renderWith({ hasKey: false });
+    expect(div.querySelector('[data-testid="keyless-banner-settings"]')?.textContent).toMatch(
+      /add your key/i
+    );
+    expect(div.querySelector('[data-testid="keyless-banner-connect"]')).toBeNull();
+    expect(div.querySelector(".keyless-banner-or")).toBeNull();
+  });
+
+  it("offers the agent path alongside the key path once opted in", () => {
+    setAgentPreview(true);
     const div = renderWith({ hasKey: false });
     const connect = div.querySelector('[data-testid="keyless-banner-connect"]');
     const key = div.querySelector('[data-testid="keyless-banner-settings"]');
 
-    // The key path is unconditional.
     expect(key?.textContent).toMatch(/add your key/i);
-
-    if (FEATURE_AGENT_BRIDGE) {
-      expect(connect).not.toBeNull();
-      expect(div.querySelector(".keyless-banner-or")?.textContent).toBe("or");
-      // Neither route may look like the lesser one: both take the arrow.
-      expect(key?.textContent).toContain("→");
-      expect(connect?.textContent).toContain("→");
-    } else {
-      expect(connect).toBeNull();
-      expect(div.querySelector(".keyless-banner-or")).toBeNull();
-    }
+    expect(connect).not.toBeNull();
+    expect(div.querySelector(".keyless-banner-or")?.textContent).toBe("or");
+    // Neither route may look like the lesser one: both take the arrow.
+    expect(key?.textContent).toContain("→");
+    expect(connect?.textContent).toContain("→");
   });
 
   it("the agent link deep-links with the connect-agent intent, not a bare open", () => {
-    if (!FEATURE_AGENT_BRIDGE) return;
+    setAgentPreview(true);
     const div = renderWith({ hasKey: false });
     const intents: (string | undefined)[] = [];
     const handler = (e: Event) => intents.push((e as CustomEvent<string | undefined>).detail);

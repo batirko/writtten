@@ -4,7 +4,7 @@ import { partitionFeed, DEFAULT_FEED_BUDGET } from "./feedBudget";
 import { formatAnchorExcerpt } from "./anchorExcerpt";
 import type { GroupedObservation } from "./feedBudget";
 import { openSettings } from "./settingsGate";
-import { FEATURE_AGENT_BRIDGE } from "../services/featureFlags";
+import { agentBridgeEnabled } from "../services/featureFlags";
 import { SourceChip } from "./SourceChip";
 import { closureReasonLabel } from "./closureLabel";
 
@@ -96,7 +96,7 @@ function KeyIcon() {
 }
 
 function KeylessBanner({ demoActive }: { demoActive: boolean }) {
-  const agent = FEATURE_AGENT_BRIDGE;
+  const agent = agentBridgeEnabled();
   return (
     <div className="keyless-banner" data-testid="keyless-banner" role="note">
       <span className="keyless-banner-icon">
