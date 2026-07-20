@@ -18,7 +18,7 @@ import {
 } from "../services/agentBridgeClient";
 import { buildAgentPrompt } from "../services/agentPrompt";
 import { buildAgentSnapshot } from "../services/agentSnapshot";
-import { FEATURE_AGENT_BRIDGE } from "../services/featureFlags";
+import { agentBridgeEnabled } from "../services/featureFlags";
 import {
   submitExternalObservation,
   sanitizeSourceName,
@@ -142,7 +142,7 @@ export function useAgentBridge(): AgentBridgeView {
   // Resume an existing pairing across a reload, so re-running the bridge reconnects with
   // no UI work (decision 7).
   useEffect(() => {
-    if (!FEATURE_AGENT_BRIDGE) return;
+    if (!agentBridgeEnabled()) return;
     const existing = loadPairing();
     if (!existing) return;
     const unsubscribe = start(existing);
@@ -244,7 +244,7 @@ export function useAgentBridge(): AgentBridgeView {
   );
 
   return {
-    enabled: FEATURE_AGENT_BRIDGE,
+    enabled: agentBridgeEnabled(),
     status,
     prompt,
     promptError,

@@ -168,9 +168,24 @@ export function assertLoopbackUrl(raw: string): URL {
 // Pairing persistence
 // ---------------------------------------------------------------------------
 
+/**
+ * A *capability* check, not an existence check — the distinction is load-bearing.
+ * `typeof localStorage === "undefined"` only asks whether the binding is defined,
+ * and environments hand out a defined-but-inert Storage: Node ≥ 22 puts a bare
+ * `{}` on `globalThis.localStorage` when `--localstorage-file` is absent, and a
+ * partial/blocked Storage is possible in restricted browser contexts. Such an
+ * object is `typeof "object"`, so the old check returned it as a `Storage` and
+ * the first `.getItem` call threw. The `try/catch` still guards the other shape
+ * of failure — a *throwing getter*, which is how Safari private mode refuses.
+ */
 function safeLocalStorage(): Storage | null {
   try {
-    return typeof localStorage === "undefined" ? null : localStorage;
+    const s = typeof localStorage === "undefined" ? null : localStorage;
+    return typeof s?.getItem === "function" &&
+      typeof s.setItem === "function" &&
+      typeof s.removeItem === "function"
+      ? s
+      : null;
   } catch {
     return null; // storage disabled (private mode, blocked third-party context)
   }
@@ -187,24 +202,34 @@ export function createPairing(origin: string): Pairing {
     createdAt: Date.now(),
   };
   // Exactly one pairing exists at a time — generating a new prompt invalidates the last.
-  safeLocalStorage()?.setItem(PAIRING_STORAGE_KEY, JSON.stringify(pairing));
+  // A write that fails (quota, blocked storage) costs the user only the resume-on-reload,
+  // never the pairing itself: the token is live in memory and the session works.
+  try {
+    safeLocalStorage()?.setItem(PAIRING_STORAGE_KEY, JSON.stringify(pairing));
+  } catch {
+    /* not persisted — the caller still gets a usable pairing */
+  }
   return pairing;
 }
 
 export function loadPairing(): Pairing | null {
-  const raw = safeLocalStorage()?.getItem(PAIRING_STORAGE_KEY);
-  if (!raw) return null;
   try {
+    const raw = safeLocalStorage()?.getItem(PAIRING_STORAGE_KEY);
+    if (!raw) return null;
     const p = JSON.parse(raw) as Pairing;
     if (!p?.token || !Array.isArray(p.ports) || !p.origin) return null;
     return p;
   } catch {
-    return null;
+    return null; // unreadable or unparseable — treat as "no pairing", never throw
   }
 }
 
 export function clearPairing(): void {
-  safeLocalStorage()?.removeItem(PAIRING_STORAGE_KEY);
+  try {
+    safeLocalStorage()?.removeItem(PAIRING_STORAGE_KEY);
+  } catch {
+    /* nothing to clear if the store won't answer */
+  }
 }
 
 // ---------------------------------------------------------------------------

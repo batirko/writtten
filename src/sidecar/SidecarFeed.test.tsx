@@ -451,6 +451,74 @@ describe("SidecarFeed — keyless banner + empty-state split", () => {
     expect(opened).toBe(1);
   });
 
+  // The banner is the only re-entry point once the welcome modal is dismissed, so
+  // it carries both on-ramps too (spec decision 3). The gate is runtime (`?agent=1`
+  // remembered in localStorage), so drive it by controlling the store rather than
+  // reading the ambient flag — otherwise the enabled branch would silently never
+  // run, since this tree's Node exposes an inert localStorage.
+  function setAgentPreview(on: boolean) {
+    const map = new Map<string, string>(on ? [["writtten_agent_preview", "1"]] : []);
+    vi.stubGlobal("localStorage", {
+      getItem: (k: string) => map.get(k) ?? null,
+      setItem: (k: string, v: string) => void map.set(k, v),
+      removeItem: (k: string) => void map.delete(k),
+      clear: () => map.clear(),
+      key: (i: number) => [...map.keys()][i] ?? null,
+      get length() {
+        return map.size;
+      },
+    });
+  }
+
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("hides the agent path when the session has not opted in", () => {
+    setAgentPreview(false);
+    const div = renderWith({ hasKey: false });
+    expect(div.querySelector('[data-testid="keyless-banner-settings"]')?.textContent).toMatch(
+      /add your key/i
+    );
+    expect(div.querySelector('[data-testid="keyless-banner-connect"]')).toBeNull();
+    expect(div.querySelector(".keyless-banner-or")).toBeNull();
+  });
+
+  it("offers the agent path alongside the key path once opted in", () => {
+    setAgentPreview(true);
+    const div = renderWith({ hasKey: false });
+    const connect = div.querySelector('[data-testid="keyless-banner-connect"]');
+    const key = div.querySelector('[data-testid="keyless-banner-settings"]');
+
+    expect(key?.textContent).toMatch(/add your key/i);
+    expect(connect).not.toBeNull();
+    expect(div.querySelector(".keyless-banner-or")?.textContent).toBe("or");
+    // Neither route may look like the lesser one: both take the arrow.
+    expect(key?.textContent).toContain("→");
+    expect(connect?.textContent).toContain("→");
+  });
+
+  it("the agent link deep-links with the connect-agent intent, not a bare open", () => {
+    setAgentPreview(true);
+    const div = renderWith({ hasKey: false });
+    const intents: (string | undefined)[] = [];
+    const handler = (e: Event) => intents.push((e as CustomEvent<string | undefined>).detail);
+    window.addEventListener("writtten:open-settings", handler);
+    act(() => {
+      div
+        .querySelector('[data-testid="keyless-banner-connect"]')
+        ?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      div
+        .querySelector('[data-testid="keyless-banner-settings"]')
+        ?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+    window.removeEventListener("writtten:open-settings", handler);
+    // Order matters: the agent link must carry the intent and the key link must not,
+    // or the key path would start a pairing nobody asked for. (A CustomEvent with
+    // no detail reports `null`, not `undefined` — assert "absent", not a literal.)
+    expect(intents).toHaveLength(2);
+    expect(intents[0]).toBe("connect-agent");
+    expect(intents[1] ?? undefined).toBeUndefined();
+  });
+
   it("tunes the banner copy for the demo vs. the general keyless state", () => {
     const demo = renderWith({ hasKey: false, demoActive: true });
     expect(demo.querySelector(".keyless-banner-lead")?.textContent).toMatch(/demo/i);

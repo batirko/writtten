@@ -4,6 +4,7 @@ import { SidecarFeed } from "./sidecar/SidecarFeed";
 import { WelcomeModal } from "./sidecar/WelcomeModal";
 import { DemoCoachmarks } from "./sidecar/DemoCoachmarks";
 import { openSettings } from "./sidecar/settingsGate";
+import { agentBridgeEnabled } from "./services/featureFlags";
 import { SpanPeek } from "./sidecar/SpanPeek";
 import { ControlCenter } from "./sidecar/ControlCenter";
 import { DocumentContext } from "./sidecar/DocumentContext";
@@ -493,6 +494,14 @@ export default function App() {
     openSettings();
   };
 
+  // "Connect your agent" — the second, equal on-ramp. Same shape as handleAddKey,
+  // but the intent lands the user in the connect section with a pairing already
+  // started (see sidecar/settingsGate.ts).
+  const handleConnectAgent = () => {
+    setHasSeenWelcome(true);
+    openSettings("connect-agent");
+  };
+
   // The welcome card retires itself once the user is clearly engaged — not only
   // on an explicit ×. First trigger: their first evaluation settles (this hook,
   // wired to the Editor). Second trigger: they click "See it in action"
@@ -762,6 +771,8 @@ export default function App() {
         <WelcomeModal
           onClose={handleDismissWelcome}
           onAddKey={handleAddKey}
+          // Undefined while the flag is off, which is also what hides the button.
+          onConnectAgent={agentBridgeEnabled() ? handleConnectAgent : undefined}
           onLoadExample={handleLoadExample}
           // A blank editor still holds one empty paragraph block, so "brand-new,
           // nothing to clobber" is <= 1 block (not === 0). Gates the example off

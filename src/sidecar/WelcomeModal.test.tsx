@@ -19,6 +19,12 @@ const baseProps = {
   onAddKey: noop,
   onLoadExample: noop,
   canLoadExample: true,
+} as {
+  onClose: () => void;
+  onAddKey: () => void;
+  onConnectAgent?: () => void;
+  onLoadExample: () => void;
+  canLoadExample: boolean;
 };
 
 describe("WelcomeModal", () => {
@@ -90,6 +96,50 @@ describe("WelcomeModal", () => {
     expect(
       (guarded.querySelector('[data-testid="see-example"]') as HTMLButtonElement).disabled
     ).toBe(true);
+  });
+
+  // -------------------------------------------------------------------------
+  // The second on-ramp (BYOA, spec decision 3)
+  // -------------------------------------------------------------------------
+
+  it("offers no agent path when onConnectAgent is absent (flag off)", () => {
+    const div = renderWith();
+    expect(div.querySelector('[data-testid="welcome-connect-agent"]')).toBeNull();
+    expect(div.querySelector(".welcome-modal-or")).toBeNull();
+    // The keynote must not promise model access the build can't deliver.
+    expect(div.querySelector(".welcome-modal-keynote")?.textContent).not.toMatch(/agent/i);
+  });
+
+  it("'Connect your agent' fires onConnectAgent and names itself in the keynote", () => {
+    let connected = 0;
+    const div = renderWith({ onConnectAgent: () => (connected += 1) });
+    const btn = div.querySelector('[data-testid="welcome-connect-agent"]');
+    act(() => {
+      btn?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+    expect(connected).toBe(1);
+    expect(div.querySelector(".welcome-modal-keynote")?.textContent).toMatch(/agent/i);
+  });
+
+  it("ranks the two on-ramps equally and separates the example from them", () => {
+    // The whole point of decision 3: a key and an agent are peers. If these two
+    // ever stop sharing a class pair, one has been visually demoted.
+    const div = renderWith({ onConnectAgent: noop });
+    const key = div.querySelector('[data-testid="welcome-add-key"]')!;
+    const agent = div.querySelector('[data-testid="welcome-connect-agent"]')!;
+    const example = div.querySelector('[data-testid="see-example"]')!;
+    const actions = div.querySelector(".welcome-modal-actions")!;
+
+    expect(actions.contains(key)).toBe(true);
+    expect(actions.contains(agent)).toBe(true);
+    expect(div.querySelector(".welcome-modal-or")?.textContent).toBe("or");
+
+    // The example is neither in the row nor styled as one of the pair.
+    expect(actions.contains(example)).toBe(false);
+    expect(example.className).toContain("welcome-modal-tertiary");
+    expect(example.className).not.toContain("welcome-modal-primary");
+    expect(example.className).not.toContain("welcome-modal-secondary");
+    expect(div.querySelector(".welcome-modal-divider")).not.toBeNull();
   });
 
   it("closes on ×, 'Maybe later', and Escape", () => {

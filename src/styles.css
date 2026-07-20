@@ -1193,13 +1193,17 @@ body,
   margin: 0;
 }
 
+/* No align-items here: the default `stretch` is what makes the two on-ramps
+   equal height side by side AND full width once the row stacks at 720px. The
+   "or" opts out of the stretch on its own. */
 .welcome-modal-actions {
   display: flex;
   gap: var(--space-xs);
 }
 
 .welcome-modal-primary,
-.welcome-modal-secondary {
+.welcome-modal-secondary,
+.welcome-modal-tertiary {
   flex: 1;
   padding: 9px var(--space-md);
   border-radius: var(--radius-md);
@@ -1212,27 +1216,55 @@ body,
     border-color var(--dur-fast) var(--ease-out);
 }
 
-/* Accent, activation-first: "Add your key" is the modal's actual job. */
-.welcome-modal-primary {
+/* Both activation paths carry the same accent fill. Keying one as an outline
+   ranked them, which is exactly what spec decision 3 ("two equal paths")
+   forbids — a keyless user should meet a key and an agent as peers. */
+.welcome-modal-primary,
+.welcome-modal-secondary {
   background: var(--color-accent);
   color: var(--color-surface);
   border: 0.5px solid var(--color-accent);
 }
-.welcome-modal-primary:hover {
+.welcome-modal-primary:hover,
+.welcome-modal-secondary:hover {
   background: var(--color-accent-strong);
   border-color: var(--color-accent-strong);
 }
 
-/* The witnessing path — a quieter outline button. */
-.welcome-modal-secondary {
+/* The literal conjunction: the buttons are alternatives, not a sequence, and a
+   gap alone left that ambiguous. flex:0 keeps it out of the equal split;
+   align-self re-centres it against the taller buttons and again when stacked. */
+.welcome-modal-or {
+  flex: 0 0 auto;
+  align-self: center;
+  font-size: var(--text-ui-sm);
+  color: var(--color-muted);
+}
+
+/* A short centred rule, not an edge-to-edge one: it marks a change of *kind*
+   (set writtten up / just watch it) without reading as a section break. The
+   32px margins do the separating; the rule only names it. Without this the
+   example sat as a third peer and flattened the priority. */
+.welcome-modal-divider {
+  width: 150px;
+  height: 0;
+  border: none;
+  border-top: 1px solid var(--color-border-strong);
+  margin: var(--space-xl) auto;
+}
+
+/* The witnessing path — a quieter outline button, full width under the rule. */
+.welcome-modal-tertiary {
+  display: block;
+  width: 100%;
   background: transparent;
   color: var(--color-ink-2);
   border: 0.5px solid var(--color-border-strong);
 }
-.welcome-modal-secondary:hover {
+.welcome-modal-tertiary:hover {
   background: color-mix(in oklch, var(--color-ink) 4%, transparent);
 }
-.welcome-modal-secondary:disabled {
+.welcome-modal-tertiary:disabled {
   color: var(--color-muted);
   border-color: var(--color-border);
   cursor: default;
@@ -1290,6 +1322,21 @@ body,
   line-height: 1.45;
   color: var(--color-ink-2);
   margin: 0;
+}
+
+/* Two routes, joined by the conjunction rather than a bullet, and allowed to
+   wrap onto a second row — the feed column is narrow and both labels are long. */
+.keyless-banner-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 6px;
+  margin-top: 5px;
+}
+
+.keyless-banner-or {
+  color: var(--color-muted);
+  font-size: var(--text-ui-sm);
 }
 
 /* The Settings deep-link — a plain accent text link, never a button-looking CTA
@@ -3072,8 +3119,10 @@ body,
     outline-offset: 1px;
   }
 
-  /* Welcome modal: stack the two actions so neither CTA wraps to two lines on a
-     narrow phone (Hallmark gate 59). Both stay full-width and tappable. */
+  /* Welcome modal: stack the two on-ramps so neither CTA wraps to two lines on a
+     narrow phone (Hallmark gate 59). Both stay full-width and tappable — which
+     the container's default `stretch` handles, so the "or" between them must not
+     be allowed to force `align-items: center` here either. */
   .welcome-modal-actions {
     flex-direction: column;
   }
@@ -3092,6 +3141,15 @@ body,
   .connect-prompt pre {
     /* Belt and braces over the base rule's overflow-wrap. */
     word-break: break-word;
+  }
+  /* Pairing is desktop-only, but the controls are not unreachable on a phone: a
+     pairing made on desktop shows up here, and Disconnect/Forget is the one thing
+     a phone user can still legitimately do to it. `.connect-btn-sm` renders 22px
+     tall, well under a comfortable touch target, so the small variant gets real
+     height on touch widths. Padding stays put — only the box grows. */
+  .connect-btn-sm {
+    min-height: 36px;
+    padding-block: 8px;
   }
 }
 

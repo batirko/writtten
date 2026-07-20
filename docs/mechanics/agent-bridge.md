@@ -44,6 +44,38 @@ This is a correctness rule, not a preference. Grouping keeps only `primary` prom
 
 Two observations from the *same* session on one span still group normally.
 
+## Reaching it at all: the preview gate
+
+Shipped ON but **runtime-gated** (`agentBridgeEnabled()`, `src/services/featureFlags.ts`). A session sees BYOA only after opting in with **`?agent=1`**, which is remembered in `localStorage["writtten_agent_preview"]` so it survives reloads and in-app navigation — without persistence the query string would have to be re-appended for every step of the flow, and the first-run modal would lose it the moment anything navigated.
+
+```
+https://writtten.com/?agent=1     → opts this browser in, permanently
+https://writtten.com/             → still on, from the stored key
+```
+
+The gate is temporary and exists for one reason: Chrome's Local Network Access prompt only fires from a **public** origin, so it is untestable anywhere but production. PR4 ships to writtten.com to answer that, and is a *verification release*, not a launch. `public/agent/index.html` carries `noindex` for the same window.
+
+**Removing the gate is the launch action** — replace the body of `agentBridgeEnabled()` with `true` and restore `index,follow` on the page. Do it after the Phase-8 follow-ups (prompt slimming, engine exclusivity, observability), not before.
+
+## How a user reaches the connect section
+
+Three entry points, all landing in the same section of the Settings modal. All three are gated on `agentBridgeEnabled()` — see the preview gate above.
+
+| Entry point | Carries |
+| --- | --- |
+| `WelcomeModal` (first run only) | `Connect your agent`, an **equal** peer of `Add your key` — same accent fill, joined by "or" |
+| `KeylessBanner` (standing, any keyless state) | the same pair as two accent text links, both arrowed |
+| Settings itself | the section, always present |
+
+The two on-ramps are styled identically **on purpose**. Spec decision 3 calls them two equal paths, and giving either one an outline ranks them — the version that shipped first did exactly that and was corrected at review. `See it in action` sits below a short centred rule instead of third in the row: it is a different kind of choice (watch, don't set up), and peer placement flattened that.
+
+**The deep-link starts the pairing.** `openSettings("connect-agent")` (`sidecar/settingsGate.ts` → `SettingsIntent`) opens Settings, scrolls the section into view, and calls `connect()` — but **only from `idle`**. Two reasons this is not merely a scroll:
+
+- The modal button and the section button carry the same label. Landing on a collapsed section showing the words you just pressed reads as a failed click.
+- Starting is cheap and reversible — `createPairing` only writes `localStorage`, and Cancel sits directly beneath.
+
+The `idle` guard is load-bearing: re-starting a live pairing mints a new token and invalidates the one the user's agent is already holding.
+
 ## The connection indicator
 
 A third row in the control-center process readout (`ControlCenter.tsx`, mapping in `agentStatusView.ts`), alongside model and status. Absent entirely when no pairing exists — most users never connect an agent, and a permanent empty row would be the one dead value in a readout of otherwise-live ones.
