@@ -8,6 +8,7 @@ import {
   type PromptVars,
 } from "./agentPrompt";
 import { AGENT_PROTOCOL_VERSION } from "./agentBridgeClient";
+import { documentMaturity } from "./documentMaturity";
 
 const skill = readFileSync(
   fileURLToPath(new URL("../../docs/skills/writtten-agent.md", import.meta.url)),
@@ -93,6 +94,48 @@ describe("skill content — the philosophy the boundary can't enforce", () => {
     ]) {
       expect(skill, `rejection code ${code} is undocumented`).toContain(code);
     }
+  });
+
+  // UX-029: a real session connected to an empty document, polled for ~6 minutes while
+  // the author typed, and then announced its own invented rule — "the document has
+  // settled (no changes in the last 60s), so I'll review now" — built on the bridge's
+  // WAIT_TIMEOUT_MS. Nothing in the skill had told it what to do with a document too
+  // thin to review, so it invented a policy. These assertions exist because the skill is
+  // slated for a wholesale rewrite (prompt slimming): the guidance has to survive it, and
+  // this is what makes dropping it a red test rather than a silent regression to guessing.
+  describe("the draft-maturity rule (UX-029)", () => {
+    it("names the snapshot field the rule reads", () => {
+      expect(skill).toContain("maturity");
+    });
+
+    it("documents every band the app can actually send", () => {
+      // Derived, never hardcoded: renaming a band in documentMaturity.ts must fail here
+      // rather than leave the skill quietly describing a value that no longer ships.
+      // Signals are pinned well inside each band — the thresholds are explicitly
+      // provisional (V1 corpus study is scheduled to tune them), and edge-pinned inputs
+      // would fail this test for the wrong reason.
+      const bands = [
+        documentMaturity({ wordCount: 0, blockCount: 0 }),
+        documentMaturity({ wordCount: 200, blockCount: 3 }),
+        documentMaturity({ wordCount: 800, blockCount: 10 }),
+      ];
+      expect(new Set(bands).size).toBe(3);
+      for (const band of bands) {
+        expect(skill, `maturity band ${band} is undocumented in the skill`).toContain(band);
+      }
+    });
+
+    it("tells the agent to hold off, say so once, and defer rather than refuse", () => {
+      // Concept-level regexes, not exact prose — the sentences will be reworded by the
+      // rewrite; what must survive is that all three moves are still instructed.
+      expect(skill).toMatch(/not enough here to review/i);
+      expect(skill).toMatch(/\bonce\b/i);
+      expect(skill).toMatch(/never refuse/i);
+    });
+
+    it("disarms the timeout misreading that caused the six-minute silence", () => {
+      expect(skill).toMatch(/timeout[^.]*plumbing|plumbing, not a signal/i);
+    });
   });
 
   it("lists all nine observation types", () => {

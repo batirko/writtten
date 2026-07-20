@@ -9,6 +9,8 @@
  */
 import { readLiveDoc, type SnapshotSection } from "../model/docSnapshotSource";
 import { loadActiveObservationsForDocument, type Observation } from "../store/db";
+import { documentMaturity, type MaturityLevel } from "./documentMaturity";
+import type { SectionMember } from "./types";
 
 export interface AgentSnapshotObservation {
   type: Observation["type"];
@@ -23,6 +25,9 @@ export interface AgentSnapshotBody {
   stage: string;
   sections: SnapshotSection[];
   activeObservations: AgentSnapshotObservation[];
+  /** How far along the draft is — the same three-band judgement our own engine
+   *  runs on (UX-029). See `snapshotMaturity`. */
+  maturity: MaturityLevel;
 }
 
 /**
@@ -51,6 +56,32 @@ export function toAgentObservation(o: Observation): AgentSnapshotObservation {
 }
 
 /**
+ * How far along the draft is, as the connected agent should understand it (UX-029).
+ *
+ * Delegates to the same `documentMaturity` our own engine runs on, so "ready to
+ * review" has one definition across both engines rather than a threshold table
+ * duplicated into the skill prose — which would drift the moment the constants are
+ * recalibrated (they are flagged provisional, and the V1 corpus study is scheduled
+ * to tune them).
+ *
+ * **Table members are excluded, deliberately.** `buildCombined` drops table text
+ * from the `sections[]` the agent receives (`editor/section.ts`), so counting it
+ * here would let the snapshot claim `mature` over a document whose visible prose is
+ * a couple of sentences — the band must describe the document the agent was
+ * *given*, not the one the editor holds.
+ *
+ * Two knowing divergences from `Editor.getMaturity`, both in the same direction
+ * (this reads slightly lower): tables as above, and top-level nodes carrying no
+ * `blockId` (a `horizontalRule` is the one real instance) never reach `members` at
+ * all. Both are immaterial to a three-band split.
+ */
+export function snapshotMaturity(members: SectionMember[]): MaturityLevel {
+  const prose = members.filter((m) => !m.isTable);
+  const wordCount = prose.reduce((sum, m) => sum + m.text.split(/\s+/).filter(Boolean).length, 0);
+  return documentMaturity({ wordCount, blockCount: prose.length });
+}
+
+/**
  * Build the snapshot body, or null when no editor is mounted yet (nothing to push).
  *
  * Active observations are included so the agent can avoid duplicating what the feed
@@ -68,5 +99,6 @@ export async function buildAgentSnapshot(docId: string): Promise<AgentSnapshotBo
     stage: live.stage,
     sections: live.sections,
     activeObservations: active.map(toAgentObservation),
+    maturity: snapshotMaturity(live.members),
   };
 }

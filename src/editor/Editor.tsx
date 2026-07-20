@@ -124,10 +124,10 @@ function getWordCount(editor: ReturnType<typeof useEditor>): number {
 }
 
 /** Document maturity (R2) from the live editor — one source of truth feeding
- *  both the doc-idle arm decision (arm when not "nascent") and the severity/
+ *  both the doc-idle arm decision (arm when not "unformed") and the severity/
  *  voice modulation threaded to evaluateDocument. See documentMaturity.ts. */
 function getMaturity(editor: ReturnType<typeof useEditor>): MaturityLevel {
-  if (!editor) return "nascent";
+  if (!editor) return "unformed";
   let blockCount = 0;
   editor.state.doc.forEach(() => {
     blockCount += 1;
@@ -649,7 +649,7 @@ export function Editor({
       if (docIdleTimer.current) {
         clearTimeout(docIdleTimer.current);
       }
-      if (maturity !== "nascent") {
+      if (maturity !== "unformed") {
         docIdleTimer.current = setTimeout(() => {
           docIdleTimer.current = null;
           const ctx: EvalContext = {
@@ -1278,7 +1278,7 @@ export function Editor({
       console.log(
         `[TIMER-DEBUG] docWriter setContent done. seededWordCount=${seededWordCount}, maturity=${seededMaturity}`
       );
-      if (seededMaturity !== "nascent") {
+      if (seededMaturity !== "unformed") {
         setTimeout(() => {
           console.log(
             `[TIMER-DEBUG] docWriter setTimeout 0ms callback running. timerExists=${!!docIdleTimer.current}`

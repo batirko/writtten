@@ -129,6 +129,7 @@ What code cannot enforce is _insight quality_ — a connected agent may emit dul
   "docVersion": 41, // monotonic, bumped per pushed settle
   "title": "…",
   "stage": "…", // the Document Context fields
+  "maturity": "forming", // unformed | forming | mature — how far along the draft is
   "sections": [{ "heading": "…", "text": "…" }],
   "activeObservations": [
     { "type": "…", "scope": "…", "text": "…", "anchorText": "…", "source": "writtten" }
@@ -165,6 +166,16 @@ Chosen over `GET /doc?since=<v>` deliberately: `/doc` stays a **complete** snaps
 **The hint is omitted whenever the section count changed** (split, merge, insert, delete). Under those, every later index shifts, so an index-wise diff would name a tail of sections whose words never moved — and a hint that over-reports is worse than no hint, because the agent pays for it in context. Omission reads correctly as "re-read everything". Same-length reorders are reported index-wise, flagging exactly the moved sections.
 
 **No protocol bump, no re-paste.** The bridge script stores the pushed body wholesale (`snapshot = body`) and `/doc` returns it, so the new fields reach the agent through an *unmodified* bridge. An existing pairing whose skill text predates the hint simply never reads the fields — graceful degradation, not skew.
+
+**Maturity band (added 2026-07-20, UX-029).** The snapshot carries `maturity`, computed by `snapshotMaturity` (`agentSnapshot.ts`) from the same `documentMaturity()` the built-in engine gates on. It answers the one question the skill never did: *what to do when you pull and find too little to review*. Without it a real session invented its own policy off `WAIT_TIMEOUT_MS` and sat silent for six minutes. Behavioural rules and the band table live in `docs/mechanics/agent-bridge.md` § _When the draft is too thin to review_.
+
+Three design points worth keeping:
+
+- **Data, not prose.** Restating the thresholds in the skill would duplicate constants that are explicitly provisional and slated for recalibration by the V1 corpus study — the skill would then describe numbers the app no longer uses. This is also the seam OBS-039's calibration transfer would reuse: calibration is the same class of judgement (no rejection-feedback channel, so it cannot move behind a URL), and it can ride the snapshot the same way.
+- **It is folded into the wake gate**, and has to be — `blockCount` is a re-partition signal, which `agentPushFingerprint` exists to flatten away, so a band can flip with the prose fingerprinting identically and an agent parked on `unformed` would never wake. See the mechanics doc for the full argument.
+- **It describes the document the agent was *given*.** `snapshotMaturity` excludes table members, because table text is excluded from `sections[]` — counting it would let the snapshot claim `mature` over two visible sentences.
+
+Additive and optional, no `protocolVersion` bump: the bridge relays the body wholesale, so an older pasted skill simply never reads it (the `changedSections` precedent).
 
 **Versioning.** `protocolVersion` (integer) lives in three places: the app, the skill template (baked into the personalized prompt), and the bridge script. App-side rule: equal → connect; anything else → refuse with "re-copy the prompt" (no compat shims at v1). Because the prompt is fully self-contained (decision 6), a stale paste is the *only* skew case, and re-copying is its one-step fix.
 
@@ -293,6 +304,20 @@ The bridge script's design constraints: single file, zero dependencies, binds `1
 | **PR4** | WelcomeModal second path + keyless card copy · writtten.com/agent page (built like /why, /privacy) · /privacy BYOA paragraph · `docs/features.md` + `docs/architecture.md` touch-ups · 375 px check on the connect UI (per the mobile rule; the flow itself is desktop-only and says so) · flag **ON**.                                                                                                                                                 | **Landing verification** on the deployed origin: pairing + review round-trip in Chrome (incl. the LNA prompt) and Firefox; Safari shows the honest unsupported note. Dogfood: a real Claude Code session reviews a real PRD on writtten.com. Landing un-holds the GTM spike. |
 
 Sequencing: PR1 → PR2 → PR3 → PR4, each independently green (`npm test && npm run lint && npm run build`), one feature per PR, owner sees each running before merge (repo rules unchanged).
+
+### Acceptance — the two starting conditions
+
+A BYOA session has two entry states, and until UX-029 only one of them was ever tested. Both must be exercised on any change to the skill, the snapshot shape, or the wake gate.
+
+**Connect to an existing draft** (the well-trodden path). Pair against a document already past the maturity floor; the agent pulls once, reviews, submits, reports, stops. This is what every dogfood session before 2026-07-20 did, which is why the other path's gap survived four PR slices.
+
+**Connect to an empty document, then write** (UX-029's path). Pair *before* typing anything, then draft live. Expected:
+
+1. The first `/doc` reports `maturity: "unformed"`, and the agent says once — in prose, to the user, never as a card — that there isn't enough to review yet and that it will review when there is. No submissions.
+2. It parks, and re-pulls `/doc` on each `/wait` return including `{"timeout": true}`. A `{"timeout": true}` alone must never trigger a review — that misreading is the whole origin of this entry.
+3. As the draft crosses out of `unformed`, `docVersion` bumps (the band is in the wake gate) and the agent runs its pass. Verify the bump specifically after a **paragraph split** and after **typing into a table**: both move the band with the prose fingerprint unchanged, and both would hang a parked agent if the gate ever loses the maturity clause.
+4. The author can override at any point — "go ahead now" produces a pass on a `unformed` document. The agent defers; it never refuses.
+5. During the park, the control-center status row reads `watching`. Expected, not a defect — see the mechanics doc's known-reading note.
 
 ### Why this is worth building (and the honest cost)
 

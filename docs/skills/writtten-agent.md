@@ -118,6 +118,7 @@ curl -s -H "Authorization: Bearer {{TOKEN}}" http://127.0.0.1:<port>/doc
   "docVersion": 41,          // bumps when the document's content changes
   "title": "…",
   "stage": "…",              // what the author says this document is, and for whom
+  "maturity": "forming",     // how far along the draft is: unformed | forming | mature
   "sections": [{ "heading": "…", "text": "…" }],
   "activeObservations": [    // already on screen — don't duplicate these
     { "type": "…", "scope": "…", "text": "…", "anchorText": "…", "source": "writtten" }
@@ -132,6 +133,28 @@ curl -s -H "Authorization: Bearer {{TOKEN}}" http://127.0.0.1:<port>/doc
 `{ "connected": false }` means writtten hasn't pushed a snapshot yet. Wait a moment and
 re-read. Read `stage` first — it tells you what the document is trying to be, which is
 what makes `missing_topic` and `audience_mismatch` possible at all.
+
+**Then read `maturity`.** It is writtten's own read of how far along the draft is — the
+same judgement its built-in critic gates on, handed to you so both critics hold one
+standard instead of two.
+
+- **`unformed`** — there is not enough here to review yet. Don't review it. Say so to the
+  user **once**, in a sentence: there isn't enough drafted yet, writtten deliberately
+  keeps its critics quiet while an author is still getting ideas down, you'll review as
+  soon as there's a draft — and they can tell you to go ahead now anyway, in which case
+  you do. Then park on `/wait` (below), re-pulling `/doc` **every time it returns,
+  `{"timeout": true}` included**, until `maturity` is no longer `unformed`. Then run your
+  pass. This defers the single pass you were asked for; it is not watch mode.
+- **`forming`** — review normally, with one adjustment: send `missing_topic` and
+  `underexposed_topic` with `"confidence": "low"`. On a half-written draft an absence is
+  as often a section not yet reached as a real omission, and the low confidence lets
+  writtten scale the card down instead of making you withhold it.
+- **`mature`** — the full pass, no adjustment.
+
+Never refuse a review on this basis — you defer, and the author can always override you.
+The band is a coarse structural proxy, and it can be wrong about an unusual document. If
+`maturity` is absent (an older writtten), judge for yourself: a document that is an
+opening line or two is not yet something to react to.
 
 ### 2. Submit each observation
 
@@ -196,6 +219,13 @@ curl -s -H "Authorization: Bearer {{TOKEN}}" "http://127.0.0.1:<port>/wait?since
 Resolves `{ "docVersion": N }` when the author's edits settle into a newer version, or
 `{ "timeout": true }` after ~60 s (just call it again). On a wake, re-pull `/doc`, review
 what changed, submit, and loop. Stop when the user says stop.
+
+`{ "timeout": true }` means only that 60 s passed with no new version — it is plumbing, not
+a signal about the document. It does **not** mean the author has stopped typing, and it is
+never a cue to start a review.
+
+The same endpoint is what a `unformed` deferral parks on (§ 1), but that is one pass held
+back until the draft is reviewable, not this — a standing loop you only enter on request.
 
 Note `/wait` only fires on **content** changes, and only *material* ones. Your own accepted
 cards change `activeObservations` without bumping `docVersion` — otherwise you'd wake

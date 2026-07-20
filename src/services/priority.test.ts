@@ -224,7 +224,7 @@ describe("computePriority — maturity escalation (R2)", () => {
     expect(explicit).toEqual(legacy);
   });
 
-  it("maturity never escalates defect or span types (nascent/forming/mature alike)", () => {
+  it("maturity never escalates defect or span types (unformed/forming/mature alike)", () => {
     for (const type of ["contradiction", "unsupported_claim", "clarity", "undefined_jargon"] as const) {
       const base = computePriority({ type });
       const mature = computePriority({ type, maturity: "mature" });

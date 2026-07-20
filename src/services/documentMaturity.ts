@@ -6,7 +6,7 @@
  * far along is this draft", used to decide two things:
  *
  *   1. Whether the doc-level "how it fits overall" pass earns its keep at all
- *      (arm when the level is not `nascent`). This replaces the old raw
+ *      (arm when the level is not `unformed`). This replaces the old raw
  *      150-word cliff, so a *structurally-complete short draft* (an essay with
  *      intro/body/conclusion but few words) gets doc-level fit while a
  *      genuinely half-formed one stays quiet (UX-013).
@@ -23,7 +23,7 @@
  * Design: docs/projects/maturity_aware_severity.md
  */
 
-export type MaturityLevel = "nascent" | "forming" | "mature";
+export type MaturityLevel = "unformed" | "forming" | "mature";
 
 /** Structural signals the proxy reads. Both are cheap to compute from the live
  *  editor (word count across blocks; number of top-level blocks). */
@@ -65,11 +65,11 @@ export function documentMaturity({ wordCount, blockCount }: MaturitySignals): Ma
   ) {
     return "forming";
   }
-  return "nascent";
+  return "unformed";
 }
 
 /** True when the document is developed enough to earn the doc-level pass — the
  *  arm gate that replaces the raw word-count cliff (UX-013). */
 export function isDocLevelArmed(signals: MaturitySignals): boolean {
-  return documentMaturity(signals) !== "nascent";
+  return documentMaturity(signals) !== "unformed";
 }
