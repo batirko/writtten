@@ -193,6 +193,18 @@ Discovery, the site pages, and the flag. Four things differ from this document's
 
 **On the page's length:** the first draft ran ~1,100 words across eight sections and was cut to ~770 across six at the owner's request, with the explicit condition that quality not suffer. The two structural cuts carried it: the standalone injection section became a caveat box inside _Where your document goes_ (it qualifies that claim rather than standing beside it), and the opening two paragraphs merged. Both caveat boxes were deliberately **not** shortened — they carry the admissions (unratcheted quality, the loopback limit) that keep the page honest rather than promotional.
 
+### First field evidence on the Gate 1 bet (2026-07-20)
+
+Gate 1 accepted a named risk: external observations bypass the precision floors and fixture ratchets, so an unratcheted critic might be sloppy in a way our own output cannot be. The first real dogfood session — a Claude Code agent reviewing the standard test PRD, 7 accepted observations across 5 taxonomy types — **came back positive**, and it is worth recording before the soak so the bet is judged on evidence rather than nerves.
+
+- **Register held with zero rejections on the accepted set.** Declarative, located, no prescription, no leading questions, no grammar or style nits — the anti-taxonomy was respected without the boundary having to enforce it.
+- **The reasoning was genuinely cross-referential**, not surface pattern-matching. The strongest card: _"The Goal states reducing friction for legitimate transactions broadly, while this excludes web/desktop declines entirely, leaving that channel with no remediation path."_ That is a `strategic_tension` derived from two separated parts of the document — the class of observation the built-in pipeline reaches for a strong-tier call to find.
+- **The retraction lifecycle worked semantically.** In watch mode the agent noticed the author had added success metrics and retracted its own `missing_topic`; likewise a `clarity` card once the unblock mechanism was described. That is lifecycle management by comprehension rather than by reconciler heuristics — a capability the built-in path does not have.
+
+Caveats kept attached so this does not harden into a claim it cannot support: n=1 session, one document, one agent product, and **no precision measurement** — nothing here counts the false positives, which is exactly what the ratchets exist to bound. It is evidence the *register and taxonomy* boundary holds against a capable agent, not evidence that external precision matches ours.
+
+Defects from the same session are recorded separately: debug-log blindness and snapshot materiality (`docs/plan.md` Phase 8), plus UX-020 (agent cannot observe the app attaching) and UX-021 (flat priority on external cards).
+
 ### Engine exclusivity (owner, 2026-07-20 — supersedes decisions 2 and 8)
 
 Decided after using the shipped build: **a connected agent is the fourth _connection option_, not a second source running in parallel.** writtten needs model access; a key is one way to get it and an agent is another, so they occupy the **same slot**. Scheduled as a Phase-8 milestone, to land during the post-landing soak and before the GTM spike.
