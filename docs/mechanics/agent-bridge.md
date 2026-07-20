@@ -149,3 +149,31 @@ Spec decisions 2/8 called for a Settings toggle pausing built-in checks while an
 The rationale did not survive contact: a keyless user has no built-in checks to pause, a paid user saves pennies, so the only beneficiary is someone on a free-tier BYOK key who *also* connects an agent — a group BYOA exists to shrink. The trust-relevant half of decision 2 is unaffected and still holds: connecting an agent never pauses the built-in evaluator, because nothing can pause it. Both sources always run.
 
 Consequences: no `agentOnlyMode` store, no orchestrator gate, and no "paused" state to represent in the process readout. If RPD pressure shows up in dogfooding it is a small add-back.
+
+## When a connected agent gets woken (the materiality floor)
+
+> Added 2026-07-20. Change `stableContentHash` / `agentPushFingerprint` and update this section in the same task.
+
+Two different questions, deliberately decoupled in `pushSnapshot` (`src/services/agentBridgeClient.ts`):
+
+| Question | Answer |
+| --- | --- |
+| Should we push? | **Every settle**, always — so `GET /doc` is a complete, current snapshot. |
+| Should `docVersion` bump? | Only on a **material** change — this is what resolves the agent's `/wait` and costs it a re-review. |
+
+`docVersion` does **not** bump in two cases:
+
+- **Only the observations changed.** Bumping would wake `/wait` → re-review → possibly re-submit → wake itself, forever. Every accepted external card changes `activeObservations`, so this is the common case, not a corner.
+- **The edit was not material.** The words are unchanged; only their partition moved.
+
+The second gate was a byte-exact hash over `[title, stage, sections]` until 2026-07-20. It answered *did the bytes change* when the question is *could the conclusions change*: splitting a heading into its own section changes `sections[]`, so the agent woke, re-read the document, and reported back "No new content — just the heading was split into its own section" — a measured **~4.1k tokens** out of the user's own agent budget, and watch mode repeats the cycle.
+
+The gate is now `agentPushFingerprint` (`src/services/docPassMateriality.ts`), which flattens heading and body text together and collapses whitespace, so **section boundaries contribute no distinguishing token**. Consequences:
+
+- A pure re-partition — heading split out, or demoted back to body text — is invisible. No wake.
+- New prose, a reword, a renamed heading, and a deletion all bump.
+- A **section reorder** bumps: reordering permutes the token stream, and flow is a real conclusion.
+
+It is not the doc pass's five-clause `isMaterialDelta`, though it lives beside it and shares its normalizer. That floor's clause 2 (*section count or ordered headings differ*) calls a heading split material — correct for a `structure_flow` conclusion, wrong here — and three of its five clauses read summaries, claims, and maturity, none of which exist at the bridge, whose snapshot is `{heading, text}` and id-free by the boundary invariant. The full reasoning is in `docs/projects/agent_connected_eval.md` § _Bridge protocol → Materiality floor_.
+
+**Known gap:** the snapshot still ships every section every time, so the agent re-reads the whole document while our own eval is per-section incremental. A `changedSections` hint is the preferred fix; deferred to its own PR.

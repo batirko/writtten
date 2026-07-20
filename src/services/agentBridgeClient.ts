@@ -12,6 +12,9 @@
  * keeps enforcement in exactly one place.
  */
 import { getActivityPending, subscribeActivity } from "../model/activitySignal";
+// Pure module (its own imports are type-only) — importing it keeps this transport
+// DB-free and trivially loadable in a bare node test worker.
+import { agentPushFingerprint } from "./docPassMateriality";
 
 /** Bumped only on a breaking protocol change. Equal → connect; anything else → refuse
  *  with "re-copy the prompt". Lives in three places by design: here, the skill template,
@@ -268,9 +271,21 @@ function defaultEventSource(url: string): EventSourceLike {
   return new Ctor(url);
 }
 
+/**
+ * The materiality fingerprint that gates `docVersion`.
+ *
+ * Was a byte-exact hash over `[title, stage, sections]`, which answered "did the
+ * bytes change" when the question is "could the agent's conclusions change" — a
+ * heading split changes `sections[]`, so it woke the agent for a full re-review
+ * that found nothing. `agentPushFingerprint` flattens the partition away, so a
+ * re-partition of unchanged words is invisible while any real word change still
+ * bumps.
+ *
+ * `activeObservations` stays excluded for the separate reason spelled out in
+ * pushSnapshot (self-waking).
+ */
 function stableContentHash(body: SnapshotBody): string {
-  // Content only — see pushSnapshot for why activeObservations is excluded.
-  return JSON.stringify([body.title, body.stage, body.sections]);
+  return agentPushFingerprint(body);
 }
 
 export function startAgentBridge(deps: BridgeDeps): AgentBridgeHandle {
@@ -501,10 +516,14 @@ export function startAgentBridge(deps: BridgeDeps): AgentBridgeHandle {
     const body = await readSnapshot();
     if (!body) return;
 
-    // Content only. When only the observations changed we still push — so GET /doc stays
-    // fresh with the current cards — but at the SAME docVersion. Bumping would wake the
-    // agent's /wait, which would re-review and possibly re-submit, waking itself forever.
-    // Every accepted external card changes activeObservations, so this is not a corner case.
+    // We always push, so GET /doc stays a complete, current snapshot; `docVersion` is the
+    // separate question of whether the agent should be WOKEN to re-review.
+    //
+    // Two distinct reasons it may not bump. (a) Only the observations changed: bumping
+    // would wake the agent's /wait, which would re-review and possibly re-submit, waking
+    // itself forever — and every accepted external card changes activeObservations, so
+    // this is not a corner case. (b) The edit was not material: the words are unchanged
+    // and only their partition moved (see agentPushFingerprint).
     const hash = stableContentHash(body);
     if (hash !== lastContentHash) {
       docVersion += 1;

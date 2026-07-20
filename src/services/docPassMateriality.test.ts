@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
+  agentPushFingerprint,
   buildCandidateSnapshot,
   isMaterialDelta,
   parseDocPassSnapshot,
@@ -163,5 +164,105 @@ describe("docPassMateriality - serialize/parse", () => {
     expect(parseDocPassSnapshot("not json {")).toBeNull();
     expect(parseDocPassSnapshot(JSON.stringify({ hash: "abc" }))).toBeNull(); // legacy string-hash value
     expect(parseDocPassSnapshot(JSON.stringify({ stage: "PRD" }))).toBeNull(); // missing fields
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Agent-push materiality (BYOA)
+// ---------------------------------------------------------------------------
+
+const fp = agentPushFingerprint;
+
+describe("agentPushFingerprint - re-partition is not material", () => {
+  it("is stable when a heading is split into its own section", () => {
+    // The 2026-07-20 field case. Same words; only the boundary moved.
+    const before = fp({
+      title: "PRD",
+      stage: "spec",
+      sections: [{ heading: "Goals", text: "Ship the thing. Rollout We start in Q3." }],
+    });
+    const after = fp({
+      title: "PRD",
+      stage: "spec",
+      sections: [
+        { heading: "Goals", text: "Ship the thing." },
+        { heading: "Rollout", text: "We start in Q3." },
+      ],
+    });
+    expect(after).toBe(before);
+  });
+
+  it("is stable across whitespace-only churn (blank lines, indentation, wrapping)", () => {
+    const a = fp({ title: "T", stage: "S", sections: [{ heading: "H", text: "one two three" }] });
+    const b = fp({
+      title: "T",
+      stage: "S",
+      sections: [{ heading: " H ", text: "one\n\n  two\t three  " }],
+    });
+    expect(b).toBe(a);
+  });
+
+  it("is stable when a heading is demoted to body text without moving words", () => {
+    const a = fp({
+      title: "T",
+      stage: "S",
+      sections: [
+        { heading: "Risks", text: "Latency may regress." },
+        { heading: "Rollout", text: "Q3." },
+      ],
+    });
+    const b = fp({
+      title: "T",
+      stage: "S",
+      sections: [{ heading: "Risks", text: "Latency may regress. Rollout Q3." }],
+    });
+    expect(b).toBe(a);
+  });
+});
+
+describe("agentPushFingerprint - real changes stay material", () => {
+  it("changes when prose is added", () => {
+    const a = fp({ title: "T", stage: "S", sections: [{ heading: "H", text: "one" }] });
+    const b = fp({ title: "T", stage: "S", sections: [{ heading: "H", text: "one two" }] });
+    expect(b).not.toBe(a);
+  });
+
+  it("changes when a sentence is reworded", () => {
+    const a = fp({ title: "T", stage: "S", sections: [{ heading: "H", text: "We ship in Q3." }] });
+    const b = fp({ title: "T", stage: "S", sections: [{ heading: "H", text: "We ship in Q4." }] });
+    expect(b).not.toBe(a);
+  });
+
+  it("changes when a heading is renamed", () => {
+    const a = fp({ title: "T", stage: "S", sections: [{ heading: "Goals", text: "x" }] });
+    const b = fp({ title: "T", stage: "S", sections: [{ heading: "Non-goals", text: "x" }] });
+    expect(b).not.toBe(a);
+  });
+
+  it("changes when sections are reordered — flow is a real conclusion", () => {
+    const one = { heading: "A", text: "alpha" };
+    const two = { heading: "B", text: "beta" };
+    expect(fp({ title: "T", stage: "S", sections: [two, one] })).not.toBe(
+      fp({ title: "T", stage: "S", sections: [one, two] })
+    );
+  });
+
+  it("changes when the stage or title changes", () => {
+    const base = { title: "T", stage: "S", sections: [{ heading: "H", text: "x" }] };
+    expect(fp({ ...base, stage: "different" })).not.toBe(fp(base));
+    expect(fp({ ...base, title: "different" })).not.toBe(fp(base));
+  });
+
+  it("changes when a section is deleted", () => {
+    const a = fp({
+      title: "T",
+      stage: "S",
+      sections: [
+        { heading: "A", text: "alpha" },
+        { heading: "B", text: "beta" },
+      ],
+    });
+    const b = fp({ title: "T", stage: "S", sections: [{ heading: "A", text: "alpha" }] });
+    expect(b).not.toBe(a);
   });
 });
