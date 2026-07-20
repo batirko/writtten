@@ -488,6 +488,60 @@ describe("snapshot push", () => {
     expect((pushes[1].body as { activeObservations: unknown[] }).activeObservations).toHaveLength(1);
   });
 
+  it("does NOT bump docVersion when a heading is split into its own section", async () => {
+    // The field case (2026-07-20): a connected agent was woken by a heading split and
+    // reported "No new content — just the heading was split into its own section," at
+    // ~4.1k tokens for the pass. The prose is byte-identical; only its partition moved.
+    // The old byte-exact hash over `sections` could not see the difference.
+    let sections = [{ heading: "Goals", text: "Ship the thing. Rollout We start in Q3." }];
+    harness = makeHarness({
+      snapshot: async () => ({
+        title: "T",
+        stage: "S",
+        sections,
+        activeObservations: [],
+      }),
+    });
+    const es = await until(() => harness!.sources[0]);
+    es.open();
+    await until(() => harness!.calls.find((c) => c.url.includes("/snapshot")));
+
+    // Same words, re-partitioned: "Rollout" promoted from body text to its own heading.
+    sections = [
+      { heading: "Goals", text: "Ship the thing." },
+      { heading: "Rollout", text: "We start in Q3." },
+    ];
+    harness.settle();
+    await until(() => harness!.calls.filter((c) => c.url.includes("/snapshot")).length === 2);
+
+    const pushes = harness.calls.filter((c) => c.url.includes("/snapshot"));
+    expect((pushes[0].body as { docVersion: number }).docVersion).toBe(1);
+    expect((pushes[1].body as { docVersion: number }).docVersion).toBe(1);
+    // The snapshot itself still ships the new partition — /doc stays complete.
+    expect((pushes[1].body as { sections: unknown[] }).sections).toHaveLength(2);
+  });
+
+  it("DOES bump docVersion when a re-partition also changes the words", async () => {
+    // The floor must not become a blanket structure-blind guard: splitting a heading AND
+    // writing new prose under it is exactly what the agent should wake for.
+    let sections = [{ heading: "Goals", text: "Ship the thing." }];
+    harness = makeHarness({
+      snapshot: async () => ({ title: "T", stage: "S", sections, activeObservations: [] }),
+    });
+    const es = await until(() => harness!.sources[0]);
+    es.open();
+    await until(() => harness!.calls.find((c) => c.url.includes("/snapshot")));
+
+    sections = [
+      { heading: "Goals", text: "Ship the thing." },
+      { heading: "Rollout", text: "We start in Q3." },
+    ];
+    harness.settle();
+    await until(() => harness!.calls.filter((c) => c.url.includes("/snapshot")).length === 2);
+    const pushes = harness.calls.filter((c) => c.url.includes("/snapshot"));
+    expect((pushes[1].body as { docVersion: number }).docVersion).toBe(2);
+  });
+
   it("does not push before the stream is open", async () => {
     harness = makeHarness();
     harness.settle();

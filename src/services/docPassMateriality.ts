@@ -157,6 +157,72 @@ export function parseDocPassSnapshot(raw: string | undefined | null): DocPassSna
   };
 }
 
+// ---------------------------------------------------------------------------
+// Agent-push materiality (BYOA) — a *sibling* floor, deliberately not the five
+// clauses above.
+// ---------------------------------------------------------------------------
+//
+// Why a second classifier rather than reusing `isMaterialDelta`:
+//
+// 1. It would not have caught the case that motivated it. A connected agent was
+//    woken by a heading split and reported back "No new content — just the
+//    heading was split into its own section," at ~4.1k tokens for the pass.
+//    Clause 2 is "section count or ordered headings differ" — exactly what a
+//    heading split does — so the doc-pass floor calls that edit MATERIAL. It is
+//    right to: `structure_flow` is a doc-level conclusion that genuinely turns
+//    on where the boundaries fall.
+//
+// 2. Three of the five clauses are not computable here. The floor above reads
+//    summaries, claims, and maturity; the bridge's snapshot is `{heading, text}`
+//    and id-free by the wire invariant (agent_connected_eval.md § The boundary).
+//    Wiring the module across verbatim would leave only `structure` and `stage`
+//    live — which reads as "material iff structure or stage changed" and makes a
+//    pure prose edit NON-material. That is not a floor, it is a hole: the floor's
+//    prose sensitivity lives entirely in the summary clause the bridge can't see.
+//
+// So the bridge floor is built on the one honest content signal it has — the
+// prose itself. The question it answers is "did the words change, or only the
+// boxes they sit in?"
+//
+// Deliberately NOT thresholded (no ≥K clause, hence no accumulation or flush
+// streak — nothing is held back, so nothing can dead-end). A threshold makes
+// sense when we are spending our own RPD budget on a doc-level conclusion; here
+// the agent IS the reviewer, and withholding prose it has never seen is a worse
+// failure than an occasional wasted pass. This floor only ever suppresses a pure
+// re-partition of unchanged words.
+
+/** Collapse *all* whitespace runs, then trim + lowercase.
+ *
+ *  Stronger than `normalizeText` (trim + lowercase only), and the collapsing is
+ *  the load-bearing part: sections are joined with a single space, so section
+ *  boundaries contribute no distinguishing token and a re-partition of the same
+ *  words fingerprints identically. */
+function normalizeProse(text: string): string {
+  return text.replace(/\s+/g, " ").trim().toLowerCase();
+}
+
+/**
+ * Fingerprint the prose an agent would review, ignoring how it is partitioned.
+ *
+ * Heading and body text are flattened together on purpose: promoting an existing
+ * line from body text to its own heading moves no words, so it must not wake the
+ * agent. What DOES change the fingerprint is anything that changes the words or
+ * their order — new prose, a reworded sentence, a renamed heading, or a section
+ * reorder (reordering permutes the token stream, and flow is a real conclusion).
+ */
+export function agentPushFingerprint(body: {
+  title: string;
+  stage: string;
+  sections: Array<{ heading: string; text: string }>;
+}): string {
+  const prose = body.sections.map((s) => `${s.heading} ${s.text}`).join(" ");
+  return JSON.stringify([
+    normalizeProse(body.title),
+    normalizeProse(body.stage),
+    normalizeProse(prose),
+  ]);
+}
+
 /** Build a candidate snapshot from raw inputs — the single place summary/claim
  *  normalization is applied, so the wiring and tests stay in lockstep. */
 export function buildCandidateSnapshot(input: {
