@@ -176,4 +176,23 @@ The gate is now `agentPushFingerprint` (`src/services/docPassMateriality.ts`), w
 
 It is not the doc pass's five-clause `isMaterialDelta`, though it lives beside it and shares its normalizer. That floor's clause 2 (*section count or ordered headings differ*) calls a heading split material — correct for a `structure_flow` conclusion, wrong here — and three of its five clauses read summaries, claims, and maturity, none of which exist at the bridge, whose snapshot is `{heading, text}` and id-free by the boundary invariant. The full reasoning is in `docs/projects/agent_connected_eval.md` § _Bridge protocol → Materiality floor_.
 
-**Known gap:** the snapshot still ships every section every time, so the agent re-reads the whole document while our own eval is per-section incremental. A `changedSections` hint is the preferred fix; deferred to its own PR.
+## What changed, not just that something did (the delta hint)
+
+> Added 2026-07-20 alongside the floor. Same rule: change the hint, update this section.
+
+Waking the agent is only half the cost — it then re-read the *whole* document, while our own eval is per-section incremental. The snapshot now carries an optional hint, both fields present or neither:
+
+| Field | Meaning |
+| --- | --- |
+| `changedSections` | Indices into **this snapshot's** `sections[]` whose words changed |
+| `changedSectionsSince` | The `docVersion` the hint is measured against |
+
+`changedSectionsSince` is the safety catch. The bridge holds only the latest snapshot, so the hint is always relative to the immediately-previous material version; an agent that missed intermediate versions would under-read if it trusted it. The skill instructs: act on the hint only when `changedSectionsSince` equals the version you last reviewed — otherwise re-read everything.
+
+**The hint is omitted whenever the section count changed** (split, merge, insert, delete): every later index shifts, so an index-wise diff would name sections whose words never moved, and an over-reporting hint costs the agent context. Absence reads correctly as "re-read everything". It is also absent on the first push (no baseline). Same-length reorders are reported index-wise.
+
+It is carried unchanged across non-material re-pushes, since those re-send the same `docVersion` and the hint describes that version.
+
+Per-section fingerprints come from `sectionProseFingerprints`, the same normalization `agentPushFingerprint` applies document-wide — so the wake gate and the hint can never disagree about whether a section's words changed.
+
+**No protocol bump was needed.** The bridge script stores the pushed body wholesale (`snapshot = body`) and `/doc` returns it, so the fields reach the agent through an unmodified bridge; an older pasted skill simply never reads them.

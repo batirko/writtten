@@ -223,6 +223,42 @@ export function agentPushFingerprint(body: {
   ]);
 }
 
+/**
+ * Per-section prose fingerprints, positionally aligned with `sections`.
+ *
+ * Same normalization as `agentPushFingerprint`, applied per section instead of
+ * across the whole document — so the two can never disagree about whether a
+ * given section's words changed.
+ */
+export function sectionProseFingerprints(
+  sections: Array<{ heading: string; text: string }>
+): string[] {
+  return sections.map((s) => normalizeProse(`${s.heading} ${s.text}`));
+}
+
+/**
+ * Which sections changed, as indices into the CURRENT `sections[]` — or `null`
+ * meaning "cannot be expressed; re-read everything".
+ *
+ * `null` is returned whenever the section count changed. Under a split, merge,
+ * insertion, or deletion every later index shifts, so an index-wise diff would
+ * report a tail of sections whose words never moved — a hint that over-reports
+ * is worse than no hint, because the agent pays for it in context. Omission is
+ * the safe default and keeps this a pure optimisation: a consumer that ignores
+ * the hint entirely is always correct.
+ *
+ * Same-length reorders are reported index-wise, which flags both the moved
+ * sections and nothing else — conservative and true.
+ */
+export function changedSectionIndices(prev: string[], next: string[]): number[] | null {
+  if (prev.length !== next.length) return null;
+  const changed: number[] = [];
+  for (let i = 0; i < next.length; i++) {
+    if (prev[i] !== next[i]) changed.push(i);
+  }
+  return changed;
+}
+
 /** Build a candidate snapshot from raw inputs — the single place summary/claim
  *  normalization is applied, so the wiring and tests stay in lockstep. */
 export function buildCandidateSnapshot(input: {

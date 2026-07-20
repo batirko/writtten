@@ -151,7 +151,20 @@ The gate is now `agentPushFingerprint` (`src/services/docPassMateriality.ts`): h
 >
 > The bridge floor is also deliberately **un-thresholded** (no ≥K clause, hence no accumulation or flush streak — nothing is held back, so nothing can dead-end). A threshold earns its keep when we are spending our own RPD on a doc-level conclusion; here the agent *is* the reviewer, and withholding prose it has never seen is a worse failure than an occasional wasted pass.
 
-**Still open — the snapshot carries no delta.** `agentSnapshot.ts` ships every section every time, and `docVersion` says only *that* something changed, never *what*, so the agent re-reads the whole document while our own eval is per-section incremental (invariant 3). On a long PRD this scales badly in cost and latency. Preferred fix is a `changedSections` **hint** alongside the full snapshot (additive; the app registers *named* SSE listeners, so unknown fields are ignored), keeping `/doc` complete and letting the agent decide what it still needs — rather than a `GET /doc?since=<v>` that makes writtten guess. Deferred to its own PR: it changes the wire protocol and agent-facing behaviour, so it needs the skill template and this spec updated plus its own field validation.
+**Delta hint (added 2026-07-20).** `docVersion` said only *that* something changed, never *what*, so the agent re-read the whole document each wake while our own eval is per-section incremental (invariant 3) — scaling badly in cost and latency on a long PRD. The snapshot now carries two optional fields, present together or not at all:
+
+```jsonc
+"changedSections": [1],     // indices into THIS snapshot's sections[]
+"changedSectionsSince": 40  // the docVersion the hint is measured against
+```
+
+Chosen over `GET /doc?since=<v>` deliberately: `/doc` stays a **complete** snapshot and the agent decides what it still needs, rather than writtten guessing what's already in its context. The hint is a pure optimisation — an agent that ignores it is always correct, just more expensive.
+
+`changedSectionsSince` is what makes it safe. The bridge holds only the latest snapshot, so a hint is always measured against the immediately-previous material version; an agent that missed intermediate versions must not act on it. The skill's rule: use the hint only when `changedSectionsSince` equals the version you last reviewed, otherwise re-read everything.
+
+**The hint is omitted whenever the section count changed** (split, merge, insert, delete). Under those, every later index shifts, so an index-wise diff would name a tail of sections whose words never moved — and a hint that over-reports is worse than no hint, because the agent pays for it in context. Omission reads correctly as "re-read everything". Same-length reorders are reported index-wise, flagging exactly the moved sections.
+
+**No protocol bump, no re-paste.** The bridge script stores the pushed body wholesale (`snapshot = body`) and `/doc` returns it, so the new fields reach the agent through an *unmodified* bridge. An existing pairing whose skill text predates the hint simply never reads the fields — graceful degradation, not skew.
 
 **Versioning.** `protocolVersion` (integer) lives in three places: the app, the skill template (baked into the personalized prompt), and the bridge script. App-side rule: equal → connect; anything else → refuse with "re-copy the prompt" (no compat shims at v1). Because the prompt is fully self-contained (decision 6), a stale paste is the *only* skew case, and re-copying is its one-step fix.
 

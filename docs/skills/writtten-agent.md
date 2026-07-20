@@ -121,7 +121,11 @@ curl -s -H "Authorization: Bearer {{TOKEN}}" http://127.0.0.1:<port>/doc
   "sections": [{ "heading": "…", "text": "…" }],
   "activeObservations": [    // already on screen — don't duplicate these
     { "type": "…", "scope": "…", "text": "…", "anchorText": "…", "source": "writtten" }
-  ]
+  ],
+
+  // Optional hint — both fields are present together, or neither is.
+  "changedSections": [1],    // indices into sections[] whose words changed
+  "changedSectionsSince": 40 // the docVersion the hint is measured against
 }
 ```
 
@@ -193,9 +197,29 @@ Resolves `{ "docVersion": N }` when the author's edits settle into a newer versi
 `{ "timeout": true }` after ~60 s (just call it again). On a wake, re-pull `/doc`, review
 what changed, submit, and loop. Stop when the user says stop.
 
-Note `/wait` only fires on **content** changes. Your own accepted cards change
-`activeObservations` without bumping `docVersion` — otherwise you'd wake yourself up
-forever.
+Note `/wait` only fires on **content** changes, and only *material* ones. Your own accepted
+cards change `activeObservations` without bumping `docVersion` — otherwise you'd wake
+yourself up forever. Re-arranging existing words doesn't bump it either: splitting a
+heading into its own section moves no prose, so you won't be woken to re-review it.
+
+**Use `changedSections` to keep re-reviews cheap.** `/doc` always returns the whole
+document, but on a wake you rarely need to re-read all of it. When `changedSections` is
+present and `changedSectionsSince` equals the `docVersion` you last reviewed, those indices
+are the complete set of sections whose words changed — read those, and carry your existing
+understanding of the rest.
+
+Re-read the whole document when any of these holds:
+
+- `changedSections` is **absent** — the delta couldn't be stated (a section was added,
+  removed, split, or merged, so the indices would have shifted).
+- `changedSectionsSince` is **older than** the version you last reviewed — you missed
+  intermediate versions and the hint doesn't cover them.
+- You're reviewing for the first time this session.
+
+The hint is an optimisation, never a contract: ignoring it entirely is always correct, just
+more expensive. Cross-section judgements — contradictions, a claim in §2 undercut by §7 —
+still need the surrounding context, so don't let a narrow hint talk you out of a
+document-level observation you'd otherwise make.
 
 ## Troubleshooting
 

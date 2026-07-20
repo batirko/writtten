@@ -14,7 +14,11 @@
 import { getActivityPending, subscribeActivity } from "../model/activitySignal";
 // Pure module (its own imports are type-only) — importing it keeps this transport
 // DB-free and trivially loadable in a bare node test worker.
-import { agentPushFingerprint } from "./docPassMateriality";
+import {
+  agentPushFingerprint,
+  changedSectionIndices,
+  sectionProseFingerprints,
+} from "./docPassMateriality";
 
 /** Bumped only on a breaking protocol change. Equal → connect; anything else → refuse
  *  with "re-copy the prompt". Lives in three places by design: here, the skill template,
@@ -309,6 +313,11 @@ export function startAgentBridge(deps: BridgeDeps): AgentBridgeHandle {
   let docVersion = 0;
   let lastPushedVersion: number | null = null;
   let lastContentHash: string | null = null;
+  // Per-section fingerprints as of the last MATERIAL push, plus the delta hint derived
+  // from them. The hint describes `docVersion`, so it is carried unchanged across
+  // non-material re-pushes (which re-send the same version) and only recomputed on a bump.
+  let lastSectionFps: string[] | null = null;
+  let lastHint: { changedSections: number[]; changedSectionsSince: number } | null = null;
 
   let stopped = false;
   let probeTimer: ReturnType<typeof setTimeout> | null = null;
@@ -525,9 +534,19 @@ export function startAgentBridge(deps: BridgeDeps): AgentBridgeHandle {
     // this is not a corner case. (b) The edit was not material: the words are unchanged
     // and only their partition moved (see agentPushFingerprint).
     const hash = stableContentHash(body);
+    const sectionFps = sectionProseFingerprints(body.sections);
     if (hash !== lastContentHash) {
+      const previousVersion = docVersion;
       docVersion += 1;
       lastContentHash = hash;
+
+      // Derive the delta hint against the previous material version. `null` from
+      // changedSectionIndices (section count changed) and the first-ever push (no
+      // baseline) both mean "cannot express it" — drop the hint, and the agent
+      // correctly falls back to re-reading the whole document.
+      const changed = lastSectionFps ? changedSectionIndices(lastSectionFps, sectionFps) : null;
+      lastHint = changed ? { changedSections: changed, changedSectionsSince: previousVersion } : null;
+      lastSectionFps = sectionFps;
     }
 
     try {
@@ -535,6 +554,9 @@ export function startAgentBridge(deps: BridgeDeps): AgentBridgeHandle {
         protocolVersion: AGENT_PROTOCOL_VERSION,
         docVersion,
         ...body,
+        // Additive and optional: the field is absent whenever the delta cannot be
+        // stated, and `/doc` still carries every section either way.
+        ...(lastHint ?? {}),
       });
       lastPushedVersion = docVersion;
       emit();

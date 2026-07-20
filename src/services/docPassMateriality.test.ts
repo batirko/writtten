@@ -1,6 +1,8 @@
 import { describe, it, expect } from "vitest";
 import {
   agentPushFingerprint,
+  changedSectionIndices,
+  sectionProseFingerprints,
   buildCandidateSnapshot,
   isMaterialDelta,
   parseDocPassSnapshot,
@@ -264,5 +266,54 @@ describe("agentPushFingerprint - real changes stay material", () => {
     });
     const b = fp({ title: "T", stage: "S", sections: [{ heading: "A", text: "alpha" }] });
     expect(b).not.toBe(a);
+  });
+});
+
+describe("changedSectionIndices - the delta hint", () => {
+  const fps = (...s: Array<[string, string]>) =>
+    sectionProseFingerprints(s.map(([heading, text]) => ({ heading, text })));
+
+  it("reports only the sections whose words changed", () => {
+    const before = fps(["A", "alpha"], ["B", "beta"], ["C", "gamma"]);
+    const after = fps(["A", "alpha"], ["B", "beta rewritten"], ["C", "gamma"]);
+    expect(changedSectionIndices(before, after)).toEqual([1]);
+  });
+
+  it("reports an empty list when nothing changed", () => {
+    const before = fps(["A", "alpha"], ["B", "beta"]);
+    expect(changedSectionIndices(before, [...before])).toEqual([]);
+  });
+
+  it("ignores whitespace-only churn, matching the wake fingerprint", () => {
+    const before = fps(["A", "alpha beta"]);
+    const after = fps(["A", "alpha\n\n  beta "]);
+    expect(changedSectionIndices(before, after)).toEqual([]);
+  });
+
+  it("returns null when the section count changed — a shifted index diff over-reports", () => {
+    const before = fps(["A", "alpha"], ["B", "beta"]);
+    const after = fps(["A", "alpha"], ["New", "inserted"], ["B", "beta"]);
+    // Index-wise this would claim sections 1 and 2 changed, though B's words never moved.
+    expect(changedSectionIndices(before, after)).toBeNull();
+  });
+
+  it("returns null on a deletion too", () => {
+    const before = fps(["A", "alpha"], ["B", "beta"]);
+    const after = fps(["A", "alpha"]);
+    expect(changedSectionIndices(before, after)).toBeNull();
+  });
+
+  it("flags both positions of a same-length reorder", () => {
+    const before = fps(["A", "alpha"], ["B", "beta"]);
+    const after = fps(["B", "beta"], ["A", "alpha"]);
+    expect(changedSectionIndices(before, after)).toEqual([0, 1]);
+  });
+
+  it("indexes into the CURRENT sections array", () => {
+    const before = fps(["A", "alpha"], ["B", "beta"], ["C", "gamma"]);
+    const after = fps(["A", "alpha"], ["B", "beta"], ["C", "gamma rewritten"]);
+    const changed = changedSectionIndices(before, after)!;
+    expect(changed).toEqual([2]);
+    expect(after[changed[0]]).toContain("rewritten");
   });
 });
