@@ -1,5 +1,5 @@
 /** @vitest-environment node */
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vitest";
 import {
   startAgentBridge,
   bridgeUrl,
@@ -17,6 +17,7 @@ import {
   type VerdictBody,
 } from "./agentBridgeClient";
 import { setActivityPending } from "../model/activitySignal";
+import { notifyDocSettled } from "../model/docSettleSignal";
 import type { AgentEventInfo } from "../model/logger";
 import { agentPassPhase, AGENT_PASS_IDLE_MS } from "../sidecar/agentActivityView";
 
@@ -703,32 +704,21 @@ describe("snapshot push", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Settle detection against the real activitySignal
+// Settle detection against the real docSettleSignal
 // ---------------------------------------------------------------------------
 
 describe("subscribeSettled", () => {
-  beforeEach(() => setActivityPending(0));
-  afterEach(() => setActivityPending(0));
-
-  it("fires only on the falling edge to zero", () => {
+  it("fires on each settle event, and never on subscribe", () => {
     const fn = vi.fn();
     const off = subscribeSettled(fn);
-    // The replayed current value must not count as a settle.
+    // Nothing is replayed: a settle that happened before you subscribed is
+    // history, and re-firing it would push a snapshot the agent already has.
     expect(fn).not.toHaveBeenCalled();
 
-    setActivityPending(2);
-    setActivityPending(1);
-    expect(fn).not.toHaveBeenCalled();
-
-    setActivityPending(0);
+    notifyDocSettled();
     expect(fn).toHaveBeenCalledTimes(1);
 
-    // Already idle — no repeat.
-    setActivityPending(0);
-    expect(fn).toHaveBeenCalledTimes(1);
-
-    setActivityPending(3);
-    setActivityPending(0);
+    notifyDocSettled();
     expect(fn).toHaveBeenCalledTimes(2);
     off();
   });
@@ -737,9 +727,28 @@ describe("subscribeSettled", () => {
     const fn = vi.fn();
     const off = subscribeSettled(fn);
     off();
-    setActivityPending(1);
+    notifyDocSettled();
+    expect(fn).not.toHaveBeenCalled();
+  });
+
+  /**
+   * The UX-033 regression, stated as the property that failed in the field: a
+   * connected agent's wake must not depend on writtten's own eval queue, because
+   * under engine exclusivity that queue never moves. Before the fix this passed
+   * only because `setActivityPending` was doing double duty.
+   */
+  it("does not depend on the activity count — the agent-engine case", () => {
+    const fn = vi.fn();
+    const off = subscribeSettled(fn);
+
+    // The whole life of an agent-mode session: `pending` pinned at 0 throughout,
+    // because the built-in evaluator never arms.
     setActivityPending(0);
     expect(fn).not.toHaveBeenCalled();
+
+    notifyDocSettled();
+    expect(fn).toHaveBeenCalledTimes(1);
+    off();
   });
 });
 
