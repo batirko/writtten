@@ -8,6 +8,17 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 > conventional-commit PR titles; a new version section is prepended when a release PR merges.
 > See `docs/mechanics/release_and_deploy.md`.
 
+## [0.8.0](https://github.com/batirko/writtten/compare/writtten-v0.7.0...writtten-v0.8.0) (2026-07-20)
+
+
+### Added
+
+* **byoa:** agent bridge, pairing flow, and canonical skill (PR2) ([#216](https://github.com/batirko/writtten/issues/216)) ([a0fd3fa](https://github.com/batirko/writtten/commit/a0fd3fa77e33d5b7a551ff2df918a29783da2484))
+* **byoa:** attribution, lifecycle, revoke + bulk archive (PR3) ([#218](https://github.com/batirko/writtten/issues/218)) ([68df073](https://github.com/batirko/writtten/commit/68df0736f772dad7f92cf652e2ce91e436d8bc12))
+* **byoa:** external-observation boundary + adversarial corpus (PR1) ([#213](https://github.com/batirko/writtten/issues/213)) ([59587be](https://github.com/batirko/writtten/commit/59587beb8d00a563d483a5fe2da0cbc5c8fe43dd))
+* **byoa:** first-run + site + verification release (PR4) ([#219](https://github.com/batirko/writtten/issues/219)) ([69d9e6e](https://github.com/batirko/writtten/commit/69d9e6eceaa48509965a9eb35701794db0516b11))
+* **guardrails:** replace the register-lint denylist with structural rules + an adversarial corpus (G3b) ([#217](https://github.com/batirko/writtten/issues/217)) ([c84423e](https://github.com/batirko/writtten/commit/c84423e4060cc2522c779ead486d889868be2eb8))
+
 ## [0.7.0](https://github.com/batirko/writtten/compare/writtten-v0.6.0...writtten-v0.7.0) (2026-07-18)
 
 
