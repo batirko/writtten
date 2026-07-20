@@ -24,6 +24,7 @@ import { ConnectAgent } from "./ConnectAgent";
 import { useAgentBridge } from "./useAgentBridge";
 import { agentStatusView } from "./agentStatusView";
 import { agentPassPhase, agentPassDetail } from "./agentActivityView";
+import { processStatusView } from "./processStatusView";
 import {
   subscribeAgentSource,
   getAgentSourceStatus,
@@ -791,11 +792,16 @@ export function ControlCenter({
   };
 
   const modelName = activeProvider.replace(" [paid]", "") || "…";
-  const anchorState = stalled ? "stalled" : pending > 0 ? "working" : "idle";
-  const statusText = stalled ? "still working…" : pending > 0 ? `evaluating · ${pending}` : "idle";
-  // Tier only colours the *working* state (idle/stalled carry no tier). The
-  // brand-indigo "strong" hue supersedes the old free-vs-paid marker.
-  const dotTier = anchorState === "working" ? displayTier : null;
+  // One activity signal for both engines — the dot answers "is something reading
+  // my document", which an agent pass makes true just as a model call does.
+  // Tier hue stays gated on our own in-flight work inside the view. See
+  // processStatusView for why the agent shares the state but not the hue.
+  const { anchorState, statusText, dotTier } = processStatusView({
+    pending,
+    stalled,
+    agentReading: agentPhase === "reading",
+    displayTier,
+  });
   const tierLabel = dotTier === "strong" ? "deeper adjudication" : dotTier === "fast" ? "quick checks" : null;
 
   // Keep the cluster revealed while any menu/modal is open (so it doesn't

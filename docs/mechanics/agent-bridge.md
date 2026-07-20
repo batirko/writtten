@@ -82,6 +82,22 @@ A third row in the control-center process readout (`ControlCenter.tsx`, mapping 
 
 It carries the pairing's **own** state (`waiting` / `connected` / `disconnected`), independent of the model's status row, reusing `.connect-dot`'s visual vocabulary so the same state reads the same way in Settings and in the readout. The connect section only shows connection state while Settings is open; a second critic writing into the feed should be visible without opening a modal.
 
+### The activity dot — one signal, both engines
+
+The always-visible anchor dot (`.control-dot`) answers one question: *is something reading my document right now?* An agent pass makes that true exactly as a model call does, so it uses the **same working state and the same pulse**. `processStatusView.ts` is the single place the matrix lives.
+
+A first draft gave the agent its own concentric ring to avoid "reusing the computation semantics". That over-applied the rule. The constraint worth keeping is *don't imply progress you can't measure* — it does not follow that "busy" needs a second colour, and splitting the channel encoded a distinction the author has no reason to care about at the moment they most want a yes/no. Which engine is busy is a real question, answered one layer in by the `status` and `agent` rows.
+
+Three things stay writtten's alone, each for a mechanical reason rather than for symmetry:
+
+| | Why |
+| --- | --- |
+| **Tier hue** (`fast` blue / `strong` violet) | Names *which model we called*. An agent pass has no tier, so `dotTier` keys on our own `pending`, never on the shared `working` state. |
+| **`stalled` red** | Our stall detector watches our own outstanding calls. It has nothing to watch on an agent, and an agent that simply stopped is reported as `quiet`, not as a fault. |
+| **How it resolves** | Ours resolves because `pending` returns to 0; the agent's has to resolve itself, because no message ever says it finished. Different mechanism, identical visible outcome. |
+
+The `status` row moves with the dot — it is labelled `status`, not `evaluator`. Agent-only activity reads **`agent reading`** rather than `evaluating · N`, which would claim a model call that never happened; when both are live, our count wins the row and the agent's own line sits directly beneath it. Without this the dot would pulse over an `idle` row, a contradiction visible the moment the readout is opened.
+
 ### Reporting the agent's pass
 
 Connection state is **liveness, not activity** — a chip reading `connected` says nothing about whether the agent is doing anything. And the `status` row cannot answer it either: `setActivityPending` has exactly one writer (`orchestrator.ts`) publishing *writtten's own* outstanding eval work, and BYOA makes zero model calls, so it reads `idle` for the entire time an agent is reviewing.
