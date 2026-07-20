@@ -123,15 +123,39 @@ describe("ListEscape — Backspace leaves the list (UX-024)", () => {
     );
   });
 
-  it("declines in a later block of a multi-block item", () => {
-    expectUnchangedByListEscape("<ul><li><p>one</p><p>second block</p></li></ul>", (editor) => {
-      let itemPos = -1;
-      editor.state.doc.descendants((node, pos) => {
-        if (node.type.name === "listItem") itemPos = pos;
-      });
-      // start of the item's *second* block — not the item's start, so not ours
-      return itemPos + 1 + editor.state.doc.nodeAt(itemPos + 1)!.nodeSize + 1;
+  it("merges a later block upward instead of lifting the whole item out", () => {
+    const editor = makeEditor("<ul><li><p>one</p><p>second block</p></li></ul>");
+    let itemPos = -1;
+    editor.state.doc.descendants((node, pos) => {
+      if (node.type.name === "listItem") itemPos = pos;
     });
+    // start of the item's *second* block
+    editor.commands.setTextSelection(
+      itemPos + 1 + editor.state.doc.nodeAt(itemPos + 1)!.nodeSize + 1
+    );
+
+    expect(pressBackspace(editor)).toBe(true);
+    // The two paragraphs join; the item stays in the list. ListKeymap's
+    // catch-all lift would have produced "<p>one</p><p>second block</p>".
+    expect(html(editor)).toBe("<ul><li><p>onesecond block</p></li></ul>");
+    editor.destroy();
+  });
+
+  it("still merges two items on Delete — the reason ListKeymap stays registered", () => {
+    // ListKeymap's Backspace catch-all is wrong for us (see the test above) and
+    // ListEscape pre-empts it, so this is the case that justifies keeping the
+    // extension at all. Without it the base keymap leaves a single item holding
+    // two paragraphs instead of merging them. If this ever starts failing,
+    // check whether ListKeymap was dropped as "unused".
+    const editor = makeEditor("<ul><li><p>one</p></li><li><p>two</p></li></ul>");
+    editor.commands.setTextSelection(6); // end of "one"
+
+    const event = new KeyboardEvent("keydown", { key: "Delete", code: "Delete" });
+    Object.defineProperty(event, "keyCode", { get: () => 46 });
+    editor.view.someProp("handleKeyDown", (f) => f(editor.view, event));
+
+    expect(html(editor)).toBe("<ul><li><p>onetwo</p></li></ul>");
+    editor.destroy();
   });
 
   it("ignores an empty paragraph outside any list", () => {
