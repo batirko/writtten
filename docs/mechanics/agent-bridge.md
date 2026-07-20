@@ -226,6 +226,8 @@ Two deliberate properties:
 - **Not DEV-gated,** unlike `archiveObs`. For a BYOA session these events are the *only* evidence that exists, because BYOA makes no model calls and the call log is empty by construction.
 - **No observation text and no document content** — types, codes, versions, and counts only. That is what makes shipping them to production safe, and it is the same reason `archiveObs` (which carries the author's prose) stays dev-only.
 
+> **Caveat — `archive` records are DEV-only, so a production export always reads `archives: 0`.** `archiveObs` (`evaluatorReconcile.ts:67`) returns early outside DEV, by design: an archive record carries the observation's **text**, and the debug drawer ships to production, so surfacing it would put the author's prose into a file users are invited to send us. The consequence is easy to misread — the milestone that motivated this section reasoned *"`archives: 0` is wrong on its own terms, a retraction closes a card,"* which is true in dev and **not** something a real user's export will ever show. Read a production `archives: 0` as "not captured", never as "nothing was closed". The `agent` records above are the prod-visible evidence: a `retract` with `applied: true` proves the closure without carrying any document content, which is exactly why that family is not DEV-gated.
+
 `agent` is deliberately **not** in the logger's `LIFECYCLE_TYPES` retention bucket: those get evicted first, and bridge events are both low-frequency and the whole evidentiary record.
 
 `agentSourceSignal` is a module-level observable, not React context, because the chip renders outside `ControlCenter`'s tree. It is production code, not a debug affordance — the dev-only `window.__sidecar__` harness must never become its carrier.
