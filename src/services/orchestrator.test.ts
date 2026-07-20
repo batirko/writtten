@@ -25,6 +25,11 @@ vi.mock("../debug/harness", () => ({
   harness: { setPending: vi.fn(), emit: vi.fn(), archive: vi.fn() },
 }));
 vi.mock("../model/rpmBudget", () => ({ isNearLimit: () => false }));
+// This suite is about lifecycle wiring, not engine selection — pin the built-in
+// engine so an ambient `writtten_engine` in the environment can't silently gate
+// every eval and turn these into false passes. The gate itself is covered in
+// orchestrator.engine.test.ts.
+vi.mock("./evalEngine", () => ({ isBuiltinEngineActive: () => true }));
 vi.mock("nanoid", () => ({ nanoid: () => "mock-id" }));
 
 const ctx: EvalContext = { docId: "doc1", apiKey: "key" };

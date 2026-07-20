@@ -20,6 +20,7 @@ import {
 } from "../model/ping";
 import { buildEnvelope } from "../model/debugLog";
 import { agentBridgeEnabled } from "../services/featureFlags";
+import { getEngine, setEngine, subscribeEngine, type EngineId } from "../services/evalEngine";
 import { ConnectAgent } from "./ConnectAgent";
 import { useAgentBridge } from "./useAgentBridge";
 import { agentStatusView } from "./agentStatusView";
@@ -313,6 +314,43 @@ function DismissIcon() {
   );
 }
 
+/**
+ * The engine choice, as data.
+ *
+ * writtten needs *model access*; a key is one way to get it and a connected agent is
+ * another, so they occupy the same slot (owner, 2026-07-20 — `agent_connected_eval.md`
+ * § Engine exclusivity). The two are genuinely different in setup, in what they cost,
+ * and in where the document travels — so each carries a line saying so, rather than
+ * being flattened into interchangeable variants of one control.
+ *
+ * The three key providers deliberately do NOT appear here: Gemini/OpenAI/Anthropic are
+ * sub-choices *within* the key path, not peers of "your agent". They keep their own
+ * strip, nested under this one.
+ */
+export interface EngineOption {
+  id: EngineId;
+  label: string;
+  /** What picking this actually means — who reads, what it costs, where the doc goes. */
+  help: string;
+}
+
+export const ENGINE_OPTIONS: EngineOption[] = [
+  {
+    id: "builtin",
+    label: "An API key",
+    help: "writtten runs its own checks, guarded by its precision tests. Metered against your key.",
+  },
+  {
+    id: "agent",
+    label: "Your agent",
+    help: "Your agent reads it. No key, no quota — and the document never leaves this machine.",
+  },
+];
+
+export function engineHelp(engine: EngineId): string {
+  return (ENGINE_OPTIONS.find((o) => o.id === engine) ?? ENGINE_OPTIONS[0]).help;
+}
+
 const ICON_PROPS = {
   width: 16,
   height: 16,
@@ -323,6 +361,27 @@ const ICON_PROPS = {
   strokeLinecap: "round" as const,
   strokeLinejoin: "round" as const,
 };
+
+// The two engine glyphs. Decorative — each sits beside its own text label, which
+// is what carries the meaning (and what a screen reader reads).
+function KeyIcon() {
+  return (
+    <svg {...ICON_PROPS} width={14} height={14} aria-hidden="true">
+      <circle cx="7.5" cy="15.5" r="4.5"></circle>
+      <path d="M10.7 12.3 21 2"></path>
+      <path d="m16 6 3 3"></path>
+    </svg>
+  );
+}
+
+function TerminalIcon() {
+  return (
+    <svg {...ICON_PROPS} width={14} height={14} aria-hidden="true">
+      <polyline points="4 17 10 11 4 5"></polyline>
+      <line x1="12" y1="19" x2="20" y2="19"></line>
+    </svg>
+  );
+}
 
 // Export = download (arrow DOWN into the tray → save a file out to disk).
 function DownloadIcon() {
@@ -484,6 +543,14 @@ export function ControlCenter({
   const [agentSource, setAgentSource] = useState<AgentSourceStatus>(getAgentSourceStatus);
   useEffect(() => subscribeAgentSource(setAgentSource), []);
   const agentStatus = agentBridgeEnabled() ? agentStatusView(agentSource) : null;
+  // Which engine holds the one slot. Same subscribe-plus-useState idiom as the
+  // signals above — the module is the source of truth so non-React services (the
+  // orchestrator) can read it without prop-drilling.
+  const [engine, setEngineState] = useState<EngineId>(getEngine);
+  useEffect(() => subscribeEngine(setEngineState), []);
+  // Set while a switch away from a live pairing waits on the user's answer.
+  const [switchConfirm, setSwitchConfirm] = useState(false);
+  const [archiveOnSwitch, setArchiveOnSwitch] = useState(false);
 
   // The agent row's second line is a live elapsed counter while a pass is
   // running, so it needs a tick. Deliberately NOT a spinner: writtten cannot
@@ -528,6 +595,10 @@ export function ControlCenter({
       subscribeOpenSettings((intent) => {
         setShowSettings(true);
         if (intent !== "connect-agent" || !agentBridgeEnabled()) return;
+        // The deep-link IS the choice — the user pressed "connect your agent", so
+        // hand it the slot before the section mounts. Nothing is torn down going
+        // this direction, so no confirm is involved.
+        setEngine("agent");
         if (agentBridgeRef.current.status.state === "idle") agentBridgeRef.current.connect();
         // The modal mounts this frame; scroll once it exists. Optional-call the
         // method as well as the ref: this runs inside rAF, where a throw is
@@ -794,17 +865,52 @@ export function ControlCenter({
   };
 
   const modelName = activeProvider.replace(" [paid]", "") || "…";
-  // One activity signal for both engines — the dot answers "is something reading
+  // One activity signal, whichever engine holds the slot — the dot answers "is something reading
   // my document", which an agent pass makes true just as a model call does.
   // Tier hue stays gated on our own in-flight work inside the view. See
   // processStatusView for why the agent shares the state but not the hue.
   const { anchorState, statusText, dotTier } = processStatusView({
+    engine,
     pending,
     stalled,
     agentPhrase,
     displayTier,
   });
   const tierLabel = dotTier === "strong" ? "deeper adjudication" : dotTier === "fast" ? "quick checks" : null;
+
+  /**
+   * Move the slot. Picking the agent is a plain selection; leaving it is not.
+   *
+   * A pairing cannot stay half-attached — the bridge would keep pushing snapshots
+   * and submitting into a writtten that ignores them, which is the parallel-source
+   * world restored through the back door, and would park the user's agent in a wait
+   * loop forever. So the connection comes down with the switch. When it has live
+   * cards in the feed that is a real loss to acknowledge, so we ask first;
+   * otherwise it's silent, matching the Disconnect button's own rule.
+   */
+  const selectEngine = (next: EngineId) => {
+    if (next === engine) return;
+    if (next === "agent") {
+      setEngine("agent");
+      return;
+    }
+    const pairingLive = agentBridge.status.state !== "idle";
+    if (!pairingLive) {
+      setEngine("builtin");
+      return;
+    }
+    if (agentBridge.activeFromSource > 0) {
+      setArchiveOnSwitch(false); // cards are kept unless the user says otherwise
+      setSwitchConfirm(true);
+      return;
+    }
+    agentBridge.cancel();
+    setEngine("builtin");
+  };
+
+  const switchCardCount = `${agentBridge.activeFromSource} observation${
+    agentBridge.activeFromSource === 1 ? "" : "s"
+  }`;
 
   // Keep the cluster revealed while any menu/modal is open (so it doesn't
   // collapse out from under the pointer).
@@ -845,6 +951,63 @@ export function ControlCenter({
         </div>
       )}
 
+      {/* Switching away from a connected agent. Says the thing the plain Disconnect
+          dialog doesn't have to: that the switch is what causes the disconnect. */}
+      {switchConfirm && (
+        <div className="modal-scrim" onClick={() => setSwitchConfirm(false)}>
+          <div
+            className="modal-card"
+            data-testid="engine-switch-confirm"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <p className="modal-title" style={{ marginBottom: "var(--space-xs)" }}>
+              Switch to an API key?
+            </p>
+            <p style={{ margin: "0 0 var(--space-md)" }}>
+              {agentBridge.status.agentName ?? "Your agent"} will disconnect. It submitted{" "}
+              {switchCardCount} that {agentBridge.activeFromSource === 1 ? "is" : "are"} still
+              in your feed.
+            </p>
+            <label className="connect-archive-opt">
+              <input
+                type="checkbox"
+                data-testid="engine-switch-archive-opt"
+                checked={archiveOnSwitch}
+                onChange={(e) => setArchiveOnSwitch(e.target.checked)}
+              />
+              Archive its {switchCardCount} too
+            </label>
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "flex-end",
+                gap: "8px",
+                marginTop: "var(--space-md)",
+              }}
+            >
+              <button
+                className="modal-ghost-btn"
+                data-testid="engine-switch-cancel"
+                onClick={() => setSwitchConfirm(false)}
+              >
+                Cancel
+              </button>
+              <button
+                className="modal-danger-btn"
+                data-testid="engine-switch-ok"
+                onClick={() => {
+                  setSwitchConfirm(false);
+                  void agentBridge.revoke(archiveOnSwitch);
+                  setEngine("builtin");
+                }}
+              >
+                Switch
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {showSettings && (
         <div className="modal-scrim" onClick={() => setShowSettings(false)}>
           <div
@@ -863,7 +1026,45 @@ export function ControlCenter({
               </button>
             </div>
 
-            <div className="setting-group">
+            {/* The engine slot. Only rendered when BYOA exists at all — with the flag
+                off there is exactly one way to get model access, and offering a
+                "choice" of one would be noise. The provider strip below then reads
+                exactly as it always has. */}
+            {agentBridgeEnabled() && (
+              <div className="setting-group">
+                <label>Engine</label>
+                <div
+                  className="engine-seg"
+                  data-testid="engine-select"
+                  role="group"
+                  aria-label="Engine"
+                >
+                  {ENGINE_OPTIONS.map((opt) => {
+                    const active = opt.id === engine;
+                    return (
+                      <button
+                        key={opt.id}
+                        type="button"
+                        className={active ? "is-active" : undefined}
+                        aria-pressed={active}
+                        onClick={() => selectEngine(opt.id)}
+                      >
+                        {opt.id === "builtin" ? <KeyIcon /> : <TerminalIcon />}
+                        {opt.label}
+                      </button>
+                    );
+                  })}
+                </div>
+                {/* The two paths differ in who runs the checks, what they cost, and
+                    where the document travels. Naming that at the moment of choosing
+                    is the whole containment now that the per-card chip is gone. */}
+                <span className="setting-help">{engineHelp(engine)}</span>
+              </div>
+            )}
+
+            {engine === "builtin" && (
+              <>
+            <div className="setting-group" style={{ marginTop: "var(--space-sm)" }}>
               <label>Provider</label>
               <div
                 className="provider-seg"
@@ -1094,8 +1295,14 @@ export function ControlCenter({
               Your {meta.label} key goes straight from this browser to {meta.label}, and is stored
               only on this device — never on a server of ours.
             </div>
+              </>
+            )}
 
-            {agentBridgeEnabled() && (
+            {/* The agent path's whole configuration. `setEngine` notifies
+                synchronously and its state update batches with the one that opened
+                Settings, so this section is mounted before the deep-link's rAF
+                scroll runs — no defensive delay needed, and none should be added. */}
+            {agentBridgeEnabled() && engine === "agent" && (
               <div ref={connectRef}>
                 <ConnectAgent {...agentBridge} />
               </div>
@@ -1157,10 +1364,32 @@ export function ControlCenter({
             seams · smart_feed_curation.md). */}
         <div className="control-process">
           <div className="control-process-label">process</div>
+          {/* Row 1 is the ENGINE IDENTITY — which thing is reading, named once. It
+              used to show the model name unconditionally with a separate "agent" row
+              beneath, so a connected agent with no key still read `gemini-2.0-flash`
+              above it. That redundancy is what engine exclusivity resolves: one
+              slot, one holder, one name. */}
           <div className="control-process-row">
-            <span data-testid="provider-chip">{modelName}</span>
+            {engine === "agent" ? (
+              <span
+                className="agent-chip"
+                data-testid="provider-chip"
+                data-agent-state={agentStatus?.state ?? "idle"}
+                data-agent-activity={agentPhase}
+                aria-label={agentStatus?.label ?? "No agent connected"}
+              >
+                <span className="agent-chip-dot" aria-hidden="true" />
+                {/* `agentStatusView` returns null before a pairing exists. Selected
+                    but not yet connected is a real state now — name it here rather
+                    than teaching that module about engine selection. */}
+                {agentStatus?.text ?? "not connected"}
+              </span>
+            ) : (
+              <span data-testid="provider-chip">{modelName}</span>
+            )}
             {/* Names the in-flight tier so the dot's hue is never the only signal
-                (a11y): "strong" adjudication reads on the tier-indigo dot. */}
+                (a11y): "strong" adjudication reads on the tier-indigo dot. An agent
+                pass has no tier, so `dotTier` is already null there. */}
             {tierLabel && (
               <span className={`tier-chip tier-${dotTier}`} data-testid="tier-chip">
                 {tierLabel}
@@ -1180,26 +1409,6 @@ export function ControlCenter({
               {statusText}
             </span>
           </div>
-          {/* A connected agent is a second critic writing into the feed; that
-              belongs in the always-on readout, not only inside Settings. Absent
-              entirely when no pairing exists. */}
-          {agentStatus && (
-            <div className="control-process-row">
-              <span>agent</span>
-              <span
-                className="agent-chip"
-                data-testid="agent-chip"
-                data-agent-state={agentStatus.state}
-                data-agent-activity={agentPhase}
-                role="status"
-                aria-live="polite"
-                aria-label={agentStatus.label}
-              >
-                <span className="agent-chip-dot" aria-hidden="true" />
-                {agentStatus.text}
-              </span>
-            </div>
-          )}
           {sessionStats && sessionStats.totalCalls > 0 && (
             <div className="control-process-row">
               <span>this session</span>
@@ -1430,7 +1639,10 @@ export function ControlCenter({
             tabIndex={0}
             role="button"
             aria-expanded={forceOpen || tapOpen}
-            aria-label={`Model ${modelName} — ${statusText}${tierLabel ? ` (${tierLabel})` : ""}. Tap to open controls.`}
+            // Names the SELECTED engine, not the model unconditionally — otherwise a
+            // screen reader announces a Gemini model while an agent does the reading.
+            // Same defect as the visible row, one channel over.
+            aria-label={`${engine === "agent" ? `Agent ${agentStatus?.text ?? "not connected"}` : `Model ${modelName}`} — ${statusText}${tierLabel ? ` (${tierLabel})` : ""}. Tap to open controls.`}
             onClick={() => setTapOpen((o) => !o)}
             onKeyDown={(e) => {
               if (e.key === "Enter" || e.key === " ") {

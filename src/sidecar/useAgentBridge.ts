@@ -19,6 +19,7 @@ import {
 import { buildAgentPrompt } from "../services/agentPrompt";
 import { buildAgentSnapshot } from "../services/agentSnapshot";
 import { agentBridgeEnabled } from "../services/featureFlags";
+import { releaseAgentEngine } from "../services/evalEngine";
 import { EMPTY_PASS } from "./agentActivityView";
 import {
   currentAgentBrowserSupport,
@@ -165,9 +166,17 @@ export function useAgentBridge(): AgentBridgeView {
   // Resume an existing pairing across a reload, so re-running the bridge reconnects with
   // no UI work (decision 7).
   useEffect(() => {
-    if (!agentBridgeEnabled() || !support.supported) return;
+    if (!agentBridgeEnabled()) return;
     const existing = loadPairing();
-    if (!existing) return;
+    // The agent holds the eval slot but cannot serve it — a pairing that was never
+    // stored (or was cleared), or a browser that can't reach loopback at all (chose
+    // the agent in Chrome, opened writtten in Safari). Without this the built-in
+    // evaluator stays gated behind a connection that will never arrive: a document
+    // nothing reads, silently. Hand the slot back.
+    if (!support.supported || !existing) {
+      releaseAgentEngine();
+      return;
+    }
     const unsubscribe = start(existing);
     void buildAgentPrompt({
       token: existing.token,
@@ -204,6 +213,11 @@ export function useAgentBridge(): AgentBridgeView {
     setPrompt(null);
     setPromptError(null);
     setStatus(IDLE);
+    // The pairing is gone, so it can no longer hold the slot. Note this is a
+    // *release*, not a user choosing a key — the distinction the engine module
+    // names deliberately. Idempotent, so the switch path (which calls this and then
+    // sets the engine itself) is unaffected.
+    releaseAgentEngine();
   }, []);
 
   // Republish the pairing state to the app-wide signal. The source chip renders
@@ -266,6 +280,9 @@ export function useAgentBridge(): AgentBridgeView {
           sessionId,
         });
       }
+      // Same release as `cancel`: the pairing is deliberately gone, so it hands the
+      // slot back rather than leaving the built-in evaluator gated behind nothing.
+      releaseAgentEngine();
     },
     [status.sessionId, status.agentName]
   );

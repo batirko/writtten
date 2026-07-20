@@ -60,8 +60,8 @@ On edit to block `B`, debounce ~2–4s _after typing stops on that block_. Then 
    - Extract `B`'s claims and **compare against the ledger** — do _not_ re-read the document.
    - A claim conflicting with an existing ledger entry → `contradiction` observation (referencing both sources).
    - A claim that now satisfies an open `missing_topic`/`underexposed_topic` → close it.
-1. **Reconcile `B`'s existing observations:** re-test each; auto-close the ones now resolved; supersede stale ones.
-2. **Update the master summary** incrementally if `B`'s summary changed materially.
+4. **Reconcile `B`'s existing observations:** re-test each; auto-close the ones now resolved; supersede stale ones.
+5. **Update the master summary** incrementally if `B`'s summary changed materially.
 
 ### The full-document pass happens essentially once
 
@@ -81,15 +81,15 @@ Chunk summaries alone don't solve contradiction or missing-topic detection, beca
 ```ts
 interface ClaimLedgerEntry {
   id: string;
-  sourceBlockId: string;        // which block asserted this
-  text: string;                 // normalized statement of the claim
-  kind:                         // light typing helps routing/conflict logic
-    | "commitment"              // "we will ship X by Q3"
-    | "fact_claim"              // "users churn at 12%"
-    | "definition"             // "an 'active user' is …"
-    | "constraint"              // "must work offline"
-    | "metric";                 // "success = 20% activation"
-  embedding?: number[];         // optional, for semantic conflict prefiltering (later)
+  sourceBlockId: string; // which block asserted this
+  text: string; // normalized statement of the claim
+  kind: // light typing helps routing/conflict logic
+    | "commitment" // "we will ship X by Q3"
+    | "fact_claim" // "users churn at 12%"
+    | "definition" // "an 'active user' is …"
+    | "constraint" // "must work offline"
+    | "metric"; // "success = 20% activation"
+  embedding?: number[]; // optional, for semantic conflict prefiltering (later)
   status: "active" | "orphaned"; // orphaned when its source block is deleted
 }
 ```
@@ -135,7 +135,7 @@ interface ModelRouter {
 
 - **Free tier** wires both tiers to cheap models (or a thin shared proxy, decided later).
 - **BYO-key** wires `strong` (and optionally `fast`) to the user's chosen provider/key.
-- **A connected agent is not a third routing option — it bypasses the router entirely.** BYOA (`docs/projects/agent_connected_eval.md`, shipped 2026-07-20) is a second _eval source_, not a fourth `ProviderAdapter`: no `LLMRequest` is built, no key is read, and writtten makes no model call at all. Observations arrive already-formed from an external session and enter through `submitExternalObservation` (`src/services/externalObservations.ts`), which validates them against the same taxonomy and register rules the router-fed pipeline is prompt-ratcheted for. Do not try to model it behind `ModelRouter` — there is no `agentAdapter.ts` to write, because an adapter's whole job (build a request, call a provider, parse a response) is work an agent has already done before writtten sees anything. The seam is the boundary module. **Both sources run today**; per the owner's 2026-07-20 call the agent becomes the *fourth connection option* — mutually exclusive with a key — with selection sitting **above** the router rather than inside it (`docs/plan.md` Phase 8 · `agent_connected_eval.md` § Engine exclusivity).
+- **A connected agent is not a third routing option — it bypasses the router entirely.** BYOA (`docs/projects/agent_connected_eval.md`, shipped 2026-07-20) is a second _eval source_, not a fourth `ProviderAdapter`: no `LLMRequest` is built, no key is read, and writtten makes no model call at all. Observations arrive already-formed from an external session and enter through `submitExternalObservation` (`src/services/externalObservations.ts`), which validates them against the same taxonomy and register rules the router-fed pipeline is prompt-ratcheted for. Do not try to model it behind `ModelRouter` — there is no `agentAdapter.ts` to write, because an adapter's whole job (build a request, call a provider, parse a response) is work an agent has already done before writtten sees anything. The seam is the boundary module. **Exactly one engine runs at a time** — the agent is a _connection option_, mutually exclusive with a key, because writtten needs model access and these are two ways to get it rather than two sources to stack (owner, 2026-07-20). Selection sits **above** the router: `src/services/evalEngine.ts` holds the slot (`EngineId = "builtin" | "agent"`, persisted in `localStorage["writtten_engine"]`), and `orchestrator.ts` reads `isBuiltinEngineActive()` to gate arming — at `scheduleEval` and again at each fire site, so a switch during a coalesce window or an RPM deferral can't leak a call. Deliberately **not** gated: `block-removed`, which makes no model call and closes cards for a deleted block whoever wrote them (`agent_connected_eval.md` § Engine exclusivity · `docs/mechanics/agent-bridge.md`).
 - Keys are stored **locally** and used to call providers directly from the client wherever CORS allows, keeping document content off any server. Where a provider can't be called from the browser, that's a constraint to solve per-provider — not a reason to centralize document data.
 
 ### The `ProviderAdapter` seam — the canonical extension point
@@ -146,10 +146,10 @@ interface ModelRouter {
 interface ProviderAdapter {
   id: "gemini" | "openai" | "anthropic";
   label: string;
-  pools: { freeFast; freeStrong; paidFast; paidStrong };      // ordered rotation models per tier
-  catalog: { fast; strong };                                   // user-selectable models (Settings picker)
-  buildRequest(model, req, key): { url; init };                // one HTTP attempt
-  parseResponse(body): { text; usage? };                       // read a 2xx body
+  pools: { freeFast; freeStrong; paidFast; paidStrong }; // ordered rotation models per tier
+  catalog: { fast; strong }; // user-selectable models (Settings picker)
+  buildRequest(model, req, key): { url; init }; // one HTTP attempt
+  parseResponse(body): { text; usage? }; // read a 2xx body
   classifyError(status, headers, body): { retryable; coolDownMs; quotaKind? };
 }
 ```

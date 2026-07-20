@@ -22,6 +22,7 @@ import { ControlCenter } from "./ControlCenter";
 import { openSettings } from "./settingsGate";
 import type { Observation } from "../store/db";
 import { setAgentSourceStatus, __resetAgentSourceStatus } from "../model/agentSourceSignal";
+import { setEngine, __resetEngine } from "../services/evalEngine";
 
 const minProps = {
   observations: [] as never[],
@@ -37,6 +38,17 @@ const minProps = {
   // keyless-banner tests opt into hasKey: false explicitly.
   hasKey: true,
 };
+
+// The engine selection is module-global, and these describes detach their
+// containers without unmounting the React roots — so a still-subscribed
+// ControlCenter can answer a later describe's `open-settings` event and flip the
+// slot to the agent, which then gates the empty state everywhere downstream.
+// Reset between cases rather than leaving each describe's outcome dependent on
+// the order the file happens to run in.
+afterEach(() => {
+  __resetEngine();
+  __resetAgentSourceStatus();
+});
 
 describe("SidecarFeed debug panel (L7 — prod prompt-leak)", () => {
   const containers: HTMLDivElement[] = [];
@@ -370,9 +382,9 @@ describe("SidecarFeed — click-to-locate (C2)", () => {
     const handler = (e: Event) => events.push((e as CustomEvent<{ id: string }>).detail.id);
     window.addEventListener("obs-card-activate", handler);
     act(() => {
-      div.querySelector('[data-testid="obs-card"]')?.dispatchEvent(
-        new MouseEvent("click", { bubbles: true })
-      );
+      div
+        .querySelector('[data-testid="obs-card"]')
+        ?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     });
     window.removeEventListener("obs-card-activate", handler);
     expect(events).toEqual(["x"]);
@@ -384,9 +396,9 @@ describe("SidecarFeed — click-to-locate (C2)", () => {
     const handler = (e: Event) => events.push((e as CustomEvent<{ id: string }>).detail.id);
     window.addEventListener("obs-card-activate", handler);
     act(() => {
-      div.querySelector('[data-testid="obs-dismiss"]')?.dispatchEvent(
-        new MouseEvent("click", { bubbles: true })
-      );
+      div
+        .querySelector('[data-testid="obs-dismiss"]')
+        ?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     });
     window.removeEventListener("obs-card-activate", handler);
     expect(events).toEqual([]);
@@ -425,6 +437,40 @@ describe("SidecarFeed — keyless banner + empty-state split", () => {
     ).not.toBeNull();
   });
 
+  /**
+   * Engine exclusivity makes `hasKey` the wrong question on its own. A user whose
+   * agent holds the slot and is connected is fully served with no key at all —
+   * telling them to add one would be false, and the calm empty state is the honest
+   * surface. The banner keys on "is anything reading", not "is there a key".
+   */
+  it("stays away while a connected agent holds the slot with no key", () => {
+    setAgentPreview(true);
+    setEngine("agent");
+    act(() => {
+      setAgentSourceStatus({ state: "connected", name: "Claude Code", sessionId: "s1" });
+    });
+
+    const div = renderWith({ hasKey: false, observations: [] });
+    expect(div.querySelector('[data-testid="keyless-banner"]')).toBeNull();
+    expect(div.querySelector(".sidecar-empty")).not.toBeNull();
+  });
+
+  it("returns the moment that agent is no longer reading, key or not", () => {
+    setAgentPreview(true);
+    setEngine("agent");
+    act(() => {
+      setAgentSourceStatus({ state: "disconnected", name: "Claude Code", sessionId: "s1" });
+    });
+
+    // A key exists, but it is NOT the selected engine — so nothing is reading.
+    const div = renderWith({ hasKey: true, observations: [] });
+    expect(div.querySelector('[data-testid="keyless-banner"]')).not.toBeNull();
+    expect(div.querySelector(".sidecar-empty")).toBeNull();
+    expect(div.querySelector('[data-testid="agent-dropped-note"]')?.textContent).toContain(
+      "nothing is reading your document"
+    );
+  });
+
   it("reserves the quiet empty state for the keyed state (keyless shows the banner instead)", () => {
     // Keyed + no observations → the calm empty state.
     const keyed = renderWith({ hasKey: true, observations: [] });
@@ -443,9 +489,9 @@ describe("SidecarFeed — keyless banner + empty-state split", () => {
     const handler = () => (opened += 1);
     window.addEventListener("writtten:open-settings", handler);
     act(() => {
-      div.querySelector('[data-testid="keyless-banner-settings"]')?.dispatchEvent(
-        new MouseEvent("click", { bubbles: true })
-      );
+      div
+        .querySelector('[data-testid="keyless-banner-settings"]')
+        ?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     });
     window.removeEventListener("writtten:open-settings", handler);
     expect(opened).toBe(1);
@@ -620,9 +666,8 @@ describe("SidecarFeed — in-place dismiss + Undo (C3)", () => {
 
   function clickDismissAt(div: HTMLDivElement, i = 0) {
     act(() => {
-      div.querySelectorAll('[data-testid="obs-dismiss"]')[i]?.dispatchEvent(
-        new MouseEvent("click", { bubbles: true })
-      );
+      const targets = div.querySelectorAll('[data-testid="obs-dismiss"]');
+      targets[i]?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     });
   }
 
@@ -668,9 +713,9 @@ describe("SidecarFeed — in-place dismiss + Undo (C3)", () => {
     expect(div.querySelector('[data-testid="undo-placeholder"]')).not.toBeNull();
 
     act(() => {
-      div.querySelector('[data-testid="undo-action"]')?.dispatchEvent(
-        new MouseEvent("click", { bubbles: true })
-      );
+      div
+        .querySelector('[data-testid="undo-action"]')
+        ?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     });
 
     // Card back in its slot, placeholder gone, and onDismissObservation never fired.
@@ -685,7 +730,14 @@ describe("SidecarFeed — in-place dismiss + Undo (C3)", () => {
     const div = renderWith({
       // Same span → aggregated into one group (primary + others).
       observations: [
-        obs({ id: "g1", type: "clarity", blockId: "b1", startOffset: 2, endOffset: 8, priority: 0.9 }),
+        obs({
+          id: "g1",
+          type: "clarity",
+          blockId: "b1",
+          startOffset: 2,
+          endOffset: 8,
+          priority: 0.9,
+        }),
         obs({
           id: "g2",
           type: "undefined_jargon",
@@ -829,11 +881,12 @@ describe("SidecarFeed — truncation-honesty note", () => {
 // ---------------------------------------------------------------------------
 // BYOA (PR3) — source attribution on cards.
 //
-// External observations are first-class in lifecycle but visibly second-party in
-// origin: the user must always be able to tell which critic is speaking, because
-// an agent's output is not covered by the precision floors and fixture ratchets
-// that guard our own. These tests pin that the chip is present when it should
-// be, absent when it shouldn't, and that grouping never hides it.
+// External observations are first-class in lifecycle, and — since engine
+// exclusivity (owner, 2026-07-20) — no longer marked in the card face. Exactly one
+// engine holds the slot, so there is no concurrent critic to disambiguate; the
+// trust containment moved to the moment of choosing, which is explicit. These tests
+// pin the removal, and pin that `Observation.source` survived it in the model and in
+// the archive, where it is still load-bearing.
 // ---------------------------------------------------------------------------
 
 describe("SidecarFeed — source attribution (BYOA)", () => {
@@ -857,7 +910,7 @@ describe("SidecarFeed — source attribution (BYOA)", () => {
     __resetAgentSourceStatus();
   });
 
-  it("names the agent on an external card and shows nothing on a built-in one", () => {
+  it("shows no per-card attribution, while keeping the source in the model", () => {
     const div = renderWith([
       obs({
         id: "ext-1",
@@ -868,7 +921,12 @@ describe("SidecarFeed — source attribution (BYOA)", () => {
         text: "No evidence is given for the adoption figure.",
       }),
     ]);
-    expect(div.querySelector('[data-testid="obs-source"]')?.textContent).toContain("Claude Code");
+    // The visible chip is gone outright — one engine, nothing to disambiguate.
+    expect(div.querySelector('[data-testid="obs-source"]')).toBeNull();
+    expect(div.textContent).not.toContain("Claude Code");
+    // …but `Observation.source` survives: removing the chip was a VIEW change.
+    // The reconciler exemptions and revoke/bulk-archive key on this field, and it
+    // gets more load-bearing after an agent→key switch, not less.
     expect(div.querySelector('[data-testid="obs-card"]')?.getAttribute("data-obs-source")).toBe(
       "agent"
     );
@@ -876,34 +934,29 @@ describe("SidecarFeed — source attribution (BYOA)", () => {
     const nativeDiv = renderWith([
       obs({ id: "n1", blockId: "b1", startOffset: 0, endOffset: 10, text: "Vague." }),
     ]);
-    expect(nativeDiv.querySelector('[data-testid="obs-source"]')).toBeNull();
     expect(
       nativeDiv.querySelector('[data-testid="obs-card"]')?.getAttribute("data-obs-source")
     ).toBeNull();
   });
 
-  it("reads live while that session is connected and flips to disconnected when the bridge drops", () => {
+  it("keeps an external card through a disconnect, unchanged", () => {
     act(() => {
       setAgentSourceStatus({ state: "connected", name: "Claude Code", sessionId: "sess-1" });
     });
     const div = renderWith([
       obs({ id: "ext-1", source: AGENT, blockId: "b1", startOffset: 0, endOffset: 10, text: "x" }),
     ]);
-    expect(div.querySelector('[data-testid="obs-source"]')?.getAttribute("data-source-state")).toBe(
-      "live"
-    );
+    expect(div.querySelectorAll('[data-testid="obs-card"]')).toHaveLength(1);
 
-    // The card survives the disconnect — only its chip changes state.
+    // Cards outlive the socket (decision 7) — and now nothing about the card
+    // reacts to the connection at all.
     act(() => {
       setAgentSourceStatus({ state: "disconnected", name: "Claude Code", sessionId: "sess-1" });
     });
-    expect(div.querySelector('[data-testid="obs-source"]')?.getAttribute("data-source-state")).toBe(
-      "disconnected"
-    );
     expect(div.querySelectorAll('[data-testid="obs-card"]')).toHaveLength(1);
   });
 
-  it("a doc-scoped external card carries both the scope marker and the source chip", () => {
+  it("a doc-scoped external card carries the scope marker and nothing else", () => {
     const div = renderWith([
       obs({
         id: "ext-doc",
@@ -916,22 +969,21 @@ describe("SidecarFeed — source attribution (BYOA)", () => {
       }),
     ]);
     expect(div.querySelector('[data-testid="obs-scope"]')).not.toBeNull();
-    expect(div.querySelector('[data-testid="obs-source"]')).not.toBeNull();
+    expect(div.querySelector('[data-testid="obs-source"]')).toBeNull();
   });
 
-  it("never groups an external card under a built-in primary — attribution can't hide in 'N more'", () => {
-    // Same span, same type. Pre-BYOA these collapsed into one card whose
-    // collapsed rows render bare tag+text, so the agent's observation would have
-    // shown with no attribution at all until expanded.
+  it("groups an agent-era card with a key-era one on the same span", () => {
+    // The inverse of the pre-exclusivity rule. Only one engine produces new cards,
+    // so a mixed span is the user's own history across a switch they performed —
+    // and with no chip to explain a split, two cards would read as a duplicate.
     const span = { blockId: "b1", startOffset: 0, endOffset: 24 };
     const div = renderWith([
       obs({ id: "native", ...span, priority: 2.0, text: "The metric is undefined." }),
       obs({ id: "ext-1", source: AGENT, ...span, priority: 1.0, text: "No baseline is given." }),
     ]);
 
-    expect(div.querySelectorAll('[data-testid="obs-card"]')).toHaveLength(2);
-    expect(div.querySelectorAll('[data-testid="obs-source"]')).toHaveLength(1);
-    expect(div.querySelector('[data-testid="obs-group-also"]')).toBeNull();
+    expect(div.querySelectorAll('[data-testid="obs-card"]')).toHaveLength(1);
+    expect(div.querySelector('[data-testid="obs-group-also"]')).not.toBeNull();
   });
 
   it("the archive names the source that retracted a card", () => {
