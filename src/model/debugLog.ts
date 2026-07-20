@@ -13,9 +13,11 @@
  *     as one stream.
  */
 
-import type { LLMLogEntry, CallProduced } from "./logger";
+import type { LLMLogEntry, CallProduced, AgentEventInfo } from "./logger";
 
-const SCHEMA_VERSION = 2;
+/** 3: adds `agent` records + `counts.agentEvents` (BYOA sessions were invisible
+ *  — an agent pass produced observations and exported `calls: 0, archives: 0`). */
+const SCHEMA_VERSION = 3;
 
 /**
  * Ensure API keys never leak in the exported log envelope. Second layer of a
@@ -47,7 +49,10 @@ export interface DebugEnvelopeMeta {
   activeProvider: string;
   /** Legend of the trigger kinds present in this capture. */
   triggerKinds: string[];
-  counts: { triggers: number; calls: number; archives: number };
+  /** `agentEvents` reads 0 on an ordinary session and is the tell that a BYOA
+   *  session actually recorded its engine — the counter whose absence made a
+   *  7-observation agent pass export as `{ triggers: 88, calls: 0 }`. */
+  counts: { triggers: number; calls: number; archives: number; agentEvents: number };
 }
 
 export interface CallAttempt {
@@ -104,6 +109,12 @@ export interface ArchiveRecord {
   supersededBy?: string;
 }
 
+/** One event from the BYOA bridge — the second engine, previously unlogged. */
+export interface AgentRecord extends AgentEventInfo {
+  kind: "agent";
+  t: string;
+}
+
 export interface GenericHarnessRecord {
   kind: "harness";
   t: string;
@@ -111,7 +122,12 @@ export interface GenericHarnessRecord {
   fields: Record<string, unknown>;
 }
 
-export type DebugRecord = TriggerRecord | CallRecord | ArchiveRecord | GenericHarnessRecord;
+export type DebugRecord =
+  | TriggerRecord
+  | CallRecord
+  | ArchiveRecord
+  | AgentRecord
+  | GenericHarnessRecord;
 
 export interface DebugEnvelope {
   meta: DebugEnvelopeMeta;
@@ -227,6 +243,11 @@ export function buildEnvelope(
         triggerKind: e.triggerKind,
         blockId: e.blockId || undefined,
       });
+      continue;
+    }
+
+    if (e.type === "agent" && e.agent) {
+      records.push({ kind: "agent", t: ts, ...e.agent });
       continue;
     }
 
@@ -375,6 +396,7 @@ export function buildEnvelope(
         triggers: records.filter((r) => r.kind === "trigger").length,
         calls: callOrder.length,
         archives: records.filter((r) => r.kind === "archive").length,
+        agentEvents: records.filter((r) => r.kind === "agent").length,
       },
     },
     systemPrompts,

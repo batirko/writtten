@@ -427,6 +427,43 @@ describe("bridge script — relay round-trip", { timeout: 25_000 }, () => {
     await events.close();
   });
 
+  // The missing "started" signal. The bridge already observed every /doc pull
+  // and told the app nothing, so the activity readout sat on `idle` for the
+  // entire time an agent was reviewing.
+  it("announces a /doc pull to the app as a `pulled` event", async () => {
+    const controller = new AbortController();
+    const events = await openEvents(base, controller);
+    expect((await events.next()).event).toBe("hello");
+
+    await fetch(`${base}/doc`, { headers: auth });
+
+    const pulled = await events.next();
+    expect(pulled.event).toBe("pulled");
+    // A snapshot was pushed earlier in this suite, so this pull read real content.
+    expect(pulled.data.connected).toBe(true);
+    expect(typeof pulled.data.docVersion).toBe("number");
+    expect(typeof pulled.data.t).toBe("number");
+    await events.close();
+  });
+
+  // Watch mode was invisible to the app: a parked agent and one that had
+  // wandered off were the same silence.
+  it("announces a /wait park to the app as a `waiting` event", async () => {
+    const controller = new AbortController();
+    const events = await openEvents(base, controller);
+    expect((await events.next()).event).toBe("hello");
+
+    // `since` is already stale, so /wait returns immediately — the agent is
+    // still watching, and the event must fire on entry regardless of branch.
+    await fetch(`${base}/wait?since=0`, { headers: auth });
+
+    const waiting = await events.next();
+    expect(waiting.event).toBe("waiting");
+    expect(waiting.data.since).toBe(0);
+    expect(typeof waiting.data.t).toBe("number");
+    await events.close();
+  });
+
   it("relays a retraction", async () => {
     const controller = new AbortController();
     const events = await openEvents(base, controller);

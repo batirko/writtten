@@ -267,7 +267,7 @@ const USAGE = `writtten bridge v${BRIDGE_VERSION} (protocolVersion ${PROTOCOL_VE
 Endpoints — every one requires the token (Authorization: Bearer <t> or ?token=<t>).
 
   app   GET  /handshake        pairing + liveness probe
-  app   GET  /events           SSE: hello | submission | retract | ping
+  app   GET  /events           SSE: hello | submission | retract | pulled | waiting | ping
   app   POST /snapshot         push the latest settled document snapshot
   app   POST /verdict          { sid, result, ... } completes a held /submit
 
@@ -486,6 +486,11 @@ function handleSnapshot(res, body) {
 
 function handleWait(req, res, url) {
   const since = Number(url.searchParams.get("since") ?? -1);
+  // Watch mode is otherwise invisible to the app, which then cannot tell an
+  // agent parked here from one that has wandered off — both look like silence.
+  // Broadcast on entry, before either branch: an immediate return still means
+  // the agent is watching, it just happened to be behind.
+  broadcast("waiting", { since, t: Date.now() });
   // Immediate return is the whole point of `since`: an always-park version loses the
   // snapshot that lands between the agent's /doc read and its /wait call, and watch mode
   // then stalls a full timeout per cycle for no visible reason.
@@ -563,6 +568,13 @@ function route(req, res, url, origin) {
   }
   if (method === "GET" && path === "/events") return handleEvents(req, res, origin);
   if (method === "GET" && path === "/doc") {
+    // The agent picking the document up is the ONLY "started" signal this
+    // protocol has — it never reports finishing, it just stops. Telling the app
+    // costs one frame and is what lets writtten say "reading since 14:02"
+    // instead of showing an idle chip through the whole review pass.
+    // Additive: the app registers named listeners, so an older app ignores this,
+    // and an older bridge simply never sends it. No protocolVersion bump.
+    broadcast("pulled", { docVersion, connected: snapshot !== null, t: Date.now() });
     return send(res, 200, snapshot ?? { connected: false });
   }
   if (method === "GET" && path === "/wait") return handleWait(req, res, url);

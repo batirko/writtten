@@ -12,6 +12,7 @@ import type { AgentBridgeView } from "./useAgentBridge";
 const PREVIEW_CHARS = 420;
 
 export function ConnectAgent({
+  support,
   status,
   prompt,
   promptError,
@@ -90,7 +91,27 @@ export function ConnectAgent({
     <div className="setting-section connect-agent" data-testid="connect-agent">
       <p className="setting-section-title">Connect your agent</p>
 
-      {status.state === "idle" && (
+      {/* Stated before the first probe, not discovered after it. The old path
+          offered the button, started an infinite port poll, and parked the user
+          on "Waiting for your agent…" against a limitation already known at
+          render time. No CTA here: there is nothing this browser can do. */}
+      {!support.supported && (
+        <>
+          <p className="connect-lede">
+            Review with a coding agent you already run — Claude Code, Codex, or another. No
+            API key, and your document never leaves this machine.
+          </p>
+          <div className="connect-blocked" data-testid="connect-agent-unsupported" role="note">
+            <p className="connect-blocked-text">
+              Safari can&rsquo;t reach a bridge on this machine, so this won&rsquo;t connect
+              here. Open writtten in Chrome, Edge, or Firefox to use an agent.
+            </p>
+          </div>
+          <span className="setting-help">An API key still works in Safari.</span>
+        </>
+      )}
+
+      {support.supported && status.state === "idle" && (
         <>
           <p className="connect-lede">
             Review with a coding agent you already run — Claude Code, Codex, or another. No

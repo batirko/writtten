@@ -19,6 +19,8 @@ import {
   changedSectionIndices,
   sectionProseFingerprints,
 } from "./docPassMateriality";
+import { llmLogger, type AgentEventInfo } from "../model/logger";
+import { EMPTY_PASS, type AgentPass } from "../sidecar/agentActivityView";
 
 /** Bumped only on a breaking protocol change. Equal → connect; anything else → refuse
  *  with "re-copy the prompt". Lives in three places by design: here, the skill template,
@@ -66,6 +68,10 @@ export interface BridgeStatus {
    *  agent are two sources, so a card from a previous run must not read as live
    *  just because something with the same name reconnected. */
   sessionId: string | null;
+  /** Facts about the current review pass — timestamps and a count, never a
+   *  progress estimate. `agentActivityView` derives the readout (and its decay)
+   *  from these; see that module for why decay is derived rather than timed. */
+  pass: AgentPass;
 }
 
 export interface SubmissionMeta {
@@ -105,11 +111,20 @@ export interface BridgeDeps {
   readSnapshot: () => Promise<SnapshotBody | null>;
   /** PR1's boundary, injected. A throw becomes an `internal_error` rejection. */
   onSubmission: (payload: unknown, meta: SubmissionMeta) => Promise<VerdictBody>;
-  onRetract?: (observationId: string, meta: SubmissionMeta) => Promise<void>;
+  /** Resolves `true` when a card was actually closed. The boolean matters: the
+   *  bridge acks the agent unconditionally, so "refused" and "applied" are
+   *  indistinguishable from the agent's side and only the log can tell them
+   *  apart. */
+  onRetract?: (observationId: string, meta: SubmissionMeta) => Promise<boolean>;
   // ---- test seams; all default to the real thing ----
   fetchImpl?: typeof fetch;
   eventSourceImpl?: (url: string) => EventSourceLike;
   subscribeSettled?: (fn: () => void) => () => void;
+  /** Where bridge events go for the debug export. Injected for the same reason
+   *  as the transport seams: a bare-node unit test shouldn't need the logger. */
+  logEvent?: (info: AgentEventInfo) => void;
+  /** Injectable clock — the pass timestamps are the thing under test. */
+  now?: () => number;
 }
 
 export interface AgentBridgeHandle {
@@ -301,6 +316,8 @@ export function startAgentBridge(deps: BridgeDeps): AgentBridgeHandle {
     fetchImpl,
     eventSourceImpl = defaultEventSource,
     subscribeSettled: subscribeSettledImpl = subscribeSettled,
+    logEvent = (info) => llmLogger.logAgent(info),
+    now = () => Date.now(),
   } = deps;
 
   const doFetch: typeof fetch = (...args) => (fetchImpl ?? globalThis.fetch)(...args);
@@ -318,6 +335,7 @@ export function startAgentBridge(deps: BridgeDeps): AgentBridgeHandle {
   // non-material re-pushes (which re-send the same version) and only recomputed on a bump.
   let lastSectionFps: string[] | null = null;
   let lastHint: { changedSections: number[]; changedSectionsSince: number } | null = null;
+  let pass: AgentPass = { ...EMPTY_PASS };
 
   let stopped = false;
   let probeTimer: ReturnType<typeof setTimeout> | null = null;
@@ -335,6 +353,7 @@ export function startAgentBridge(deps: BridgeDeps): AgentBridgeHandle {
       error,
       docVersion: lastPushedVersion,
       sessionId: sessionId || null,
+      pass: { ...pass },
     };
   }
 
@@ -347,6 +366,12 @@ export function startAgentBridge(deps: BridgeDeps): AgentBridgeHandle {
     if (state === next && error === nextError) return;
     state = next;
     error = nextError;
+    logEvent({
+      event: "pairing",
+      state: next,
+      agentName: agentName ?? undefined,
+      sessionId: sessionId || undefined,
+    });
     emit();
   }
 
@@ -422,6 +447,14 @@ export function startAgentBridge(deps: BridgeDeps): AgentBridgeHandle {
       try {
         const d = JSON.parse(e.data) as { agentName?: string; sessionId?: string };
         if (d.agentName) agentName = d.agentName;
+        // A different sessionId is a different bridge RUN, not a reconnect of
+        // the same one. Its predecessor's pass facts describe work that run did
+        // not do — carrying its pass timestamps across would credit a fresh
+        // session with the last one's activity. Same reasoning that scopes card
+        // attribution on sessionId rather than on the display name.
+        if (d.sessionId && d.sessionId !== sessionId) {
+          pass = { ...EMPTY_PASS };
+        }
         if (d.sessionId) sessionId = d.sessionId;
         // The stream is live even if onopen didn't fire in this implementation.
         clearGrace();
@@ -430,6 +463,34 @@ export function startAgentBridge(deps: BridgeDeps): AgentBridgeHandle {
       } catch {
         /* malformed hello — the bridge is still usable */
       }
+    });
+
+    // The agent picked the document up. This is the ONLY "started" signal the
+    // protocol carries — there is no "finished" one, which is why the readout
+    // derived from it must decay (agentActivityView). Emitted by bridges from
+    // this version on; an older bridge simply never sends it and the row stays
+    // on "sent", which is still true.
+    source.addEventListener("pulled", (e) => {
+      try {
+        const d = JSON.parse(e.data) as { docVersion?: number; connected?: boolean };
+        // A pull before the first snapshot push tells us the agent is alive, but
+        // it read nothing — counting it as pickup would start an elapsed timer
+        // against a document that never travelled.
+        if (d.connected === false) return;
+        pass = { ...pass, lastPullAt: now() };
+        logEvent({ event: "pull", docVersion: d.docVersion, sessionId: sessionId || undefined });
+        emit();
+      } catch {
+        /* malformed frame — the stream is still usable */
+      }
+    });
+
+    // The agent parking in `GET /wait` — watch mode. Without this, an agent
+    // idling in a poll loop and an agent that has gone away are the same
+    // silence, which is exactly how a stalled watch session hid in plain sight.
+    source.addEventListener("waiting", () => {
+      pass = { ...pass, lastWaitAt: now() };
+      emit();
     });
 
     source.addEventListener("submission", (e) => {
@@ -444,9 +505,26 @@ export function startAgentBridge(deps: BridgeDeps): AgentBridgeHandle {
     source.addEventListener("retract", (e) => {
       try {
         const env = JSON.parse(e.data) as { observationId: string };
-        if (env.observationId && onRetract) {
-          void onRetract(env.observationId, { agentName: agentName ?? "agent", sessionId });
+        if (!env.observationId) return;
+        if (!onRetract) {
+          // Log the drop rather than swallowing it. The bridge has already told
+          // the agent `{ok:true}`, so a missing handler means the agent believes
+          // it withdrew a card that is still on screen — exactly the shipped bug
+          // this log family exists to make visible.
+          logEvent({ event: "retract", observationId: env.observationId, applied: false });
+          return;
         }
+        void onRetract(env.observationId, { agentName: agentName ?? "agent", sessionId }).then(
+          (applied) => {
+            logEvent({
+              event: "retract",
+              observationId: env.observationId,
+              sessionId: sessionId || undefined,
+              applied,
+            });
+          },
+          () => logEvent({ event: "retract", observationId: env.observationId, applied: false })
+        );
       } catch {
         /* ignore malformed frame */
       }
@@ -510,6 +588,23 @@ export function startAgentBridge(deps: BridgeDeps): AgentBridgeHandle {
             hint: err instanceof Error ? err.message : String(err),
           };
         }
+        // A submission counts as agent activity whatever the verdict — a burst
+        // of rejections is still the agent working, and it is exactly the case a
+        // debug export needs to show.
+        const payload = (env.payload ?? {}) as { type?: unknown; scope?: unknown };
+        pass = { ...pass, lastSubmissionAt: now() };
+        logEvent({
+          event: "submission",
+          sessionId: sessionId || undefined,
+          obsType: typeof payload.type === "string" ? payload.type : undefined,
+          scope: typeof payload.scope === "string" ? payload.scope : undefined,
+          result: verdict.result,
+          code: verdict.code,
+          rule: verdict.rule,
+          observationId: verdict.observationId,
+        });
+        emit();
+
         await postJson("/verdict", { sid: env.sid, ...verdict });
         await new Promise((r) => setTimeout(r, VERDICT_SPACING_MS));
       })
@@ -547,6 +642,17 @@ export function startAgentBridge(deps: BridgeDeps): AgentBridgeHandle {
       const changed = lastSectionFps ? changedSectionIndices(lastSectionFps, sectionFps) : null;
       lastHint = changed ? { changedSections: changed, changedSectionsSince: previousVersion } : null;
       lastSectionFps = sectionFps;
+
+      // End the pass here, BEFORE the await — not after the POST resolves. A new
+      // material version supersedes whatever the agent was reading, so the old
+      // pass is over the moment we mint the version; resetting on the far side of
+      // the network hop would wipe a pull or submission that arrived while the
+      // POST was in flight and silently zero a live pass.
+      // This rides on the SAME gate as the version bump, which is what keeps the
+      // readout aligned with the materiality floor: a non-material re-push does
+      // not wake the agent, so it must not reset the pass it is still working on.
+      pass = { ...EMPTY_PASS, lastPushAt: now() };
+      logEvent({ event: "snapshot", docVersion, sessionId: sessionId || undefined });
     }
 
     try {

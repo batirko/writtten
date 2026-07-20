@@ -19,6 +19,11 @@ import {
 import { buildAgentPrompt } from "../services/agentPrompt";
 import { buildAgentSnapshot } from "../services/agentSnapshot";
 import { agentBridgeEnabled } from "../services/featureFlags";
+import { EMPTY_PASS } from "./agentActivityView";
+import {
+  currentAgentBrowserSupport,
+  type AgentBrowserSupport,
+} from "../services/agentBrowserSupport";
 import {
   submitExternalObservation,
   sanitizeSourceName,
@@ -32,6 +37,7 @@ import { setAgentSourceStatus } from "../model/agentSourceSignal";
 import {
   archiveExternalSource,
   countActiveFromSource,
+  retractExternalObservation,
 } from "../services/externalObservationLifecycle";
 import {
   saveObservation,
@@ -50,10 +56,15 @@ const IDLE: BridgeStatus = {
   error: null,
   docVersion: null,
   sessionId: null,
+  pass: EMPTY_PASS,
 };
 
 export interface AgentBridgeView {
   enabled: boolean;
+  /** Whether this browser can reach a loopback bridge at all. When it can't, no
+   *  probe is started — the old behaviour left the user on "Waiting for your
+   *  agent…" forever against a limitation we could name up front. */
+  support: AgentBrowserSupport;
   status: BridgeStatus;
   /** The personalized prompt, once generated. */
   prompt: string | null;
@@ -71,6 +82,8 @@ export interface AgentBridgeView {
 }
 
 export function useAgentBridge(): AgentBridgeView {
+  // Read once: neither the vendor nor the page's scheme changes under us.
+  const [support] = useState<AgentBrowserSupport>(currentAgentBrowserSupport);
   const [status, setStatus] = useState<BridgeStatus>(IDLE);
   const [prompt, setPrompt] = useState<string | null>(null);
   const [promptError, setPromptError] = useState<string | null>(null);
@@ -135,6 +148,16 @@ export function useAgentBridge(): AgentBridgeView {
         notifyObservationsChanged();
         return { result: "accepted", observationId: id };
       },
+      // Shipped unwired: the bridge relayed `retract`, acked the agent
+      // `{ok:true}`, and the app dropped the frame — so an agent that withdrew a
+      // card left it on screen and believed otherwise. Scoped by sessionId
+      // inside `retractExternalObservation`: a source may only close its own.
+      onRetract: async (observationId, meta) => {
+        const applied = await retractExternalObservation(observationId, meta.sessionId);
+        // Closing a card outside an eval pass — nothing else refreshes the feed.
+        if (applied) notifyObservationsChanged();
+        return applied;
+      },
     });
     return handleRef.current.subscribe(setStatus);
   }, []);
@@ -142,7 +165,7 @@ export function useAgentBridge(): AgentBridgeView {
   // Resume an existing pairing across a reload, so re-running the bridge reconnects with
   // no UI work (decision 7).
   useEffect(() => {
-    if (!agentBridgeEnabled()) return;
+    if (!agentBridgeEnabled() || !support.supported) return;
     const existing = loadPairing();
     if (!existing) return;
     const unsubscribe = start(existing);
@@ -158,9 +181,12 @@ export function useAgentBridge(): AgentBridgeView {
       handleRef.current?.stop();
       handleRef.current = null;
     };
-  }, [start]);
+  }, [start, support.supported]);
 
   const connect = useCallback(() => {
+    // Nothing to wait for on a browser that cannot reach loopback. The panel
+    // shows the reason instead of a spinner that can never resolve.
+    if (!support.supported) return;
     setPromptError(null);
     setPrompt(null);
     // Generating a new prompt invalidates the previous pairing — exactly one at a time.
@@ -169,7 +195,7 @@ export function useAgentBridge(): AgentBridgeView {
     buildAgentPrompt({ token: pairing.token, ports: pairing.ports, origin: pairing.origin })
       .then(setPrompt)
       .catch(() => setPromptError("Couldn't build the prompt. Reload and try again."));
-  }, [start]);
+  }, [start, support.supported]);
 
   const cancel = useCallback(() => {
     handleRef.current?.stop();
@@ -191,9 +217,10 @@ export function useAgentBridge(): AgentBridgeView {
             state: status.state,
             name: status.agentName ?? undefined,
             sessionId: status.sessionId ?? undefined,
+            pass: status.pass,
           }
     );
-  }, [status.state, status.agentName, status.sessionId]);
+  }, [status.state, status.agentName, status.sessionId, status.pass]);
 
   // Keep the teardown confirm's count honest: recount whenever the source
   // changes or its cards do (a submission, a dismissal, an eval pass).
@@ -245,6 +272,7 @@ export function useAgentBridge(): AgentBridgeView {
 
   return {
     enabled: agentBridgeEnabled(),
+    support,
     status,
     prompt,
     promptError,

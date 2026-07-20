@@ -16,6 +16,8 @@
  * multi-agent choreography), so this is a single value, not a collection.
  */
 
+import type { AgentPass } from "../sidecar/agentActivityView";
+
 /** Where the pairing is. `disconnected` means the bridge went away but the
  *  cards it submitted are still in the feed — cards outlive the socket
  *  (decision 7, "persist quietly"). `revoked` means the user tore the pairing
@@ -33,6 +35,11 @@ export interface AgentSourceStatus {
   name?: string;
   /** Bridge-generated per run. What revoke and retract scope on. */
   sessionId?: string;
+  /** Facts about the agent's current review pass, for the process readout.
+   *  Absent when no pass has started. Changes at most a few times per pass
+   *  (push / pull / submission), so carrying it here doesn't churn the card
+   *  chips that read this same signal. */
+  pass?: AgentPass;
 }
 
 type Listener = (status: AgentSourceStatus) => void;
@@ -40,13 +47,25 @@ type Listener = (status: AgentSourceStatus) => void;
 let status: AgentSourceStatus = { state: "idle" };
 const listeners = new Set<Listener>();
 
+function samePass(a: AgentPass | undefined, b: AgentPass | undefined): boolean {
+  if (a === b) return true;
+  if (!a || !b) return false;
+  return (
+    a.lastPushAt === b.lastPushAt &&
+    a.lastPullAt === b.lastPullAt &&
+    a.lastSubmissionAt === b.lastSubmissionAt &&
+    a.lastWaitAt === b.lastWaitAt
+  );
+}
+
 /** Push a new pairing state. No-op if nothing changed, so a bridge client that
  *  re-asserts its state on every poll doesn't churn React renders. */
 export function setAgentSourceStatus(next: AgentSourceStatus): void {
   if (
     next.state === status.state &&
     next.name === status.name &&
-    next.sessionId === status.sessionId
+    next.sessionId === status.sessionId &&
+    samePass(next.pass, status.pass)
   ) {
     return;
   }

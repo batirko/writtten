@@ -1,5 +1,11 @@
 import { describe, it, expect } from "vitest";
-import { buildEnvelope, type CallRecord, type ArchiveRecord, type TriggerRecord } from "./debugLog";
+import {
+  buildEnvelope,
+  type CallRecord,
+  type ArchiveRecord,
+  type TriggerRecord,
+  type AgentRecord,
+} from "./debugLog";
 import type { LLMLogEntry, CallProduced } from "./logger";
 
 let seq = 0;
@@ -330,5 +336,83 @@ describe("buildEnvelope — triggers, archives, produced", () => {
     const call = env.log.find((r) => r.kind === "call") as CallRecord;
     expect(call.produced).toMatchObject({ ledgerWrites: 3, resolvedPrior: [0] });
     expect(call.produced?.observations).toEqual(["clarity", "clarity"]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The BYOA blind spot. A dogfood session with a connected agent — 7 accepted
+// observations and several retractions — exported
+// `{ triggers: 88, calls: 0, archives: 0 }`: 88 triggers from the *idle*
+// built-in engine and not one event from the engine that did the work. The
+// export is what a user sends when something goes wrong; for an agent session
+// it contained no evidence at all.
+// ---------------------------------------------------------------------------
+
+describe("buildEnvelope — agent (BYOA) records", () => {
+  it("projects each bridge event into the log stream", () => {
+    const entries = [
+      entry({ type: "agent", agent: { event: "pairing", state: "connected", agentName: "Claude Code" } }),
+      entry({ type: "agent", agent: { event: "snapshot", docVersion: 4 } }),
+      entry({ type: "agent", agent: { event: "pull", docVersion: 4 } }),
+    ];
+    const env = buildEnvelope(entries, new Map());
+    const agents = env.log.filter((r) => r.kind === "agent") as AgentRecord[];
+    expect(agents.map((a) => a.event)).toEqual(["pairing", "snapshot", "pull"]);
+    expect(agents[0].agentName).toBe("Claude Code");
+    expect(agents[1].docVersion).toBe(4);
+  });
+
+  it("carries a submission's verdict, including why a rejection was rejected", () => {
+    const entries = [
+      entry({
+        type: "agent",
+        agent: {
+          event: "submission",
+          obsType: "clarity",
+          scope: "span",
+          result: "rejected",
+          code: "register_violation",
+          rule: "prescriptive",
+        },
+      }),
+    ];
+    const env = buildEnvelope(entries, new Map());
+    const rec = env.log.find((r) => r.kind === "agent") as AgentRecord;
+    expect(rec).toMatchObject({ result: "rejected", code: "register_violation", rule: "prescriptive" });
+  });
+
+  // The whole point of the counter: a BYOA session must not export as if
+  // nothing happened.
+  it("a submit/retract round-trip is legible after the fact, with a non-zero archive", () => {
+    const entries = [
+      entry({ type: "agent", agent: { event: "pull", docVersion: 1 } }),
+      entry({
+        type: "agent",
+        agent: { event: "submission", obsType: "contradiction", scope: "span", result: "accepted", observationId: "obs-1" },
+      }),
+      entry({ type: "agent", agent: { event: "retract", observationId: "obs-1", applied: true } }),
+      entry({
+        type: "archive",
+        archive: {
+          observationId: "obs-1",
+          obsType: "contradiction",
+          scope: "span",
+          text: "This section commits to Q3; the Timeline section commits the same work to Q2.",
+          reason: "retracted",
+          actor: "system",
+        },
+      }),
+    ];
+    const env = buildEnvelope(entries, new Map());
+    expect(env.meta.counts.agentEvents).toBe(3);
+    // `archives: 0` was wrong on its own terms — a retraction closes a card.
+    expect(env.meta.counts.archives).toBe(1);
+    const archive = env.log.find((r) => r.kind === "archive") as ArchiveRecord;
+    expect(archive.reason).toBe("retracted");
+  });
+
+  it("counts zero agent events on an ordinary keyed session", () => {
+    const entries = [entry({ type: "trigger", triggerKind: "pause" })];
+    expect(buildEnvelope(entries, new Map()).meta.counts.agentEvents).toBe(0);
   });
 });

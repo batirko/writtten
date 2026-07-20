@@ -17,6 +17,8 @@ import {
   type VerdictBody,
 } from "./agentBridgeClient";
 import { setActivityPending } from "../model/activitySignal";
+import type { AgentEventInfo } from "../model/logger";
+import { agentPassPhase, AGENT_PASS_IDLE_MS } from "../sidecar/agentActivityView";
 
 const pairing: Pairing = {
   token: "tok-1",
@@ -118,10 +120,13 @@ function makeHarness(opts: {
   protocolVersion?: number;
   handshakeOkOn?: number[];
   onSubmission?: (payload: unknown) => Promise<VerdictBody>;
+  onRetract?: (observationId: string) => Promise<boolean>;
   snapshot?: () => Promise<SnapshotBody | null>;
+  now?: () => number;
 } = {}) {
   const calls: Call[] = [];
   const sources: FakeEventSource[] = [];
+  const events: AgentEventInfo[] = [];
   let settle: () => void = () => {};
 
   const fetchImpl = (async (input: string | URL | Request, init?: RequestInit) => {
@@ -166,9 +171,12 @@ function makeHarness(opts: {
         activeObservations: [],
       })),
     onSubmission: opts.onSubmission ?? (async () => ({ result: "accepted", observationId: "o1" })),
+    onRetract: opts.onRetract ? (id) => opts.onRetract!(id) : undefined,
+    logEvent: (info) => events.push(info),
+    now: opts.now,
   });
 
-  return { handle, calls, sources, settle: () => settle() };
+  return { handle, calls, sources, events, settle: () => settle() };
 }
 
 const tick = (ms = 0) => new Promise((r) => setTimeout(r, ms));
@@ -705,5 +713,181 @@ describe("subscribeSettled", () => {
     setActivityPending(1);
     setActivityPending(0);
     expect(fn).not.toHaveBeenCalled();
+  });
+});
+
+describe("agent pass reporting", () => {
+  // The defect this whole family exists for: BYOA makes zero model calls, so
+  // `setActivityPending` — the one writer of the activity signal — never moves,
+  // and the readout said `idle` throughout an agent's review.
+  it("starts a pass when the agent pulls the document", async () => {
+    const h = makeHarness();
+    const es = await until(() => h.sources[0]);
+    es.open();
+    es.emit("hello", { agentName: "Claude Code", sessionId: "s1" });
+    await until(() => h.handle.getStatus().state === "connected");
+
+    expect(agentPassPhase(h.handle.getStatus().pass, Date.now())).not.toBe("reading");
+    es.emit("pulled", { docVersion: 1, connected: true, t: Date.now() });
+
+    const pass = h.handle.getStatus().pass;
+    expect(pass.lastPullAt).toBeTypeOf("number");
+    expect(agentPassPhase(pass, Date.now())).toBe("reading");
+  });
+
+  it("ignores a pull that read nothing — no document travelled, so no pass began", async () => {
+    const h = makeHarness();
+    const es = await until(() => h.sources[0]);
+    es.open();
+    es.emit("hello", { agentName: "Claude Code", sessionId: "s1" });
+    await until(() => h.handle.getStatus().state === "connected");
+
+    es.emit("pulled", { docVersion: -1, connected: false, t: Date.now() });
+    expect(h.handle.getStatus().pass.lastPullAt).toBeNull();
+  });
+
+  // "Finished" is not observable — the agent just stops. So the working state
+  // has to resolve itself, or it is a spinner that never stops.
+  it("the working state decays without any `finished` message", async () => {
+    const h = makeHarness();
+    const es = await until(() => h.sources[0]);
+    es.open();
+    es.emit("hello", { agentName: "Claude Code", sessionId: "s1" });
+    await until(() => h.handle.getStatus().state === "connected");
+
+    const t = Date.now();
+    es.emit("pulled", { docVersion: 1, connected: true, t });
+    const pass = h.handle.getStatus().pass;
+
+    // No further event of any kind arrives — only time passes.
+    expect(agentPassPhase(pass, t + 1_000)).toBe("reading");
+    expect(agentPassPhase(pass, t + AGENT_PASS_IDLE_MS + 1)).toBe("quiet");
+  });
+
+  it("a submission of any verdict re-arms the pass window", async () => {
+    const h = makeHarness({
+      onSubmission: async () => ({ result: "rejected", code: "register_violation", rule: "prescriptive" }),
+    });
+    const es = await until(() => h.sources[0]);
+    es.open();
+    es.emit("hello", { agentName: "Claude Code", sessionId: "s1" });
+    await until(() => h.handle.getStatus().state === "connected");
+
+    es.emit("submission", { sid: "sid-1", payload: { type: "clarity", scope: "document" } });
+    // A rejected burst is still the agent working, so it keeps the pass alive.
+    // Deliberately a timestamp and not a displayed count: it counts submissions,
+    // not acceptances, so a visible "5 submitted" could sit above a feed that
+    // gained nothing.
+    await until(() => h.handle.getStatus().pass.lastSubmissionAt !== null);
+    expect(h.handle.getStatus().pass.lastSubmissionAt).toBeTypeOf("number");
+  });
+
+  it("records the agent parking in watch mode", async () => {
+    const h = makeHarness();
+    const es = await until(() => h.sources[0]);
+    es.open();
+    es.emit("hello", { agentName: "Claude Code", sessionId: "s1" });
+    await until(() => h.handle.getStatus().state === "connected");
+
+    expect(h.handle.getStatus().pass.lastWaitAt).toBeNull();
+    es.emit("waiting", { since: 1, t: Date.now() });
+    // Watch mode is otherwise invisible: a parked agent and an absent one are
+    // the same silence.
+    expect(agentPassPhase(h.handle.getStatus().pass, Date.now())).toBe("watching");
+  });
+});
+
+describe("debug-log evidence", () => {
+  // A dogfood session with 7 accepted observations exported
+  // { triggers: 88, calls: 0, archives: 0 } — not one event from the engine
+  // that did the work.
+  it("records the submission round-trip with its verdict", async () => {
+    const h = makeHarness({
+      onSubmission: async () => ({ result: "rejected", code: "anchor_unresolved" }),
+    });
+    const es = await until(() => h.sources[0]);
+    es.open();
+    es.emit("hello", { agentName: "Claude Code", sessionId: "s1" });
+    await until(() => h.handle.getStatus().state === "connected");
+
+    es.emit("submission", { sid: "sid-1", payload: { type: "contradiction", scope: "span" } });
+    const rec = await until(() => h.events.find((e) => e.event === "submission"));
+    expect(rec).toMatchObject({
+      obsType: "contradiction",
+      scope: "span",
+      result: "rejected",
+      code: "anchor_unresolved",
+    });
+  });
+
+  it("records pairing transitions and snapshot pushes", async () => {
+    const h = makeHarness();
+    const es = await until(() => h.sources[0]);
+    es.open();
+    es.emit("hello", { agentName: "Claude Code", sessionId: "s1" });
+    await until(() => h.events.some((e) => e.event === "snapshot"));
+
+    expect(h.events.some((e) => e.event === "pairing" && e.state === "connected")).toBe(true);
+    expect(h.events.find((e) => e.event === "snapshot")?.docVersion).toBe(1);
+  });
+
+  it("records a retraction, and whether it was actually applied", async () => {
+    const h = makeHarness({ onRetract: async () => true });
+    const es = await until(() => h.sources[0]);
+    es.open();
+    es.emit("hello", { agentName: "Claude Code", sessionId: "s1" });
+    await until(() => h.handle.getStatus().state === "connected");
+
+    es.emit("retract", { observationId: "obs-9" });
+    const rec = await until(() => h.events.find((e) => e.event === "retract"));
+    expect(rec).toMatchObject({ observationId: "obs-9", applied: true });
+  });
+
+  // The shipped bug: the bridge acked the agent {ok:true} while the app had no
+  // handler at all, so the card stayed on screen and nothing recorded the drop.
+  it("records a dropped retraction rather than swallowing it", async () => {
+    const h = makeHarness(); // no onRetract
+    const es = await until(() => h.sources[0]);
+    es.open();
+    es.emit("hello", { agentName: "Claude Code", sessionId: "s1" });
+    await until(() => h.handle.getStatus().state === "connected");
+
+    es.emit("retract", { observationId: "obs-9" });
+    const rec = await until(() => h.events.find((e) => e.event === "retract"));
+    expect(rec).toMatchObject({ observationId: "obs-9", applied: false });
+  });
+});
+
+describe("pass ownership across bridge runs", () => {
+  // A restarted bridge is a new run with a new sessionId. Carrying the previous
+  // run's counters over would credit a fresh session with work it did not do —
+  // the same reason card attribution scopes on sessionId, not display name.
+  it("clears the pass when a different bridge run connects", async () => {
+    const h = makeHarness();
+    const es = await until(() => h.sources[0]);
+    es.open();
+    es.emit("hello", { agentName: "Claude Code", sessionId: "run-1" });
+    await until(() => h.handle.getStatus().state === "connected");
+
+    es.emit("pulled", { docVersion: 1, connected: true, t: Date.now() });
+    es.emit("submission", { sid: "sid-1", payload: { type: "clarity", scope: "document" } });
+    await until(() => h.handle.getStatus().pass.lastSubmissionAt !== null);
+
+    es.emit("hello", { agentName: "Claude Code", sessionId: "run-2" });
+    const pass = h.handle.getStatus().pass;
+    expect(pass.lastSubmissionAt).toBeNull();
+    expect(pass.lastPullAt).toBeNull();
+  });
+
+  it("keeps the pass when the same run re-announces itself", async () => {
+    const h = makeHarness();
+    const es = await until(() => h.sources[0]);
+    es.open();
+    es.emit("hello", { agentName: "Claude Code", sessionId: "run-1" });
+    await until(() => h.handle.getStatus().state === "connected");
+
+    es.emit("pulled", { docVersion: 1, connected: true, t: Date.now() });
+    es.emit("hello", { agentName: "Claude Code", sessionId: "run-1" });
+    expect(h.handle.getStatus().pass.lastPullAt).toBeTypeOf("number");
   });
 });

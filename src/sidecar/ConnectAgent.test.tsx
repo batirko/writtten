@@ -6,6 +6,7 @@ import { act } from "react";
 import { ConnectAgent } from "./ConnectAgent";
 import type { AgentBridgeView } from "./useAgentBridge";
 import type { BridgeState } from "../services/agentBridgeClient";
+import { EMPTY_PASS } from "./agentActivityView";
 
 let container: HTMLDivElement;
 
@@ -13,6 +14,7 @@ function render(view: Partial<AgentBridgeView> & { state: BridgeState }) {
   const { state, ...rest } = view;
   const props: AgentBridgeView = {
     enabled: true,
+    support: rest.support ?? { supported: true },
     // An explicit `status` wins wholesale — merging with `??` would silently override a
     // deliberate `agentName: null`, which is the case one of these tests exercises.
     status: rest.status ?? {
@@ -22,6 +24,7 @@ function render(view: Partial<AgentBridgeView> & { state: BridgeState }) {
       error: null,
       docVersion: null,
       sessionId: "sess-1",
+      pass: EMPTY_PASS,
     },
     prompt: rest.prompt ?? null,
     promptError: rest.promptError ?? null,
@@ -50,6 +53,24 @@ describe("ConnectAgent — states", () => {
     expect(container.querySelector('[data-testid="connect-agent-prompt"]')).toBeNull();
   });
 
+  // UX-025: the panel used to offer the button, start an infinite port probe,
+  // and park the user on "Waiting for your agent…" forever — against a
+  // limitation already knowable at render time.
+  it("refuses up front on a browser that cannot reach a bridge", () => {
+    const text = render({ state: "idle", support: { supported: false, reason: "webkit_loopback" } });
+    expect(container.querySelector('[data-testid="connect-agent-unsupported"]')).not.toBeNull();
+    // No CTA into a dead end, and no spinner that can never resolve.
+    expect(container.querySelector('[data-testid="connect-agent-start"]')).toBeNull();
+    expect(text).not.toMatch(/Waiting for your agent/);
+    // Names the working route rather than only the broken one.
+    expect(text).toMatch(/Chrome, Edge, or Firefox/);
+  });
+
+  it("an unsupported browser is told the key route still works", () => {
+    const text = render({ state: "idle", support: { supported: false, reason: "webkit_loopback" } });
+    expect(text).toMatch(/API key still works/);
+  });
+
   it("waiting shows the prompt and a copy affordance", () => {
     const text = render({ state: "waiting", prompt: "# Review a writtten document\nbody" });
     expect(text).toMatch(/Waiting for your agent/);
@@ -76,6 +97,7 @@ describe("ConnectAgent — states", () => {
         error: "version_mismatch",
         docVersion: null,
         sessionId: null,
+        pass: EMPTY_PASS,
       },
     });
     expect(text).toMatch(/older protocol/);
@@ -105,6 +127,7 @@ describe("ConnectAgent — states", () => {
         error: null,
         docVersion: null,
         sessionId: null,
+        pass: EMPTY_PASS,
       },
     });
     expect(text).toContain("Connected · agent");

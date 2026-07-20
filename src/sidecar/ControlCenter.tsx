@@ -23,6 +23,8 @@ import { agentBridgeEnabled } from "../services/featureFlags";
 import { ConnectAgent } from "./ConnectAgent";
 import { useAgentBridge } from "./useAgentBridge";
 import { agentStatusView } from "./agentStatusView";
+import { agentPassPhase, agentStatusPhrase } from "./agentActivityView";
+import { processStatusView } from "./processStatusView";
 import {
   subscribeAgentSource,
   getAgentSourceStatus,
@@ -483,6 +485,28 @@ export function ControlCenter({
   useEffect(() => subscribeAgentSource(setAgentSource), []);
   const agentStatus = agentBridgeEnabled() ? agentStatusView(agentSource) : null;
 
+  // The agent row's second line is a live elapsed counter while a pass is
+  // running, so it needs a tick. Deliberately NOT a spinner: writtten cannot
+  // measure an agent's progress, and a pass has no observable end — the counter
+  // reports elapsed time (a fact) and the phase decays to "quiet" on its own.
+  // The tick runs only while a pass is live, and `agentPassPhase` is what stops
+  // it, so a forgotten agent costs nothing.
+  const agentPass = agentSource.pass;
+  const [passNow, setPassNow] = useState(() => Date.now());
+  // Only `reading` carries a counter, so it is the only phase worth ticking for.
+  // `watching` can idle for hours and must not spin a 1 s interval to say so.
+  const passLive = agentPass ? agentPassPhase(agentPass, passNow) === "reading" : false;
+  useEffect(() => {
+    if (!passLive) return;
+    const t = setInterval(() => setPassNow(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, [passLive]);
+  // Re-derive on every pass change too, so a pull lands immediately rather than
+  // waiting out the current second.
+  useEffect(() => setPassNow(Date.now()), [agentPass]);
+  const agentPhase = agentPass ? agentPassPhase(agentPass, passNow) : "none";
+  const agentPhrase = agentPass ? agentStatusPhrase(agentPass, passNow) : null;
+
   // Read the bridge through a ref inside the subscription below: re-subscribing
   // on every status change would tear down and rebuild the listener continuously.
   const agentBridgeRef = useRef(agentBridge);
@@ -770,11 +794,16 @@ export function ControlCenter({
   };
 
   const modelName = activeProvider.replace(" [paid]", "") || "…";
-  const anchorState = stalled ? "stalled" : pending > 0 ? "working" : "idle";
-  const statusText = stalled ? "still working…" : pending > 0 ? `evaluating · ${pending}` : "idle";
-  // Tier only colours the *working* state (idle/stalled carry no tier). The
-  // brand-indigo "strong" hue supersedes the old free-vs-paid marker.
-  const dotTier = anchorState === "working" ? displayTier : null;
+  // One activity signal for both engines — the dot answers "is something reading
+  // my document", which an agent pass makes true just as a model call does.
+  // Tier hue stays gated on our own in-flight work inside the view. See
+  // processStatusView for why the agent shares the state but not the hue.
+  const { anchorState, statusText, dotTier } = processStatusView({
+    pending,
+    stalled,
+    agentPhrase,
+    displayTier,
+  });
   const tierLabel = dotTier === "strong" ? "deeper adjudication" : dotTier === "fast" ? "quick checks" : null;
 
   // Keep the cluster revealed while any menu/modal is open (so it doesn't
@@ -1161,6 +1190,7 @@ export function ControlCenter({
                 className="agent-chip"
                 data-testid="agent-chip"
                 data-agent-state={agentStatus.state}
+                data-agent-activity={agentPhase}
                 role="status"
                 aria-live="polite"
                 aria-label={agentStatus.label}
