@@ -1,6 +1,7 @@
 /** @vitest-environment node */
 import { describe, it, expect, afterEach } from "vitest";
-import { toAgentObservation, AGENT_OBSERVATION_FIELDS } from "./agentSnapshot";
+import { toAgentObservation, AGENT_OBSERVATION_FIELDS, snapshotMaturity } from "./agentSnapshot";
+import type { SectionMember } from "./types";
 import { registerDocSnapshotReader, readLiveDoc } from "../model/docSnapshotSource";
 import type { Observation } from "../store/db";
 
@@ -78,6 +79,45 @@ describe("agent observation projection", () => {
   it("omits anchorText entirely for a doc-scope observation", () => {
     const docScope = { ...fullObservation, scope: "document" as const, anchorText: undefined };
     expect(toAgentObservation(docScope)).not.toHaveProperty("anchorText");
+  });
+});
+
+describe("snapshotMaturity — the band the agent is handed (UX-029)", () => {
+  const words = (n: number) => Array.from({ length: n }, (_, i) => `w${i}`).join(" ");
+  const block = (text: string, extra: Partial<SectionMember> = {}): SectionMember => ({
+    blockId: `b${Math.random()}`,
+    text,
+    ...extra,
+  });
+
+  it("reads an untouched document as unformed", () => {
+    // The starting condition that produced UX-029: connect first, write afterwards.
+    expect(snapshotMaturity([])).toBe("unformed");
+  });
+
+  it("still reads an opening line or two as unformed", () => {
+    expect(snapshotMaturity([block(words(20))])).toBe("unformed");
+  });
+
+  it("leaves unformed once there is a draft to react to", () => {
+    expect(snapshotMaturity([block(words(200))])).toBe("forming");
+  });
+
+  it("reaches mature on a developed draft", () => {
+    const blocks = Array.from({ length: 8 }, () => block(words(60)));
+    expect(snapshotMaturity(blocks)).toBe("mature");
+  });
+
+  it("counts only prose the agent can actually see, not table text", () => {
+    // The D2 guard. buildCombined drops table text from the sections[] the agent
+    // receives, so counting it here would let the snapshot claim `mature` over a
+    // document whose visible prose is two sentences — the agent would then run a full
+    // pass on material it was never shown, and file absence observations about it.
+    const tableHeavy = [
+      block(words(15)),
+      ...Array.from({ length: 6 }, () => block(words(80), { isTable: true })),
+    ];
+    expect(snapshotMaturity(tableHeavy)).toBe("unformed");
   });
 });
 

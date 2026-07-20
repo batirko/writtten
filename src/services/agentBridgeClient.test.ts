@@ -550,6 +550,33 @@ describe("snapshot push", () => {
     expect((pushes[1].body as { docVersion: number }).docVersion).toBe(2);
   });
 
+  it("DOES bump docVersion when the maturity band flips under an unchanged fingerprint", async () => {
+    // The exact hole the test above would otherwise open (UX-029). The fingerprint's job
+    // is to make re-partitioning invisible — but blockCount IS a re-partition signal, so
+    // splitting a paragraph at 120 words moves the band unformed → forming while the prose
+    // fingerprints identically. An agent parked waiting for the draft to become
+    // reviewable would sleep through precisely the event it is waiting for. Same shape,
+    // worse, for text typed into a table: excluded from sections[] entirely.
+    //
+    // Sections are held byte-identical here, so `maturity` is the ONLY thing that moves.
+    let maturity: "unformed" | "forming" = "unformed";
+    const sections = [{ heading: "Goals", text: "Ship the thing." }];
+    harness = makeHarness({
+      snapshot: async () => ({ title: "T", stage: "S", sections, activeObservations: [], maturity }),
+    });
+    const es = await until(() => harness!.sources[0]);
+    es.open();
+    await until(() => harness!.calls.find((c) => c.url.includes("/snapshot")));
+
+    maturity = "forming";
+    harness.settle();
+    await until(() => harness!.calls.filter((c) => c.url.includes("/snapshot")).length === 2);
+
+    const pushes = harness.calls.filter((c) => c.url.includes("/snapshot"));
+    expect((pushes[0].body as { docVersion: number }).docVersion).toBe(1);
+    expect((pushes[1].body as { docVersion: number }).docVersion).toBe(2);
+  });
+
   it("ships a changedSections hint naming only the edited section", async () => {
     let sections = [
       { heading: "A", text: "alpha" },

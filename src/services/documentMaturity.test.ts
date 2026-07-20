@@ -2,13 +2,13 @@ import { describe, it, expect } from "vitest";
 import { documentMaturity, isDocLevelArmed } from "./documentMaturity";
 
 describe("documentMaturity", () => {
-  it("is nascent for a genuinely half-formed draft (below every bar)", () => {
-    expect(documentMaturity({ wordCount: 40, blockCount: 2 })).toBe("nascent");
-    expect(documentMaturity({ wordCount: 79, blockCount: 3 })).toBe("nascent");
-    // 4 blocks but too few words → still nascent
-    expect(documentMaturity({ wordCount: 79, blockCount: 4 })).toBe("nascent");
+  it("is unformed for a genuinely half-formed draft (below every bar)", () => {
+    expect(documentMaturity({ wordCount: 40, blockCount: 2 })).toBe("unformed");
+    expect(documentMaturity({ wordCount: 79, blockCount: 3 })).toBe("unformed");
+    // 4 blocks but too few words → still unformed
+    expect(documentMaturity({ wordCount: 79, blockCount: 4 })).toBe("unformed");
     // Enough words for the short-draft path but too few blocks
-    expect(documentMaturity({ wordCount: 100, blockCount: 3 })).toBe("nascent");
+    expect(documentMaturity({ wordCount: 100, blockCount: 3 })).toBe("unformed");
   });
 
   it("is forming at the old word bar regardless of block count", () => {
@@ -31,7 +31,7 @@ describe("documentMaturity", () => {
     expect(documentMaturity({ wordCount: 200, blockCount: 8 })).toBe("forming");
   });
 
-  it("isDocLevelArmed arms for forming/mature and stays quiet for nascent", () => {
+  it("isDocLevelArmed arms for forming/mature and stays quiet for unformed", () => {
     expect(isDocLevelArmed({ wordCount: 40, blockCount: 2 })).toBe(false);
     expect(isDocLevelArmed({ wordCount: 80, blockCount: 4 })).toBe(true);
     expect(isDocLevelArmed({ wordCount: 400, blockCount: 6 })).toBe(true);

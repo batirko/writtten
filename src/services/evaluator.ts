@@ -1036,7 +1036,7 @@ export async function evaluateDocument(
   // single section still earns the pass when the editor supplied its raw text —
   // the text is inlined in place of the summary list below (probe-validated:
   // register-clean, doc-scope observations at both tiers). The maturity gate at
-  // the trigger (doc-idle arms only past "nascent") keeps Invariant #4; this
+  // the trigger (doc-idle arms only past "unformed") keeps Invariant #4; this
   // runs at doc-idle and is dirty-checked, so Invariant #3 holds too.
   const singleSectionPass = meaningful.length === 1 && !!singleSectionText?.trim();
   if (meaningful.length < 2 && !singleSectionPass) return;

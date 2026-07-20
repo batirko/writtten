@@ -268,7 +268,11 @@ The gate is now `agentPushFingerprint` (`src/services/docPassMateriality.ts`), w
 - New prose, a reword, a renamed heading, and a deletion all bump.
 - A **section reorder** bumps: reordering permutes the token stream, and flow is a real conclusion.
 
-It is not the doc pass's five-clause `isMaterialDelta`, though it lives beside it and shares its normalizer. That floor's clause 2 (*section count or ordered headings differ*) calls a heading split material — correct for a `structure_flow` conclusion, wrong here — and three of its five clauses read summaries, claims, and maturity, none of which exist at the bridge, whose snapshot is `{heading, text}` and id-free by the boundary invariant. The full reasoning is in `docs/projects/agent_connected_eval.md` § _Bridge protocol → Materiality floor_.
+It is not the doc pass's five-clause `isMaterialDelta`, though it lives beside it and shares its normalizer. That floor's clause 2 (*section count or ordered headings differ*) calls a heading split material — correct for a `structure_flow` conclusion, wrong here — and its summary and claim clauses read state that does not exist at the bridge, whose snapshot is `{heading, text}` and id-free by the boundary invariant. The full reasoning is in `docs/projects/agent_connected_eval.md` § _Bridge protocol → Materiality floor_.
+
+**One clause was added 2026-07-20 (UX-029): the `maturity` band.** `stableContentHash` is `agentPushFingerprint(body) + "|" + maturity`, so a band change bumps `docVersion` even when the prose fingerprints identically. This is not symmetry with the doc pass — it closes a hole the flattening itself opens. The fingerprint's purpose is to make re-partitioning invisible, but `blockCount` **is** a re-partition signal: splitting a paragraph at ~120 words moves the band `unformed → forming` without moving a fingerprint byte. Since a `unformed` band tells the agent to park until the draft is reviewable, an agent would sleep through precisely the event it was waiting for. The table case never self-heals — table text is excluded from `sections[]` entirely, so arbitrarily much of it can be typed with the fingerprint frozen.
+
+It cannot reintroduce self-waking: maturity is derived from the document, never from the observations.
 
 ## What changed, not just that something did (the delta hint)
 
@@ -290,3 +294,29 @@ It is carried unchanged across non-material re-pushes, since those re-send the s
 Per-section fingerprints come from `sectionProseFingerprints`, the same normalization `agentPushFingerprint` applies document-wide — so the wake gate and the hint can never disagree about whether a section's words changed.
 
 **No protocol bump was needed.** The bridge script stores the pushed body wholesale (`snapshot = body`) and `/doc` returns it, so the fields reach the agent through an unmodified bridge; an older pasted skill simply never reads them.
+
+## When the draft is too thin to review (the maturity band)
+
+> Added 2026-07-20 (UX-029). Change `snapshotMaturity` or the skill's band rules and update this section in the same task.
+
+The snapshot carries `maturity: "unformed" | "forming" | "mature"` beside `stage`. It is the **same** `documentMaturity()` the built-in engine gates its doc-level pass on — deliberately shipped as data rather than restated as thresholds in the skill prose, so recalibrating the constants (they are flagged provisional; the V1 corpus study is scheduled to tune them) moves both engines at once instead of leaving the skill describing numbers that no longer hold.
+
+**Why it exists at all.** A real session connected to an *empty* document and polled `/wait` → `/doc` → `/wait` for ~6 minutes while the author typed, then announced *"the document has settled (no changes in the last 60s), so I'll do the review pass now."* Nothing in the skill instructed a settle-wait — it had read the bridge's own `WAIT_TIMEOUT_MS` as a statement about the document and built a policy on it. The policy it invented was writtten's invariant 4 (*quiet while generating, opinionated while revising*), reached by accident and invisibly. The trigger is the starting condition: connect-then-write, rather than connect-to-an-existing-draft.
+
+What the skill now instructs per band:
+
+| Band | The agent's move |
+| --- | --- |
+| `unformed` | Don't review. Say so **once**, then park on `/wait`, re-pulling `/doc` on every return — timeout included — until the band moves. Then run the pass. |
+| `forming` | Review, but send `missing_topic` / `underexposed_topic` at `"confidence": "low"` — on a half-written draft an absence is as often a section not yet reached as a real omission. |
+| `mature` | The full pass. |
+
+**It defers; it never refuses.** The band is a coarse structural proxy and can be wrong about an unusual document, so the skill tells the agent to name the hold-off and to proceed anyway if the author says so. The failure this converts is not "the agent reviewed too early" — it is six minutes of unexplained silence becoming one sentence.
+
+**`confidence: "low"` is a real lever, not decoration.** `externalConfidence` is a downward-only clamp in `computePriority`, dropping the confidence factor 0.75 → 0.5. Note it moves *priority*, not `kind`: `missing_topic` and `underexposed_topic` are already `"opportunity"`, which is why the rule names those two and not `structure_flow` (unconditionally `"problem"` — promising a soft voice for it would be false).
+
+### Known reading: a deferral renders as `watching`
+
+While parked, the agent is in `/wait`, so the bridge broadcasts `waiting`, and `agentPassPhase` reports `watching` — re-armed every ≤60 s, so it never decays to `quiet` for as long as the deferral lasts.
+
+This is accurate on its own terms (someone is attached and will react the moment you type) and it is the right thing for the author to see. But it is worth stating plainly, because the readout **cannot distinguish** a deferred single pass from opt-in watch mode: both park on the same endpoint. If that distinction ever needs to be visible, it is a change in `agentActivityView` / `ControlCenter`, not here. Related: UX-029's secondary, unconfirmed note about an agent appearing to enter watch mode unasked.

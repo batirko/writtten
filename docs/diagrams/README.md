@@ -66,7 +66,7 @@ Legend — colour encodes the model tier a step invokes: teal = fast (per-sectio
 ## Notes on fidelity
 
 - The single **"settle gates"** node collapses three genuinely different gates that don't all apply to
-  every path: terminal punctuation + length (section triggers), the maturity proxy (doc-idle, `nascent`
+  every path: terminal punctuation + length (section triggers), the maturity proxy (doc-idle, `unformed`
   stays silent), and the 150-word threshold (the bulk contradiction sweep only).
 - The **model-router** fast/strong split is encoded as node colour rather than its own node. The brain
   map has a dedicated router panel.

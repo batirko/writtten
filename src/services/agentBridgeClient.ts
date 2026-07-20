@@ -19,6 +19,7 @@ import {
   changedSectionIndices,
   sectionProseFingerprints,
 } from "./docPassMateriality";
+import type { MaturityLevel } from "./documentMaturity";
 import { llmLogger, type AgentEventInfo } from "../model/logger";
 import { EMPTY_PASS, type AgentPass } from "../sidecar/agentActivityView";
 
@@ -94,6 +95,15 @@ export interface SnapshotBody {
   /** Opaque to the transport — it serializes these and never reads them. The projection
    *  that decides what an agent may see lives in `agentSnapshot.ts`. */
   activeObservations: unknown[];
+  /**
+   * How far along the draft is (UX-029) — the agent's cue to hold off on a document
+   * too thin to review, instead of inventing a settle rule off `WAIT_TIMEOUT_MS`.
+   *
+   * Optional so an app/bridge pair on either side of this change degrades silently,
+   * exactly as the `changedSections` hint does. Derived in `agentSnapshot.ts`; the
+   * transport only relays it — and gates on it, see `stableContentHash`.
+   */
+  maturity?: MaturityLevel;
 }
 
 /** The subset of EventSource this module uses — so a node test can supply a fake. */
@@ -302,9 +312,22 @@ function defaultEventSource(url: string): EventSourceLike {
  *
  * `activeObservations` stays excluded for the separate reason spelled out in
  * pushSnapshot (self-waking).
+ *
+ * **`maturity` is folded in (UX-029), and it has to be.** The fingerprint's whole
+ * job is to make re-partitioning invisible — but `blockCount` *is* a re-partition
+ * signal, so splitting a paragraph at 120 words takes the band `unformed → forming`
+ * while the fingerprint never moves. An agent parked waiting for the draft to
+ * become reviewable would sleep through exactly the event it is waiting for. The
+ * table case never self-heals at all: table text is excluded from `sections[]`, so
+ * 300 words typed into one shift the band without moving a fingerprint byte.
+ *
+ * Consistent with what the floor is *for*: it asks whether the agent's conclusions
+ * could change, and crossing out of `unformed` changes whether it should be drawing
+ * conclusions at all. It cannot reintroduce self-waking — maturity reads the
+ * document, never the observations.
  */
 function stableContentHash(body: SnapshotBody): string {
-  return agentPushFingerprint(body);
+  return `${agentPushFingerprint(body)}|${body.maturity ?? ""}`;
 }
 
 export function startAgentBridge(deps: BridgeDeps): AgentBridgeHandle {

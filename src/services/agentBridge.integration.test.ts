@@ -326,6 +326,11 @@ describe("bridge script — relay round-trip", { timeout: 25_000 }, () => {
       stage: "internal PRD for the payments team",
       sections: [{ heading: "Goals", text: "Cut chargebacks." }],
       activeObservations: [],
+      // UX-029. The bridge stores the pushed body wholesale, which is what lets the band
+      // reach the agent through an unmodified bridge — no protocolVersion bump, no
+      // re-paste. Asserted here rather than assumed, because the deferral rule in the
+      // skill is worthless if the field the agent reads never arrives.
+      maturity: "forming",
     };
     const push = await fetch(`${base}/snapshot`, {
       method: "POST",
@@ -335,7 +340,9 @@ describe("bridge script — relay round-trip", { timeout: 25_000 }, () => {
     expect(push.status).toBe(200);
 
     const doc = await fetch(`${base}/doc`, { headers: auth });
-    expect(await doc.json()).toEqual(snap);
+    const relayed = await doc.json();
+    expect(relayed).toEqual(snap);
+    expect(relayed.maturity).toBe("forming");
   });
 
   it("returns immediately from /wait when a newer version already exists", async () => {

@@ -36,7 +36,7 @@ Read alongside:
 - [ ] **Verify closure latency.** Doc-scope grace (`missCount` / `DOC_GRACE_THRESHOLD = 2`) closes stale cards only when doc passes run; with the flush streak at 4, the worst-case added delay is 4 sub-floor idle cycles per grace beat — measure it in a scripted browser session (`getApiStats()` before/after for the RPD saving; observe one stale doc-scope card's `auto_closed` latency) and record the numbers here.
 - [ ] **Tests** — `evaluator.test.ts` (the floor lives in `evaluateDocument`, not the orchestrator): one case per clause (claim delta fires · structure delta fires · maturity edge fires · stage change fires · K=2 summaries fire) + reword-only-single-summary is sub-floor (**no model call**) + streak flush runs the pass on the 4th sub-floor dirty idle + a fresh snapshot (streak 0) is written on every executed pass + legacy no-snapshot state runs the pass.
 - [ ] **Recalibrate constants via V1** — once the fuller V1 run lands, check which recorded doc-pass re-runs actually changed doc-level output and tune `SUMMARY_DELTA_FLOOR` / `SUBFLOOR_FLUSH_STREAK` against that evidence (they ship provisional, like the maturity thresholds did).
-- [ ] **Tier 2 decision — state-edge arming.** Decide (with the owner) whether to move arming from the raw 12s timer to section-eval-completion edges (the event that actually changes the pass's inputs), with idle demoted to the attention-boundary conjunct that *fires* an armed pass. Includes the maturity-edge case: crossing nascent→forming *arms* the first doc pass immediately instead of waiting to be noticed by a later idle window. Explicitly **not** part of the Tier-1 build; take it up only after Tier 1 has soaked and V1's fuller run is in.
+- [ ] **Tier 2 decision — state-edge arming.** Decide (with the owner) whether to move arming from the raw 12s timer to section-eval-completion edges (the event that actually changes the pass's inputs), with idle demoted to the attention-boundary conjunct that *fires* an armed pass. Includes the maturity-edge case: crossing unformed→forming *arms* the first doc pass immediately instead of waiting to be noticed by a later idle window. Explicitly **not** part of the Tier-1 build; take it up only after Tier 1 has soaked and V1's fuller run is in.
 - [ ] **Optional tuning:** lengthen `EVAL_DEBOUNCE_MS` (3s → ~6s) now that `block-settle-completion` covers the responsive path — cuts the per-sentence eval cost for slow deliberate writers. Dogfood before committing; do not change without checking UX-013's original latency complaint stays fixed.
 - [ ] **Update `docs/mechanics/evaluation-triggers.md`** in the same PR as any of the above.
 
@@ -49,7 +49,7 @@ Should evaluation triggers be **only** text-manipulation / text-state events, wi
 Eight triggers; six are already pure manipulation events (Enter-completion, cursor departure, bulk paste, import, stage change, block removal). The two time-based ones are both **conjunctions with text-state gates**, not bare clocks:
 
 - **3s pause settle** — dispatches only on terminal punctuation ∧ ≥15 chars (`EVAL_DEBOUNCE_MS`, `Editor.tsx:42`).
-- **12s doc-idle** — reaches the model only if maturity ≠ nascent ∧ the doc-state hash changed since the last pass (`DOC_IDLE_MS`, `Editor.tsx:44`; `docStateHash` dirty check, `evaluator.ts:838–845`). An idle firing on an unchanged doc is a free no-op.
+- **12s doc-idle** — reaches the model only if maturity ≠ unformed ∧ the doc-state hash changed since the last pass (`DOC_IDLE_MS`, `Editor.tsx:44`; `docStateHash` dirty check, `evaluator.ts:838–845`). An idle firing on an unchanged doc is a free no-op.
 
 So the state conditions the hunch asks for **already exist**; the timers are the scheduler on top of them.
 
@@ -73,7 +73,7 @@ Deleting pause detection breaks the most common reflective posture: write a sent
 
 The doc pass's inputs are block summaries + claim ledger + stage. But `docStateHash` includes every summary's **text hash**, so *any* text change in *any* section re-arms a strong-tier call. A contemplative writer's loop — type a sentence → 3s → section eval rewrites that summary's hash → 9 more seconds of thinking → doc-level strong call — burns roughly **one strong call per long pause**, even when the delta (a reworded sentence) cannot change a `missing_topic` / `structure_flow` conclusion. Against the binding free-tier budget (~20 RPD per model, `gemini-2.5-pro` = 0) this is the pipeline's largest unforced cost leak.
 
-Secondary defect: the state conditions are **level-gates** (checked whenever the timer happens to fire), not **edges** (events when crossed). The moment a doc crosses nascent→forming is precisely when the first doc pass is earned; today that waits for the next idle window to notice. (A pure maturity-edge trigger would fire mid-burst, violating the attention half — edges must *arm*, the boundary must *fire*.)
+Secondary defect: the state conditions are **level-gates** (checked whenever the timer happens to fire), not **edges** (events when crossed). The moment a doc crosses unformed→forming is precisely when the first doc pass is earned; today that waits for the next idle window to notice. (A pure maturity-edge trigger would fire mid-burst, violating the attention half — edges must *arm*, the boundary must *fire*.)
 
 ## Design — three tiers
 
@@ -81,7 +81,7 @@ Secondary defect: the state conditions are **level-gates** (checked whenever the
 
 - a claim was added / changed / orphaned since the last pass, **or**
 - section count / heading structure changed, **or**
-- the maturity level crossed (nascent→forming→mature), **or**
+- the maturity level crossed (unformed→forming→mature), **or**
 - the stage changed (exists today as `stage-changed`), **or**
 - ≥K summaries changed (K TBD, desk-default 2–3).
 
@@ -116,7 +116,7 @@ export function isMaterialDelta(prev: DocPassSnapshot, next: Omit<DocPassSnapsho
 
 1. **Claim delta** — `claimSigs` set difference non-empty in either direction (a claim added, removed/orphaned, or reworded past normalization).
 2. **Structure delta** — `sectionCount` differs, or the ordered `headings` list differs (a heading added/removed/renamed/reordered — the input `structure_flow` actually reasons over).
-3. **Maturity edge** — `prev.maturity !== next.maturity` (also delivers the "crossing nascent→forming earns the first pass at the next idle" arming case for free, since the pass is armed by the editor once maturity ≠ nascent and the floor then sees the edge).
+3. **Maturity edge** — `prev.maturity !== next.maturity` (also delivers the "crossing unformed→forming earns the first pass at the next idle" arming case for free, since the pass is armed by the editor once maturity ≠ unformed and the floor then sees the edge).
 4. **Stage change** — `prev.stage !== next.stage` (belt-and-braces; the `stage-changed` trigger routes through `handleDocIdle` anyway, and this makes the floor independent of trigger ordering).
 5. **Summary delta ≥ K** — at least `SUMMARY_DELTA_FLOOR = 2` blockIds whose **normalized summary content** changed (added/removed count too). This adopts the "summary-content delta" open question as part of the spec: the fast call already returns each section's summary, so comparing normalized summary text instead of the raw-text hash absorbs reword-only churn at zero extra cost — a rewording that doesn't change what the section *says* (its summary) cannot change a `missing_topic`/`structure_flow` conclusion, which is precisely the materiality question.
 
