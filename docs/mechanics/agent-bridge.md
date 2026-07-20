@@ -82,21 +82,39 @@ A third row in the control-center process readout (`ControlCenter.tsx`, mapping 
 
 It carries the pairing's **own** state (`waiting` / `connected` / `disconnected`), independent of the model's status row, reusing `.connect-dot`'s visual vocabulary so the same state reads the same way in Settings and in the readout. The connect section only shows connection state while Settings is open; a second critic writing into the feed should be visible without opening a modal.
 
-### The activity dot — one signal, both engines
+### The process readout — one verb, one noun
 
-The always-visible anchor dot (`.control-dot`) answers one question: *is something reading my document right now?* An agent pass makes that true exactly as a model call does, so it uses the **same working state and the same pulse**. `processStatusView.ts` is the single place the matrix lives.
+Two rows, split by part of speech, because they were doing overlapping jobs:
 
-A first draft gave the agent its own concentric ring to avoid "reusing the computation semantics". That over-applied the rule. The constraint worth keeping is *don't imply progress you can't measure* — it does not follow that "busy" needs a second colour, and splitting the channel encoded a distinction the author has no reason to care about at the moment they most want a yes/no. Which engine is busy is a real question, answered one layer in by the `status` and `agent` rows.
+- **`status` is the verb** — what is happening right now, whichever engine is responsible. Said once. The dot mirrors it by one rule.
+- **`agent` is the noun** — who is attached and whether they are still there. It carries no phase word of its own.
+
+An earlier draft had `status` read "agent reading" while the `agent` row's sub-line read "reading · 0:20": the same fact twice in adjacent lines. The sub-line is gone; `agentStatusPhrase` feeds the status row directly.
+
+The status vocabulary, and what the dot does with each:
+
+| `status` | Means | Dot |
+| --- | --- | --- |
+| `idle` | Nothing attached, or attached and gone quiet. | rest |
+| `awaiting pickup` | Snapshot sent; the agent has not read it. | rest |
+| `watching` | Agent parked in `GET /wait`. | rest |
+| `reading · 0:20` | Agent pulled `/doc` and is reviewing. | pulse |
+| `evaluating · 2` | writtten is computing. | pulse + tier hue |
+| `still working…` | Our stall detector fired. | stalled |
+
+**`watching` vs `idle` is the distinction this vocabulary exists for.** Neither is computing, so neither pulses — but one means a critic is attached and will react the moment you type, and the other means nothing is going to happen. Collapsing them is what let a stalled watch-loop look exactly like a finished pass; a real session spent six minutes in a poll loop and the readout was indistinguishable from an agent that had wandered off.
+
+**The dot is shared.** It answers one question — *is something reading my document right now?* — which an agent pass makes true exactly as a model call does, so it gets one vocabulary. A first draft gave the agent its own concentric ring to avoid "reusing the computation semantics"; that over-applied the rule. The constraint worth keeping is *don't imply progress you can't measure*; it does not follow that "busy" needs a second colour, and splitting the channel encoded a distinction the author has no reason to care about at the moment they most want a yes/no.
 
 Three things stay writtten's alone, each for a mechanical reason rather than for symmetry:
 
 | | Why |
 | --- | --- |
 | **Tier hue** (`fast` blue / `strong` violet) | Names *which model we called*. An agent pass has no tier, so `dotTier` keys on our own `pending`, never on the shared `working` state. |
-| **`stalled` red** | Our stall detector watches our own outstanding calls. It has nothing to watch on an agent, and an agent that simply stopped is reported as `quiet`, not as a fault. |
+| **`stalled` red** | Our stall detector watches our own outstanding calls. It has nothing to watch on an agent, and an agent that simply stopped is absent, not faulty. |
 | **How it resolves** | Ours resolves because `pending` returns to 0; the agent's has to resolve itself, because no message ever says it finished. Different mechanism, identical visible outcome. |
 
-The `status` row moves with the dot — it is labelled `status`, not `evaluator`. Agent-only activity reads **`agent reading`** rather than `evaluating · N`, which would claim a model call that never happened; when both are live, our count wins the row and the agent's own line sits directly beneath it. Without this the dot would pulse over an `idle` row, a contradiction visible the moment the readout is opened.
+`processStatusView.ts` holds the whole matrix and is the only place it lives.
 
 ### Reporting the agent's pass
 
@@ -104,12 +122,11 @@ Connection state is **liveness, not activity** — a chip reading `connected` sa
 
 So the row carries a second line, derived by `agentActivityView.ts` from four raw facts on `BridgeStatus.pass` — `lastPushAt` · `lastPullAt` · `lastSubmissionAt` · `submitted`:
 
-| Phase | Line | Means |
-| --- | --- | --- |
-| `none` | *(no second line)* | paired, nothing has travelled yet |
-| `sent` | `sent · not picked up` | a snapshot went out; the agent hasn't read it |
-| `reading` | `reading · 1:47 · 3 submitted` | the agent pulled `/doc`; elapsed ticks every second |
-| `quiet` | `quiet since 14:05 · 3 submitted` | nothing heard for `AGENT_PASS_IDLE_MS` (90 s) |
+`agentPassPhase` derives one of five phases from four timestamps on `BridgeStatus.pass` — `lastPushAt` · `lastPullAt` · `lastSubmissionAt` · `lastWaitAt`. Whichever signal is most recent wins, which orders the watch cycle (park → wake → pull → submit → park) with no state machine. `quiet` yields the status row entirely rather than coining a second word for the same non-event; the hollow dot on the `agent` row already says "attached, not active".
+
+**Two signals feed it that the bridge previously kept to itself.** `GET /doc` is the agent picking the document up — the missing "started" signal — and `GET /wait` is the agent parking in watch mode. Both are now one `broadcast()` in their handler and one named `addEventListener` client-side.
+
+**Submissions are tracked as a timestamp, never a displayed count.** A rejected burst is still the agent working, so it re-arms the decay window — but it counts *submissions*, not acceptances, so a visible "5 submitted" could sit above a feed that gained nothing. The cards themselves are the honest report of what an agent contributed.
 
 **Three constraints shape this, and each rules out an obvious alternative.**
 

@@ -446,6 +446,24 @@ describe("bridge script — relay round-trip", { timeout: 25_000 }, () => {
     await events.close();
   });
 
+  // Watch mode was invisible to the app: a parked agent and one that had
+  // wandered off were the same silence.
+  it("announces a /wait park to the app as a `waiting` event", async () => {
+    const controller = new AbortController();
+    const events = await openEvents(base, controller);
+    expect((await events.next()).event).toBe("hello");
+
+    // `since` is already stale, so /wait returns immediately — the agent is
+    // still watching, and the event must fire on entry regardless of branch.
+    await fetch(`${base}/wait?since=0`, { headers: auth });
+
+    const waiting = await events.next();
+    expect(waiting.event).toBe("waiting");
+    expect(waiting.data.since).toBe(0);
+    expect(typeof waiting.data.t).toBe("number");
+    await events.close();
+  });
+
   it("relays a retraction", async () => {
     const controller = new AbortController();
     const events = await openEvents(base, controller);

@@ -19,6 +19,7 @@ import {
 import { buildAgentPrompt } from "../services/agentPrompt";
 import { buildAgentSnapshot } from "../services/agentSnapshot";
 import { agentBridgeEnabled } from "../services/featureFlags";
+import { EMPTY_PASS } from "./agentActivityView";
 import {
   currentAgentBrowserSupport,
   type AgentBrowserSupport,
@@ -55,7 +56,7 @@ const IDLE: BridgeStatus = {
   error: null,
   docVersion: null,
   sessionId: null,
-  pass: { lastPushAt: null, lastPullAt: null, lastSubmissionAt: null, submitted: 0 },
+  pass: EMPTY_PASS,
 };
 
 export interface AgentBridgeView {

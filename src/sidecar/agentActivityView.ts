@@ -4,7 +4,9 @@
  * Why this exists at all: `setActivityPending` publishes the count of *writtten's
  * own* outstanding eval work, and BYOA makes zero model calls — so the status row
  * reads `idle` for the entire time an agent is reviewing. This module is the
- * agent-side answer to the same question.
+ * agent-side answer to the same question, and it feeds the **status row** (the
+ * verb) rather than a line of its own; the `agent` row carries only the noun —
+ * who is attached and whether they are still there.
  *
  * Two constraints shape every decision here, and both are load-bearing:
  *
@@ -16,94 +18,94 @@
  *    scheduled — there is no timer to leak, and a re-render at any moment
  *    produces the correct phase.
  *
- * 2. **Do not reuse the computation vocabulary.** For the API engine "in
- *    progress" means writtten is computing; for the agent engine writtten is
- *    waiting on a peer. Sharing words with the `status` row would imply progress
- *    we cannot measure. So this reports FACTS — sent, picked up at, elapsed,
- *    N submitted — and never a completion estimate. The ticking elapsed counter
- *    is the liveness cue precisely because elapsed time is something we know.
+ * 2. **Report facts, not progress.** Elapsed time is something we know; how far
+ *    along a peer's review is, we do not. So the phrase carries a counter, never
+ *    an estimate.
+ *
+ * `watching` is the phase that earns its keep: an agent parked in `GET /wait` and
+ * an agent that has wandered off are both "not computing", but one will react the
+ * moment you type and the other never will. Collapsing them into one `idle` is
+ * what made a stalled watch-loop indistinguishable from a finished pass.
  */
 
-/** Silence (no pull, no submission) after which a pass stops reading as live.
- *  Not an error threshold — `quiet` still shows what the pass produced; it just
- *  stops claiming the agent is mid-read. */
+/** Silence (no pull, submission, or wait) after which the agent stops reading as
+ *  present. `GET /wait` re-arms every ≤60 s by its own timeout, so a watching
+ *  agent comfortably stays inside this window. */
 export const AGENT_PASS_IDLE_MS = 90_000;
 
-export type AgentPassPhase = "none" | "sent" | "reading" | "quiet";
+/**
+ * - `none` — paired, nothing has travelled yet.
+ * - `awaiting` — a snapshot went out; the agent has not read it.
+ * - `reading` — the agent pulled `/doc` and is reviewing.
+ * - `watching` — parked in `/wait`: idle, but it will react when you type.
+ * - `quiet` — nothing heard for the idle window. Not a fault; just not here.
+ */
+export type AgentPassPhase = "none" | "awaiting" | "reading" | "watching" | "quiet";
 
-/** Raw facts the bridge client observes. Every field is a timestamp or a count —
- *  deliberately nothing that encodes a judgement about the agent's progress. */
+/** Raw facts the bridge client observes. Every field is a timestamp — nothing
+ *  that encodes a judgement about the agent's progress. */
 export interface AgentPass {
   /** Last successful snapshot push. `null` before the first one lands. */
   lastPushAt: number | null;
   /** Last `GET /doc` — the only "started" signal the protocol has. */
   lastPullAt: number | null;
-  /** Most recent submission relayed in this pass. */
+  /** Most recent submission relayed in this pass. Kept for decay only: a
+   *  rejected burst is still the agent working, so it re-arms the window. It is
+   *  deliberately NOT surfaced as a count — it counts submissions, not
+   *  acceptances, so "5 submitted" can sit above a feed that gained nothing. */
   lastSubmissionAt: number | null;
-  /** Submissions relayed since this pass began (accepted or rejected — both are
-   *  evidence the agent is working). */
-  submitted: number;
+  /** Last `GET /wait` — the agent parking in watch mode. */
+  lastWaitAt: number | null;
 }
 
 export const EMPTY_PASS: AgentPass = {
   lastPushAt: null,
   lastPullAt: null,
   lastSubmissionAt: null,
-  submitted: 0,
+  lastWaitAt: null,
 };
 
-/** The last moment the agent demonstrably did something. */
+/** The last moment the agent demonstrably did anything. */
 function lastHeardFrom(pass: AgentPass): number | null {
-  if (pass.lastPullAt === null && pass.lastSubmissionAt === null) return null;
-  return Math.max(pass.lastPullAt ?? 0, pass.lastSubmissionAt ?? 0);
+  const stamps = [pass.lastPullAt, pass.lastSubmissionAt, pass.lastWaitAt].filter(
+    (t): t is number => t !== null
+  );
+  return stamps.length === 0 ? null : Math.max(...stamps);
 }
 
 export function agentPassPhase(pass: AgentPass, now: number): AgentPassPhase {
   const heard = lastHeardFrom(pass);
-  // Nothing pushed and nothing heard: the pairing is up but no document has
-  // travelled yet. The row falls back to the bare connection state.
-  if (heard === null) return pass.lastPushAt === null ? "none" : "sent";
-  return now - heard < AGENT_PASS_IDLE_MS ? "reading" : "quiet";
+  if (heard === null) return pass.lastPushAt === null ? "none" : "awaiting";
+  if (now - heard >= AGENT_PASS_IDLE_MS) return "quiet";
+
+  // Whichever signal is most recent wins, which orders the watch cycle correctly
+  // without any state machine: park (/wait) → wake → pull (/doc) → submit →
+  // park again. A submission during a review keeps it `reading`, because the
+  // agent has not gone back to waiting yet.
+  const active = Math.max(pass.lastPullAt ?? 0, pass.lastSubmissionAt ?? 0);
+  return (pass.lastWaitAt ?? 0) >= active ? "watching" : "reading";
 }
 
-/** `0:07` / `1:47` / `12:03`. Minutes uncapped — an hour-long watch-mode pass
- *  reads `73:20`, which is ugly but true, and truer than wrapping to 13:20. */
+/** `0:07` / `1:47` / `12:03`. Minutes uncapped — an hour-long pass reads
+ *  `73:20`, which is ugly but true, and truer than wrapping to 13:20. */
 export function formatElapsed(ms: number): string {
   const total = Math.max(0, Math.floor(ms / 1000));
   return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, "0")}`;
 }
 
-/** Wall-clock for the decayed state. Injectable so the view is testable without
- *  pinning a locale; the default follows the user's. */
-export function formatClock(epochMs: number): string {
-  return new Date(epochMs).toLocaleTimeString(undefined, {
-    hour: "numeric",
-    minute: "2-digit",
-  });
-}
-
 /**
- * The second line under the agent's name in the process readout — or `null` when
- * there is nothing factual to add and the row should stay bare.
+ * The agent's contribution to the **status** row, or `null` when the agent has
+ * nothing to say and the row belongs to whatever else is happening.
  *
- * Present tense carries a live elapsed counter; past tense carries an absolute
- * time. That contrast is the whole point: `reading · 1:47` is a thing happening,
- * `quiet since 14:05` is the last thing we saw. Neither says "done", because we
- * would be guessing.
+ * `quiet` returns `null` rather than a phrase of its own: an agent that has
+ * stopped is not a distinct kind of nothing, and giving it one would put two
+ * words for the same non-event in the same vocabulary. The hollow dot on the
+ * `agent` row already says "attached, not active".
  */
-export function agentPassDetail(
-  pass: AgentPass,
-  now: number,
-  clock: (epochMs: number) => string = formatClock
-): string | null {
+export function agentStatusPhrase(pass: AgentPass, now: number): string | null {
   const phase = agentPassPhase(pass, now);
-  const submitted = pass.submitted > 0 ? ` · ${pass.submitted} submitted` : "";
-
-  if (phase === "none") return null;
-  if (phase === "sent") return "sent · not picked up";
-  if (phase === "reading") {
-    return `reading · ${formatElapsed(now - (pass.lastPullAt ?? now))}${submitted}`;
-  }
-  const heard = lastHeardFrom(pass);
-  return `quiet since ${clock(heard ?? now)}${submitted}`;
+  if (phase === "awaiting") return "awaiting pickup";
+  if (phase === "reading") return `reading · ${formatElapsed(now - (pass.lastPullAt ?? now))}`;
+  if (phase === "watching") return "watching";
+  return null;
 }

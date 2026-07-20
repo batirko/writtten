@@ -54,7 +54,7 @@ function samePass(a: AgentPass | undefined, b: AgentPass | undefined): boolean {
     a.lastPushAt === b.lastPushAt &&
     a.lastPullAt === b.lastPullAt &&
     a.lastSubmissionAt === b.lastSubmissionAt &&
-    a.submitted === b.submitted
+    a.lastWaitAt === b.lastWaitAt
   );
 }
 

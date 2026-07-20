@@ -20,7 +20,7 @@ import {
   sectionProseFingerprints,
 } from "./docPassMateriality";
 import { llmLogger, type AgentEventInfo } from "../model/logger";
-import type { AgentPass } from "../sidecar/agentActivityView";
+import { EMPTY_PASS, type AgentPass } from "../sidecar/agentActivityView";
 
 /** Bumped only on a breaking protocol change. Equal → connect; anything else → refuse
  *  with "re-copy the prompt". Lives in three places by design: here, the skill template,
@@ -335,12 +335,7 @@ export function startAgentBridge(deps: BridgeDeps): AgentBridgeHandle {
   // non-material re-pushes (which re-send the same version) and only recomputed on a bump.
   let lastSectionFps: string[] | null = null;
   let lastHint: { changedSections: number[]; changedSectionsSince: number } | null = null;
-  let pass: AgentPass = {
-    lastPushAt: null,
-    lastPullAt: null,
-    lastSubmissionAt: null,
-    submitted: 0,
-  };
+  let pass: AgentPass = { ...EMPTY_PASS };
 
   let stopped = false;
   let probeTimer: ReturnType<typeof setTimeout> | null = null;
@@ -454,11 +449,11 @@ export function startAgentBridge(deps: BridgeDeps): AgentBridgeHandle {
         if (d.agentName) agentName = d.agentName;
         // A different sessionId is a different bridge RUN, not a reconnect of
         // the same one. Its predecessor's pass facts describe work that run did
-        // not do — carrying "3 submitted" across would credit a fresh session
-        // with the last one's output. Same reasoning that scopes card
+        // not do — carrying its pass timestamps across would credit a fresh
+        // session with the last one's activity. Same reasoning that scopes card
         // attribution on sessionId rather than on the display name.
         if (d.sessionId && d.sessionId !== sessionId) {
-          pass = { lastPushAt: null, lastPullAt: null, lastSubmissionAt: null, submitted: 0 };
+          pass = { ...EMPTY_PASS };
         }
         if (d.sessionId) sessionId = d.sessionId;
         // The stream is live even if onopen didn't fire in this implementation.
@@ -488,6 +483,14 @@ export function startAgentBridge(deps: BridgeDeps): AgentBridgeHandle {
       } catch {
         /* malformed frame — the stream is still usable */
       }
+    });
+
+    // The agent parking in `GET /wait` — watch mode. Without this, an agent
+    // idling in a poll loop and an agent that has gone away are the same
+    // silence, which is exactly how a stalled watch session hid in plain sight.
+    source.addEventListener("waiting", () => {
+      pass = { ...pass, lastWaitAt: now() };
+      emit();
     });
 
     source.addEventListener("submission", (e) => {
@@ -589,7 +592,7 @@ export function startAgentBridge(deps: BridgeDeps): AgentBridgeHandle {
         // of rejections is still the agent working, and it is exactly the case a
         // debug export needs to show.
         const payload = (env.payload ?? {}) as { type?: unknown; scope?: unknown };
-        pass = { ...pass, lastSubmissionAt: now(), submitted: pass.submitted + 1 };
+        pass = { ...pass, lastSubmissionAt: now() };
         logEvent({
           event: "submission",
           sessionId: sessionId || undefined,
@@ -648,7 +651,7 @@ export function startAgentBridge(deps: BridgeDeps): AgentBridgeHandle {
       // This rides on the SAME gate as the version bump, which is what keeps the
       // readout aligned with the materiality floor: a non-material re-push does
       // not wake the agent, so it must not reset the pass it is still working on.
-      pass = { lastPushAt: now(), lastPullAt: null, lastSubmissionAt: null, submitted: 0 };
+      pass = { ...EMPTY_PASS, lastPushAt: now() };
       logEvent({ event: "snapshot", docVersion, sessionId: sessionId || undefined });
     }
 

@@ -764,7 +764,7 @@ describe("agent pass reporting", () => {
     expect(agentPassPhase(pass, t + AGENT_PASS_IDLE_MS + 1)).toBe("quiet");
   });
 
-  it("counts submissions in the pass whatever the verdict", async () => {
+  it("a submission of any verdict re-arms the pass window", async () => {
     const h = makeHarness({
       onSubmission: async () => ({ result: "rejected", code: "register_violation", rule: "prescriptive" }),
     });
@@ -774,10 +774,26 @@ describe("agent pass reporting", () => {
     await until(() => h.handle.getStatus().state === "connected");
 
     es.emit("submission", { sid: "sid-1", payload: { type: "clarity", scope: "document" } });
-    await until(() => h.handle.getStatus().pass.submitted === 1);
-    // A rejected burst is still the agent working — and is exactly what a debug
-    // export needs to show.
+    // A rejected burst is still the agent working, so it keeps the pass alive.
+    // Deliberately a timestamp and not a displayed count: it counts submissions,
+    // not acceptances, so a visible "5 submitted" could sit above a feed that
+    // gained nothing.
+    await until(() => h.handle.getStatus().pass.lastSubmissionAt !== null);
     expect(h.handle.getStatus().pass.lastSubmissionAt).toBeTypeOf("number");
+  });
+
+  it("records the agent parking in watch mode", async () => {
+    const h = makeHarness();
+    const es = await until(() => h.sources[0]);
+    es.open();
+    es.emit("hello", { agentName: "Claude Code", sessionId: "s1" });
+    await until(() => h.handle.getStatus().state === "connected");
+
+    expect(h.handle.getStatus().pass.lastWaitAt).toBeNull();
+    es.emit("waiting", { since: 1, t: Date.now() });
+    // Watch mode is otherwise invisible: a parked agent and an absent one are
+    // the same silence.
+    expect(agentPassPhase(h.handle.getStatus().pass, Date.now())).toBe("watching");
   });
 });
 
@@ -855,11 +871,11 @@ describe("pass ownership across bridge runs", () => {
 
     es.emit("pulled", { docVersion: 1, connected: true, t: Date.now() });
     es.emit("submission", { sid: "sid-1", payload: { type: "clarity", scope: "document" } });
-    await until(() => h.handle.getStatus().pass.submitted === 1);
+    await until(() => h.handle.getStatus().pass.lastSubmissionAt !== null);
 
     es.emit("hello", { agentName: "Claude Code", sessionId: "run-2" });
     const pass = h.handle.getStatus().pass;
-    expect(pass.submitted).toBe(0);
+    expect(pass.lastSubmissionAt).toBeNull();
     expect(pass.lastPullAt).toBeNull();
   });
 
