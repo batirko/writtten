@@ -1,22 +1,31 @@
 import { Extension } from "@tiptap/core";
 
 /**
- * Backspace on an empty list item should leave the list, the way Enter on an
- * empty item already does (that path is `splitListItem`'s built-in behaviour).
+ * Backspace at the start of a list item should leave the list, taking the
+ * item's text with it — the same move Notion, Google Docs and Word make.
  *
- * Without this, Backspace on the empty nth bullet only deletes the item and
- * drops the cursor at the end of the previous one — so the list has exactly one
- * exit, and the key most people reach for to back out of it silently keeps them
- * inside (UX-024).
+ * Two things went wrong without this (UX-024). On an *empty* item, Backspace
+ * merged it into the previous item as a stray second paragraph, so the list had
+ * exactly one exit — Enter, via `splitListItem`'s built-in behaviour — and the
+ * key most people reach for kept them inside. On an item *with text*,
+ * ListKeymap's join-backward appended that text to the previous bullet instead
+ * of unlisting it, which silently destroys a line the author meant to keep as
+ * its own paragraph.
+ *
+ * The rule is positional rather than emptiness-based: if the cursor sits at the
+ * very start of the item's first block, lift the item out. That covers both
+ * cases with one behaviour, and it leaves ordinary Backspace alone everywhere
+ * else — mid-text, in a later paragraph of a multi-block item, across a
+ * selection, or outside a list — where ListKeymap and the default handler still
+ * apply.
  *
  * `liftListItem` outdents one level: from a top-level item that means becoming
- * a plain paragraph after the list; from a nested item it un-indents to the
- * parent list, which is the expected step-by-step way out. Returning `false`
- * for every other case lets ListKeymap and the default Backspace handle
- * non-empty items, text selections, and everything outside a list.
+ * a plain paragraph (before or after the list, depending where the item sat);
+ * from a nested item it un-indents to the parent list, which is the expected
+ * step-by-step way out.
  *
  * Priority sits above ListKeymap (100) so this runs before its own Backspace
- * handling, which would otherwise join the empty item into the previous one.
+ * handling, which would otherwise do the joining described above.
  */
 export const ListEscape = Extension.create({
   name: "listEscape",
@@ -42,10 +51,13 @@ export const ListEscape = Extension.create({
         }
         if (itemDepth === -1) return false;
 
-        // Only an item that is genuinely empty — no text, and no nested list or
-        // extra block hanging off it that lifting would silently restructure.
-        const item = $from.node(itemDepth);
-        if (item.textContent.length > 0 || item.childCount > 1) return false;
+        // The cursor must be in a block that is a direct child of the item…
+        if ($from.depth !== itemDepth + 1) return false;
+        // …that block must be the item's first…
+        if ($from.index(itemDepth) !== 0) return false;
+        // …and the cursor must be at its very start. Anywhere else, Backspace
+        // means "delete a character" and must keep meaning that.
+        if ($from.parentOffset !== 0) return false;
 
         return this.editor.commands.liftListItem(listItem.name);
       },

@@ -29,7 +29,7 @@ function pressBackspace(editor: Editor): boolean {
   return editor.view.someProp("handleKeyDown", (f) => f(editor.view, event)) ?? false;
 }
 
-/** Position of the text cursor inside the last list item's paragraph. */
+/** Start of the last list item's first paragraph. */
 function cursorInLastListItem(editor: Editor): number {
   let itemPos = -1;
   editor.state.doc.descendants((node, pos) => {
@@ -38,8 +38,41 @@ function cursorInLastListItem(editor: Editor): number {
   return itemPos + 2;
 }
 
+/** Start of the first list item's first paragraph. */
+function cursorInFirstListItem(editor: Editor): number {
+  let itemPos = -1;
+  editor.state.doc.descendants((node, pos) => {
+    if (node.type.name === "listItem" && itemPos === -1) itemPos = pos;
+  });
+  return itemPos + 2;
+}
+
 function html(editor: Editor): string {
   return editor.getHTML().replace(/ data-[a-z-]+="[^"]*"/g, "");
+}
+
+/**
+ * Asserts ListEscape stays out of the way at `cursor`: Backspace must leave the
+ * document in exactly the state it reaches without the extension registered.
+ * Comparing against a ListEscape-free editor is the honest way to say "declines"
+ * — asserting on the resulting HTML alone would really be testing ListKeymap and
+ * the base keymap, whose behaviour here is pre-existing and not ours to pin.
+ */
+function expectUnchangedByListEscape(content: string, cursor: (editor: Editor) => number) {
+  const withEscape = new Editor({
+    extensions: [StarterKit, ListKeymap, ListEscape, ListPaste],
+    content,
+  });
+  const without = new Editor({ extensions: [StarterKit, ListKeymap], content });
+
+  withEscape.commands.setTextSelection(cursor(withEscape));
+  without.commands.setTextSelection(cursor(without));
+  pressBackspace(withEscape);
+  pressBackspace(without);
+
+  expect(html(withEscape)).toBe(html(without));
+  withEscape.destroy();
+  without.destroy();
 }
 
 describe("ListEscape — Backspace leaves the list (UX-024)", () => {
@@ -65,15 +98,40 @@ describe("ListEscape — Backspace leaves the list (UX-024)", () => {
     editor.destroy();
   });
 
-  it("leaves a non-empty item alone — no lift out of the list", () => {
+  it("unlists an item that still has text, rather than appending it to the previous bullet", () => {
     const editor = makeEditor("<ul><li><p>one</p></li><li><p>two</p></li></ul>");
-    editor.commands.setTextSelection(cursorInLastListItem(editor) + 3); // end of "two"
+    editor.commands.setTextSelection(cursorInLastListItem(editor)); // start of "two"
 
-    pressBackspace(editor);
-    // Still a two-item list; the item was not lifted into a paragraph.
-    expect(html(editor)).toContain("<li><p>two</p></li>");
-    expect(html(editor)).not.toContain("</ul><p>two</p>");
+    expect(pressBackspace(editor)).toBe(true);
+    // "two" keeps its own block and its text; "one" is untouched.
+    expect(html(editor)).toBe("<ul><li><p>one</p></li></ul><p>two</p>");
     editor.destroy();
+  });
+
+  it("unlists the first item into a paragraph before the list", () => {
+    const editor = makeEditor("<ul><li><p>one</p></li><li><p>two</p></li></ul>");
+    editor.commands.setTextSelection(cursorInFirstListItem(editor)); // start of "one"
+
+    expect(pressBackspace(editor)).toBe(true);
+    expect(html(editor)).toBe("<p>one</p><ul><li><p>two</p></li></ul>");
+    editor.destroy();
+  });
+
+  it("declines mid-text, leaving Backspace exactly as it was", () => {
+    expectUnchangedByListEscape("<ul><li><p>one</p></li><li><p>two</p></li></ul>", (editor) =>
+      cursorInLastListItem(editor) + 3 // end of "two"
+    );
+  });
+
+  it("declines in a later block of a multi-block item", () => {
+    expectUnchangedByListEscape("<ul><li><p>one</p><p>second block</p></li></ul>", (editor) => {
+      let itemPos = -1;
+      editor.state.doc.descendants((node, pos) => {
+        if (node.type.name === "listItem") itemPos = pos;
+      });
+      // start of the item's *second* block — not the item's start, so not ours
+      return itemPos + 1 + editor.state.doc.nodeAt(itemPos + 1)!.nodeSize + 1;
+    });
   });
 
   it("ignores an empty paragraph outside any list", () => {
