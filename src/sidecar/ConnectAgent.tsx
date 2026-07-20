@@ -130,7 +130,7 @@ export function ConnectAgent({
               forever with nothing on screen explaining why, and the fix is buried in
               browser site permissions. Warn before it appears, not after it's refused. */}
           <p className="connect-warn-soft">
-            Your browser may ask for permission to reach your local network &mdash; that
+            Your browser will ask for permission to reach your local network &mdash; that
             prompt is this connection. <strong>Allow it</strong>, or the bridge can never
             answer.
           </p>
