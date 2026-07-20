@@ -13,7 +13,12 @@ export interface LLMLogEntry {
     | "settle"
     | "ledger-write"
     | "observation"
-    | "block-removed";
+    | "block-removed"
+    // BYOA: the agent engine's own events. Without these a connected-agent
+    // session exports a log describing only the *idle* built-in pipeline — the
+    // shape a real dogfood session hit: 7 accepted observations, and an export
+    // reading { triggers: 88, calls: 0, archives: 0 }.
+    | "agent";
   /** "fast" or "strong" — only set on request/response entries. */
   tier?: "fast" | "strong";
   /** "free" or "paid" — which API key tier made this call. */
@@ -45,6 +50,41 @@ export interface LLMLogEntry {
   promptRef?: string;
   /** Populated for "archive" entries: an observation left the active feed. */
   archive?: ArchiveInfo;
+  /** Populated for "agent" entries: something happened on the BYOA bridge. */
+  agent?: AgentEventInfo;
+}
+
+/**
+ * One event on the agent bridge — the engine the built-in call log cannot see.
+ *
+ * Deliberately carries no observation *text* and no document content: this is
+ * the one log family that must survive into production builds (a BYOA user with
+ * a problem has nothing else to send), and `archiveObs` is DEV-gated precisely
+ * to keep the author's prose out of a production artifact. Types, codes,
+ * versions, and counts are enough to reconstruct a session.
+ */
+export interface AgentEventInfo {
+  event: "pairing" | "snapshot" | "pull" | "submission" | "retract";
+  /** `pairing`: the new connection state. */
+  state?: string;
+  agentName?: string;
+  /** The bridge's per-run id — two runs of one agent are two sources. */
+  sessionId?: string;
+  /** `snapshot` / `pull`: which document version travelled. */
+  docVersion?: number;
+  /** `submission`: what the agent claimed, before the boundary ruled on it. */
+  obsType?: string;
+  scope?: string;
+  /** `submission`: the boundary's verdict. */
+  result?: "accepted" | "rejected";
+  /** `submission`: rejection code, and the register rule when that's the code. */
+  code?: string;
+  rule?: string;
+  /** `submission` (accepted) / `retract`: which card. */
+  observationId?: string;
+  /** `retract`: whether the card was actually closed. A `false` here is the
+   *  difference between "the agent withdrew it" and "the agent thinks it did". */
+  applied?: boolean;
 }
 
 /**
@@ -563,6 +603,16 @@ class LLMLogger {
     });
   }
 
+  /**
+   * Record a bridge event. Unlike `logArchive` this is NOT dev-gated: the debug
+   * export is what a user sends when a connected-agent session misbehaves, and
+   * for BYOA it is the only evidence that exists — the built-in call log is
+   * empty because BYOA makes no model calls.
+   */
+  logAgent(info: AgentEventInfo): void {
+    this.log({ type: "agent", agent: info });
+  }
+
   /** Attribute what a call yielded back to its callId (merges if called twice). */
   recordProduced(callId: string | undefined, produced: CallProduced): void {
     if (!callId) return;
@@ -578,6 +628,11 @@ class LLMLogger {
    * High-frequency lifecycle events routed in via the harness. They carry no
    * model/payload and are cheap; they get their own retention budget so they
    * never evict LLM call rows (request/response/retry/error/trigger/archive).
+   *
+   * `agent` is deliberately NOT in this set. Bridge events are low-frequency
+   * (one pull per pass, one per submission) and are the *only* evidence a BYOA
+   * session leaves, so they belong in the protected bucket alongside call rows —
+   * not in the one that gets evicted first.
    */
   private static readonly LIFECYCLE_TYPES: ReadonlySet<LLMLogEntry["type"]> = new Set([
     "settle",

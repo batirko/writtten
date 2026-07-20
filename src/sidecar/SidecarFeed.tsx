@@ -7,6 +7,11 @@ import { openSettings } from "./settingsGate";
 import { agentBridgeEnabled } from "../services/featureFlags";
 import { SourceChip } from "./SourceChip";
 import { closureReasonLabel } from "./closureLabel";
+import {
+  getAgentSourceStatus,
+  subscribeAgentSource,
+  type AgentSourceStatus,
+} from "../model/agentSourceSignal";
 
 // Stable per-group key for the pending-dismiss map — mirrors obsAggregation's
 // grouping key (span coords, or a per-obs doc-scope key). Deliberately NOT
@@ -146,6 +151,48 @@ function KeylessBanner({ demoActive }: { demoActive: boolean }) {
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// AgentDroppedNote — standing notice that the connected agent went away (UX-022).
+//
+// The detection was already correct and surfaced nowhere: `dropToDisconnected`
+// fires after an 8s grace, but the only readout was the `agent-chip` inside the
+// hover/tap-gated control center — "always-on" only once you open it. So the
+// author kept writing, believing a critic was reading, and found out by opening
+// Settings.
+//
+// This is silence about the TOOL's broken state, which is a different thing from
+// the product's deliberate quiet. writtten is quiet about observations; that is
+// the philosophy. It must not be quiet about not working — the same reasoning
+// that put the standing keyless banner on screen.
+//
+// A strip, not a toast: the state persists (and clears itself when a background
+// retry reconnects), so a momentary interruption would be both missed by anyone
+// not looking and wrong the instant it succeeded. Rendering is derived from the
+// live signal, which is what makes it self-clearing.
+//
+// System voice — the grey rule of TruncationNote, not the accent tint of
+// KeylessBanner: the client retries unattended, so there is nothing to click,
+// and an accent CTA would promise an action that doesn't exist. Amber is
+// reserved for document problems; this is a tool state.
+//
+// The app cannot distinguish "user shut the session down" from "bridge crashed",
+// and doesn't need to — the honest message is the same either way.
+// ---------------------------------------------------------------------------
+
+function AgentDroppedNote({ name, hasKey }: { name: string; hasKey: boolean }) {
+  return (
+    <div className="agent-dropped-note" data-testid="agent-dropped-note" role="note">
+      <p className="agent-dropped-text">
+        {name} disconnected.{" "}
+        {hasKey
+          ? "Its observations stay in your feed; writtten’s own checks keep running."
+          : "Nothing is reading your document."}{" "}
+        Retrying every few seconds.
+      </p>
     </div>
   );
 }
@@ -467,6 +514,16 @@ export function SidecarFeed({
   const [showArchive, setShowArchive] = useState(false);
   const [showAlsoNoticed, setShowAlsoNoticed] = useState(false);
 
+  // The dropped-agent notice reads the app-wide pairing signal, not a prop: the
+  // feed and the control center must never disagree about whether the agent is
+  // there, and the signal is the one carrier both already read.
+  const [agentSource, setAgentSource] = useState<AgentSourceStatus>(getAgentSourceStatus);
+  useEffect(() => subscribeAgentSource(setAgentSource), []);
+  // Only `disconnected` — `revoked` is the user's own deliberate teardown, and
+  // telling someone their agent is gone right after they disconnected it is
+  // noise, not honesty.
+  const agentDropped = agentBridgeEnabled() && agentSource.state === "disconnected";
+
   // --- Truncation-honesty note dismissal (per truncated-set) ---
   // Dismissing stores the current set's signature; the note stays hidden while
   // the set is unchanged and returns when it changes (a new section crossing
@@ -630,6 +687,13 @@ export function SidecarFeed({
               and when a keyless user just writes), so quiet-by-design never masks
               the key requirement. */}
           {!hasKey && <KeylessBanner demoActive={demoActive} />}
+          {/* Losing the thing that reads your document is a state change worth
+              being told about, once, where you already are (UX-022). Severity
+              rises under engine exclusivity: keyless, a dropped agent means
+              nothing is reading at all. */}
+          {agentDropped && (
+            <AgentDroppedNote name={agentSource.name ?? "Your agent"} hasKey={hasKey} />
+          )}
           {/* Standing truncation-honesty note: while any section exceeds the
               reading cap, silence on its tail must not read as "nothing to flag"
               (heading-cliff facet 2). */}

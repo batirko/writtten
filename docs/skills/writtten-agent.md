@@ -267,7 +267,7 @@ const USAGE = `writtten bridge v${BRIDGE_VERSION} (protocolVersion ${PROTOCOL_VE
 Endpoints — every one requires the token (Authorization: Bearer <t> or ?token=<t>).
 
   app   GET  /handshake        pairing + liveness probe
-  app   GET  /events           SSE: hello | submission | retract | ping
+  app   GET  /events           SSE: hello | submission | retract | pulled | ping
   app   POST /snapshot         push the latest settled document snapshot
   app   POST /verdict          { sid, result, ... } completes a held /submit
 
@@ -563,6 +563,13 @@ function route(req, res, url, origin) {
   }
   if (method === "GET" && path === "/events") return handleEvents(req, res, origin);
   if (method === "GET" && path === "/doc") {
+    // The agent picking the document up is the ONLY "started" signal this
+    // protocol has — it never reports finishing, it just stops. Telling the app
+    // costs one frame and is what lets writtten say "reading since 14:02"
+    // instead of showing an idle chip through the whole review pass.
+    // Additive: the app registers named listeners, so an older app ignores this,
+    // and an older bridge simply never sends it. No protocolVersion bump.
+    broadcast("pulled", { docVersion, connected: snapshot !== null, t: Date.now() });
     return send(res, 200, snapshot ?? { connected: false });
   }
   if (method === "GET" && path === "/wait") return handleWait(req, res, url);

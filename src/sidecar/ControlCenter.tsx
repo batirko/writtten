@@ -23,6 +23,7 @@ import { agentBridgeEnabled } from "../services/featureFlags";
 import { ConnectAgent } from "./ConnectAgent";
 import { useAgentBridge } from "./useAgentBridge";
 import { agentStatusView } from "./agentStatusView";
+import { agentPassPhase, agentPassDetail } from "./agentActivityView";
 import {
   subscribeAgentSource,
   getAgentSourceStatus,
@@ -482,6 +483,26 @@ export function ControlCenter({
   const [agentSource, setAgentSource] = useState<AgentSourceStatus>(getAgentSourceStatus);
   useEffect(() => subscribeAgentSource(setAgentSource), []);
   const agentStatus = agentBridgeEnabled() ? agentStatusView(agentSource) : null;
+
+  // The agent row's second line is a live elapsed counter while a pass is
+  // running, so it needs a tick. Deliberately NOT a spinner: writtten cannot
+  // measure an agent's progress, and a pass has no observable end — the counter
+  // reports elapsed time (a fact) and the phase decays to "quiet" on its own.
+  // The tick runs only while a pass is live, and `agentPassPhase` is what stops
+  // it, so a forgotten agent costs nothing.
+  const agentPass = agentSource.pass;
+  const [passNow, setPassNow] = useState(() => Date.now());
+  const passLive = agentPass ? agentPassPhase(agentPass, passNow) === "reading" : false;
+  useEffect(() => {
+    if (!passLive) return;
+    const t = setInterval(() => setPassNow(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, [passLive]);
+  // Re-derive on every pass change too, so a pull lands immediately rather than
+  // waiting out the current second.
+  useEffect(() => setPassNow(Date.now()), [agentPass]);
+  const agentPhase = agentPass ? agentPassPhase(agentPass, passNow) : "none";
+  const agentDetail = agentPass ? agentPassDetail(agentPass, passNow) : null;
 
   // Read the bridge through a ref inside the subscription below: re-subscribing
   // on every status change would tear down and rebuild the listener continuously.
@@ -1161,12 +1182,24 @@ export function ControlCenter({
                 className="agent-chip"
                 data-testid="agent-chip"
                 data-agent-state={agentStatus.state}
+                data-agent-activity={agentPhase}
                 role="status"
                 aria-live="polite"
                 aria-label={agentStatus.label}
               >
-                <span className="agent-chip-dot" aria-hidden="true" />
-                {agentStatus.text}
+                <span className="agent-chip-name">
+                  <span className="agent-chip-dot" aria-hidden="true" />
+                  {agentStatus.text}
+                </span>
+                {/* Facts, not a progress readout — see agentActivityView.
+                    aria-hidden because the ticking counter would otherwise
+                    re-announce itself every second on the polite live region;
+                    the chip's aria-label carries the state for screen readers. */}
+                {agentDetail && (
+                  <span className="agent-chip-detail" data-testid="agent-pass" aria-hidden="true">
+                    {agentDetail}
+                  </span>
+                )}
               </span>
             </div>
           )}

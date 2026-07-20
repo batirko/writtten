@@ -2193,8 +2193,26 @@ body,
    data attribute and in the aria-label, never hue alone. */
 .agent-chip {
   display: inline-flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 1px;
+  text-align: right;
+}
+.agent-chip-name {
+  display: inline-flex;
   align-items: center;
   gap: 6px;
+}
+/* The pass readout — facts about a peer we are waiting on, never a progress
+   claim (see agentActivityView). Deliberately UNANIMATED: the ticking elapsed
+   counter is itself the liveness cue, and a pulse here would borrow the
+   computation vocabulary of the `status` row for a state writtten cannot
+   measure. Tabular figures so the counter doesn't re-jitter the row each second. */
+.agent-chip-detail {
+  font-size: var(--text-label);
+  color: var(--color-muted);
+  line-height: 1.4;
+  font-variant-numeric: tabular-nums;
 }
 .agent-chip-dot {
   width: 7px;
@@ -2212,10 +2230,47 @@ body,
 .agent-chip[data-agent-state="disconnected"] .agent-chip-dot {
   border: 1.5px solid var(--color-border-strong);
 }
+/* A decayed pass: connected, but we haven't heard from the agent in a while.
+   The dot goes hollow to match the readout's past tense — still paired, no
+   longer demonstrably reading. State is carried by the text too, never hue
+   alone. */
+.agent-chip[data-agent-state="connected"][data-agent-activity="quiet"] .agent-chip-dot {
+  background: none;
+  border: 1.5px solid var(--sem-good);
+}
 @media (prefers-reduced-motion: reduce) {
   .agent-chip[data-agent-state="waiting"] .agent-chip-dot {
     animation: none;
   }
+}
+
+/* Hallmark · component: notice · genre: editorial (inherited) · theme: project tokens
+   Standing "your agent went away" strip (UX-022) and the "this browser can't
+   reach a bridge" panel note (UX-025). Both share the TruncationNote treatment
+   — grey left rule, muted text, no tint, no icon — because both are the product
+   stating a fact about its own reach. Deliberately NOT the accent-tinted
+   keyless banner: that carries a CTA, and neither of these has an action (the
+   bridge client retries unattended; Safari has no path at all). Amber stays
+   reserved for document problems. */
+.agent-dropped-note,
+.connect-blocked {
+  padding: 6px 2px 6px 10px;
+  border-left: 2px solid var(--color-border-strong);
+  border-radius: 0;
+}
+.agent-dropped-note {
+  margin-bottom: var(--space-sm);
+}
+.connect-blocked {
+  margin: var(--space-xs) 0;
+}
+.agent-dropped-text,
+.connect-blocked-text {
+  font-family: var(--font-sans);
+  font-size: var(--text-ui-sm);
+  line-height: 1.5;
+  color: var(--color-ink-2);
+  margin: 0;
 }
 
 /* Teardown confirm: the "also archive its cards" option. Checkbox rather than a
