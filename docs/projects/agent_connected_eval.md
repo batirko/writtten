@@ -207,6 +207,20 @@ Caveats kept attached so this does not harden into a claim it cannot support: n=
 
 Defects from the same session are recorded separately: debug-log blindness and snapshot materiality (`docs/plan.md` Phase 8), plus UX-020 (agent cannot observe the app attaching) and UX-021 (flat priority on external cards).
 
+### Landing verification on writtten.com (2026-07-20, v0.8.0)
+
+The whole reason PR4 shipped ahead of its follow-ups: Chrome's Local Network Access gate applies to **public → loopback**, so it is untestable on localhost, and Cloudflare previews sit behind Access. Production was the only place to answer it.
+
+**Answered: Chrome 150 neither prompts nor blocks.** A `fetch` from `https://writtten.com` to `http://127.0.0.1:8787` returns **200**, and the app's own pairing reaches **Connected · Claude Code** against the real origin. Full round trip verified live: a `missing_topic` submission accepted and rendered with a `live` source chip; a prescriptive submission rejected (`register_violation` / `prescriptive`); the Origin allowlist holding (writtten.com → 200, an unrelated origin → 403).
+
+Three caveats worth keeping attached, because this is the load-bearing result:
+
+- **This is a Chrome-version fact, not a guarantee.** LNA enforcement has been staged and repeatedly deferred; a later Chrome may start prompting or blocking. Re-check on major Chrome releases rather than treating it as settled.
+- **Our connect copy currently over-warns.** The waiting state says "Chrome may ask to allow local network access — allow it", and on 150 nothing asks. The hedge ("may") keeps it honest, so this is not urgent — but if no shipping Chrome prompts, the line describes a phantom and should go.
+- **The verification was nearly derailed by the service worker**, which served the previous bundle on first load after the deploy (UX-023). The `?agent=1` gate looked un-shipped for ten minutes. Any future release check must confirm the loaded asset hash matches the network's before concluding anything.
+
+**Not yet verified: Firefox and Safari against the deployed origin.** Both are installed locally; each is a ~30-second human check and neither is drivable from here at Chrome's fidelity. Firefox is expected to work (loopback mixed-content exemption); Safari is expected to fail and show the connect UI's unsupported note.
+
 ### Engine exclusivity (owner, 2026-07-20 — supersedes decisions 2 and 8)
 
 Decided after using the shipped build: **a connected agent is the fourth _connection option_, not a second source running in parallel.** writtten needs model access; a key is one way to get it and an agent is another, so they occupy the **same slot**. Scheduled as a Phase-8 milestone, to land during the post-landing soak and before the GTM spike.
