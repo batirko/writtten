@@ -542,6 +542,123 @@ describe("snapshot push", () => {
     expect((pushes[1].body as { docVersion: number }).docVersion).toBe(2);
   });
 
+  it("ships a changedSections hint naming only the edited section", async () => {
+    let sections = [
+      { heading: "A", text: "alpha" },
+      { heading: "B", text: "beta" },
+      { heading: "C", text: "gamma" },
+    ];
+    harness = makeHarness({
+      snapshot: async () => ({ title: "T", stage: "S", sections, activeObservations: [] }),
+    });
+    const es = await until(() => harness!.sources[0]);
+    es.open();
+    const first = await until(() => harness!.calls.find((c) => c.url.includes("/snapshot")));
+    // No baseline on the first push — the agent must read the whole document.
+    expect(first.body).not.toHaveProperty("changedSections");
+
+    sections = [
+      { heading: "A", text: "alpha" },
+      { heading: "B", text: "beta, now rewritten" },
+      { heading: "C", text: "gamma" },
+    ];
+    harness.settle();
+    await until(() => harness!.calls.filter((c) => c.url.includes("/snapshot")).length === 2);
+
+    const second = harness.calls.filter((c) => c.url.includes("/snapshot"))[1].body as {
+      docVersion: number;
+      changedSections: number[];
+      changedSectionsSince: number;
+      sections: unknown[];
+    };
+    expect(second.docVersion).toBe(2);
+    expect(second.changedSections).toEqual([1]);
+    // The hint is relative to v1, so only an agent that saw v1 may act on it.
+    expect(second.changedSectionsSince).toBe(1);
+    // The snapshot is still complete — the hint is an optimisation, not a replacement.
+    expect(second.sections).toHaveLength(3);
+  });
+
+  it("omits the hint when the section count changed — a shifted diff would over-report", async () => {
+    let sections = [
+      { heading: "A", text: "alpha" },
+      { heading: "B", text: "beta" },
+    ];
+    harness = makeHarness({
+      snapshot: async () => ({ title: "T", stage: "S", sections, activeObservations: [] }),
+    });
+    const es = await until(() => harness!.sources[0]);
+    es.open();
+    await until(() => harness!.calls.find((c) => c.url.includes("/snapshot")));
+
+    sections = [
+      { heading: "A", text: "alpha" },
+      { heading: "New", text: "inserted prose" },
+      { heading: "B", text: "beta" },
+    ];
+    harness.settle();
+    await until(() => harness!.calls.filter((c) => c.url.includes("/snapshot")).length === 2);
+
+    const second = harness.calls.filter((c) => c.url.includes("/snapshot"))[1].body;
+    expect(second).not.toHaveProperty("changedSections");
+  });
+
+  it("carries the hint unchanged across a non-material re-push at the same docVersion", async () => {
+    // An observations-only push re-sends the SAME docVersion, so the hint must keep
+    // describing that version rather than collapsing to "nothing changed".
+    let sections = [
+      { heading: "A", text: "alpha" },
+      { heading: "B", text: "beta" },
+    ];
+    let obs: Array<Record<string, unknown>> = [];
+    harness = makeHarness({
+      snapshot: async () => ({ title: "T", stage: "S", sections, activeObservations: obs }),
+    });
+    const es = await until(() => harness!.sources[0]);
+    es.open();
+    await until(() => harness!.calls.find((c) => c.url.includes("/snapshot")));
+
+    sections = [
+      { heading: "A", text: "alpha" },
+      { heading: "B", text: "beta rewritten" },
+    ];
+    harness.settle();
+    await until(() => harness!.calls.filter((c) => c.url.includes("/snapshot")).length === 2);
+
+    obs = [{ type: "clarity", scope: "document", text: "x", source: "Claude Code" }];
+    harness.settle();
+    await until(() => harness!.calls.filter((c) => c.url.includes("/snapshot")).length === 3);
+
+    const pushes = harness.calls.filter((c) => c.url.includes("/snapshot"));
+    const second = pushes[1].body as { docVersion: number; changedSections: number[] };
+    const third = pushes[2].body as { docVersion: number; changedSections: number[] };
+    expect(third.docVersion).toBe(second.docVersion);
+    expect(third.changedSections).toEqual(second.changedSections);
+  });
+
+  it("omits the hint for a heading split, which does not bump docVersion at all", async () => {
+    let sections = [{ heading: "Goals", text: "Ship it. Rollout Q3." }];
+    harness = makeHarness({
+      snapshot: async () => ({ title: "T", stage: "S", sections, activeObservations: [] }),
+    });
+    const es = await until(() => harness!.sources[0]);
+    es.open();
+    await until(() => harness!.calls.find((c) => c.url.includes("/snapshot")));
+
+    sections = [
+      { heading: "Goals", text: "Ship it." },
+      { heading: "Rollout", text: "Q3." },
+    ];
+    harness.settle();
+    await until(() => harness!.calls.filter((c) => c.url.includes("/snapshot")).length === 2);
+
+    const second = harness.calls.filter((c) => c.url.includes("/snapshot"))[1].body as {
+      docVersion: number;
+    };
+    expect(second.docVersion).toBe(1); // the materiality floor already suppressed the wake
+    expect(second).not.toHaveProperty("changedSections");
+  });
+
   it("does not push before the stream is open", async () => {
     harness = makeHarness();
     harness.settle();
