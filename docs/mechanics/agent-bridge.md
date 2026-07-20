@@ -320,3 +320,15 @@ What the skill now instructs per band:
 While parked, the agent is in `/wait`, so the bridge broadcasts `waiting`, and `agentPassPhase` reports `watching` — re-armed every ≤60 s, so it never decays to `quiet` for as long as the deferral lasts.
 
 This is accurate on its own terms (someone is attached and will react the moment you type) and it is the right thing for the author to see. But it is worth stating plainly, because the readout **cannot distinguish** a deferred single pass from opt-in watch mode: both park on the same endpoint. If that distinction ever needs to be visible, it is a change in `agentActivityView` / `ControlCenter`, not here. Related: UX-029's secondary, unconfirmed note about an agent appearing to enter watch mode unasked.
+
+### `docVersion` is app-local, and can move backwards
+
+> Recorded 2026-07-20. Pre-existing; surfaced while building the maturity deferral.
+
+The app's `docVersion` is function-local to `startAgentBridge` and starts at **0** on every mount (`agentBridgeClient.ts`). The **bridge process** keeps whatever it was last told and assigns it verbatim in its `/snapshot` handler, with no monotonicity guard. So reloading the tab after, say, 7 material versions makes the app push `1` to a bridge that had been serving `7`.
+
+An agent parked on `/wait?since=7` then sees nothing resolve until six more material edits accumulate. Under opt-in watch mode a human was in the loop and would notice; a deferral parks **unattended**, which is what turns this from a nuisance into something that reads as a hang.
+
+**What makes it survivable** is the skill's park rule: re-pull `/doc` on every `/wait` return, `{"timeout": true}` included, and decide from `maturity` rather than from the version number. The worst case is then 60 s of latency, not an indefinite park. That rule is load-bearing for this reason as much as for the missed-wake one — **do not "simplify" it into waiting on `docVersion` alone.**
+
+The honest fix, if it ever earns its keep, is to reconcile on connect: read the bridge's current `docVersion` from `/handshake` or `/doc` and seed the local counter above it. Deliberately not done as part of UX-029 — it is a separable bug, and the park rule removes its teeth.
