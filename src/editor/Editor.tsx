@@ -7,6 +7,7 @@ import Table from "@tiptap/extension-table";
 import TableRow from "@tiptap/extension-table-row";
 import TableHeader from "@tiptap/extension-table-header";
 import TableCell from "@tiptap/extension-table-cell";
+import ListKeymap from "@tiptap/extension-list-keymap";
 import { BlockId } from "./extensions/BlockId";
 import {
   ObservationHighlighter,
@@ -37,6 +38,8 @@ import { registerDocSnapshotReader } from "../model/docSnapshotSource";
 import { nanoid } from "nanoid";
 import { Markdown } from "tiptap-markdown";
 import { SemanticPaste } from "./extensions/SemanticPaste";
+import { ListPaste } from "./extensions/ListPaste";
+import { ListEscape } from "./extensions/ListEscape";
 const DOC_ID = "default";
 const SAVE_DEBOUNCE_MS = 1000;
 /** Typing-pause settle: how long of silence (on this block) before we check. */
@@ -347,6 +350,13 @@ export function Editor({
   const editor = useEditor({
     extensions: [
       StarterKit,
+      // StarterKit's ListItem binds only Enter/Tab/Shift-Tab — it has no
+      // Backspace handling, so Backspace on an empty list item merged it into
+      // the previous item as a stray second paragraph instead of lifting out
+      // of the list. ListKeymap adds the Backspace/Delete list behaviour every
+      // other editor has: empty item + Backspace → lift to a paragraph (UX-024).
+      ListKeymap,
+      ListEscape,
       Placeholder.configure({
         placeholder: "Start writing…",
       }),
@@ -354,6 +364,7 @@ export function Editor({
         transformPastedText: true,
       }),
       SemanticPaste,
+      ListPaste,
       BlockId,
       ObservationHighlighter.configure({
         onObservationCollapsed(id) {
