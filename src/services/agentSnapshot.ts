@@ -18,6 +18,10 @@ export interface AgentSnapshotObservation {
   text: string;
   anchorText?: string;
   source: string;
+  /** Present on lens cards only — which user-requested search produced this.
+   *  Sent so the next pass can tell which active cards came from which lens;
+   *  duplicate-avoidance across passes depends on it. */
+  lens?: string;
 }
 
 export interface AgentSnapshotBody {
@@ -39,7 +43,14 @@ export interface AgentSnapshotBody {
  * reorders a field on `Observation`, silently breaking the "agent never learns block
  * identity" invariant with a green test suite.
  */
-export const AGENT_OBSERVATION_FIELDS = ["type", "scope", "text", "anchorText", "source"] as const;
+export const AGENT_OBSERVATION_FIELDS = [
+  "type",
+  "scope",
+  "text",
+  "anchorText",
+  "source",
+  "lens",
+] as const;
 
 export function toAgentObservation(o: Observation): AgentSnapshotObservation {
   return {
@@ -52,6 +63,10 @@ export function toAgentObservation(o: Observation): AgentSnapshotObservation {
     // display name only: `sessionId` is internal identity the agent has no use
     // for, and it is what revoke/retract scope on.
     source: o.source?.name ?? "writtten",
+    // The agent's own words coming back to it, so a second pass can see which
+    // lens already has hits rather than re-reporting them. Safe to echo: it
+    // arrived from this agent's session in the first place.
+    ...(o.lens ? { lens: o.lens } : {}),
   };
 }
 

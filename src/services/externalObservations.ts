@@ -52,11 +52,21 @@ export const MIN_SUBMISSION_SPACING_MS = 500;
 /** Display names are attribution, not identity — kept short enough to sit in a chip. */
 export const MAX_SOURCE_NAME_LENGTH = 32;
 
+/** A lens label names a search; it is not a second body of prose on the card
+ *  face. 60 clears the spec's own example labels with room to spare.
+ *
+ *  Note the cap governs STORED data, not what is visible: the feed column is
+ *  320px, so the card header shows roughly the first 26 characters and
+ *  ellipsizes the rest (full label on `title`). Measured against the real card
+ *  at feed width during the 2026-07-21 prototype review; the owner chose the
+ *  inline treatment with that tradeoff on the table. */
+export const MAX_LENS_LABEL_LENGTH = 60;
+
 /** Mirrors `registerLint`'s length cap, which is private to that module. Used
  *  only to phrase the rejection hint; the enforcement is the lint's own rule. */
 const EXTERNAL_TEXT_CAP = 240;
 
-/** The fixed taxonomy (invariant 2). All nine types are admissible to external
+/** The fixed taxonomy (invariant 2). All ten types are admissible to external
  *  sources. The cross-claim ones may carry a second quote (`conflictingAnchorText`,
  *  § _Both sides of a conflict_) but stay exempt from the evaluator's conflict
  *  lifecycle — that exemption keys on `isEvaluatorOwned`, not on the absence of
@@ -71,7 +81,27 @@ const OBSERVATION_TYPES: ReadonlySet<string> = new Set<Observation["type"]>([
   "missing_topic",
   "structure_flow",
   "audience_mismatch",
+  "user_lens",
 ]);
+
+/**
+ * Types only a connected agent can produce — the built-in evaluator has no
+ * prompt for them and no path to them.
+ *
+ * This is one named concept with two consumers, and both matter:
+ *   - `evalScorer`'s `PRECISION_FLOORS` subtracts it, so the eval ratchet never
+ *     reports an agent-only type as a corpus "coverage gap" it owes work on.
+ *   - `externalObservations.invariant.test.ts` asserts no built-in eval path can
+ *     emit one, which turns "writtten never volunteers style critique" into a
+ *     fact about the code rather than a claim about intent.
+ *
+ * The boundary is what makes a type agent-only, so the set lives here.
+ */
+export const AGENT_ONLY_TYPES = new Set<Observation["type"]>(["user_lens"]);
+
+/** Types whose finding is defined by a user-supplied lens label rather than by
+ *  the type itself. Required iff the type is in this set, rejected otherwise. */
+const LENS_TYPES: ReadonlySet<string> = new Set<Observation["type"]>(["user_lens"]);
 
 const SCOPES: ReadonlySet<string> = new Set<Observation["scope"]>(["span", "document"]);
 
@@ -90,6 +120,7 @@ const ALLOWED_FIELDS: ReadonlySet<string> = new Set([
   "conflictingAnchorText",
   "text",
   "confidence",
+  "lens",
 ]);
 
 /** The two types whose finding is a *relationship between two passages*, and so
@@ -182,6 +213,9 @@ interface ParsedSubmission {
    *  cannot quote the other side submits single-anchor, exactly as before. */
   conflictingAnchorText?: string;
   confidence?: Observation["confidence"];
+  /** The user's own words for the search. Present iff `type` is a lens type;
+   *  already sanitized and capped by `parseSubmission`. */
+  lens?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -384,6 +418,9 @@ export function submitExternalObservation(
         }
       : {}),
     source: ctx.source,
+    // Names WHICH SEARCH THE USER ASKED FOR, on lens cards only. See the card
+    // face in SidecarFeed.tsx for why this is not the source chip returning.
+    ...(sub.lens != null ? { lens: sub.lens } : {}),
   };
 
   // --- 6. duplicate_suppressed ---------------------------------------------
@@ -534,6 +571,34 @@ function parseSubmission(input: unknown): ParseResult {
     }
   }
 
+  // The lens label is what parameterizes `user_lens`, so its presence rule is a
+  // field-presence rule conditional on `type` — exactly what `malformed`
+  // already covers. Handled here rather than as a new stage so the frozen
+  // 8-stage order and the frozen `RejectionCode` vocabulary stay untouched.
+  //
+  // Note this runs BEFORE the stage-2 taxonomy check, so an unrecognized type
+  // carrying a lens still gets `unknown_type` — the more useful message.
+  const isLensType = LENS_TYPES.has(raw.type);
+  let lens: string | undefined;
+  if (raw.lens !== undefined) {
+    if (!isLensType) {
+      return malformed(
+        `"lens" names the user-requested search a finding came from, so it applies only to ${[...LENS_TYPES].join(" and ")}. A "${raw.type}" observation is one of writtten's own checks; drop the lens label.`
+      );
+    }
+    if (typeof raw.lens !== "string") return malformed('"lens" must be a string when present.');
+    lens = sanitizeLensLabel(raw.lens);
+    if (lens === "") {
+      return malformed(
+        '"lens" must not be empty. It is the user\'s own words for what they asked you to look for.'
+      );
+    }
+  } else if (isLensType) {
+    return malformed(
+      `A "${raw.type}" submission needs "lens": the user's own words for what they asked you to look for, verbatim — not your paraphrase and not a category you invented. Without it there is no way to show the author which search this came from.`
+    );
+  }
+
   return {
     ok: true,
     value: {
@@ -549,8 +614,31 @@ function parseSubmission(input: unknown): ParseResult {
       ...(raw.confidence !== undefined
         ? { confidence: raw.confidence as Observation["confidence"] }
         : {}),
+      ...(lens !== undefined ? { lens } : {}),
     },
   };
+}
+
+/**
+ * Normalize a user-supplied lens label for display on a card face.
+ *
+ * Same treatment as `sanitizeSourceName` — strip control characters, collapse
+ * whitespace, truncate — with one deliberate difference: this returns "" rather
+ * than a fallback string when nothing survives. A source with no name can
+ * honestly be called "Agent"; a lens with no label cannot be invented, because
+ * the label is the user's own words and inventing one would put text on the card
+ * face that the user never wrote. The caller rejects the submission instead.
+ */
+function sanitizeLensLabel(raw: string): string {
+  return (
+    raw
+      // eslint-disable-next-line no-control-regex
+      .replace(/[\u0000-\u001F\u007F-\u009F]/g, " ")
+      .replace(/\s+/g, " ")
+      .trim()
+      .slice(0, MAX_LENS_LABEL_LENGTH)
+      .trim()
+  );
 }
 
 /**

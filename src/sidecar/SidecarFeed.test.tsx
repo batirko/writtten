@@ -1016,3 +1016,89 @@ describe("SidecarFeed — source attribution (BYOA)", () => {
     );
   });
 });
+
+// ---------------------------------------------------------------------------
+// user_lens card face — the label is what keeps the anti-taxonomy claim true
+//
+// The product's promise is "we never volunteer style critique". A lens card can
+// carry style, so the card face must say WHOSE SEARCH it answers. If it ever
+// rendered as a bare type name, a solicited style hit would sit in the feed
+// looking exactly like one of writtten's own checks — which is the promise
+// breaking, silently, in the one place a user would see it.
+// ---------------------------------------------------------------------------
+
+describe("SidecarFeed — user_lens card face", () => {
+  const containers: HTMLDivElement[] = [];
+
+  function renderWith(observations: Observation[]): HTMLDivElement {
+    const div = document.createElement("div");
+    document.body.appendChild(div);
+    containers.push(div);
+    act(() => {
+      createRoot(div).render(createElement(SidecarFeed, { ...minProps, observations }));
+    });
+    return div;
+  }
+
+  afterEach(() => {
+    for (const c of containers) act(() => c.remove());
+    containers.length = 0;
+  });
+
+  const lensObs = (over: Partial<Observation> = {}) =>
+    obs({
+      id: "l1",
+      type: "user_lens",
+      kind: "opportunity",
+      scope: "span",
+      blockId: "b1",
+      startOffset: 0,
+      endOffset: 15,
+      anchorText: "non-invasive way",
+      text: "This runs on parallel clauses and em-dash rhythm.",
+      lens: "sounds AI-written",
+      ...over,
+    });
+
+  it("names the user's lens on the card, never the raw type name", () => {
+    const div = renderWith([lensObs()]);
+    const card = div.querySelector('[data-obs-type="user_lens"]');
+    expect(card).not.toBeNull();
+    expect(card?.textContent).toContain("sounds AI-written");
+    // The failure this guards: `type.replace(/_/g, " ")` rendering "user lens".
+    expect(card?.textContent).not.toContain("user lens");
+  });
+
+  it("keeps the full label reachable when the header truncates it", () => {
+    // The header is a fixed row, so a long label ellipsizes in CSS. The whole
+    // label has to stay available or the user cannot tell two similar lenses
+    // apart — which is what the per-card label exists to do.
+    const long = "claims that would embarrass us in front of legal";
+    const div = renderWith([lensObs({ lens: long })]);
+    const label = div.querySelector('[data-testid="obs-lens-label"]');
+    expect(label?.getAttribute("title")).toBe(long);
+  });
+
+  it("keeps data-obs-type as the real type for targeting and styling", () => {
+    const div = renderWith([lensObs()]);
+    expect(div.querySelector('[data-obs-type="user_lens"]')).not.toBeNull();
+  });
+
+  it("keeps the chip and the label as one spaced unit, not bare siblings", () => {
+    // Found in live verification, not by a unit test: TypeTag renders in three
+    // containers (card head, grouped list, archive) and only the card head is a
+    // flex row with a gap — so as loose siblings the chip and label rendered
+    // flush in the other two ("lenssounds AI-written"). The wrapper owns the
+    // spacing; this asserts the wrapper is actually there.
+    const div = renderWith([lensObs()]);
+    const wrapper = div.querySelector(".tag-lens");
+    expect(wrapper).not.toBeNull();
+    expect(wrapper?.querySelector(".tag")).not.toBeNull();
+    expect(wrapper?.querySelector('[data-testid="obs-lens-label"]')).not.toBeNull();
+  });
+
+  it("shows no lens label on a built-in card", () => {
+    const div = renderWith([obs({ id: "c1", type: "clarity", text: "Vague." })]);
+    expect(div.querySelector('[data-testid="obs-lens-label"]')).toBeNull();
+  });
+});

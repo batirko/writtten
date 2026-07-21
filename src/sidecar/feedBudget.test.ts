@@ -476,3 +476,84 @@ describe("surfacedObservationIds", () => {
     expect(ids.has("lo")).toBe(true);
   });
 });
+
+// ---------------------------------------------------------------------------
+// user_lens volume — the argument that made per-lens grouping unnecessary
+//
+// The spec originally proposed grouping lens results under their lens so that
+// "25 style hits can't drown the one contradiction". That was dropped (R1) on
+// the finding that partitionFeed ALREADY guarantees it: contradiction groups are
+// allocated their slots before anything else competes.
+//
+// Since a design decision now rests on that behaviour, it gets a test naming the
+// reason — otherwise a future budget refactor could quietly remove the floor and
+// nothing would say why it mattered.
+// ---------------------------------------------------------------------------
+
+describe("partitionFeed — a high-volume lens cannot drown the core feed", () => {
+  const opts = { budget: DEFAULT_FEED_BUDGET, blockOrder: [] as string[] };
+
+  const lensHit = (i: number) =>
+    obs({
+      type: "user_lens",
+      kind: "opportunity",
+      severity: "low",
+      priority: 0.75,
+      blockId: `lens-b${i}`,
+      id: `lens-${i}`,
+      lens: "sounds AI-written",
+    });
+
+  it("keeps the contradiction visible under 25 lens hits", () => {
+    const contradiction = obs({
+      type: "contradiction",
+      priority: 1.5,
+      blockId: "c1",
+      id: "the-contradiction",
+    });
+    const all = [...Array.from({ length: 25 }, (_, i) => lensHit(i)), contradiction];
+
+    const { visible } = partitionFeed(all, opts);
+    expect(visible.map((g) => g.primary.id)).toContain("the-contradiction");
+  });
+
+  it("keeps the contradiction visible even when lens hits arrive first", () => {
+    // Ties break on load order, so ordering is the arm that could regress.
+    const contradiction = obs({
+      type: "contradiction",
+      priority: 1.5,
+      blockId: "c1",
+      id: "the-contradiction",
+    });
+    const all = [...Array.from({ length: 40 }, (_, i) => lensHit(i)), contradiction];
+    const { visible } = partitionFeed(all, opts);
+    expect(visible.map((g) => g.primary.id)).toContain("the-contradiction");
+  });
+
+  it("does displace low-severity built-ins — the residual risk, recorded honestly", () => {
+    // Not a bug: at 0.75 a lens ties exactly with clarity/undefined_jargon/etc.,
+    // so a high-volume lens CAN push them into the overflow drawer. The spec
+    // accepted this rather than solving it (risk 2). Asserted so the tradeoff is
+    // visible in the suite instead of being rediscovered as a surprise.
+    const nit = obs({
+      type: "clarity",
+      kind: "problem",
+      severity: "low",
+      priority: 0.75,
+      blockId: "n1",
+      id: "the-nit",
+    });
+    const all = [...Array.from({ length: 25 }, (_, i) => lensHit(i)), nit];
+    const { alsoNoticed } = partitionFeed(all, opts);
+    expect(alsoNoticed.map((g) => g.primary.id)).toContain("the-nit");
+  });
+
+  it("never groups two lens hits at different spans into one card", () => {
+    // Grouping is span-identity based and must stay that way: "same lens,
+    // different spans" is not a group, and R1 turned on exactly this.
+    const all = [lensHit(1), lensHit(2), lensHit(3)];
+    const { visible } = partitionFeed(all, opts);
+    expect(visible).toHaveLength(3);
+    for (const g of visible) expect(g.others).toHaveLength(0);
+  });
+});

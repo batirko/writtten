@@ -22,6 +22,7 @@ import {
   SOURCE_ACTIVE_BUDGET,
   MIN_SUBMISSION_SPACING_MS,
   MAX_SOURCE_NAME_LENGTH,
+  MAX_LENS_LABEL_LENGTH,
   type ExternalSubmissionContext,
 } from "./externalObservations";
 import {
@@ -665,5 +666,108 @@ describe("conflicting anchor", () => {
     expect(v.ok).toBe(false);
     if (v.ok) return;
     expect(v.code).toBe("malformed");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// user_lens — the label is user data crossing a trust boundary
+//
+// The accept/reject verdicts live in the corpus. These pin what the boundary
+// DOES with the label once it lets one through, which a verdict row can't say.
+// ---------------------------------------------------------------------------
+
+describe("user_lens label handling", () => {
+  const lens = (over: Record<string, unknown> = {}) => ({
+    type: "user_lens",
+    scope: "span",
+    anchorText: "adoption should reach forty percent",
+    text: "This target is phrased as something that happens rather than something someone does.",
+    lens: "sounds AI-written",
+    ...over,
+  });
+
+  it("carries the label onto the observation, so the card face can name the lens", () => {
+    const v = submitExternalObservation(lens(), ctx());
+    expect(v.ok).toBe(true);
+    if (!v.ok) return;
+    expect(v.observation.lens).toBe("sounds AI-written");
+  });
+
+  it("truncates an oversized label instead of rejecting the finding", () => {
+    // Deliberate asymmetry with a MISSING label, which is rejected: a wordy
+    // label is the user being verbose about their own search, not an agent
+    // error, and should not cost them the hit.
+    const long = "x".repeat(200);
+    const v = submitExternalObservation(lens({ lens: long }), ctx());
+    expect(v.ok).toBe(true);
+    if (!v.ok) return;
+    expect(v.observation.lens).toHaveLength(MAX_LENS_LABEL_LENGTH);
+  });
+
+  it("strips control characters and collapses whitespace in the label", () => {
+    // The label is rendered on a card face, so it is untrusted display data —
+    // same treatment as a source name.
+    const v = submitExternalObservation(lens({ lens: "sounds   AI\n\twritten" }), ctx());
+    expect(v.ok).toBe(true);
+    if (!v.ok) return;
+    expect(v.observation.lens).toBe("sounds AI written");
+  });
+
+  it("prices a lens at 0.75 — tied with the low-severity built-ins, never above", () => {
+    const v = submitExternalObservation(lens(), ctx());
+    expect(v.ok).toBe(true);
+    if (!v.ok) return;
+    expect(v.observation.priority).toBe(0.75);
+    expect(v.observation.kind).toBe("opportunity");
+    expect(v.observation.severity).toBe("low");
+  });
+
+  it("still honours the downward-only confidence clamp", () => {
+    // An agent can quiet its own lens card; it can never amplify one.
+    const low = submitExternalObservation(lens({ confidence: "low" }), ctx());
+    expect(low.ok).toBe(true);
+    if (!low.ok) return;
+    expect(low.observation.priority).toBeLessThan(0.75);
+
+    const high = submitExternalObservation(lens({ confidence: "high" }), ctx());
+    expect(high.ok).toBe(true);
+    if (!high.ok) return;
+    expect(high.observation.priority).toBe(0.75);
+  });
+
+  it("dismissing one lens hit does not suppress a hit at another span (R2)", () => {
+    // The mechanism: user_lens is in the span-only suppression set. If it fell
+    // through to the default category-wide branch, one dismissal would silence
+    // EVERY lens at once, because suppression keys on type and all lenses share
+    // the one type. This is the test that would catch that regression.
+    const suppression: DismissalSuppression = {
+      id: "s1",
+      docId: "d1",
+      type: "user_lens",
+      severity: "low",
+      spanSignature: "b3:0:20",
+      anchorText: "The rollout begins in Q2",
+    };
+    const v = submitExternalObservation(lens(), ctx({ suppressions: [suppression] }));
+    expect(v.ok).toBe(true);
+  });
+
+  it("still suppresses a resubmission of the same dismissed lens hit", () => {
+    // The other half — span-only must not mean never.
+    const first = submitExternalObservation(lens(), ctx());
+    expect(first.ok).toBe(true);
+    if (!first.ok) return;
+    const suppression: DismissalSuppression = {
+      id: "s1",
+      docId: "d1",
+      type: "user_lens",
+      severity: "low",
+      spanSignature: `${first.observation.blockId}:${first.observation.startOffset}:${first.observation.endOffset}`,
+      anchorText: first.observation.anchorText,
+    };
+    const again = submitExternalObservation(lens(), ctx({ suppressions: [suppression] }));
+    expect(again.ok).toBe(false);
+    if (again.ok) return;
+    expect(again.code).toBe("duplicate_suppressed");
   });
 });

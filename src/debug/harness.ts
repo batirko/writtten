@@ -119,6 +119,10 @@ export type ExternalObsFixture = {
   /** The agent's display name and run id, as the chip will show them. */
   name?: string;
   sessionId?: string;
+  /** Required in practice for `type: "user_lens"` — the user's own words for the
+   *  search, which is what the card face renders. Without it a seeded lens card
+   *  renders a blank label, so a fixture that omits it is testing nothing real. */
+  lens?: string;
 };
 
 /** Suppressions to seed directly, bypassing the dismissal UI. */
@@ -289,6 +293,7 @@ class Harness {
       startOffset: fixture.startOffset,
       endOffset: fixture.endOffset,
       anchorText: fixture.anchorText,
+      ...(fixture.lens != null ? { lens: fixture.lens } : {}),
       source: {
         kind: "agent",
         name: fixture.name ?? "Claude Code",

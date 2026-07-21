@@ -268,6 +268,55 @@ function TruncationNote({
 }
 
 // ---------------------------------------------------------------------------
+// TypeTag — the chip naming what a card is.
+//
+// Every type but one renders its own enum name. `user_lens` renders a fixed
+// "lens" chip plus THE USER'S OWN LABEL for the search they asked their agent
+// to run, because "user lens" would be meaningless to the reader and, worse,
+// would let a solicited style hit sit in the feed looking like one of
+// writtten's own checks.
+//
+// THIS IS NOT THE SOURCE CHIP COMING BACK. Engine exclusivity (owner,
+// 2026-07-20) removed a per-card chip that named which ENGINE produced an
+// observation — see the comment at the bottom of the card body. This names
+// WHICH SEARCH THE USER ASKED FOR, which is a different fact serving a
+// different purpose: it is what keeps "the product never volunteers style
+// critique" literally true on the card face, and it firewalls trust, so a bad
+// lens discredits that lens rather than the core feed. It appears on lens cards
+// only; built-in cards gain nothing. Do not read it as a reversal and remove it.
+//
+// Used by all three places a type is named — the card head, the grouped "N more"
+// list, and the archive — so a lens never reads as "user lens" anywhere. The
+// archive matters as much as the feed: it is a trust surface.
+//
+// The label ellipsizes rather than wrapping (the header is a fixed row shared
+// with the severity badge and dismiss control). At the 320px feed width that
+// shows roughly the first 26 characters, with the full label on `title`; the
+// 60-char storage cap is deliberately more generous than the visible slot.
+// Owner reviewed a rendered prototype of exactly this at feed width and chose
+// it over a full-width label on its own line (2026-07-21).
+// ---------------------------------------------------------------------------
+
+function TypeTag({ obs }: { obs: Observation }) {
+  if (obs.type === "user_lens") {
+    // Wrapped rather than returned as two bare siblings: this renders in three
+    // different containers (card head, grouped "N more" list, archive) and only
+    // one of them is a flex row with a gap. As loose siblings the chip and the
+    // label sat flush together in the other two — "lenssounds AI-written".
+    // Owning the spacing here keeps it correct wherever a lens is named.
+    return (
+      <span className="tag-lens">
+        <span className="tag tag-user_lens">lens</span>
+        <span className="tag-lens-label" data-testid="obs-lens-label" title={obs.lens}>
+          {obs.lens}
+        </span>
+      </span>
+    );
+  }
+  return <span className={`tag tag-${obs.type}`}>{obs.type.replace(/_/g, " ")}</span>;
+}
+
+// ---------------------------------------------------------------------------
 // GroupedObsCard — renders a single group (one or more observations on the
 // same span). Severity is carried by the type tag (feed_surface.md § Card
 // execution), driven by the card's data-kind / data-severity / data-obs-type.
@@ -347,7 +396,7 @@ export function GroupedObsCard({
     >
       <div className="card-header">
         <div className="card-header-left">
-          <span className={`tag tag-${primary.type}`}>{primary.type.replace(/_/g, " ")}</span>
+          <TypeTag obs={primary} />
           <span
             className={`impact-label impact-kind-${primary.kind} impact-sev-${primary.severity}`}
             data-testid="impact-badge"
@@ -427,7 +476,7 @@ export function GroupedObsCard({
           {expanded &&
             others.map((o) => (
               <div key={o.id} className="card-also-item" data-testid="obs-group-item">
-                <span className={`tag tag-${o.type}`}>{o.type.replace(/_/g, " ")}</span>
+                <TypeTag obs={o} />
                 <p className="card-also-item-text">{o.text}</p>
               </div>
             ))}
@@ -802,7 +851,7 @@ export function SidecarFeed({
                       data-obs-type={obs.type}
                     >
                       <div className="archive-card-head">
-                        <span className={`tag tag-${obs.type}`}>{obs.type.replace(/_/g, " ")}</span>
+                        <TypeTag obs={obs} />
                         <span data-testid="archive-reason" className="archive-reason">
                           {reasonText}
                         </span>
