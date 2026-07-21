@@ -636,3 +636,33 @@ Measured properly, four variants into fresh sessions:
 
 **Guard:** `agentPrompt.test.ts` § _the shape that makes it acceptable_ pins framing-before-`## Setup`, the title-first opening, the absence of any `reference.md` URL, and the presence of the taxonomy/register/rejection sections in the paste. All of it looks like fat to a future size optimiser, which is why it is enforced rather than commented. → see `docs/projects/agent_connected_eval.md` § The skill
 
+### OBS-041 — The register lint is polarity-asymmetric: it catches "is weak" but not "is solid", and "you should" but not "I'd tighten"
+
+**Date:** 2026-07-21\
+**Status:** open — found while writing the steering examples for the connect-prompt rework (#243); recorded rather than fixed inline because the positive-verdict half is a design call, not an obvious bug.\
+**Prompt tier:** `registerLint` (the boundary's hard reject), not a model prompt.\
+**Type flag:** false negative — a class of non-observation the boundary accepts.\
+**Reported as:** a ❌ example drafted for the skill's steering section was asserted to fail the lint and **passed clean**, which `agentSkillExamples.test.ts` caught.
+
+**Measured**, running `lintRegister` directly:
+
+```
+PASSES  "Overall the metrics section is solid, though I'd tighten the second paragraph."
+PASSES  "Overall the metrics section is solid."
+PASSES  "This section is strong and the argument lands well."
+PASSES  "The framing here is excellent; I'd trim the closing line."
+CAUGHT  "This section is weak."                  → evaluative
+CAUGHT  "You should shorten the closing line."   → prescriptive
+```
+
+**Two independent gaps.**
+
+1. **The verdict rule only lists negative adjectives** (`is weak`, `is bad`, `is poor`, `is insufficient`, `won't convince`). A *positive* verdict is still the AI pronouncing on the work rather than locating something in it — and it is worse than the negative case under the flattery-resistant-dismissal guardrail, because approval is exactly what a sycophantic critic hands out and exactly what teaches an author to trust the wrong signal. Whether to catch praise is a **design decision** (`docs/projects/philosophy_guardrails.md` G1 is the relevant argument), which is why this is logged rather than patched.
+2. **First-person softened prescriptions are not in the lexicon.** `I'd suggest` is listed; `I'd tighten`, `I'd trim`, `I'd shorten`, `I'd cut` are not. These are prescriptions in every sense that matters — the AI decided what to change — merely wearing a contraction. This half looks like a straightforward extension rather than a judgement call.
+
+**Why it matters more under BYOA:** a connected agent's submissions have no precision floor and no fixture ratchet behind them; the register lint *is* the containment. And the praise-shaped non-observation is the likeliest phrasing to be waved through, because nothing about it looks like a violation.
+
+**Interim containment:** the skill teaches the failure explicitly — its steering section carries "Overall the metrics section is solid." as a ❌ labelled *"a rating, not an observation — and one nothing rejects, so it is on you"*, and `agentSkillExamples.test.ts` pins that it lints clean, so the gap is asserted rather than assumed. Same pattern as the `user_lens` style-verdict gap (`user_directed_review.md` § Perception risk, risk 1), which this compounds: `user_lens` is the first type that admits style, and a *praising* style verdict passes both gates.
+
+**Guard when fixed:** add adversarial rows to `register-lint-corpus.ts` per that file's rule of the road, covering both halves — and watch the over-rejection direction, since "this section is strong on the migration risk" is a legitimate located observation that a naive positive-adjective rule would eat. → see `docs/projects/philosophy_guardrails.md` (G1) · `docs/projects/user_directed_review.md`
+

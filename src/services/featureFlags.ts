@@ -18,17 +18,23 @@ const AGENT_PREVIEW_KEY = "writtten_agent_preview";
  * the flow would need the query string re-appended, and the first-run modal would lose it
  * the moment anything navigated.
  *
- * Why gated at all, given the flag is otherwise "on": PR4 ships to writtten.com so the
- * one remaining unknown can be answered — Chrome's Local Network Access prompt only fires
- * from a *public* origin, so it is untestable anywhere else. That is a verification
- * release, not a launch. Three follow-ups land before anyone is pointed at this
- * (`docs/plan.md` Phase 8: prompt slimming, engine exclusivity, observability), and the
- * connect prompt is currently ~18x the size it should be — a bad first impression to leave
- * discoverable in the meantime.
+ * Why gated at all, given the flag is otherwise "on": PR4 shipped to writtten.com so the
+ * one remaining unknown could be answered — Chrome's Local Network Access prompt only fires
+ * from a *public* origin, so it is untestable anywhere else. That was a verification
+ * release, not a launch. Three follow-ups were named as preconditions: prompt slimming,
+ * engine exclusivity, observability.
  *
- * **Removing this gate is the launch action:** delete `agentPreviewEnabled`'s body in
- * favour of `true` (and drop the `noindex` on `public/agent/index.html`). Do it once the
- * Phase-8 follow-ups have landed, not before.
+ * **All three have landed** (#234 engine exclusivity, #240 the agent status row, #243 the
+ * connect-prompt rework), **so this gate is the only thing left before BYOA is a public
+ * feature — and removing it is a launch decision, not a cleanup.** Delete
+ * `agentPreviewEnabled`'s body in favour of `true`, and drop the `noindex` on
+ * `public/agent/index.html`, whose comment cites a prompt-size problem that no longer
+ * exists.
+ *
+ * One caveat worth carrying into that decision: #243 found that a *fresh* agent session
+ * refuses some prompt shapes outright, and the shipped shape was verified by hand rather
+ * than by anything CI can run (OBS-040). Whoever removes the gate is pointing strangers'
+ * agents at it, so re-run that check on whatever the prompt says at that moment.
  *
  * Turning it off entirely is still a complete kill switch: no connect section, no process
  * readout row, no first-run on-ramps. Cards already in the feed keep their source chips —
