@@ -1082,6 +1082,20 @@ body,
   color: var(--sem-problem-med);
 }
 
+/* A warning that must be read BEFORE the thing it warns about, so it cannot sit
+   in the collapsed disclosure. Softer than .connect-warn, which reports a failure
+   that already happened — this one is anticipatory, so it reads as guidance
+   rather than as an error the user has already caused. */
+.connect-warn-soft {
+  margin: var(--space-xs) 0 0;
+  font-size: var(--text-ui-sm);
+  line-height: 1.45;
+  color: var(--color-ink-2);
+  background: var(--color-accent-tint);
+  border-radius: var(--radius-md);
+  padding: 8px 10px;
+}
+
 /* In-app OSS discoverability — a quiet two-line block above the build stamp so
    a hosted-demo visitor can find the source and learn they can self-host. Same
    hairline-divider rhythm as .settings-build; the repo link uses the brand

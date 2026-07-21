@@ -144,6 +144,24 @@ export function ConnectAgent({
             </p>
           )}
 
+          {/* Promoted out of the "Not working?" disclosure (2026-07-20 field report).
+              Chrome and Firefox both ask to reach other apps and services on this device
+              the moment we probe loopback — an unannounced prompt a user reasonably
+              dismisses. Blocking it is near-unrecoverable: the app waits forever with
+              nothing on screen explaining why, and the remedy is buried in browser site
+              permissions. A warning about a decision has to be readable BEFORE the
+              decision, so it cannot live in a collapsed disclosure.
+
+              Deliberately browser-agnostic. Naming which browser prompts is what shipped
+              wrong twice: the copy claimed Chrome asks and Firefox doesn't, and both
+              halves were written from the spec's assumption rather than measurement. That
+              claim rots with each browser release; "your browser will ask" does not. */}
+          <p className="connect-warn-soft">
+            Your browser will ask for permission to reach your local network &mdash; that
+            prompt is this connection. <strong>Allow it</strong>, or the bridge can never
+            answer.
+          </p>
+
           <p className="connect-meta">
             Paste this into your agent session. It has your connection details baked in.
           </p>
@@ -178,9 +196,13 @@ export function ConnectAgent({
           <details className="connect-disclosure">
             <summary>Not working?</summary>
             <div className="connect-disclosure-body">
-              Chrome may ask to allow local network access — allow it.
+              Did you block the local-network permission prompt? Clear it in your
+              browser&rsquo;s site settings for writtten and connect again.
               <br />
               Safari can&rsquo;t connect to a local bridge; use Chrome, Edge, or Firefox.
+              <br />
+              The bridge script is written to a file on your machine. Your agent should say
+              where; delete it when you&rsquo;re done.
               <br />
               All ports busy? Cancel and connect again for a fresh list.
             </div>
