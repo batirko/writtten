@@ -12,7 +12,12 @@ test-keys.env
 # Obsidian vault config (rich-text editing of docs/ — local, per-machine)
 .obsidian/
 
-# Per-session git worktrees for parallel feature branches (local, per-machine)
+# Per-session git worktrees for parallel feature branches (local, per-machine).
+# They currently live at .claude/worktrees/<name>; the bare .worktrees/<name>
+# form is the historical location. No leading slash, so "worktrees/" matches at
+# any depth — relocating them again shouldn't silently un-ignore a whole nested
+# checkout. (Same drift once broke the vitest exclude in vite.config.ts.)
+worktrees/
 .worktrees/
 
 # V1 base-rate corpus study: real PRDs + filled labeling sheets + dumped
