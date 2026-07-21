@@ -98,14 +98,26 @@ export function setEngine(next: EngineId): void {
 }
 
 /**
- * The pairing can no longer hold the slot; hand it back. Idempotent.
+ * The pairing can *never* hold the slot on this machine; hand it back. Idempotent.
  *
- * Deliberately *not* spelled `setEngine("builtin")` at its three call sites (revoke,
- * cancel, and the boot repair for a stale selection with no pairing). Those sites
- * mean *the agent lost the slot*, which is a different event from *the user chose a
- * key* — and the asymmetry is the whole safety property here: every move **to**
- * `agent` is a deliberate gesture, every move **to** `builtin` is a loss of the
- * agent's ability to serve. Naming it keeps that legible in code, not only in a doc.
+ * Deliberately not spelled `setEngine("builtin")`: it means *the agent lost the
+ * slot*, which is a different event from *the user chose a key*. Every move **to**
+ * `agent` is a deliberate gesture; this is the one move **to** `builtin` that isn't.
+ *
+ * **Down to a single call site as of 2026-07-21 (owner) — the boot repair for a
+ * browser that cannot reach a loopback bridge at all.** It used to be called from
+ * `revoke` and `cancel` too, so tearing down a pairing silently handed the slot to
+ * the built-in engine. That was wrong twice: it starts spending the user's API quota
+ * on a decision they never made, and it moved the settings surface out from under
+ * the person who had just pressed Disconnect (UX-041). It also contradicted the rule
+ * stated just above — a bridge that merely *drops* keeps the slot precisely so we
+ * don't burn RPD over a hiccuped terminal, and a deliberate teardown has at least as
+ * strong a claim on that reasoning.
+ *
+ * What survives is the narrower case, and the distinction is worth holding: "not
+ * connected yet" is a state the user can act their way out of, so the selection
+ * stands and the readout says nothing is reading (`engineReadiness.ts`). Safari
+ * cannot be acted out of on this machine, so the slot goes back.
  */
 export function releaseAgentEngine(): void {
   setEngine("builtin");

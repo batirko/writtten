@@ -617,6 +617,15 @@ body,
   font-size: 0.6875rem;
   color: var(--text-muted);
 }
+/* "Nothing is reading your document." — shown when the selected engine has no key or
+   no attached agent. Sits directly above .setting-help and has to outrank it, so it
+   takes the darker ink and the UI size rather than the helper size. Deliberately NOT
+   an alarm colour: this is the resting state of every first-run visitor, and painting
+   it red would make not-set-up-yet look like a fault. */
+.setting-note-idle {
+  font-size: var(--text-ui-sm);
+  color: var(--color-ink-2);
+}
 /* "✓ Key set" — the per-field status now carries the credential state (the
    standing key-status card was retired). Bold + the success green so it reads
    at a glance against the muted helper text around it. */

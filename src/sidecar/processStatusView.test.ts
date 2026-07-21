@@ -1,9 +1,13 @@
 import { describe, it, expect } from "vitest";
 import { processStatusView, type ProcessStatusInput } from "./processStatusView";
 
+/** Defaults to a **ready** engine — the cases below are about what a working
+ *  configuration says, so readiness is the uninteresting variable there. The cases
+ *  that turn it off are grouped at the bottom of the file. */
 function view(over: Partial<ProcessStatusInput> = {}) {
   return processStatusView({
     engine: "builtin",
+    engineReady: true,
     pending: 0,
     stalled: false,
     agentPhrase: null,
@@ -141,6 +145,59 @@ describe("processStatusView — what stays writtten's alone", () => {
       anchorState: "stalled",
       statusText: "still working…",
       dotTier: null,
+    });
+  });
+});
+
+/**
+ * The third kind of idle, and the one that used to be invisible: an engine is
+ * selected but nothing is attached to it.
+ *
+ * This became an ordinary resting state on 2026-07-21, when disconnecting an agent
+ * stopped releasing the eval slot. Before that it was mostly unreachable — anything
+ * that stopped an engine working also moved the selection — which is why `idle` was
+ * allowed to mean both "configured and waiting" and "cannot run at all".
+ */
+describe("processStatusView — an engine that cannot run", () => {
+  it("says nothing is reading rather than resting on `idle`", () => {
+    expect(view({ engineReady: false })).toMatchObject({
+      anchorState: "idle",
+      statusText: "nothing reading",
+    });
+  });
+
+  it("does not pulse the dot for an engine that cannot run", () => {
+    expect(view({ engineReady: false }).anchorState).toBe("idle");
+  });
+
+  /**
+   * The agent case is the sharp one. `pass` facts outlive the connection, so a
+   * dropped agent kept resting on `watching` — which promises a critic will react
+   * the moment you type, when in fact nothing will. Readiness outranks the phrase.
+   */
+  it("overrides a stale agent phrase left behind by a dropped connection", () => {
+    expect(
+      agentView({ engineReady: false, agentPhrase: "watching" }).statusText
+    ).toBe("nothing reading");
+  });
+
+  /**
+   * …but only for the resting claim. Work genuinely in flight outranks a claim about
+   * configuration: a call armed before the engine changed is never cancelled, and
+   * printing "nothing reading" over it would lie while writtten is demonstrably
+   * computing — in exactly the window a user is most likely to be confused.
+   */
+  it("still reports work in flight, which outranks the configuration claim", () => {
+    expect(view({ engineReady: false, pending: 2 })).toMatchObject({
+      anchorState: "working",
+      statusText: "evaluating · 2",
+    });
+  });
+
+  it("still reports a stall, which outranks the configuration claim", () => {
+    expect(view({ engineReady: false, stalled: true })).toMatchObject({
+      anchorState: "stalled",
+      statusText: "still working…",
     });
   });
 });

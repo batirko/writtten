@@ -16,17 +16,36 @@ It lives in `services/`, not `model/`, because selection sits **above** `ModelRo
 
 **`block-removed` is deliberately not gated.** It makes no model call, and a card anchored to a deleted block is dead whoever wrote it — the one auto-close that is not an evaluator judgement (`isEvaluatorOwned`). Gating it would strand every agent-era card on a deleted block.
 
-| Event                                                                             | Slot goes to                            | Where                          |
-| --------------------------------------------------------------------------------- | --------------------------------------- | ------------------------------ |
-| picking "Your agent" in Settings, or the `connect-agent` deep-link                | `agent`                                 | `ControlCenter`                |
-| picking a key provider                                                            | `builtin`, **tearing the pairing down** | `ControlCenter.selectEngine`   |
-| `cancel()` / `revoke()`                                                           | `builtin`, via `releaseAgentEngine()`   | `useAgentBridge`               |
-| boot with `agent` selected but no pairing, or a browser that can't reach loopback | `builtin`, via `releaseAgentEngine()`   | `useAgentBridge` resume effect |
-| the BYOA flag is off                                                              | `builtin`, whatever storage says        | `evalEngine` hydrate           |
+| Event                                                              | Slot goes to                            | Where                          |
+| ------------------------------------------------------------------ | --------------------------------------- | ------------------------------ |
+| picking "Your agent" in Settings, or the `connect-agent` deep-link | `agent`                                 | `ControlCenter`                |
+| picking a key provider                                             | `builtin`, **tearing the pairing down** | `ControlCenter.selectEngine`   |
+| a browser that can't reach loopback (agent selected in Safari)     | `builtin`, via `releaseAgentEngine()`   | `useAgentBridge` resume effect |
+| the BYOA flag is off                                               | `builtin`, whatever storage says        | `evalEngine` hydrate           |
 
-Two asymmetries are load-bearing. Moving **to** `agent` is always a deliberate gesture — connecting does not auto-select, and a `disconnected` (but not revoked) bridge stays selected, because silently falling back to a key would start burning RPD over a hiccuped terminal. Moving **to** `builtin` is always the agent _losing_ the ability to serve, which is why those sites call `releaseAgentEngine()` rather than `setEngine("builtin")`.
+**The Engine control is the only thing that moves the slot.** Disconnecting an agent — `cancel()`, `revoke()`, or reloading with no stored pairing — does **not**. That changed on 2026-07-21 (owner) and the old behaviour is worth naming, because the code still contains the machinery it justified: `cancel`/`revoke` used to call `releaseAgentEngine()`, so tearing down a pairing silently handed the slot to the built-in engine.
+
+Two reasons it had to go. It **spends the user's money unasked** — you disconnect your agent and writtten immediately starts billing your API key, a decision you never made. And it **moves the ground under the user mid-gesture**: because the settings panel rendered off `engine`, the release unmounted the connect panel and put the API-key configuration under the cursor of the person who had just pressed Disconnect (UX-041). `evalEngine.ts` already refused this fallback for a bridge that merely _dropped_ ("silently falling back to a key would start burning RPD over a hiccuped terminal"); a deliberate teardown has the same claim on that reasoning, and the inconsistency was the bug.
+
+The surviving asymmetry is narrower and still load-bearing: a browser that can **never** reach a bridge is not the same as one that simply has nothing attached yet. Safari can't be acted out of on this machine, so it still releases; "not connected" is an ordinary state the user can fix, so it doesn't.
+
+What this costs is that **"selected but not running" became an ordinary resting state** rather than a near-unreachable one — see § _Saying when nothing is reading_ below, which is the other half of the same decision and not optional.
 
 Deselecting a live pairing tears it down rather than leaving it connected-but-ignored: a bridge that keeps pushing and submitting into a writtten that ignores it is the parallel-source world through the back door, and it parks the user's agent in a wait loop forever. When it has active cards the switch asks first (`engine-switch-confirm`, archive unchecked — the cards belong to the user); with none it is silent, matching Disconnect's own rule.
+
+### Saying when nothing is reading
+
+`src/sidecar/engineReadiness.ts` answers one question — *can the selected engine actually read the document right now?* — from three facts the caller already has: the engine, whether the active provider has a key, and whether an agent is attached. Pure and argument-injected, following `agentBrowserSupport.ts`.
+
+It exists because removing the release removed an implicit guarantee. Selecting an engine used to imply it worked, since anything that stopped an engine working also moved the selection. Now it doesn't, and UX-045 measured what that looked like when unaddressed: with every key slot empty, **four surfaces asserted a working configuration that did not exist** — the Engine control showing "An API key" selected, the help line promising metering against that key, the process chip naming `gemini-2.0-flash`, and the status row reading `idle`, which reads as *ready and waiting* rather than *cannot run*. The only honest surface was the keyless banner, in the feed, behind the modal the user was standing in.
+
+One module, three consumers, so they cannot drift apart again:
+
+- **The status row** (`processStatusView`) takes `engineReady` as a **required** input and says `nothing reading`. Required rather than optional so a new call site has to answer the question instead of inheriting a comfortable default. It ranks *below* `stalled` and `pending > 0` — work genuinely in flight outranks a claim about configuration, and a call armed before the engine changed is never cancelled — but *above* the agent phrase, because `pass` facts outlive a connection and a dropped agent otherwise kept resting on `watching`, promising a critic that will never react.
+- **The identity chip** names the missing precondition (`no key set`) instead of a model that cannot be called. The agent branch already did exactly this — it says `not connected` — so this is the key branch catching up.
+- **Settings** carries one plain line above the engine help: *"Nothing is reading your document."* Same sentence for both engines on purpose; the missing precondition differs, the consequence does not.
+
+The wording reports state rather than instructing (`no key set`, not `add a key`) — guarded by test. The panel directly below is already the on-ramp, and a second instruction competing with it is both noise and the wrong register for this product.
 
 ---
 
