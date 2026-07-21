@@ -232,6 +232,26 @@ Discovery, the site pages, and the flag. Four things differ from this document's
 
 **On the page's length:** the first draft ran ~1,100 words across eight sections and was cut to ~770 across six at the owner's request, with the explicit condition that quality not suffer. The two structural cuts carried it: the standalone injection section became a caveat box inside _Where your document goes_ (it qualifies that claim rather than standing beside it), and the opening two paragraphs merged. Both caveat boxes were deliberately **not** shortened — they carry the admissions (unratcheted quality, the loopback limit) that keep the page honest rather than promotional.
 
+### Landing verification on writtten.com (2026-07-20, v0.8.0)
+
+> Recovered 2026-07-21 from `docs/byoa-landing-verified`, a branch that never merged: this record existed only there while `main` carried no trace of the check that justified shipping PR4 early. Preserved as written, with one thing since changed — the `live` **source chip** it mentions was removed outright by § _Engine exclusivity_.
+
+The whole reason PR4 shipped ahead of its follow-ups: Chrome's Local Network Access gate applies to **public → loopback**, so it is untestable on localhost, and Cloudflare previews sit behind Access. Production was the only place to answer it.
+
+**Answered: Chrome 150 prompts, and allowing it works.** A `fetch` from `https://writtten.com` to `http://127.0.0.1:8787` returns **200**, and the app's own pairing reaches **Connected · Claude Code** against the real origin — *after the owner allowed the Local Network Access prompt*. Full round trip verified live: a `missing_topic` submission accepted and rendered; a prescriptive submission rejected (`register_violation` / `prescriptive`); the Origin allowlist holding (writtten.com → 200, an unrelated origin → 403).
+
+> **Correction, 2026-07-20 — the most transferable thing in this section.** It first recorded "Chrome 150 neither prompts nor blocks." That was **wrong**, and the way it was wrong is the point. The agent driving the browser observed ~20 s of "Waiting…", then "Connected", and attributed the change to probe retries. What actually happened is that a human clicked **Allow** on a prompt the agent could not see. **A permission prompt is browser chrome — outside the page, invisible to `evaluate_script` and to viewport screenshots.** So *"no prompt appeared"* is a conclusion an agent-driven session can never license; only *"I did not observe one,"* which is not the same claim. Worse, the false correction then overwrote copy that had been right all along. **Any future browser-permission check must be confirmed by a human or not asserted.**
+
+Caveats worth keeping attached, because this is the load-bearing result:
+
+- **Both engines gate it, so the copy must not name browsers at all.** Chrome and Firefox each prompt, with different wording, and Chromium may change phrasing or timing between releases. The durable line is *"your browser will ask — allow it"*. Per-browser claims rot, and this section proved it twice in one day (see UX-031, and the § _Browser support_ note).
+- **The verification was nearly derailed by the service worker**, which served the previous bundle on first load after the deploy. The `?agent=1` gate looked un-shipped for ten minutes. Any future release check must confirm the loaded asset hash matches the network's before concluding anything → UX-038.
+
+**Firefox verified 2026-07-20.** Pairing works end to end against writtten.com — with **Antigravity**, not Claude Code, which is the first evidence the skill is genuinely cross-agent rather than tuned to one product. Firefox shows its own local-network prompt ("writtten.com wants to access other apps and services on this device"); allowing it connects.
+
+**Safari:** unsupported by design and refused before the first probe (UX-027).
+
+
 ### First field evidence on the Gate 1 bet (2026-07-20)
 
 Gate 1 accepted a named risk: external observations bypass the precision floors and fixture ratchets, so an unratcheted critic might be sloppy in a way our own output cannot be. The first real dogfood session — a Claude Code agent reviewing the standard test PRD, 7 accepted observations across 5 taxonomy types — **came back positive**, and it is worth recording before the soak so the bet is judged on evidence rather than nerves.
