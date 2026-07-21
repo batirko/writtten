@@ -59,6 +59,7 @@ import {
   type PrefilterDropResult,
   type PerDocRun,
 } from "./evalScorer";
+import { getReplayStats } from "../model/mock";
 import type { EvalFixture } from "./eval-fixtures/types";
 import type { Observation } from "../store/db";
 
@@ -218,7 +219,24 @@ async function runArm(
     );
     return [];
   }
-  return runner.run({ ...fixture, recordings }, { contradictionCandidates: cc });
+  const observations = await runner.run({ ...fixture, recordings }, { contradictionCandidates: cc });
+  noteFidelity(fixture.id, tier, arm);
+  return observations;
+}
+
+/**
+ * Replay fidelity per doc/arm. A mock-mode miss degrades to an empty `{}`, so a
+ * recording set that no longer matches the current prompts produces an all-zero
+ * result that is indistinguishable from a clean run — the numbers look like
+ * evidence but measure nothing. Tally every arm and refuse to report on a stale
+ * corpus. (2026-07-21: two post-Run-1 prompt changes invalidated every V1
+ * recording — 282 requests, 282 misses — and the run still passed green.)
+ */
+const fidelity: { doc: string; tier: Tier; arm: Arm; hits: number; misses: number }[] = [];
+
+function noteFidelity(doc: string, tier: Tier, arm: Arm): void {
+  const { hits, misses } = getReplayStats();
+  fidelity.push({ doc, tier, arm, hits, misses });
 }
 
 // ---------------------------------------------------------------------------
@@ -392,6 +410,34 @@ describe.skipIf(!V1)("V1 base-rate corpus study", () => {
       console.log(
         "\n--- Per-type wild precision ---\n(no adjudicated emissions.csv yet — adjudicate emissions.generated.csv, rename to emissions.csv)"
       );
+    }
+
+    // --- Replay fidelity -----------------------------------------------------
+    // Report before asserting, so a stale corpus shows *which* arms went stale.
+    if (fidelity.length > 0) {
+      const totalHits = fidelity.reduce((a, f) => a + f.hits, 0);
+      const totalMisses = fidelity.reduce((a, f) => a + f.misses, 0);
+      const stale = fidelity.filter((f) => f.misses > 0);
+      console.log(
+        `\n--- Replay fidelity ---\n${totalHits}/${totalHits + totalMisses} requests served from recordings` +
+          (totalMisses > 0 ? ` · ${totalMisses} MISSES across ${stale.length} arm(s)` : " · all hit")
+      );
+      if (stale.length > 0) {
+        console.table(
+          stale.map((f) => ({ doc: f.doc, tier: f.tier, arm: f.arm, hits: f.hits, misses: f.misses }))
+        );
+      }
+
+      // A miss in pure replay mode is never benign: the request never reached a
+      // model and never matched a recording, so the observation set is silently
+      // truncated. Numbers computed on top of that are not evidence. Fail rather
+      // than report them.
+      expect(
+        totalMisses,
+        `${totalMisses} replay miss(es): the dumped recordings no longer match the current prompts, ` +
+          `so this run measured nothing. Re-record with V1_RECORD=1 (prompt changes invalidate ` +
+          `every recording keyed by request hash).`
+      ).toBe(0);
     }
 
     // Sanity assertions only (never gate on the measured numbers themselves).
