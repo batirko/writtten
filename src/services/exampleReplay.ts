@@ -27,6 +27,7 @@
  */
 
 import { EXAMPLE_DOC_RECORDING } from "./exampleDocRecording";
+import type { ModelCapability } from "../model/capability";
 import {
   setLlmMode,
   getLlmMode,
@@ -41,6 +42,25 @@ let replayActive = false;
 /** True while the example replay (mock and/or fallback) is installed. */
 export function isExampleReplayActive(): boolean {
   return replayActive;
+}
+
+/**
+ * The capability the demo runs under: the ambient tier, but with the weak-tier
+ * contradiction gate held open.
+ *
+ * The gate exists because a weak model asserts conflicts that aren't real (V1
+ * measured 0/2 wild precision on real documents — `docs/projects/field_validation.md`).
+ * The demo doesn't adjudicate: it replays a hand-curated recording of verified
+ * responses, so that reason doesn't apply. Gating it would leave the landing page
+ * unable to demonstrate the product's central capability — misleading in the
+ * opposite direction. The expectation gap this leaves ("why don't I get these on
+ * my own draft?") is closed by the key-entry copy, not by silencing the demo.
+ *
+ * Exported so `App.tsx` and the demo's drift guard share one definition — if the
+ * two drifted, the guard would be asserting a demo that production doesn't run.
+ */
+export function exampleReplayCapability(base: ModelCapability): ModelCapability {
+  return { ...base, emitContradictions: true };
 }
 
 /**

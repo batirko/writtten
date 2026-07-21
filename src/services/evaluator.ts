@@ -823,8 +823,14 @@ export async function evaluateSection(
           });
         };
 
-        for (const con of parsedContradictions.contradictions || []) {
-          emitConflict(con, "contradiction");
+        // A weak model may not present contradictions at all — V1 measured its
+        // wild precision at 0/2 on real documents, far under the trust-derived
+        // 0.95 floor. Tensions still surface (softer claim, softer cost), as do
+        // all span checks, which come off the separate fast call.
+        if (capability.emitContradictions) {
+          for (const con of parsedContradictions.contradictions || []) {
+            emitConflict(con, "contradiction");
+          }
         }
         for (const ten of parsedContradictions.tensions || []) {
           emitConflict(ten, "strategic_tension");
@@ -1440,7 +1446,10 @@ export async function evaluateLedgerContradictions(
       });
     };
 
-    for (const con of parsed.contradictions || []) emit(con, "contradiction");
+    // Same weak-tier contradiction gate as the per-section path above.
+    if (capability.emitContradictions) {
+      for (const con of parsed.contradictions || []) emit(con, "contradiction");
+    }
     for (const ten of parsed.tensions || []) emit(ten, "strategic_tension");
 
     if (import.meta.env.DEV) {

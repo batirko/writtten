@@ -16,6 +16,14 @@ import { parseDocPassSnapshot } from "./docPassMateriality";
 
 const STRONG = capabilityForTier("strong");
 
+/**
+ * Weak tier with the contradiction emit-gate held open. Use where a test is about
+ * some *other* weak-tier behaviour (additive reconciliation, hedged prompts) and
+ * still needs a contradiction to exist to assert on. Without this, the gate would
+ * make such a test pass vacuously — no contradiction, therefore nothing to close.
+ */
+const WEAK_EMITTING = { ...capabilityForTier("weak"), emitContradictions: true };
+
 // Mock the DB module
 vi.mock("../store/db", () => {
   return {
@@ -245,13 +253,16 @@ describe("evaluator - evaluateBlock", () => {
     });
 
     const text = "We plan to launch in Q3.";
-    await evaluateBlock(docId, blockId, text, "Test Stage", apiKey);
+    await evaluateBlock(docId, blockId, text, "Test Stage", apiKey, undefined, undefined, STRONG);
 
     // Contradiction observation saved.
     // Both new claim ("Launch in Q3." kind:commitment) and existing claim
     // (kind:commitment) are commitments → escalated to severity:"high".
-    // paidKey is undefined in this test → contradictionTier:"hedged" → confidence:"low".
-    // priority = 3 (high) × 0.5 (low confidence factor) = 1.5
+    // Runs at STRONG capability because that is now the only tier that emits
+    // contradictions at all (capability.emitContradictions) → contradictionTier:
+    // "confident" → confidence:"high" → priority = 3 (high) × 1.0 = 3.
+    // The weak/hedged confidence math is still exercised — by strategic_tension,
+    // which shares emitConflict and still surfaces at weak tier.
     // The claim text "Launch in Q3." case-differs from the source's mid-sentence
     // "launch in Q3." (source: "We plan to launch in Q3."); anchorSubstring's
     // case-insensitive fallback resolves this to the real clause (offset 11) with
@@ -266,8 +277,8 @@ describe("evaluator - evaluateBlock", () => {
       scope: "span",
       kind: "problem",
       severity: "high",
-      confidence: "low",
-      priority: 1.5,
+      confidence: "high",
+      priority: 3,
       text: "Contradicts delayed launch to Q4.",
       status: "active",
       blockId,
@@ -341,7 +352,7 @@ describe("evaluator - evaluateBlock", () => {
 
     // Evaluate block3!
     const text = "We plan to launch in Q3.";
-    await evaluateBlock(docId, "block3", text, "Test Stage", apiKey);
+    await evaluateBlock(docId, "block3", text, "Test Stage", apiKey, undefined, undefined, STRONG);
 
     // The high-severity contradiction suppression was on block1, so the new contradiction on block3 SHOULD fire (span-only suppression).
     expect(db.saveObservation).toHaveBeenCalledWith(
@@ -591,7 +602,12 @@ describe("evaluator - scope-excluded claims (OBS-030)", () => {
       `Solution\n${excludedBody}`,
       members("Solution"),
       "Stage",
-      apiKey
+      apiKey,
+      undefined,
+      undefined,
+      false,
+      undefined,
+      STRONG
     );
 
     // Same body + same conflicting limit — but under a normal heading the claim is
@@ -639,7 +655,7 @@ describe("evaluator - evaluateLedgerContradictions (bootstrap sweep)", () => {
       }),
     });
 
-    await evaluateLedgerContradictions(docId, "Stage", apiKey);
+    await evaluateLedgerContradictions(docId, "Stage", apiKey, undefined, undefined, STRONG);
 
     expect(mockStrong).toHaveBeenCalledTimes(1);
     expect(db.saveObservation).toHaveBeenCalledWith(
@@ -678,7 +694,7 @@ describe("evaluator - evaluateLedgerContradictions (bootstrap sweep)", () => {
       }),
     });
 
-    await evaluateLedgerContradictions(docId, "Stage", apiKey);
+    await evaluateLedgerContradictions(docId, "Stage", apiKey, undefined, undefined, STRONG);
 
     expect(db.saveObservation).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -702,7 +718,7 @@ describe("evaluator - evaluateLedgerContradictions (bootstrap sweep)", () => {
       }),
     });
 
-    await evaluateLedgerContradictions(docId, "Stage", apiKey);
+    await evaluateLedgerContradictions(docId, "Stage", apiKey, undefined, undefined, STRONG);
 
     const call = vi
       .mocked(db.saveObservation)
@@ -717,7 +733,7 @@ describe("evaluator - evaluateLedgerContradictions (bootstrap sweep)", () => {
       text: JSON.stringify({ contradictions: [], tensions: [] }),
     });
 
-    await evaluateLedgerContradictions(docId, "Stage", apiKey);
+    await evaluateLedgerContradictions(docId, "Stage", apiKey, undefined, undefined, STRONG);
 
     expect(db.saveObservation).not.toHaveBeenCalled();
   });
@@ -734,7 +750,7 @@ describe("evaluator - evaluateLedgerContradictions (bootstrap sweep)", () => {
       }),
     });
 
-    await evaluateLedgerContradictions(docId, "Stage", apiKey);
+    await evaluateLedgerContradictions(docId, "Stage", apiKey, undefined, undefined, STRONG);
 
     expect(mockStrong).toHaveBeenCalledTimes(1);
     expect(db.saveObservation).toHaveBeenCalledWith(
@@ -758,7 +774,7 @@ describe("evaluator - evaluateLedgerContradictions (bootstrap sweep)", () => {
       }),
     });
 
-    await evaluateLedgerContradictions(docId, "Stage", apiKey);
+    await evaluateLedgerContradictions(docId, "Stage", apiKey, undefined, undefined, STRONG);
 
     expect(mockStrong).toHaveBeenCalledTimes(1);
     expect(db.saveObservation).not.toHaveBeenCalled();
@@ -772,20 +788,20 @@ describe("evaluator - evaluateLedgerContradictions (bootstrap sweep)", () => {
     });
 
     // First sweep runs and stores the ledger hash.
-    await evaluateLedgerContradictions(docId, "Stage", apiKey);
+    await evaluateLedgerContradictions(docId, "Stage", apiKey, undefined, undefined, STRONG);
     expect(mockStrong).toHaveBeenCalledTimes(1);
     const storedHash = vi.mocked(db.saveDocEvalState).mock.calls[0][1];
 
     // Replay that hash; the unchanged ledger should short-circuit before the call.
     vi.mocked(db.loadDocEvalState).mockResolvedValueOnce(storedHash);
-    await evaluateLedgerContradictions(docId, "Stage", apiKey);
+    await evaluateLedgerContradictions(docId, "Stage", apiKey, undefined, undefined, STRONG);
     expect(mockStrong).toHaveBeenCalledTimes(1); // still 1 — no second call
   });
 
   it("does nothing with fewer than two claims", async () => {
     vi.mocked(db.loadActiveClaimsForDocument).mockResolvedValue([claimA]);
 
-    await evaluateLedgerContradictions(docId, "Stage", apiKey);
+    await evaluateLedgerContradictions(docId, "Stage", apiKey, undefined, undefined, STRONG);
 
     expect(mockStrong).not.toHaveBeenCalled();
   });
@@ -802,7 +818,7 @@ describe("evaluator - evaluateLedgerContradictions (bootstrap sweep)", () => {
     // < 2-live-claims guard before reconcile, so queuing a `…Once` here would leak
     // an unconsumed value into a later test (clearAllMocks doesn't drain the queue).
 
-    await evaluateLedgerContradictions(docId, "Stage", apiKey);
+    await evaluateLedgerContradictions(docId, "Stage", apiKey, undefined, undefined, STRONG);
 
     // Only claimA survives the scope filter → < 2 live claims → the adjudicator is
     // never called and no false contradiction is emitted.
@@ -830,7 +846,7 @@ describe("evaluator - evaluateLedgerContradictions (bootstrap sweep)", () => {
       text: JSON.stringify({ contradictions: [], tensions: [] }),
     });
 
-    await evaluateLedgerContradictions(docId, "Stage", apiKey);
+    await evaluateLedgerContradictions(docId, "Stage", apiKey, undefined, undefined, STRONG);
 
     expect(mockStrong).toHaveBeenCalledTimes(1);
     const userPrompt = mockStrong.mock.calls[0][0].user as string;
@@ -1416,8 +1432,10 @@ describe("evaluator - evaluateLedgerContradictions (Workstream B — authoritati
       text: JSON.stringify({ contradictions: [], tensions: [] }),
     });
 
-    // Default weak capability (no capability arg) → additive path.
-    await evaluateLedgerContradictions(docId, undefined, apiKey, undefined);
+    // Weak capability → additive path. This test is about `driveResolution`, so it
+    // must stay weak; `emitContradictions` is held open so the gate isn't the thing
+    // under test here (a closed gate would make it pass for the wrong reason).
+    await evaluateLedgerContradictions(docId, undefined, apiKey, undefined, undefined, WEAK_EMITTING);
 
     expect(db.updateObservationStatus).not.toHaveBeenCalled();
     // No grace bump either — additive path leaves existing untouched.
@@ -1483,7 +1501,7 @@ describe("evaluator - eval-wedge under strong-call failure (L3)", () => {
       }),
     });
 
-    await evaluateBlock(docId, blockId, "We plan to launch in Q3.", "Stage", apiKey);
+    await evaluateBlock(docId, blockId, "We plan to launch in Q3.", "Stage", apiKey, undefined, undefined, STRONG);
 
     expect(db.saveObservation).toHaveBeenCalled();
     expect(db.saveBlockSummary).toHaveBeenCalled();
@@ -1884,7 +1902,7 @@ describe("evaluator - suppression matching by anchor text (L5a)", () => {
       }),
     });
 
-    await evaluateLedgerContradictions(docId, "Stage", apiKey);
+    await evaluateLedgerContradictions(docId, "Stage", apiKey, undefined, undefined, STRONG);
 
     expect(mockStrong).toHaveBeenCalledTimes(1); // sweep ran
     expect(db.saveObservation).not.toHaveBeenCalled(); // but the pair is suppressed
@@ -1949,7 +1967,7 @@ describe("evaluator - conflict identity unified on conflictPairKey (L5c)", () =>
       }),
     });
 
-    await evaluateBlock(docId, "block1", "We plan to launch in Q3.", "Stage", apiKey);
+    await evaluateBlock(docId, "block1", "We plan to launch in Q3.", "Stage", apiKey, undefined, undefined, STRONG);
 
     // Same pair → coalesce: no new card and no supersede/close. The span reconciler
     // does not churn it, and the edit-scoped arm confirms the pair is re-emitted and
@@ -1971,7 +1989,7 @@ describe("evaluator - conflict identity unified on conflictPairKey (L5c)", () =>
       }),
     });
 
-    await evaluateBlock(docId, "block1", "We plan to launch in Q3.", "Stage", apiKey);
+    await evaluateBlock(docId, "block1", "We plan to launch in Q3.", "Stage", apiKey, undefined, undefined, STRONG);
 
     expect(db.saveObservation).toHaveBeenCalledTimes(1);
     expect(db.saveObservation).toHaveBeenCalledWith(expect.objectContaining({ type: "contradiction" }));
@@ -2004,7 +2022,7 @@ describe("evaluator - conflict identity unified on conflictPairKey (L5c)", () =>
     mockFast.mockResolvedValueOnce(fastWithClaim);
     mockStrong.mockResolvedValueOnce({ text: JSON.stringify({ contradictions: [] }) });
 
-    await evaluateBlock(docId, "block1", "We plan to launch in Q3.", "Stage", apiKey);
+    await evaluateBlock(docId, "block1", "We plan to launch in Q3.", "Stage", apiKey, undefined, undefined, STRONG);
 
     expect(db.updateObservationStatus).toHaveBeenCalledWith("cx-old", "auto_closed", "resolved_by_edit");
   });

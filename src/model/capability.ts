@@ -30,17 +30,39 @@ export interface ModelCapability {
    *  closures. A weak model could hallucinate resolutions, so it stays on the
    *  lexical best-match + additive fallback paths. */
   driveResolution: boolean;
+  /** Present `contradiction` cards at all. Distinct from `adjudicateConfidently`,
+   *  which only picks the hedged-vs-confident *prompt*: this drops the parsed
+   *  `contradictions` bucket at emit time, leaving `tensions` and every span check
+   *  untouched.
+   *
+   *  False at weak tier per the decision rule pre-registered 2026-07-16 in
+   *  `docs/projects/field_validation.md`. V1 Run 1 measured the free tier emitting
+   *  2 contradictions across 9 real documents — **both false** — against the paid
+   *  tier's 13. A false contradiction is the maximum-damage failure (R4.4: one that
+   *  isn't real and the user discounts the entire feed), and the hero's 0.95 floor
+   *  is trust-derived, not performance-derived. A tier that stays quiet about
+   *  contradictions and says so is more trustworthy than one that guesses.
+   *
+   *  Kept separate from `adjudicateConfidently` because that flag selects the
+   *  system prompt and so is request-hash-affecting; this one is downstream of the
+   *  model call and changes no prompt text. That lets the recorded fixture corpus
+   *  keep exercising the contradiction pipeline at weak tier without re-recording.
+   */
+  emitContradictions: boolean;
 }
 
 /** Expand a tier into the concrete capability flags the evaluator branches on.
- *  Both flags track `strong` today; they are separate fields so policy can
- *  diverge per-flag later without touching call sites. */
+ *  All three flags track `strong` today; they are separate fields so policy can
+ *  diverge per-flag later without touching call sites — and `emitContradictions`
+ *  is the first place that separation pays off (the eval harness runs weak prompts
+ *  but must still emit contradictions; see the field's doc comment). */
 export function capabilityForTier(tier: ModelTier): ModelCapability {
   const strong = tier === "strong";
   return {
     tier,
     adjudicateConfidently: strong,
     driveResolution: strong,
+    emitContradictions: strong,
   };
 }
 

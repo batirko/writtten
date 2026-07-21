@@ -19,6 +19,7 @@ import {
   replayResponse,
   replayFallback,
   fallbackSize,
+  noteReplayOutcome,
 } from "./mock";
 
 function wrap(call: (req: LLMRequest) => Promise<LLMResponse>) {
@@ -48,9 +49,11 @@ function wrap(call: (req: LLMRequest) => Promise<LLMResponse>) {
     if (mode === "mock") {
       const text = replayResponse(hash);
       if (text === undefined) {
+        noteReplayOutcome(false);
         console.warn(`[mock] no recording for ${hash}; returning empty {}`);
         return { text: "{}" };
       }
+      noteReplayOutcome(true);
       return { text };
     }
 

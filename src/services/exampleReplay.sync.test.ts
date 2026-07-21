@@ -28,6 +28,13 @@ import { EXAMPLE_DOC_RECORDING } from "./exampleDocRecording";
 import { EXAMPLE_STAGE } from "./exampleDoc";
 import { setLlmMode, loadRecordings, clearRecordings } from "../model/mock";
 import { WEAK_CAPABILITY } from "../model/capability";
+import { exampleReplayCapability } from "./exampleReplay";
+
+// The demo runs at the ambient (keyless → weak) tier but with the contradiction
+// emit-gate held open, because it replays a hand-curated recording rather than
+// adjudicating live. Derived from the *same* helper App.tsx uses, so this guard
+// can never drift into asserting a demo production does not actually run.
+const DEMO_CAPABILITY = exampleReplayCapability(WEAK_CAPABILITY);
 import type { BlockSummary, ClaimLedgerEntry, Observation } from "../store/db";
 
 // Gemini must never be reached — mock mode should intercept every call.
@@ -192,13 +199,22 @@ describe("example demo recording — drift guard", () => {
         "mock-key",
         undefined,
         [],
-        true // skipContradiction
+        true, // skipContradiction
+        undefined, // evalId
+        DEMO_CAPABILITY
       );
     }
 
     // Ledger now visible; sweep + doc-scan run over the full document.
     committed = true;
-    await evaluateLedgerContradictions(DOC_ID, EXAMPLE_STAGE, "mock-key", undefined);
+    await evaluateLedgerContradictions(
+      DOC_ID,
+      EXAMPLE_STAGE,
+      "mock-key",
+      undefined,
+      undefined,
+      DEMO_CAPABILITY
+    );
     // maturity is undefined here: the import EvalContext (Editor import effect)
     // never threads it, so the demo's doc-scan omits the maturity block.
     await evaluateDocument(

@@ -24,6 +24,7 @@ import { EXAMPLE_DOC_HTML, EXAMPLE_STAGE } from "./services/exampleDoc";
 import {
   activateExampleReplay,
   deactivateExampleReplay,
+  exampleReplayCapability,
   onKeyBecameAvailable,
 } from "./services/exampleReplay";
 import { clearSnapshotsForDocument } from "./services/evalSnapshot";
@@ -139,7 +140,7 @@ export default function App() {
   const geminiStrong = Boolean(geminiPaidResolved);
   const effectiveTier: ModelTier =
     providerId === "gemini" ? (geminiStrong ? "strong" : "weak") : "strong";
-  const capability = capabilityForTier(effectiveTier);
+  const baseCapability = capabilityForTier(effectiveTier);
   // Keys threaded to the eval path. For a paid provider the single key rides the
   // `paidKey` slot; it's also passed as the free key purely to satisfy the
   // evaluator's "has a key" guard — the free pool is empty, so it never reaches
@@ -236,6 +237,17 @@ export default function App() {
   // keyless banner copy (demo vs. general keyless). Session-only (not persisted):
   // the example never survives a reload.
   const [demoActive, setDemoActive] = useState(false);
+
+  // The weak tier does not present contradiction cards (see
+  // `ModelCapability.emitContradictions` — V1 measured its wild precision at 0/2
+  // on real documents). The "See it in action" demo is the one exception: it
+  // replays a hand-curated, verified recording rather than adjudicating live, so
+  // the reason for the gate — a weak model asserting conflicts that aren't real —
+  // does not apply. Gating it would leave the landing demo unable to show the
+  // product's core capability, which misleads in the opposite direction. The
+  // expectation gap ("why don't I get these on my own draft?") is closed by the
+  // key-entry copy, not by silencing the demo.
+  const capability = demoActive ? exampleReplayCapability(baseCapability) : baseCapability;
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === "\\") {

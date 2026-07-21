@@ -31,7 +31,33 @@ import {
   setRecordFillGaps,
 } from "../../model/mock";
 import type { ClaimLedgerEntry, Observation } from "../../store/db";
+import type { ModelCapability } from "../../model/capability";
 import type { EvalFixture } from "./types";
+
+/**
+ * Capability the fixture corpus runs under.
+ *
+ * Deliberately *not* `capabilityForTier(...)`: the two flags are pulled apart on
+ * purpose.
+ *
+ *  - `adjudicateConfidently: false` keeps the hedged system prompts, which is what
+ *    every recording in the corpus was captured against. Flipping it would change
+ *    the prompt text, hence the request hash, hence invalidate all ~29 fixtures.
+ *  - `emitContradictions: true` keeps the parsed contradictions bucket flowing, so
+ *    the ~20 `contradiction` expectations across the corpus still exercise
+ *    anchoring, reconciliation, dedup, priority and routing.
+ *
+ * The corpus's job is guarding the *deterministic pipeline*; letting the weak-tier
+ * product gate silence it here would blind that guard entirely while proving
+ * nothing about the gate. The gate is asserted directly instead — see
+ * `evaluator.contradictionGate.test.ts`.
+ */
+const HARNESS_CAPABILITY: ModelCapability = {
+  tier: "weak",
+  adjudicateConfidently: false,
+  driveResolution: false,
+  emitContradictions: true,
+};
 
 // ---------------------------------------------------------------------------
 // Module-level mocks (must be declared at module scope for vi.mock hoisting)
@@ -54,6 +80,15 @@ import type { EvalFixture } from "./types";
  */
 export interface RunOpts {
   contradictionCandidates?: "prefilter" | "all-pairs";
+  /**
+   * Override the capability the run executes under. Defaults to
+   * `HARNESS_CAPABILITY`. Exists so the weak-tier contradiction gate can be
+   * asserted directly (flip `emitContradictions` while holding
+   * `adjudicateConfidently: false`, so the hedged prompts — and therefore the
+   * recording hashes — are identical across both arms and the *only* variable is
+   * the gate). See `evaluator.contradictionGate.test.ts`.
+   */
+  capability?: ModelCapability;
 }
 
 export interface FixtureRunner {
@@ -73,7 +108,7 @@ export interface FixtureRunner {
    * all-pairs `CONTRADICTION_SWEEP_SYSTEM_PROMPT[_HEDGED]` path that per-section
    * `run` never touches. Returns the active observations produced.
    */
-  runSweep(fixture: EvalFixture): Promise<Observation[]>;
+  runSweep(fixture: EvalFixture, opts?: RunOpts): Promise<Observation[]>;
   /**
    * Run a fixture's sections through the evaluator in live mode (Tier 2).
    * Makes real API calls using the provided key.
@@ -226,7 +261,7 @@ export function createFixtureRunner(): FixtureRunner {
         fixture.jargonAllowlist,
         false, // skipContradiction
         undefined, // evalId
-        undefined, // capability → WEAK_CAPABILITY default
+        opts.capability ?? HARNESS_CAPABILITY, // weak prompts, contradictions still emit
         undefined, // isLive → always-live default
         undefined, // onStageSuggestion
         opts.contradictionCandidates ?? "prefilter"
@@ -237,7 +272,7 @@ export function createFixtureRunner(): FixtureRunner {
     return savedObservations.filter((o) => o.status === "active" && !supersededIds.has(o.id));
   }
 
-  async function runSweep(fixture: EvalFixture): Promise<Observation[]> {
+  async function runSweep(fixture: EvalFixture, opts: RunOpts = {}): Promise<Observation[]> {
     if (fixture.recordings && Object.keys(fixture.recordings).length > 0) {
       loadRecordings(fixture.recordings);
     }
@@ -258,7 +293,14 @@ export function createFixtureRunner(): FixtureRunner {
       });
     }
 
-    await evaluateLedgerContradictions(docId, fixture.stage, "mock-key", undefined);
+    await evaluateLedgerContradictions(
+      docId,
+      fixture.stage,
+      "mock-key",
+      undefined, // no paid key
+      undefined, // evalId
+      opts.capability ?? HARNESS_CAPABILITY // weak prompts, contradictions still emit
+    );
 
     return savedObservations.filter((o) => o.status === "active" && !supersededIds.has(o.id));
   }
@@ -292,7 +334,7 @@ export function createFixtureRunner(): FixtureRunner {
         fixture.jargonAllowlist,
         false, // skipContradiction
         undefined, // evalId
-        undefined, // capability → WEAK_CAPABILITY default
+        opts.capability ?? HARNESS_CAPABILITY, // weak prompts, contradictions still emit
         undefined, // isLive → always-live default
         undefined, // onStageSuggestion
         opts.contradictionCandidates ?? "prefilter"
@@ -341,7 +383,7 @@ export function createFixtureRunner(): FixtureRunner {
           fixture.jargonAllowlist,
           false, // skipContradiction
           undefined, // evalId
-          undefined, // capability → WEAK_CAPABILITY default
+          opts.capability ?? HARNESS_CAPABILITY, // weak prompts, contradictions still emit
           undefined, // isLive → always-live default
           undefined, // onStageSuggestion
           opts.contradictionCandidates ?? "prefilter"
