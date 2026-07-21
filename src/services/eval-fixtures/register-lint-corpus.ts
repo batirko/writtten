@@ -327,6 +327,24 @@ export const registerLintCorpus: RegisterLintCase[] = [
     type: "contradiction",
   },
   {
+    id: "claim-index-user-lens",
+    rule: "claim-index",
+    why: "user_lens allows DOCUMENT scope, so it reaches the index-leak rules exactly as the doc-level types do — this row is what pins that membership. A lens is the one type whose subject the user chose, which makes it the easiest place to assume the register rules relaxed; they did not. The clean partner says the same thing by quoting the document's own words.",
+    violating: "The cadence in claim [2] repeats at the opening of each section.",
+    clean:
+      'The three-clause rhythm in "adoption should reach forty percent" repeats at each section opening.',
+    type: "user_lens",
+  },
+  {
+    id: "section-number-user-lens",
+    rule: "section-number",
+    why: "Same membership, the other index-leak rule. A lens card citing '§2' invents numbering the author never wrote, and the fact that the user requested the search buys no exemption.",
+    violating: "The passive phrasing in §2 matches the pattern you asked about.",
+    clean:
+      'The "Success Criteria" section states its target without naming who reaches it.',
+    type: "user_lens",
+  },
+  {
     id: "section-number-spelled-out",
     rule: "section-number",
     why: "The probe's biggest section-number gap: the rule caught the § glyph only, while the spelled-out form the model fabricates just as readily — and which reads MORE authoritative to the author — passed untouched.",

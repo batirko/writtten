@@ -343,4 +343,112 @@ export const externalSubmissionCorpus: ExternalSubmissionCase[] = [
     },
     expect: "accepted",
   },
+
+  // --- user_lens: a search the USER asked for -------------------------------
+  // The type that admits style — but only when solicited, only with the user's
+  // own label, and under exactly the same register rules as everything else.
+  // See docs/projects/user_directed_review.md.
+  {
+    id: "lens-missing-label",
+    why: "The label IS the parameter — it is the whole difference between one parameterized slot and an open enum. Without it there is nothing to put on the card face, so the reader cannot tell a solicited search from one of writtten's own checks, and the anti-taxonomy claim quietly stops being true.",
+    submission: {
+      type: "user_lens",
+      scope: "span",
+      anchorText: "adoption should reach forty percent",
+      text: "This target is stated in the passive register the rest of the section avoids.",
+    },
+    expect: { code: "malformed" },
+  },
+  {
+    id: "lens-label-on-non-lens-type",
+    why: "The reverse smuggle: dressing a built-in finding in a user's lens label would put 'you asked for this' on a card the user never asked for. Rejected rather than dropped, per the no-silent-drop rule governing every field.",
+    submission: {
+      type: "clarity",
+      scope: "span",
+      anchorText: "adoption should reach forty percent",
+      text: "The adoption target has no measurement window attached to it.",
+      lens: "sounds AI-written",
+    },
+    expect: { code: "malformed" },
+  },
+  {
+    id: "lens-label-blank",
+    why: "Whitespace-only survives a naive presence check and would render an empty chip. Unlike a source name, a blank label cannot be given a fallback — inventing one would put words on the card face the user never wrote.",
+    submission: {
+      type: "user_lens",
+      scope: "document",
+      text: "Three sections open with the same parallel-clause cadence.",
+      lens: "   ",
+    },
+    expect: { code: "malformed" },
+  },
+  {
+    id: "lens-prescribes",
+    why: "The load-bearing lens case. A lens buys a user-defined TOPIC, never a relaxed FORM — no lens earns a rewrite. Identical rejection to the same phrasing under any built-in type.",
+    submission: {
+      type: "user_lens",
+      scope: "span",
+      anchorText: "adoption should reach forty percent",
+      text: "Rewrite this to sound less like AI wrote it.",
+      lens: "sounds AI-written",
+    },
+    expect: { code: "register_violation", rule: "prescriptive" },
+  },
+  {
+    id: "lens-leading-question",
+    why: "Register rules apply whole, not selectively — a lens does not earn the interrogative either. Questions hand the thinking back as a prompt.",
+    submission: {
+      type: "user_lens",
+      scope: "span",
+      anchorText: "adoption should reach forty percent",
+      text: "Does this sentence sound like it was generated?",
+      lens: "sounds AI-written",
+    },
+    expect: { code: "register_violation", rule: "question" },
+  },
+  {
+    id: "lens-doc-scope-claim-index-leak",
+    why: "user_lens allows document scope, so it must reach the index-leak rules exactly as the doc-level types do. A lens card citing 'claim [2]' points at an internal label the author cannot see. This is why user_lens is in DOC_LEVEL_TYPES.",
+    submission: {
+      type: "user_lens",
+      scope: "document",
+      text: "The cadence in claim [2] repeats across the opening of each section.",
+      lens: "sounds AI-written",
+    },
+    expect: { code: "register_violation", rule: "claim-index" },
+  },
+  {
+    id: "lens-span-accepted",
+    why: "The flagship case, accepted: a solicited search, the user's own words as the label, and a note that LOCATES a specific passage rather than delivering a verdict on it.",
+    submission: {
+      type: "user_lens",
+      scope: "span",
+      anchorText: "adoption should reach forty percent",
+      text: "This target is phrased as something that happens rather than something someone does.",
+      lens: "sounds AI-written",
+    },
+    expect: "accepted",
+  },
+  {
+    id: "lens-document-accepted",
+    why: "Document scope is allowed — some lenses genuinely sit on no single sentence. Accepted deliberately, and it is the shape risk 1 of the spec is about: a whole-document style verdict is register-clean today, contained by the visible label and the skill's examples rather than by the boundary.",
+    submission: {
+      type: "user_lens",
+      scope: "document",
+      text: "Each section opens with the same three-clause rhythm.",
+      lens: "sounds AI-written",
+    },
+    expect: "accepted",
+  },
+  {
+    id: "lens-label-oversized",
+    why: "ACCEPTED with the label truncated, not rejected. A too-long label is the user being wordy about their own search, which is not an agent error and should not cost them the finding — unlike a missing label, which leaves the card unattributable. The cap bounds what is stored; the card face truncates again to what fits.",
+    submission: {
+      type: "user_lens",
+      scope: "document",
+      text: "Each section opens with the same three-clause rhythm.",
+      lens: "passages where I sound like I am promising something to a customer that we have not actually agreed to internally yet",
+    },
+    expect: "accepted",
+  },
 ];

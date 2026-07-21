@@ -389,6 +389,10 @@ const DOC_LEVEL_TYPES: ReadonlySet<Observation["type"]> = new Set([
   "underexposed_topic",
   "audience_mismatch",
   "structure_flow",
+  // Required, not optional: `user_lens` allows document scope, so a lens card
+  // can leak "§3" or "claim [2]" exactly as the doc-level types can. Omitting it
+  // here would silently exempt lens cards from both index-leak rules.
+  "user_lens",
 ]);
 
 /** Length soft cap — one observation is one thought (§ Voice & copy guide rule 1). */

@@ -1595,6 +1595,47 @@ body,
   display: flex;
   align-items: center;
   gap: 5px;
+  /* Lets the lens label (the only shrinkable child) ellipsize instead of
+     pushing the severity badge out of the row. Flex items default to
+     min-width:auto, which refuses to shrink below content width. */
+  min-width: 0;
+}
+
+/* Keep the type chip itself rigid, so the lens label is the ONLY shrinkable
+   thing in the header row. Without this, the min-width:0 above would newly let
+   a long built-in name ("strategic tension") compress on a narrow feed — a
+   regression on cards that have nothing to do with lenses. */
+.card-header-left .tag {
+  flex-shrink: 0;
+}
+
+/* The lens chip + the user's label, as one unit. Owns its own spacing because
+   it renders in three containers and only the card header is a flex row with a
+   gap — see TypeTag in SidecarFeed.tsx. min-width:0 lets the label inside
+   ellipsize rather than forcing the row wider. */
+.tag-lens {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  max-width: 100%;
+}
+
+/* The user's own words for a lens they asked their agent to run, sitting beside
+   the fixed "lens" chip. Deliberately NOT a .tag: it is user data, not one of
+   our type names, and giving it the chip border would let it read as a second
+   built-in type. Truncates — the header is a fixed row, and the 60-char storage
+   cap is more generous than the visible slot at feed width (full text on
+   `title`). See TypeTag in SidecarFeed.tsx. */
+.tag-lens-label {
+  font-size: var(--text-label);
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: var(--color-ink-2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
 }
 
 /* Severity text label — replaces the 6px dot (R7a) */

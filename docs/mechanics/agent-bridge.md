@@ -207,6 +207,17 @@ Dismissing an external card writes the same `DismissalSuppression` as any other,
 
 That is intended. The user rejected **the observation**, not the source. It also keeps the boundary's `duplicate_suppressed` check symmetric with the evaluator's, and it preserves G1: the suppression list is never disclosed to the agent, which would invite it to self-censor whole categories.
 
+**This stays true for `user_lens`** (added 2026-07-21). Lens suppression keys on type and span, never on source — what changed is only its *breadth*, below.
+
+### Suppression breadth: category-wide by default, span-only for four types
+
+`isSpanSuppressed` (`evaluatorAnchoring.ts`) has two modes. By default a dismissal is **category-wide** for the document: dismiss one `clarity` card and no further `clarity` cards arrive. Four types are **span-only** instead — the dismissal suppresses that passage and nothing else:
+
+- `contradiction`, `unsupported_claim`, and anything at `severity: "high"` — because of **G1 (flattery-resistant dismissal)**: a high-severity defect must not be silenceable as a whole category.
+- **`user_lens` — for a different reason, and the distinction is easy to misread.** G1 deliberately does *not* govern solicited searches: muting a lens is retracting your own request, which is not the sycophancy G1 exists to prevent. Lens cards are span-only because suppression keys on **type**, and every lens shares the one `user_lens` type — so the category-wide branch would silence *every* lens at once rather than the one the user tired of. The mechanism coincides with G1's; the reasoning does not. Do not "simplify" the two into one rule.
+
+Verified end to end 2026-07-21: dismissing one lens hit leaves other lenses standing, still admits the same lens at a different span, and still rejects a resubmission of the dismissed hit as `duplicate_suppressed`. See `docs/projects/user_directed_review.md` § R2.
+
 ## Retract and revoke
 
 Both live in `externalObservationLifecycle.ts`. Neither writes a `DismissalSuppression` — an agent withdrawing its own card and a user clearing a source are different acts from a user rejecting a finding, and conflating them would mute observations the user never dismissed.

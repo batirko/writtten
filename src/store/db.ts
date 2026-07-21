@@ -85,7 +85,13 @@ export interface Observation {
     | "underexposed_topic"
     | "missing_topic"
     | "structure_flow"
-    | "audience_mismatch";
+    | "audience_mismatch"
+    /** A hit from a search the USER asked their connected agent to run
+     *  ("find where my text sounds AI-written"). Agent-only — no built-in eval
+     *  path can emit it, which is what keeps "we never volunteer style critique"
+     *  a fact about the code. See `AGENT_ONLY_TYPES` in externalObservations.ts
+     *  and docs/projects/user_directed_review.md. */
+    | "user_lens";
   scope: "span" | "document";
   /** Replaces the old `nature` field. Fixed, intrinsic to the observation type.
    *  `problem` = something is wrong/missing; `opportunity` = could be stronger;
@@ -147,6 +153,19 @@ export interface Observation {
    *  it and read as built-in, which is what they are.
    *  See docs/projects/agent_connected_eval.md. */
   source?: ObservationSource;
+
+  /** The user's own words for the search they asked their agent to run — the
+   *  parameter that makes `user_lens` one slot rather than an open enum.
+   *  Required iff `type === "user_lens"`, rejected on every other type (enforced
+   *  at the boundary, `externalObservations.ts`). USER DATA: sanitized and
+   *  length-capped on arrival, kept out of the debug export.
+   *
+   *  Nothing stores a lens itself — there is no registry. A label is
+   *  per-submission data, which is what makes "no lens presets/marketplace"
+   *  structurally true rather than a promise. Additive and optional, so no DB
+   *  version bump and no migration (the `source` precedent above).
+   *  See docs/projects/user_directed_review.md § Settled design. */
+  lens?: string;
 }
 
 export interface DismissalSuppression {

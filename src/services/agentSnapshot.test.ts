@@ -26,13 +26,46 @@ const fullObservation: Observation = {
   conflictingEndOffset: 9,
 };
 
+/** A lens card is the only observation that populates every optional projected
+ *  field, so it is the fixture that can assert the allowlist EXACTLY. */
+const lensObservation: Observation = {
+  ...fullObservation,
+  id: "obs-2",
+  type: "user_lens",
+  kind: "opportunity",
+  severity: "low",
+  confidence: "medium",
+  priority: 0.75,
+  text: "This passage runs on parallel clauses and em-dash rhythm.",
+  lens: "sounds AI-written",
+  source: { kind: "agent", name: "Claude Code", sessionId: "sess-1" },
+};
+
 describe("agent observation projection", () => {
   it("exposes exactly the allowlisted fields", () => {
     // The invariant this guards: the agent must never learn block identity. A spread
     // (`{...o, source}`) would leak blockId/offsets the moment anyone adds a field to
     // Observation, with every existing test still green.
-    const projected = toAgentObservation(fullObservation);
+    const projected = toAgentObservation(lensObservation);
     expect(Object.keys(projected).sort()).toEqual([...AGENT_OBSERVATION_FIELDS].sort());
+  });
+
+  it("never projects a field outside the allowlist, whichever fields are set", () => {
+    // The "exactly" case above needs a fully-populated observation, but the leak
+    // being guarded against is an EXTRA key — so every shape must be checked,
+    // including the common one where the optional fields are absent.
+    for (const o of [fullObservation, lensObservation]) {
+      for (const key of Object.keys(toAgentObservation(o))) {
+        expect(AGENT_OBSERVATION_FIELDS).toContain(key);
+      }
+    }
+  });
+
+  it("projects the lens label, and only on lens cards", () => {
+    // The next pass needs to see which active cards came from which lens, or it
+    // re-files hits the feed already carries.
+    expect(toAgentObservation(lensObservation).lens).toBe("sounds AI-written");
+    expect(toAgentObservation(fullObservation).lens).toBeUndefined();
   });
 
   it("attributes each active observation to the critic that produced it", () => {

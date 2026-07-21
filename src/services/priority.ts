@@ -52,6 +52,10 @@ const TYPE_PRIOR: Record<Observation["type"], Severity> = {
   underexposed_topic: "low",
   audience_mismatch: "low",
   structure_flow: "low",
+  // A solicited search is additive, not a defect the product asserts. "low"
+  // lands it at priority 0.75 via the default confidence path — no branch in
+  // computePriority — tied with the low-severity built-ins.
+  user_lens: "low",
 };
 
 const SEVERITY_NUM: Record<Severity, number> = { low: 1, medium: 2, high: 3 };
@@ -89,6 +93,11 @@ export const KIND_BY_TYPE: Record<Observation["type"], Observation["kind"]> = {
   underexposed_topic: "opportunity",
   audience_mismatch: "problem",
   structure_flow: "problem",
+  // A lens answers a question the user asked. "problem" would make writtten's
+  // own severity vocabulary declare a style hit a defect — the anti-taxonomy
+  // perception risk, self-inflicted. "reflection" is filtered out of the feed
+  // entirely (feedBudget.ts) and would render lens cards invisible.
+  user_lens: "opportunity",
 };
 
 // ---------------------------------------------------------------------------

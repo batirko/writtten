@@ -135,8 +135,24 @@ export function isSpanSuppressed(
     // G1: Flattery-resistant dismissal
     // High-severity observations and critical defects are span-only suppressions.
     // Low/medium severity observations are category-wide.
+    // `user_lens` is here for a DIFFERENT reason than its neighbours, and the
+    // distinction matters — read it before "simplifying" this line.
+    //
+    // The others are span-only because of G1 flattery-resistance: a
+    // high-severity defect must not be silenceable as a category. A lens is not
+    // that — muting a search you asked for is just retracting your own request,
+    // and G1 deliberately does not govern solicited searches.
+    //
+    // The reason is mechanical. Suppression keys on TYPE, and every lens shares
+    // the one `user_lens` type, so the category-wide branch below would silence
+    // EVERY lens on one dismissal — not the one the user tired of. Span-only
+    // gives per-hit dismissal, which is what a search result should have.
+    // See docs/projects/user_directed_review.md § R2.
     const isSpanOnly =
-      s.severity === "high" || s.type === "contradiction" || s.type === "unsupported_claim";
+      s.severity === "high" ||
+      s.type === "contradiction" ||
+      s.type === "unsupported_claim" ||
+      s.type === "user_lens";
 
     if (!isSpanOnly) {
       // Category-wide suppression for this document

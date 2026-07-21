@@ -203,6 +203,12 @@ describe("precision floors — tier policy", () => {
     "missing_topic",
     "structure_flow",
     "audience_mismatch",
+    // Agent-only, and therefore never produced by the pipeline this scorer
+    // measures — see the entry's comment in evalScorer.ts. Listed here only
+    // because PRECISION_FLOORS is exhaustive over Observation["type"]; if that
+    // Record is later narrowed to subtract the agent-only types, this row and
+    // that entry go away together.
+    "user_lens",
   ];
 
   it("assigns a floor to every observation type (exhaustive — no unguarded type)", () => {

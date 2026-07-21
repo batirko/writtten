@@ -1,5 +1,5 @@
 ---
-status: idea
+status: in-progress
 kind: spec
 phases: [8]
 summary: Make the agent-connected engine user-directable — batch review passes as a steerable conversation (in-taxonomy, skill-level) and user-requested custom lenses ("find where my text sounds AI-written") as one parameterized `user_lens` observation type — without opening the taxonomy or weakening the register boundary.
@@ -40,16 +40,18 @@ Phase 8 — steering (rides the prompt-rework milestone; no standalone plan item
 - [ ] Steering contract in the rewritten skill's URL-hosted guidance layer: user focus requests are legitimate and expected; all resulting submissions stay inside the 9-type taxonomy and the register rules; steering narrows attention, never widens the output contract.
 - [ ] One machine-validated worked example in `agentSkillExamples.test.ts` — a steered pass ("focus on whether the metrics hold up") yielding an in-taxonomy, register-clean submission.
 
-Phase 8 — `user_lens` build (after the design pass; follows engine exclusivity). Full file-level detail in § _Implementation touch list_:
-- [ ] Extend the type union with `user_lens` (`db.ts`) and the boundary's type set + field allowlist (`externalObservations.ts`), with the lens label required iff the type is `user_lens` and rejected on any other type.
-- [ ] `priority.ts`: `TYPE_PRIOR` → `low`, `KIND_BY_TYPE` → `opportunity`. `evalScorer.ts` `PRECISION_FLOORS` needs an entry (structurally unreachable — comment it).
-- [ ] `registerLint.ts`: `user_lens` must reach the `claim-index` and `section-number` rules, plus adversarial rows in `register-lint-corpus.ts`.
-- [ ] `evaluatorAnchoring.ts`: `user_lens` joins the span-only suppression set.
-- [ ] Card face renders the lens label, not the raw type name (`SidecarFeed.tsx`); lens label added to the agent snapshot allowlist (`agentSnapshot.ts`) and kept **out** of the debug export.
-- [ ] Skill section teaching the agent when `user_lens` is admissible (only for an explicit user request, label = the user's own words) with validated ✅/❌ examples — see § _What the rewritten skill must carry_.
-- [ ] Adversarial fixtures in `externalObservations.test.ts`: a lens submission that prescribes (reject), a lens label on a non-lens type (reject), a `user_lens` with no label (reject), an oversized label.
-- [ ] New invariant test: no built-in eval path can emit `user_lens` (see § _Perception risk_, risk 3).
-- [ ] Update `docs/mechanics/agent-bridge.md` in the same task — the span-only suppression change is a documented-lifecycle change.
+Phase 8 — `user_lens` build (after the design pass; follows engine exclusivity). **Built 2026-07-21** — full file-level detail in § _Implementation touch list_:
+- [x] Extend the type union with `user_lens` (`db.ts`) and the boundary's type set + field allowlist (`externalObservations.ts`), with the lens label required iff the type is `user_lens` and rejected on any other type. **Field is `lens`, capped at 60 chars (`MAX_LENS_LABEL_LENGTH`), sanitized like a source name.**
+- [x] `priority.ts`: `TYPE_PRIOR` → `low`, `KIND_BY_TYPE` → `opportunity`. `evalScorer.ts` `PRECISION_FLOORS` needs an entry (structurally unreachable — comment it).
+- [x] `registerLint.ts`: `user_lens` must reach the `claim-index` and `section-number` rules, plus adversarial rows in `register-lint-corpus.ts`.
+- [x] `evaluatorAnchoring.ts`: `user_lens` joins the span-only suppression set.
+- [x] Card face renders the lens label, not the raw type name (`SidecarFeed.tsx`); lens label added to the agent snapshot allowlist (`agentSnapshot.ts`) and kept **out** of the debug export. **Shared `TypeTag` covers all three sites that name a type — card head, grouped "N more" list, and the archive.**
+- [ ] Skill section teaching the agent when `user_lens` is admissible (only for an explicit user request, label = the user's own words) with validated ✅/❌ examples — see § _What the rewritten skill must carry_. **Owned by the prompt-rework session, not this build** — that file is being rewritten wholesale exactly once, so the lens wording is handed over rather than edited in.
+- [x] Adversarial fixtures in `externalObservations.test.ts`: a lens submission that prescribes (reject), a lens label on a non-lens type (reject), a `user_lens` with no label (reject), an oversized label.
+- [x] New invariant test: no built-in eval path can emit `user_lens` (see § _Perception risk_, risk 3). **`agentOnlyTypes.invariant.test.ts`, keyed on an exported `AGENT_ONLY_TYPES` set; verified to go red when the invariant is broken.**
+- [x] Update `docs/mechanics/agent-bridge.md` in the same task — the span-only suppression change is a documented-lifecycle change.
+
+> **Two things the build learned that the design pass could not.** (1) **The lens label is far more truncated than the 60-char cap suggests.** The feed column is 320px → a 288px card, and the header row shares its width with the severity badge and dismiss control, leaving roughly **26 characters** visible. Two lenses with a shared prefix ("claims that would embarrass us in front of legal" / "…the board") therefore render identically. The owner reviewed a rendered prototype at true feed width and **chose the inline ellipsized treatment anyway** (2026-07-21), over a full-width label on its own line; the full label is on `title`, which is unavailable on touch. Worth revisiting if the pilot shows people running several similarly-named lenses. (2) **Mobile is the better case, not the worse one** — at 375px the card is 343px wide, so the label gets *more* room than on desktop.
 
 ## Design
 

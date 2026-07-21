@@ -59,6 +59,21 @@ export const PRECISION_FLOORS: Record<Observation["type"], number> = {
   underexposed_topic: 0.7,
   structure_flow: 0.7,
   strategic_tension: 0.7,
+  // STRUCTURALLY UNREACHABLE — not a calibrated floor, and not a coverage gap.
+  // `user_lens` is agent-only (`AGENT_ONLY_TYPES`, externalObservations.ts): it
+  // appears in no evaluator prompt and on no built-in eval path, so the pipeline
+  // this scorer measures can never produce one and no corpus will ever cover it.
+  // Present only because this Record is exhaustive over `Observation["type"]`.
+  // Matches the lowest existing floor so the number is not load-bearing.
+  //
+  // Owned by the signal-quality lane, added here by the user_lens build with the
+  // owner's sign-off (2026-07-21). Do NOT calibrate it against V1 and do NOT
+  // count it in a per-type aggregate. The proposed replacement is to subtract
+  // the agent-only types from this Record's key type instead
+  // (`Record<Exclude<Observation["type"], …>, number>`), which deletes this entry
+  // and keeps the live ratchet's "no corpus coverage" warning honest without
+  // a name-based skip.
+  user_lens: 0.7,
 };
 
 /** The tier floor a produced observation of this type must clear (Tier-2 live). */
