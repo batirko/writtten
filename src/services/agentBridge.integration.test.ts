@@ -1,13 +1,18 @@
 /** @vitest-environment node */
 /**
- * Bridge integration test — the drift guard for the published skill.
+ * Bridge integration test — the drift guard for the published bridge.
  *
- * The fenced `writtten-bridge.mjs` block inside docs/skills/writtten-agent.md IS the
- * artifact users run: the app hands them that markdown, and their agent writes the fence
- * to disk and executes it. So this test extracts that exact fence, spawns it with Node,
- * and drives the full relay (/snapshot → /doc, /submit → SSE → /verdict → held-response
- * completion). The published skill and the tested bridge therefore cannot drift — the
- * `exampleReplay.sync` pattern applied to a script.
+ * `public/writtten-bridge.mjs` IS the artifact users run, and the setup command in the
+ * pasted prompt fetches it **over HTTP from the app's own origin**. So this test does the
+ * same thing the user's agent does: it serves `public/` on a loopback port, GETs
+ * `/writtten-bridge.mjs`, writes what came back to a temp dir, spawns it with Node, and
+ * drives the full relay (/snapshot → /doc, /submit → SSE → /verdict → held-response
+ * completion).
+ *
+ * Fetching rather than reading the file off disk is the point. Disk-reading would prove
+ * the repo's copy works while saying nothing about whether the deploy can actually serve
+ * it — and "serve it from the app origin" is the whole mechanism now. A file that isn't
+ * reachable over HTTP fails here.
  *
  * Runs unconditionally in CI: it needs nothing but Node and loopback (no keys, no quota,
  * ~2-4 s). Skipping it would leave the one artifact users actually execute unverified.
@@ -15,7 +20,8 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { spawn, type ChildProcess } from "node:child_process";
 import { createServer, type Server } from "node:net";
-import { mkdtempSync, writeFileSync, rmSync, readFileSync } from "node:fs";
+import { createServer as createHttpServer, type Server as HttpServer } from "node:http";
+import { mkdtempSync, writeFileSync, rmSync, readFileSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -25,21 +31,40 @@ import { AGENT_PROTOCOL_VERSION } from "./agentBridgeClient";
 const TOKEN = "test-token-3f9c1a";
 const ORIGIN = "http://localhost:5173";
 
-function readSkill(): string {
-  return readFileSync(
-    fileURLToPath(new URL("../../docs/skills/writtten-agent.md", import.meta.url)),
-    "utf8"
-  );
-}
+/** The published location — what Vite copies verbatim into `dist/` and the deploy serves
+ *  at `{ORIGIN}/writtten-bridge.mjs`. */
+const BRIDGE_FILE = fileURLToPath(new URL("../../public/writtten-bridge.mjs", import.meta.url));
 
 /**
- * Anchored on the script's sentinel first line, so adding another fenced JS block to the
- * skill later can never make this pick up the wrong one.
+ * Stands in for the app origin: serves exactly one path, the way the deploy does.
+ *
+ * Deliberately reads from disk per request rather than caching, so the bytes under test
+ * are the bytes on disk at spawn time.
  */
-export function extractBridgeScript(md: string): string {
-  const m = /```(?:js|javascript)\n(\/\/ writtten-bridge\.mjs[\s\S]*?)\n```/.exec(md);
-  if (!m) throw new Error("bridge script fence not found in docs/skills/writtten-agent.md");
-  return m[1];
+let assetServer: HttpServer | null = null;
+let assetOrigin = "";
+
+async function startAssetServer(): Promise<void> {
+  if (!existsSync(BRIDGE_FILE)) {
+    throw new Error(`public/writtten-bridge.mjs is missing — the app has nothing to serve`);
+  }
+  assetServer = createHttpServer((req, res) => {
+    if (req.url?.split("?")[0] === "/writtten-bridge.mjs") {
+      res.writeHead(200, { "Content-Type": "text/javascript" });
+      res.end(readFileSync(BRIDGE_FILE));
+      return;
+    }
+    res.writeHead(404).end();
+  });
+  await new Promise<void>((r) => assetServer!.listen(0, "127.0.0.1", r));
+  assetOrigin = `http://127.0.0.1:${(assetServer!.address() as AddressInfo).port}`;
+}
+
+/** Fetch the bridge the way the agent's setup command does. */
+export async function fetchBridgeScript(): Promise<string> {
+  const res = await fetch(`${assetOrigin}/writtten-bridge.mjs`);
+  if (!res.ok) throw new Error(`bridge fetch failed: ${res.status}`);
+  return res.text();
 }
 
 // --- process/port plumbing --------------------------------------------------
@@ -64,7 +89,7 @@ async function startBridge(
   const dir = mkdtempSync(join(tmpdir(), "writtten-bridge-"));
   tmpDirs.push(dir);
   const file = join(dir, "writtten-bridge.mjs");
-  writeFileSync(file, extractBridgeScript(readSkill()), "utf8");
+  writeFileSync(file, await fetchBridgeScript(), "utf8");
 
   const child = spawn(
     process.execPath,
@@ -183,8 +208,27 @@ const jsonHeaders = { ...auth, "Content-Type": "application/json" };
 
 // ---------------------------------------------------------------------------
 
+// The app origin has to be up before any bridge can be fetched from it, and it outlives
+// every describe below — file-level, so no block has to remember to start it.
+beforeAll(startAssetServer);
+afterAll(async () => {
+  if (assetServer) await new Promise<void>((r) => assetServer!.close(() => r()));
+  assetServer = null;
+});
+
 describe("bridge script — static invariants", () => {
-  const script = extractBridgeScript(readSkill());
+  let script: string;
+  beforeAll(async () => {
+    script = await fetchBridgeScript();
+  });
+
+  it("is actually reachable over HTTP from the app origin", () => {
+    // The setup command in the pasted prompt is a `curl` at this path. If the file stops
+    // being served — moved out of public/, renamed, publicDir disabled — every other test
+    // here would fail confusingly; this one says why.
+    expect(script).toContain("// writtten-bridge.mjs");
+    expect(script.length).toBeGreaterThan(1000);
+  });
 
   it("binds loopback only", () => {
     // The single most security-relevant token in the script: without the host argument
@@ -610,7 +654,7 @@ describe("bridge script — lifecycle", { timeout: 25_000 }, () => {
     const dir = mkdtempSync(join(tmpdir(), "writtten-bridge-help-"));
     tmpDirs.push(dir);
     const file = join(dir, "writtten-bridge.mjs");
-    writeFileSync(file, extractBridgeScript(readSkill()), "utf8");
+    writeFileSync(file, await fetchBridgeScript(), "utf8");
     const { code, out } = await new Promise<{ code: number | null; out: string }>((resolve) => {
       const c = spawn(process.execPath, [file, "--help"], { stdio: ["ignore", "pipe", "pipe"] });
       let out = "";
@@ -636,7 +680,7 @@ describe("bridge script — lifecycle", { timeout: 25_000 }, () => {
     const dir = mkdtempSync(join(tmpdir(), "writtten-bridge-notoken-"));
     tmpDirs.push(dir);
     const file = join(dir, "writtten-bridge.mjs");
-    writeFileSync(file, extractBridgeScript(readSkill()), "utf8");
+    writeFileSync(file, await fetchBridgeScript(), "utf8");
     const code = await new Promise<number | null>((resolve) => {
       const c = spawn(process.execPath, [file, `--origin=${ORIGIN}`], {
         stdio: ["ignore", "pipe", "pipe"],

@@ -1,6 +1,7 @@
 /** @vitest-environment node */
 import { describe, it, expect, afterEach } from "vitest";
 import { toAgentObservation, AGENT_OBSERVATION_FIELDS, snapshotMaturity } from "./agentSnapshot";
+import { agentCalibrationBlock, classifyDocumentClass } from "./documentClass";
 import type { SectionMember } from "./types";
 import { registerDocSnapshotReader, readLiveDoc } from "../model/docSnapshotSource";
 import type { Observation } from "../store/db";
@@ -151,6 +152,56 @@ describe("snapshotMaturity — the band the agent is handed (UX-029)", () => {
       ...Array.from({ length: 6 }, () => block(words(80), { isTable: true })),
     ];
     expect(snapshotMaturity(tableHeavy)).toBe("unformed");
+  });
+});
+
+/**
+ * OBS-039. The boundary validates taxonomy and register; it has no way to notice that a
+ * PRD-grade observation landed on someone's personal essay, because such a card is
+ * register-clean and taxonomy-valid and is therefore accepted. The snapshot is the only
+ * channel that can calibrate an agent, so what it carries is load-bearing in a way nothing
+ * downstream can compensate for.
+ */
+describe("calibration handed to the agent (OBS-039)", () => {
+  it("is empty on a PRD or spec — the strict anchor", () => {
+    // Must stay empty rather than becoming a "be strict" instruction: the paste tells the
+    // agent that empty means the strict baseline, and the two have to agree.
+    expect(agentCalibrationBlock(classifyDocumentClass("internal PRD"))).toBe("");
+    expect(agentCalibrationBlock(classifyDocumentClass("product spec for launch"))).toBe("");
+  });
+
+  it("relaxes unsupported_claim and PRD structure on a personal essay", () => {
+    const block = agentCalibrationBlock(classifyDocumentClass("a personal essay about burnout"));
+    expect(block).toMatch(/personal or reflective essay/);
+    expect(block).toMatch(/first-person reflection/);
+    expect(block).toMatch(/do not raise missing_topic or structure_flow/i);
+  });
+
+  it("softens the cold open when the author never set a stage", () => {
+    // The common first-run case: unstaged documents used to take full PRD strictness on
+    // the very first pass (OBS-036), which is exactly when an agent is forming its
+    // impression of what this product is for.
+    const block = agentCalibrationBlock(classifyDocumentClass(""));
+    expect(block).toMatch(/not yet identified/);
+    expect(block).toMatch(/do not assume this is a PRD or spec/i);
+  });
+
+  it("never relaxes the checks that hold across every genre", () => {
+    for (const stage of ["a blog post", "a work memo", "a personal essay", ""]) {
+      const block = agentCalibrationBlock(classifyDocumentClass(stage));
+      // Calibration is a strictness dial, not a licence to switch checks off. If a future
+      // edit relaxes contradiction, the agent stops doing the one job users value most.
+      expect(block).toMatch(/contradiction, clarity, and undefined_jargon are unchanged/i);
+    }
+  });
+
+  it("speaks the agent's vocabulary, not the internal pipeline's", () => {
+    // The two built-in blocks spend most of their words on what to extract into the claim
+    // ledger. An agent has no extraction stage and no ledger, so that guidance would be
+    // describing machinery it cannot see.
+    const block = agentCalibrationBlock(classifyDocumentClass("a personal essay"));
+    expect(block).not.toMatch(/extract/i);
+    expect(block).not.toMatch(/claim ledger/i);
   });
 });
 

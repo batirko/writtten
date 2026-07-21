@@ -440,7 +440,7 @@ Each entry follows the format:
 ### UX-032 — The connect prompt can only be copied, never read (BYOA)
 
 **Date:** 2026-07-20\
-**Status:** open\
+**Status:** **fixed 2026-07-21** — `ConnectAgent.tsx` renders the whole prompt in a scrolling box (`.connect-prompt-scroll`, capped 260px desktop / 180px mobile) with Copy pinned to the box rather than to the scrolled content, plus a link to the public explanation at `/agent/` — which had existed since BYOA shipped and which nothing in the app had ever pointed at. The meta line stopped describing plumbing ("it has your connection details baked in") and now names what the agent is being asked to do. **Note the fix is not the one first attempted.** The plan was to shrink the prompt to ~3,300 chars so it would simply fit; that version was refused by a real agent session (OBS-040), and the shipped prompt is ~19,800 chars. So the panel shows a long document rather than a short one — nothing is hidden, and the `/agent` link is the path for a reader who doesn't want 300 lines. Guarded by three `ConnectAgent.test.tsx` cases, one of which fails if truncation is reintroduced.\
 **Area/Component:** `ConnectAgent.tsx` connect CTA → `agentPrompt.ts`; canonical skill at `docs/skills/writtten-agent.md`, served at writtten.com/agent.\
 **Interaction:** Pressed **Connect your agent** and looked for what I was about to hand my agent.\
 **Expected:** Some way to see what the thing does before pasting ~27k characters of instructions and an executable script into an agent session.\
@@ -525,7 +525,7 @@ Each entry follows the format:
 ### UX-039 — Connecting writes a 465-line script into the user's working directory, unannounced and never cleaned up (BYOA)
 
 **Date:** 2026-07-20 (recovered 2026-07-21 from the unmerged `docs/byoa-landing-verified` branch, where it was filed as UX-024 — a number since taken on `main`)\
-**Status:** open\
+**Status:** **fixed 2026-07-21.** The script is no longer inlined in the paste for the agent to transcribe: it is served from the app's own origin at `{ORIGIN}/writtten-bridge.mjs` and the setup command fetches it to `${TMPDIR:-/tmp}` and runs it from there. All three failure modes go at once — nothing appears in the user's project, nothing outlives the temp directory, and nothing can be committed. **Verified live, not just in tests:** the emitted command was run verbatim from a stand-in git repo on 2026-07-21; the repo was untouched (`git status` clean, only `.git` present) and the script landed in the system temp folder. The connect panel's "Not working?" disclosure previously told the user to find and delete the file — it would now send them hunting for nothing, so it says where the script actually goes instead. Taking the further step (the *user* runs the bridge, so the agent writes nothing and executes nothing) was considered and declined the same day — see the prompt-slimming milestone.\
 **Area/Component:** `docs/skills/writtten-agent.md` § Setup — _"Write the script at the end of this document to `writtten-bridge.mjs`"_\
 **Interaction:** Connected an agent from writtten.com. Only afterwards did the owner notice a new `writtten-bridge.mjs` sitting in the directory the agent happened to be running in.\
 **Expected:** Either the file is announced before it appears, or it goes somewhere disposable and is cleaned up.\

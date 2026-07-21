@@ -7,10 +7,6 @@
 import { useEffect, useState } from "react";
 import type { AgentBridgeView } from "./useAgentBridge";
 
-/** How much of the (very long) prompt to preview. The Copy button is the real
- *  affordance; this just proves something real is there. */
-const PREVIEW_CHARS = 420;
-
 export function ConnectAgent({
   support,
   status,
@@ -62,9 +58,10 @@ export function ConnectAgent({
       /* the async clipboard API is refused without transient activation, and in some
          embedded/permission-restricted contexts entirely — fall through */
     }
-    // Legacy fallback: works in the contexts that refuse the async API. The prompt
-    // preview is clipped, so the user cannot select the full text by hand — a silent
-    // failure here would strand them in the one state where the prompt IS the point.
+    // Legacy fallback: works in the contexts that refuse the async API. The prompt is
+    // fully readable now, so a hand-selection is at least possible — but it is a scrolled
+    // <pre> of shell quoting and a token, and a silent failure would still strand the user
+    // in the one state where the prompt IS the point.
     try {
       const ta = document.createElement("textarea");
       ta.value = prompt;
@@ -162,28 +159,51 @@ export function ConnectAgent({
             answer.
           </p>
 
+          {/* The old line — "it has your connection details baked in" — described the
+              paste's plumbing and not its content, at a moment when the content was 33k
+              characters the user could not see. Naming the two things the agent is
+              actually asked to do is what makes the readable prompt below worth reading. */}
           <p className="connect-meta">
-            Paste this into your agent session. It has your connection details baked in.
+            Paste this into your agent session. It asks your agent to fetch a small relay
+            script and talk to this page over 127.0.0.1.
           </p>
 
           {promptError ? (
             <p className="connect-warn">{promptError}</p>
           ) : (
-            <div className="connect-prompt">
-              <pre data-testid="connect-agent-prompt">
-                {prompt ? prompt.slice(0, PREVIEW_CHARS) : "Building your prompt…"}
-              </pre>
-              <span className="connect-prompt-fade" aria-hidden="true" />
-              <button
-                type="button"
-                className="connect-btn connect-btn-sm connect-copy"
-                data-testid="connect-agent-copy"
-                disabled={!prompt}
-                onClick={copy}
+            <>
+              {/* Shown whole, scrolled — not clipped with a fade (UX-032). The preview was
+                  a concession to a prompt too long to display; slimming removed the reason
+                  for it, and a user asked to relay instructions to their own agent should
+                  be able to read them first. That is the same argument the /agent page
+                  makes to the security-conscious reader, pointed at the person holding the
+                  clipboard. */}
+              <div className="connect-prompt">
+                <div className="connect-prompt-scroll">
+                  <pre data-testid="connect-agent-prompt">
+                    {prompt ?? "Building your prompt…"}
+                  </pre>
+                </div>
+                <button
+                  type="button"
+                  className="connect-btn connect-btn-sm connect-copy"
+                  data-testid="connect-agent-copy"
+                  disabled={!prompt}
+                  onClick={copy}
+                >
+                  {copied ? "Copied" : "Copy"}
+                </button>
+              </div>
+              <a
+                className="connect-explain"
+                data-testid="connect-agent-explain"
+                href="/agent/"
+                target="_blank"
+                rel="noreferrer"
               >
-                {copied ? "Copied" : "Copy"}
-              </button>
-            </div>
+                What this asks your agent to do →
+              </a>
+            </>
           )}
 
           {copyFailed && (
@@ -201,8 +221,12 @@ export function ConnectAgent({
               <br />
               Safari can&rsquo;t connect to a local bridge; use Chrome, Edge, or Firefox.
               <br />
-              The bridge script is written to a file on your machine. Your agent should say
-              where; delete it when you&rsquo;re done.
+              {/* Was: "the bridge script is written to a file on your machine… delete it
+                  when you're done." It used to land in whatever directory the agent was
+                  running in — usually the user's own repo (UX-039). It now goes to the
+                  system temp directory, so there is nothing to clean up. */}
+              The relay script is downloaded to your system temp folder and runs from
+              there. Nothing is written to your project.
               <br />
               All ports busy? Cancel and connect again for a fresh list.
             </div>

@@ -80,6 +80,37 @@ describe("ConnectAgent — states", () => {
     );
   });
 
+  it("shows the prompt whole rather than a clipped preview (UX-032)", () => {
+    // The panel used to render `prompt.slice(0, 420)` behind a fade, because the prompt
+    // was 33k characters. Slimming removed the reason, and a user asked to relay
+    // instructions to their own agent should be able to read them first. A future change
+    // that reintroduces truncation to "tidy up" the panel should fail here.
+    const tail = "the last line the user must be able to read";
+    const long = `${"a filler line of prompt text\n".repeat(40)}${tail}`;
+    render({ state: "waiting", prompt: long });
+    const pre = container.querySelector('[data-testid="connect-agent-prompt"]');
+    expect(pre?.textContent).toContain(tail);
+    expect(pre?.textContent?.length).toBe(long.length);
+  });
+
+  it("points at the public explanation of what the paste does (UX-032)", () => {
+    // The explanation existed at /agent from the day BYOA shipped, and nothing in the app
+    // linked to it — so the one place a user might want it was the one place it was absent.
+    render({ state: "waiting", prompt: "x" });
+    const link = container.querySelector<HTMLAnchorElement>(
+      '[data-testid="connect-agent-explain"]'
+    );
+    expect(link?.getAttribute("href")).toBe("/agent/");
+  });
+
+  it("no longer tells the user to delete a file it does not create (UX-039)", () => {
+    // The script is fetched to the OS temp directory now. The old disclosure told the user
+    // to go find and delete it, which would send them hunting for nothing.
+    const text = render({ state: "waiting", prompt: "x" });
+    expect(text).not.toMatch(/delete it when you/i);
+    expect(text).toMatch(/temp folder/i);
+  });
+
   it("waiting disables copy until the prompt is built", () => {
     render({ state: "waiting", prompt: null });
     const btn = container.querySelector<HTMLButtonElement>('[data-testid="connect-agent-copy"]');
