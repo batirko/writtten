@@ -90,8 +90,14 @@ export default defineConfig({
       // Standard vitest/vite excludes (keep in sync with vitest defaults):
       "**/node_modules/**",
       "**/dist/**",
-      // Per-session parallel-work git worktrees live under .worktrees/ (gitignored);
-      // don't run other branches' test copies in this tree's suite.
+      // Per-session parallel-work git worktrees are gitignored full checkouts of
+      // this repo, so their src/**/*.test.ts match this tree's include glob —
+      // running N copies of the whole suite, and letting a red test on someone
+      // else's in-progress branch fail the run of whoever is standing in main.
+      // They currently live at .claude/worktrees/<name>; the bare .worktrees/<name>
+      // form is the historical location. Match a "worktrees" directory at any
+      // depth so relocating them again doesn't silently re-break this.
+      "**/worktrees/**",
       "**/.worktrees/**",
     ],
   },
