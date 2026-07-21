@@ -626,6 +626,18 @@ body,
   font-size: var(--text-ui-sm);
   color: var(--color-ink-2);
 }
+/* The one link this note carries — the WebKit "what this is" route out to /agent/
+   (UX-044). Takes the house treatment .settings-oss-repo and .settings-legal already
+   use (accent, underline only on hover). Left unstyled it fell back to the UA
+   default, and a bright underlined blue was the loudest thing in the panel — which
+   inverts the point, since this line reports a limitation. */
+.setting-note-idle a {
+  color: var(--color-accent-strong);
+  text-decoration: none;
+}
+.setting-note-idle a:hover {
+  text-decoration: underline;
+}
 /* "✓ Key set" — the per-field status now carries the credential state (the
    standing key-status card was retired). Bold + the success green so it reads
    at a glance against the muted helper text around it. */

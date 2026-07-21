@@ -4,7 +4,7 @@ import { SidecarFeed } from "./sidecar/SidecarFeed";
 import { WelcomeModal } from "./sidecar/WelcomeModal";
 import { DemoCoachmarks } from "./sidecar/DemoCoachmarks";
 import { openSettings } from "./sidecar/settingsGate";
-import { agentBridgeEnabled } from "./services/featureFlags";
+import { agentPathOffered } from "./services/agentOffer";
 import { SpanPeek } from "./sidecar/SpanPeek";
 import { ControlCenter } from "./sidecar/ControlCenter";
 import { DocumentContext } from "./sidecar/DocumentContext";
@@ -771,8 +771,13 @@ export default function App() {
         <WelcomeModal
           onClose={handleDismissWelcome}
           onAddKey={handleAddKey}
-          // Undefined while the flag is off, which is also what hides the button.
-          onConnectAgent={agentBridgeEnabled() ? handleConnectAgent : undefined}
+          // Undefined while the flag is off, which is also what hides the button —
+          // and equally on a browser that can never reach a loopback bridge. The
+          // first-run copy makes the key and the agent two equal paths, which is
+          // right in Chrome and Firefox and false in WebKit: there the second
+          // button leads nowhere and, worse, used to pause the engine that does
+          // work for the rest of the session (UX-044).
+          onConnectAgent={agentPathOffered() ? handleConnectAgent : undefined}
           onLoadExample={handleLoadExample}
           // A blank editor still holds one empty paragraph block, so "brand-new,
           // nothing to clobber" is <= 1 block (not === 0). Gates the example off

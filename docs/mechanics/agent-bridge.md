@@ -18,7 +18,7 @@ It lives in `services/`, not `model/`, because selection sits **above** `ModelRo
 
 | Event                                                              | Slot goes to                            | Where                          |
 | ------------------------------------------------------------------ | --------------------------------------- | ------------------------------ |
-| picking "Your agent" in Settings, or the `connect-agent` deep-link | `agent`                                 | `ControlCenter`                |
+| picking "Your agent" in Settings, or the `connect-agent` deep-link | `agent` — **only where a bridge is reachable** (§ _Browsers never offered the path_) | `ControlCenter`                |
 | picking a key provider                                             | `builtin`, **tearing the pairing down** | `ControlCenter.selectEngine`   |
 | a browser that can't reach loopback (agent selected in Safari)     | `builtin`, via `releaseAgentEngine()`   | `useAgentBridge` resume effect |
 | the BYOA flag is off                                               | `builtin`, whatever storage says        | `evalEngine` hydrate           |
@@ -32,6 +32,20 @@ The surviving asymmetry is narrower and still load-bearing: a browser that can *
 What this costs is that **"selected but not running" became an ordinary resting state** rather than a near-unreachable one — see § _Saying when nothing is reading_ below, which is the other half of the same decision and not optional.
 
 Deselecting a live pairing tears it down rather than leaving it connected-but-ignored: a bridge that keeps pushing and submitting into a writtten that ignores it is the parallel-source world through the back door, and it parks the user's agent in a wait loop forever. When it has active cards the switch asks first (`engine-switch-confirm`, archive unchecked — the cards belong to the user); with none it is silent, matching Disconnect's own rule.
+
+### Browsers never offered the path
+
+`src/services/agentOffer.ts` — `agentPathOffered()` — answers *should this browser be offered the agent path at all?*, and is the gate on **every on-ramp**: the first-run welcome modal (`App.tsx`), the keyless banner (`SidecarFeed.tsx`), and the Engine control (`ControlCenter.tsx`). It ANDs two independent reasons to say no: the BYOA preview flag, and `agentBrowserSupport.ts` — WebKit **and** `https:`, so a self-hoster on `http://localhost` keeps a path that genuinely works there, and iOS Chrome/Firefox are caught because the predicate reads `navigator.vendor`, not a UA "Safari" token.
+
+Before 2026-07-21 every on-ramp asked only the flag, and the detection module — which already existed, already pure — was consulted nowhere but inside the connect panel, one level *below* the choice, where it is only ever read after the fact. So Safari was offered the path on three surfaces at once (UX-044).
+
+**The expensive half was invisible.** All three on-ramps routed through `openSettings("connect-agent")`, whose handler called `setEngine("agent")` with no support check. The agent then held the slot, gating the built-in evaluator off through all four `isBuiltinEngineActive()` guards — against a slot WebKit can never serve, since `connect()` returns early and the pairing never starts. The user was told the agent was unavailable and was **not** told the engine that worked had just been paused; the copy naming the pause renders only in the `connected` state, which WebKit cannot reach.
+
+What ships: on WebKit the agent tab is **not rendered at all** — not rendered-and-disabled. The milestone's own rule is *stop offering what cannot work*, and a tab is an offer like the two CTAs were. A disabled tab also fails the population it most affects: on iOS every browser is WebKit, so most affected users are on touch, where a disabled control shows no reason on tap. The segmented control is dropped entirely rather than left showing one option — a choice of one is noise, which is already why the whole group hides when the flag is off. In its place the group carries one line naming the limitation and linking `/agent/`, the static page that already explains the feature and its Safari section in full.
+
+**Offering and running are guarded separately, on purpose.** `agentPathOffered()` governs only what is shown. The slot is guarded where it *moves* — `selectEngine` and the `connect-agent` deep-link handler both refuse `agent` when support is false — and a stale `"agent"` written by a session on another browser is handed back at mount by `releaseAgentEngine()` (the row in the table above). Hiding a button is a UI decision; the built-in evaluator staying live is an invariant, and it must not depend on one.
+
+Verified in Safari 2026-07-21 on an https origin with the preview flag on: no agent tab, no CTA on either on-ramp, no agent clause in the keyless copy, and `localStorage["writtten_engine"]` never written — including after dispatching the `connect-agent` deep-link directly, which opens Settings but moves nothing.
 
 ### Saying when nothing is reading
 

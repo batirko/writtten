@@ -21,6 +21,7 @@ import {
 import { buildEnvelope } from "../model/debugLog";
 import { agentBridgeEnabled } from "../services/featureFlags";
 import { getEngine, setEngine, subscribeEngine, type EngineId } from "../services/evalEngine";
+import { currentAgentBrowserSupport } from "../services/agentBrowserSupport";
 import { ConnectAgent } from "./ConnectAgent";
 import { useAgentBridge } from "./useAgentBridge";
 import { agentStatusView } from "./agentStatusView";
@@ -549,6 +550,11 @@ export function ControlCenter({
   // orchestrator) can read it without prop-drilling.
   const [engine, setEngineState] = useState<EngineId>(getEngine);
   useEffect(() => subscribeEngine(setEngineState), []);
+  // Can this browser reach a loopback bridge at all? Read once — `navigator.vendor`
+  // and the page's protocol don't change under a mounted component. Deliberately
+  // scoped to WebKit **and** https: by the predicate itself, so a self-hoster on
+  // http://localhost keeps the agent path, which genuinely works there.
+  const [agentSupport] = useState(currentAgentBrowserSupport);
   // Set while a switch away from a live pairing waits on the user's answer.
   const [switchConfirm, setSwitchConfirm] = useState(false);
   const [archiveOnSwitch, setArchiveOnSwitch] = useState(false);
@@ -595,7 +601,12 @@ export function ControlCenter({
     () =>
       subscribeOpenSettings((intent) => {
         setShowSettings(true);
-        if (intent !== "connect-agent" || !agentBridgeEnabled()) return;
+        // A browser that can never serve the slot must never be handed it. With the
+        // CTAs gone on WebKit nothing should emit this intent there, but the guard
+        // stays: this handler is the single place the slot moves without the user
+        // touching the Engine control, and taking it on Safari pauses the built-in
+        // evaluator for the rest of the session with nothing to replace it (UX-044).
+        if (intent !== "connect-agent" || !agentBridgeEnabled() || !agentSupport.supported) return;
         // The deep-link IS the choice — the user pressed "connect your agent", so
         // hand it the slot before the section mounts. Nothing is torn down going
         // this direction, so no confirm is involved.
@@ -610,7 +621,7 @@ export function ControlCenter({
           connectRef.current?.scrollIntoView?.({ block: "nearest", behavior: "smooth" })
         );
       }),
-    []
+    [agentSupport.supported]
   );
 
   // Touch open: the actions reveal on hover / focus-within on desktop, but a
@@ -902,6 +913,10 @@ export function ControlCenter({
   const selectEngine = (next: EngineId) => {
     if (next === engine) return;
     if (next === "agent") {
+      // Unreachable through the UI on WebKit — the option isn't rendered there
+      // (UX-044) — but the slot must not be takeable by any path that can never
+      // serve it, and this is the function that moves it.
+      if (!agentSupport.supported) return;
       setEngine("agent");
       return;
     }
@@ -1044,28 +1059,47 @@ export function ControlCenter({
             {agentBridgeEnabled() && (
               <div className="setting-group">
                 <label>Engine</label>
-                <div
-                  className="engine-seg"
-                  data-testid="engine-select"
-                  role="group"
-                  aria-label="Engine"
-                >
-                  {ENGINE_OPTIONS.map((opt) => {
-                    const active = opt.id === engine;
-                    return (
-                      <button
-                        key={opt.id}
-                        type="button"
-                        className={active ? "is-active" : undefined}
-                        aria-pressed={active}
-                        onClick={() => selectEngine(opt.id)}
-                      >
-                        {opt.id === "builtin" ? <KeyIcon /> : <TerminalIcon />}
-                        {opt.label}
-                      </button>
-                    );
-                  })}
-                </div>
+                {/* On a browser that cannot reach a loopback bridge, the choice is
+                    not a choice — so it isn't rendered as one. A tab is an offer
+                    like the two CTAs were, and the rule for all three is the same:
+                    don't offer what cannot work (UX-044). Not a disabled tab: on
+                    iOS — where every browser is WebKit, so most of the affected
+                    users are — a disabled control gives no reason on tap. The line
+                    below carries the reason instead, in the place the choice would
+                    have been, and the seg is dropped entirely rather than left
+                    showing one option, matching the flag-off case just above. */}
+                {agentSupport.supported ? (
+                  <div
+                    className="engine-seg"
+                    data-testid="engine-select"
+                    role="group"
+                    aria-label="Engine"
+                  >
+                    {ENGINE_OPTIONS.map((opt) => {
+                      const active = opt.id === engine;
+                      return (
+                        <button
+                          key={opt.id}
+                          type="button"
+                          className={active ? "is-active" : undefined}
+                          aria-pressed={active}
+                          onClick={() => selectEngine(opt.id)}
+                        >
+                          {opt.id === "builtin" ? <KeyIcon /> : <TerminalIcon />}
+                          {opt.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <span className="setting-note-idle" data-testid="engine-agent-unavailable">
+                    Agent review needs Chrome, Edge, or Firefox — Safari can&rsquo;t reach a
+                    bridge on this machine.{" "}
+                    <a href="/agent/" target="_blank" rel="noreferrer">
+                      What this is
+                    </a>
+                  </span>
+                )}
                 {/* The two paths differ in who runs the checks, what they cost, and
                     where the document travels. Naming that at the moment of choosing
                     is the whole containment now that the per-card chip is gone. */}
