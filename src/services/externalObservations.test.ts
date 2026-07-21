@@ -541,3 +541,129 @@ describe("sanitizeSourceName", () => {
     expect(sanitizeSourceName(42)).toBe("Agent");
   });
 });
+
+// ---------------------------------------------------------------------------
+// Both sides of a conflict (UX-037)
+//
+// A contradiction names a relationship between two passages. Until 2026-07-21 an
+// agent could only anchor one of them, so the card highlighted half of what its
+// text described and the reader had to hunt for the rest — the exact work the
+// anchoring machinery exists to remove. The model already carried the fields and
+// the highlighter already drew them; only the boundary could not accept a second
+// quote.
+// ---------------------------------------------------------------------------
+
+describe("conflicting anchor", () => {
+  const Q3 = "ship the reporting module in Q3";
+  const Q2 = "The rollout begins in Q2";
+
+  function conflict(over: Record<string, unknown> = {}) {
+    return {
+      type: "contradiction",
+      scope: "span",
+      anchorText: Q3,
+      conflictingAnchorText: Q2,
+      text: "The launch quarter is given as Q3 here and as Q2 in the rollout section.",
+      ...over,
+    };
+  }
+
+  it("resolves both sides and populates the fields the highlighter reads", () => {
+    const v = submitExternalObservation(conflict(), ctx());
+    expect(v.ok).toBe(true);
+    if (!v.ok) return;
+    expect(v.observation.blockId).toBe("b2");
+    expect(v.observation.conflictingBlockId).toBe("b3");
+    // Stored as the document's own characters, not the agent's rendering — the
+    // same rule the primary anchor follows, and what lets it re-anchor later.
+    expect(v.observation.conflictingAnchorText).toBe(Q2);
+    expect(v.observation.conflictingStartOffset).toBe(0);
+    expect(v.observation.conflictingEndOffset).toBe(Q2.length);
+  });
+
+  it("stays optional — a single-anchor conflict is still accepted", () => {
+    const v = submitExternalObservation(
+      conflict({ conflictingAnchorText: undefined }),
+      ctx()
+    );
+    expect(v.ok).toBe(true);
+    if (!v.ok) return;
+    expect(v.observation.conflictingBlockId).toBeUndefined();
+  });
+
+  /**
+   * The reject-don't-degrade rule, extended to the second side. Accepting a
+   * half-resolved conflict would silently reproduce UX-037 itself — one
+   * highlight under a card naming two passages — and leave no trace of why.
+   * Affordable precisely because the field is optional: the agent opted in, has
+   * the document, and can retry in the same pass.
+   */
+  it("rejects the whole submission when only the second quote fails", () => {
+    const v = submitExternalObservation(
+      conflict({ conflictingAnchorText: "a paraphrase that appears nowhere" }),
+      ctx()
+    );
+    expect(v.ok).toBe(false);
+    if (v.ok) return;
+    expect(v.code).toBe("anchor_unresolved");
+    // The hint must name WHICH quote failed, or the agent re-sends the same
+    // primary anchor and fails identically.
+    expect(v.hint).toContain("conflictingAnchorText");
+    expect(v.hint).toContain("omit the field");
+  });
+
+  it("refuses a second quote that resolves to the same passage as the first", () => {
+    const v = submitExternalObservation(
+      conflict({ conflictingAnchorText: Q3 }),
+      ctx()
+    );
+    expect(v.ok).toBe(false);
+    if (v.ok) return;
+    expect(v.code).toBe("anchor_unresolved");
+    expect(v.hint).toContain("same passage");
+  });
+
+  /** Same block, different spans: b2 asserts both a Q3 ship date and a 40%
+   *  adoption target, so a tension between them is one paragraph wide. This is
+   *  the shape the highlighter used to drop. */
+  it("accepts both sides inside one block when the spans differ", () => {
+    const v = submitExternalObservation(
+      conflict({
+        type: "strategic_tension",
+        anchorText: "ship the reporting module in Q3",
+        conflictingAnchorText: "adoption should reach forty percent of active teams",
+        text: "The delivery date and the adoption target are set for the same quarter.",
+      }),
+      ctx()
+    );
+    expect(v.ok).toBe(true);
+    if (!v.ok) return;
+    expect(v.observation.conflictingBlockId).toBe(v.observation.blockId);
+    expect(v.observation.conflictingStartOffset).not.toBe(v.observation.startOffset);
+  });
+
+  it("refuses a counterpart on a type that is not about two passages", () => {
+    const v = submitExternalObservation(conflict({ type: "clarity" }), ctx());
+    expect(v.ok).toBe(false);
+    if (v.ok) return;
+    expect(v.code).toBe("invalid_scope");
+    expect(v.hint).toContain("contradiction");
+  });
+
+  it("refuses a counterpart on a document-scoped submission", () => {
+    const v = submitExternalObservation(
+      conflict({ scope: "document", anchorText: undefined }),
+      ctx()
+    );
+    expect(v.ok).toBe(false);
+    if (v.ok) return;
+    expect(v.code).toBe("invalid_scope");
+  });
+
+  it("rejects an empty counterpart rather than treating it as absent", () => {
+    const v = submitExternalObservation(conflict({ conflictingAnchorText: "  " }), ctx());
+    expect(v.ok).toBe(false);
+    if (v.ok) return;
+    expect(v.code).toBe("malformed");
+  });
+});

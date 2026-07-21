@@ -201,7 +201,19 @@ export function computeObservationRanges(
       if (from < to) ranges.push({ obs, from, to, side: "primary" });
     }
 
-    if (obs.conflictingBlockId && obs.conflictingBlockId !== obs.blockId) {
+    // Same-block conflicts are drawn, not skipped. This guard used to read
+    // `conflictingBlockId !== blockId`, which silently dropped the second side
+    // whenever both passages sat in one paragraph — a common shape rather than
+    // an edge case: a bullet asserting two incompatible things is the most
+    // compact contradiction there is. Dropping it drew one highlight for a card
+    // whose text names two passages (UX-037).
+    //
+    // The degenerate case the old guard also caught — both sides resolving to
+    // the SAME characters — is now refused at the external boundary, and cannot
+    // arise for evaluator-owned cards, which are built from two distinct ledger
+    // claims. Overlap short of identity is left to the decoration layer, which
+    // composes marks and does not require disjoint spans.
+    if (obs.conflictingBlockId) {
       const conflictPos = blockPositions.get(obs.conflictingBlockId);
       if (conflictPos === undefined) continue;
       const conflictNode = doc.nodeAt(conflictPos);
@@ -218,7 +230,18 @@ export function computeObservationRanges(
         const cRawEnd = Math.max(0, Math.min(cRe.end, cLen));
         const cFrom = charOffsetToPmPos(conflictNode, conflictPos, cRawStart, false);
         const cTo = charOffsetToPmPos(conflictNode, conflictPos, cRawEnd, true);
-        if (cFrom < cTo) ranges.push({ obs, from: cFrom, to: cTo, side: "conflicting" });
+        // Skip a conflicting side that resolves to the SAME range as the primary,
+        // which is what the old same-block guard was really protecting against.
+        // It is reachable without an agent: evaluator-owned conflicts commonly
+        // carry the 0:9999 whole-block sentinel on both sides, so two claims
+        // drawn from one paragraph resolve identically. Drawing it twice stacks
+        // a duplicate decoration on one span and makes the hover state flicker.
+        const duplicate = ranges.some(
+          (r) => r.obs.id === obs.id && r.from === cFrom && r.to === cTo
+        );
+        if (cFrom < cTo && !duplicate) {
+          ranges.push({ obs, from: cFrom, to: cTo, side: "conflicting" });
+        }
       }
     }
   }
@@ -396,7 +419,11 @@ export const ObservationHighlighter = Extension.create<ObservationHighlighterOpt
                       // For cross-claim observations (contradiction,
                       // strategic_tension), also highlight the conflicting
                       // block's span so hovering the card lights up both sides.
-                      if (obs.conflictingBlockId && obs.conflictingBlockId !== obs.blockId) {
+                      // Includes the same-block case — see the matching note in
+                      // `observationRanges` above (UX-037). `conflictPos` then
+                      // resolves to the block already decorated for the primary
+                      // side, which is correct: two ranges, one node.
+                      if (obs.conflictingBlockId) {
                         const conflictPos = blockPositions.get(obs.conflictingBlockId);
                         if (conflictPos !== undefined) {
                           const conflictNode = doc.nodeAt(conflictPos);
@@ -427,7 +454,12 @@ export const ObservationHighlighter = Extension.create<ObservationHighlighterOpt
                                 cRawEnd,
                                 true
                               );
-                              if (cStart < cEnd) {
+                              // Not when it lands on the primary's own range —
+                              // see the duplicate guard in `observationRanges`.
+                              // Stacking two identical inline decorations on one
+                              // span makes the hover class toggle unpredictably.
+                              const isDuplicate = start < end && cStart === start && cEnd === end;
+                              if (cStart < cEnd && !isDuplicate) {
                                 decos.push(inlineDeco(cStart, cEnd));
                               }
                             }
