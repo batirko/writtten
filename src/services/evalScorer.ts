@@ -524,6 +524,11 @@ export function scoreWildPrecision(
   const rows = opts.verifiedOnly ? emissions.filter((e) => e.verified) : emissions;
   const acc = new Map<Observation["type"], { tp: number; fp: number }>();
   for (const e of rows) {
+    // Count only explicit verdicts. `parseEmissions` already drops un-adjudicated
+    // rows, but scoring must not *depend* on that: treating "anything not tp" as a
+    // false positive would silently deflate precision — and a deflated wild number
+    // is exactly what would argue a trust-derived floor downward.
+    if (e.verdict !== "tp" && e.verdict !== "fp") continue;
     const s = acc.get(e.type) ?? { tp: 0, fp: 0 };
     if (e.verdict === "tp") s.tp++;
     else s.fp++;

@@ -186,6 +186,21 @@ describe("scoreWildPrecision", () => {
       )!.n
     ).toBe(0);
   });
+
+  it("ignores a row carrying no explicit verdict rather than scoring it against the author", () => {
+    // `parseEmissions` drops un-adjudicated rows, so this shape only arises if an
+    // EmissionRow is built outside the CSV path. Scoring must still not invent a
+    // false positive from it: an un-judged emission is absent evidence, not bad
+    // evidence, and counting it as `fp` would push a trust-derived floor downward.
+    const emissions = [
+      { docId: "P01", type: "clarity", anchoredSpan: "", message: "", verdict: "tp", verified: true },
+      { docId: "P01", type: "clarity", anchoredSpan: "", message: "", verdict: "", verified: true },
+    ] as unknown as EmissionRow[];
+
+    const clarity = scoreWildPrecision(emissions).perType.find((t) => t.type === "clarity")!;
+    expect(clarity.n).toBe(1);
+    expect(clarity.precision).toBe(1);
+  });
 });
 
 describe("diffTierRuns", () => {

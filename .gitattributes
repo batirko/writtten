@@ -1,0 +1,10 @@
+# src/model/mock.ts contains a literal NUL byte, on purpose: `reqHash` joins its
+# request parts with "\n\0\n", and that separator is baked into every recorded
+# fixture key in the repo (and into the bundled example-demo recording). It cannot
+# be changed without re-keying all of them.
+#
+# Git auto-detects the NUL and treats the file as binary, so any change to it
+# shows up as "Bin 4650 -> 5645 bytes" instead of a reviewable diff. Force a
+# textual diff — this changes how the file is *displayed*, never its contents, so
+# no hash moves.
+src/model/mock.ts diff
