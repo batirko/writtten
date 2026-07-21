@@ -26,6 +26,7 @@ import { useAgentBridge } from "./useAgentBridge";
 import { agentStatusView } from "./agentStatusView";
 import { agentPassPhase, agentStatusPhrase } from "./agentActivityView";
 import { processStatusView } from "./processStatusView";
+import { engineReadiness } from "./engineReadiness";
 import {
   subscribeAgentSource,
   getAgentSourceStatus,
@@ -869,8 +870,18 @@ export function ControlCenter({
   // my document", which an agent pass makes true just as a model call does.
   // Tier hue stays gated on our own in-flight work inside the view. See
   // processStatusView for why the agent shares the state but not the hue.
+  // Is anything actually able to read the document? Since a disconnect no longer
+  // releases the slot (`useAgentBridge.cancel`), "selected but nothing attached" is an
+  // ordinary state — so it is answered once here and shared by the readout, the chip,
+  // and Settings, which is what stops those three drifting apart again (UX-045).
+  const readiness = engineReadiness({
+    engine,
+    hasActiveKey,
+    agentConnected: agentSource.state === "connected",
+  });
   const { anchorState, statusText, dotTier } = processStatusView({
     engine,
+    engineReady: readiness.ready,
     pending,
     stalled,
     agentPhrase,
@@ -1058,6 +1069,18 @@ export function ControlCenter({
                 {/* The two paths differ in who runs the checks, what they cost, and
                     where the document travels. Naming that at the moment of choosing
                     is the whole containment now that the per-card chip is gone. */}
+                {/* The consequence, before the description. With the release gone,
+                    a selected engine can sit unattached indefinitely — and this is
+                    the one surface where the user is actually configuring it, so it
+                    must not be inferable only from a chip behind the modal. Says
+                    what is true, not what to do: the panel below is already the
+                    on-ramp, and telling the user to add a key here would be a second
+                    instruction competing with it (UX-045). */}
+                {readiness.settingsNote && (
+                  <span className="setting-note-idle" data-testid="engine-not-reading">
+                    {readiness.settingsNote}
+                  </span>
+                )}
                 <span className="setting-help">{engineHelp(engine)}</span>
               </div>
             )}
@@ -1385,7 +1408,12 @@ export function ControlCenter({
                 {agentStatus?.text ?? "not connected"}
               </span>
             ) : (
-              <span data-testid="provider-chip">{modelName}</span>
+              // Names the missing precondition rather than a model that cannot be
+              // called. This row is the ENGINE IDENTITY, and with no key stored there
+              // is no identity to report — printing `gemini-2.0-flash` beside a
+              // resting dot read as a configured system at rest (UX-045). The agent
+              // branch above already does this: it says "not connected".
+              <span data-testid="provider-chip">{readiness.chipText ?? modelName}</span>
             )}
             {/* Names the in-flight tier so the dot's hue is never the only signal
                 (a11y): "strong" adjudication reads on the tier-indigo dot. An agent
@@ -1642,7 +1670,7 @@ export function ControlCenter({
             // Names the SELECTED engine, not the model unconditionally — otherwise a
             // screen reader announces a Gemini model while an agent does the reading.
             // Same defect as the visible row, one channel over.
-            aria-label={`${engine === "agent" ? `Agent ${agentStatus?.text ?? "not connected"}` : `Model ${modelName}`} — ${statusText}${tierLabel ? ` (${tierLabel})` : ""}. Tap to open controls.`}
+            aria-label={`${engine === "agent" ? `Agent ${agentStatus?.text ?? "not connected"}` : readiness.chipText ? readiness.chipText : `Model ${modelName}`} — ${statusText}${tierLabel ? ` (${tierLabel})` : ""}. Tap to open controls.`}
             onClick={() => setTapOpen((o) => !o)}
             onKeyDown={(e) => {
               if (e.key === "Enter" || e.key === " ") {

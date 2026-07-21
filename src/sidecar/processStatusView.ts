@@ -48,6 +48,16 @@ import type { EngineId } from "../services/evalEngine";
 export interface ProcessStatusInput {
   /** Which engine currently holds the slot. Only the selected one may speak. */
   engine: EngineId;
+  /**
+   * Can the selected engine actually read the document? (`engineReadiness`.)
+   *
+   * Required rather than optional, deliberately. Since a disconnect no longer
+   * releases the slot, "selected but nothing attached" is an ordinary resting state
+   * — and the default vocabulary lies about it: `idle` reads as *ready and waiting*
+   * when the truth is *cannot run at all*. Making this a required input means a new
+   * call site has to answer the question rather than inherit a comfortable default.
+   */
+  engineReady: boolean;
   /** writtten's own outstanding eval work. */
   pending: number;
   stalled: boolean;
@@ -75,6 +85,7 @@ function phraseIsActive(phrase: string | null): boolean {
 
 export function processStatusView({
   engine,
+  engineReady,
   pending,
   stalled,
   agentPhrase,
@@ -95,11 +106,19 @@ export function processStatusView({
   // Our own work names itself specifically (the count is actionable). Otherwise the
   // agent's phrase takes the row verbatim — never rewritten into "evaluating", which
   // would claim a model call that never happened.
+  //
+  // `engineReady` is checked only after those two, and for the same reason they are
+  // unconditional: a claim about work genuinely in flight outranks a claim about
+  // configuration. It sits *above* the phrase because an agent's `pass` facts outlive
+  // its connection — without this a dropped agent kept resting on `watching`, which
+  // promises a critic will react the moment you type, when in fact nothing will.
   const statusText = stalled
     ? "still working…"
     : pending > 0
       ? `evaluating · ${pending}`
-      : (phrase ?? "idle");
+      : !engineReady
+        ? "nothing reading"
+        : (phrase ?? "idle");
 
   return {
     anchorState,

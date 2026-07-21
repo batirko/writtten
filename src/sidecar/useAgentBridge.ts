@@ -168,15 +168,20 @@ export function useAgentBridge(): AgentBridgeView {
   useEffect(() => {
     if (!agentBridgeEnabled()) return;
     const existing = loadPairing();
-    // The agent holds the eval slot but cannot serve it — a pairing that was never
-    // stored (or was cleared), or a browser that can't reach loopback at all (chose
-    // the agent in Chrome, opened writtten in Safari). Without this the built-in
-    // evaluator stays gated behind a connection that will never arrive: a document
-    // nothing reads, silently. Hand the slot back.
-    if (!support.supported || !existing) {
+    // A browser that cannot reach loopback at all (chose the agent in Chrome, opened
+    // writtten in Safari) can never serve the slot it holds — and unlike "not
+    // connected yet", that is not a state the user can act their way out of on this
+    // machine. Hand the slot back.
+    if (!support.supported) {
       releaseAgentEngine();
       return;
     }
+    // No stored pairing is NOT a release any more. Selecting the agent is a standing
+    // choice, so "agent selected, nothing attached" is an ordinary state that
+    // survives a reload — the panel says "Connect your agent", and the readout says
+    // nothing is reading. Releasing here would silently move the user to a key they
+    // did not pick, which is the defect this model exists to remove (UX-041).
+    if (!existing) return;
     const unsubscribe = start(existing);
     void buildAgentPrompt({
       token: existing.token,
@@ -213,11 +218,14 @@ export function useAgentBridge(): AgentBridgeView {
     setPrompt(null);
     setPromptError(null);
     setStatus(IDLE);
-    // The pairing is gone, so it can no longer hold the slot. Note this is a
-    // *release*, not a user choosing a key — the distinction the engine module
-    // names deliberately. Idempotent, so the switch path (which calls this and then
-    // sets the engine itself) is unaffected.
-    releaseAgentEngine();
+    // Deliberately does NOT release the slot. Tearing down a pairing is not the same
+    // act as choosing a key, and the app must not choose one on the user's behalf:
+    // that silently starts spending their API quota moments after they disconnected,
+    // and it moves the settings surface out from under them mid-gesture (UX-041).
+    // `evalEngine.ts` already refuses the fallback for a bridge that merely dropped,
+    // on exactly this reasoning; a deliberate teardown has the same claim on it.
+    // The selection stays on the agent until the user picks the other tab — the
+    // Engine control is the only thing that moves it.
   }, []);
 
   // Republish the pairing state to the app-wide signal. The source chip renders
@@ -280,9 +288,8 @@ export function useAgentBridge(): AgentBridgeView {
           sessionId,
         });
       }
-      // Same release as `cancel`: the pairing is deliberately gone, so it hands the
-      // slot back rather than leaving the built-in evaluator gated behind nothing.
-      releaseAgentEngine();
+      // Same as `cancel`: no release. Revoking a source is a statement about that
+      // source, not a vote for the key engine.
     },
     [status.sessionId, status.agentName]
   );
