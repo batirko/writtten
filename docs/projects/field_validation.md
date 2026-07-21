@@ -43,6 +43,33 @@ If the hero fires rarely and the daily experience is the noisy supporting cast (
 
 > **Machinery landed 2026-07-06** (runner + scorers + labeling-sheet artifact — the run itself is the remaining work, tracked by the unticked boxes below). The headless corpus runner is `npm run eval:v1` (`src/services/evalV1Corpus.live.test.ts`, `EVAL_V1`-gated); the two-bucket recall / per-type wild-precision / free-vs-paid scorers are `scoreCorpusRecall` / `scoreWildPrecision` / `diffTierRuns` / `unlabeledContradictions` in `src/services/evalScorer.ts`; markdown→sections + fixture builder are in `src/services/eval-fixtures/corpus/`; the labeling-sheet format + parser + the "how to run it" walkthrough are in `src/services/eval-fixtures/corpus/labeling/` (see its `README.md`) and mirrored in `docs/snapshots/2026-07-06_v1_base_rate_corpus_study.md` (the durable home for the numbers). Corpus + filled labels + dumped recordings stay in a local, gitignored `.v1-corpus/` (invariant #5). Record once with `V1_RECORD=1`, then re-score offline for free. **Stratified 2026-07-06:** the corpus is bucketed by `docType` (`prd`/`spec`/`decision`/`comms`, one subfolder each) and every number is reported overall **and** per type (`stratifyRecall` / `stratifyWildPrecision`), so the hero base rate can be checked for whether it holds off its best-case doc type or collapses. A reproducible sourcing script (`fetch-corpus.sh`, public URLs only) assembled a 19-doc corpus (spec 10 / decision 4 / comms 3 / prd 2). **Caveat:** confidential PRDs aren't public, so `spec` uses open-source RFCs/design docs as a PROXY and `prd` uses PRD-shaped explainers — the base rate is "public-spec", not "confidential-PRD" (see the snapshot's validity caveat); the audit-#5 path stays open to add real PRDs on a paid key later.
 
+> **⚠️ Before planning any further V1 run — read this first (2026-07-21).**
+>
+> **Every dumped recording in `.v1-corpus/` is stale.** A mock-mode replay of the current corpus scored **282 requests / 282 misses**. Cause is legitimate, not a bug: `#196` (audience-relative jargon) and `#207` (rhetoric extraction) each edited the section-eval prompt *after* Run 1, and the replay key is `reqHash(system, user, json)` — so every section-call key moved. Contradiction calls then never fire either, because the fast call returns `{}` and no claims reach the ledger.
+>
+> **Consequences for anyone picking up V1:**
+>
+> 1. **`V1_RESUME` cannot cheaply extend Run 1.** It only skips docs whose dump already exists — and every existing dump is now worthless. Any further run is a **full re-record** of whatever slice is chosen.
+> 2. **Budget accordingly.** From Run 1's own logs, ~800–1,300 model calls covered 9 docs across both tiers. The 10-doc `prd` slice is **~1,000–1,400 calls** ≈ one day of free-tier RPD plus modest paid spend. **The binding free-tier limit is 500 RPD**, not 20 — `gemini-3.1-flash-lite` (the workhorse on both tiers of a free key) carries 500/day; only the `gemini-3.5-flash` fallback is 20. Older notes citing "~20 RPD" mislead on this.
+> 3. **Run 1's numbers stay valid as a historical record** (they were measured on 2026-07-16's code) but are **not reproducible on current `main`**, and the current pipeline — post OBS-030, OBS-038, jargon calibration, OBS-037 — would give different ones. That re-measure is the point of the next run, not a cost to avoid.
+> 4. **This can no longer fail silently.** A mock miss returns an empty `{}`, so a fully-stale corpus used to yield clean zeros and a **passing** test — a run that measured nothing was indistinguishable from one that found nothing. The runner now prints a per-arm replay-fidelity table and fails on any miss (`#245`).
+>
+> **Run-1 → current doc-id mapping** (derived empirically from label spans + recording contents; the corpus was re-keyed after Run 1, so the archived `runs/2026-07-16-focused9/` artifacts use ids that no longer mean what they say):
+>
+> | Run 1 id | Current id | File |
+> | --- | --- | --- |
+> | `P01` | `P04` | `prd/prd-trading-alerts.md` |
+> | `P02` | `P05` | `prd/study-n8n.md` |
+> | `P03` | `P06` | `prd/vi-01.md` (agentic gateway; intentionally zero labels) |
+> | `P04` | `P07` | `prd/vi-02.md` |
+> | `P05` | `P08` | `prd/vi-03.md` |
+> | `P06` | `P09` | `prd/vi-04.md` |
+> | `P07` | `P10` | `prd/vi-05.md` |
+> | `P08` | `P22` | `decision/cosmos-adr-02.md` |
+> | `P09` | `P25` | `decision/study-ai-coding.md` |
+>
+> Current ids are assigned by (docType rank, filename) in `anonymisedId`/`buildCorpus` (`corpus/loadCorpus.ts`), so `prd` is plain alphabetical: `explainer-01`=P01 … `vi-05`=P10; `spec` P11–P20; `decision` P21–P25; `comms` P26–P28.
+
 **Run procedure (build-ready):**
 
 - [ ] **Assemble the corpus — 15–20 real PRDs.** Sources: the founder's own; colleagues' with permission; public post-mortems / spec write-ups. **Privacy:** others' confidential docs run **only** under a paid key or local model — never the free tier (which may train on them; audit #5). Store the corpus outside the repo; reference docs by anonymised id in the snapshot.
@@ -65,6 +92,17 @@ V1 Run 1 confirmed the 2026-07-10 keyed-sweep observation at corpus scale: the f
 1. **The fuller free-tier read.** Extend the V1 run past the 9-doc subset (`V1_RESUME`; at minimum the remaining `prd` + `spec` docs) so the free-tier delta rests on more than n=2 emissions. Zero new design — the runner, scorers, and `diffTierRuns` already report it.
 2. **A pre-registered decision rule** (registered 2026-07-16, before the fuller run, so the outcome can't be argued into comfort): _if the fuller run's free-tier confident-contradiction wild precision is below the Tier-A floor (0.95 — realistically: if it is not dramatically better than Run 1's 0/2), the free tier stops presenting confident contradiction cards._ Recommended mechanism (owner ratifies at pickup): on `capability.adjudicateConfidently === false`, the per-section and sweep parse paths drop the `contradictions` bucket (the `tensions` bucket and all span checks stay) — an emit-side gate in `evaluator.ts`, no prompt/hash change on the paid path. A false hero card is the R4.4 maximum-damage failure; a free tier that stays quiet about contradictions and says so is more trustworthy than one that guesses.
 3. **The stated decision in the docs.** Whatever the rule produces, write the free-tier expectations plainly where users and readers meet them: the strategic open question's own terms ("if BYO-key is effectively mandatory to meet the bar, that should be a **stated decision** in `docs/concept.md`/`docs/features.md`, not an emergent one"), plus the first-run/BYOK copy if mechanism 2 ships (e.g. the key-entry note stating contradiction detection needs a paid-tier key). This also settles the quality half of the "Free tier: real tier or demo?" open question with evidence.
+
+**Status 2026-07-21 — built, then deliberately NOT shipped (owner decision). Deliverable 2 is not ready to ratify.**
+
+The mechanism in (2) was implemented and tested, then held back. What exists, on branch **`parked/freetier-contradiction-gate`** (rebase it forward; don't rebuild):
+
+- A third capability flag, `emitContradictions`, kept **separate** from `adjudicateConfidently`. That separation is load-bearing and is the non-obvious part of the design: `adjudicateConfidently` also selects the hedged-vs-confident *prompt*, so gating on it directly is hash-affecting — it would have silently blanked the ~20 `contradiction` expectations across the fixture corpus (which runs at `WEAK_CAPABILITY` against hedged recordings) and turned the ratchet red. The separate flag keeps prompts byte-identical: **zero fixtures re-recorded**.
+- Guards at both emit paths (per-section and the bulk-paste sweep), with dedicated tests, since the corpus deliberately runs with the gate open and would not notice it breaking in either direction.
+
+**Why it was held:** the free-tier case rests on **n=2 emissions**, and the rule registered on 2026-07-16 is conditioned on *the fuller run's* precision — which has not been run. Shipping on n=2 would answer the "free tier: real tier or demo?" positioning question, by narrowing the hero capability out of the free tier, on two data points. The registration was written to stop a bad result being argued into comfort; it is not satisfied by substituting a thinner basis for the measurement it names. What is tolerated meanwhile, measured: ~**1 false contradiction per 4–5 documents** on the free tier.
+
+**Sequencing when this is picked up:** re-record the 10-doc `prd` slice (⚠️ see the staleness callout in § V1 — this is a full re-record, not `V1_RESUME`), adjudicate **only** the contradiction emissions (~15 verdicts), then decide. One further input: the keyless landing demo currently surfaces **no contradiction card at all** (UX-040) — so shipping the gate before that is fixed would leave the free path with no contradiction evidence anywhere, demo included.
 
 The clarity-noisiness half of the original observation (5 low-severity cards on a 178-word draft) is deliberately **not** re-solved here — it is the same volume problem the audience-relative jargon calibration and the priority budget already own; this milestone's scope is the contradiction trust surface.
 
