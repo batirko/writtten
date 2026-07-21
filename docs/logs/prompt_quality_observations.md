@@ -594,6 +594,7 @@ The fabricated claims were written to the ledger, then a **paid `gemini-2.5-pro`
 **Date:** 2026-07-20\
 **Prompt tier:** the **agent skill** (`docs/skills/writtten-agent.md`) — the prompt for an external engine, not one of our model prompts.\
 **Type flag:** systematic mis-calibration (predicted false-positive class, not yet measured in the wild)\
+**Status:** **fixed 2026-07-21** — calibration now rides in the snapshot. `buildAgentSnapshot` carries a `calibration` string from the new `agentCalibrationBlock(classifyDocumentClass(stage))` (`documentClass.ts`), and the pasted prompt carries the pointer telling the agent to apply it verbatim. Both halves of the observation are addressed: the empty-`stage` case is handled in the report the agent already writes (mention that setting the document context would sharpen the review — deliberately not a card, since there is no type for "you haven't configured something"), and the calibration logic itself now transfers. It is a **sibling** of `sectionCalibrationBlock`/`docCalibrationBlock` rather than a reuse: those spend most of their words on claim-ledger extraction, which an agent has no equivalent of. Empty on `prd_spec`, so the strict-anchor case costs nothing; ~200 tokens per `/doc` pull on relaxed genres. **Verified live** against a real spawned bridge on 2026-07-21 — a document staged "a personal essay for my blog" returned the essay-class block through `GET /doc`. **The constraint this observation placed on the prompt-slimming milestone held:** calibration was the one piece of guidance that could not move behind the reference URL, and it did not. → see `docs/mechanics/agent-bridge.md` § Document-type calibration rides in the snapshot\
 **Reported as:** _"Claude also never suggested a 'document context' definition"_ (owner, first BYOA dogfood session).\
 **Input excerpt:** The session ran against the standard test PRD with the Document Context fields left unset, so the snapshot's `stage` was empty.\
 **Expected:** Two things. (1) With `stage` empty the agent should say so — not as a card, but in the report it already gives the user at the end of a pass. (2) Whatever `stage` says should actually shape strictness, the way it does on our side.\
@@ -602,3 +603,36 @@ The fabricated claims were written to the ledger, then a **paid `gemini-2.5-pro`
 **The structural point, and why it constrains the prompt-slimming work:** **the boundary cannot catch this.** `submitExternalObservation` enforces taxonomy and register; a PRD-strict observation on a personal essay is register-clean and taxonomy-valid, so it is **accepted**. Register violations self-correct via rejection hints — calibration has no such feedback channel. So calibration is one of the few things that genuinely must live *in the prompt* (or be pushed through the snapshot), and the slimming milestone (`docs/plan.md` Phase 8) must not treat it as guidance that can be moved behind a URL and fetched only if the agent bothers.\
 **Escalates under engine exclusivity:** once the agent is the only engine, every BYOA user gets an uncalibrated critic and the whole `document_type_calibration.md` body of work is bypassed rather than merely supplemented.\
 **Notes:** Cheap first move for the empty case — the skill's *Finish the pass* section already tells the agent to report to the user, so add: if `stage` is empty, say that setting the document context would sharpen the review. That uses the channel the agent already has and correctly stays out of the taxonomy (a "you haven't configured X" card would be rejected as `unknown_type`, and rightly). The calibration transfer itself is the larger open question: mirror the `sectionCalibrationBlock` rules into the skill, or have the snapshot carry a resolved calibration directive so the rules stay in one place. → see `docs/projects/document_type_calibration.md` · `docs/projects/agent_connected_eval.md`
+
+### OBS-040 — What makes an agent accept a pasted prompt is framing-before-ask, not size — and slimming it caused the refusal it was meant to prevent
+
+**Date:** 2026-07-21\
+**Status:** **resolved in the same session** — recorded because the finding generalises well beyond the milestone that produced it.\
+**Prompt tier:** the **agent skill** (`docs/skills/writtten-agent.md`) — the prompt for an external engine.\
+**Type flag:** prompt-shape / acceptance (not an observation-quality defect)\
+**Reported as:** owner pasted the rewritten connect prompt into a fresh Claude Code session and it refused outright.
+
+**What happened.** The prompt-slimming milestone rested on a premise: our connect prompt is ~18x a competitor's, and "a large self-authorizing paste carrying executable code is the exact shape a security-conscious agent refuses." That premise came from a transcript of Claude refusing **`proofeditor.ai`** and was reasoned onto our prompt by analogy. **It was never measured on ours.** Production was working — every dogfood session (UX-029, UX-033, UX-034, the landing verification) connected without complaint.
+
+Measured properly, four variants into fresh sessions:
+
+| | full framing | slimmed framing |
+| --- | --- | --- |
+| script inlined | 33,835 — **accepted** | 21,995 — **refused** |
+| script fetched from origin | 15,440 — **accepted** | 3,375 — **refused** |
+
+**Size did not decide it. Fetching did not decide it.** The variable is whether the document's own framing — title, role, philosophy, worked examples — arrives *before* the first ask. With it, the paste reads as a document the user chose to share; without it, as a payload issuing orders. The refusals named the mechanism directly: *"this whole block is written as if it were operating instructions handed to me"*, and *"the URL to fetch a 'reference.md' — all of this is exactly the pattern of an injected task trying to get an agent to bootstrap trust in a new tool/service on its say-so alone."*
+
+**Three of the milestone's own design directions caused it.** Leading with the loopback fact moved the executable ask to paragraph two. Moving guidance behind a URL removed the context that made it legible as a document. Serving that guidance from our origin added a fetch-more-instructions pattern that is itself an injection tell.
+
+**The transferable rules**, for any future prompt handed to a third-party agent:
+
+> - **Context before ask.** Whatever the agent must do, put who-you-are and what-this-is above it. Reordering to "lead with the important part" is the specific edit that broke this.
+> - **Self-sufficient.** A prompt that tells an agent to fetch more instructions from the service it is being asked to trust reads as an escalation step, not a convenience. Links for humans are fine.
+> - **Character count is not the risk metric.** The accepted variants were 33.8k and 15.4k; the refused ones 22.0k and 3.4k.
+> - **Measure on your own artefact.** A competitor's refusal is evidence about their prompt.
+
+**What legitimately shrank:** only the bridge script, from inline to fetched (~4,626 generated tokens → ~45). That was the real problem all along — latency from *generation*, not distrust from size.
+
+**Guard:** `agentPrompt.test.ts` § _the shape that makes it acceptable_ pins framing-before-`## Setup`, the title-first opening, the absence of any `reference.md` URL, and the presence of the taxonomy/register/rejection sections in the paste. All of it looks like fat to a future size optimiser, which is why it is enforced rather than commented. → see `docs/projects/agent_connected_eval.md` § The skill
+

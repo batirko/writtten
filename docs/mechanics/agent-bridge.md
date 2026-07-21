@@ -325,6 +325,23 @@ Per-section fingerprints come from `sectionProseFingerprints`, the same normaliz
 
 **No protocol bump was needed.** The bridge script stores the pushed body wholesale (`snapshot = body`) and `/doc` returns it, so the fields reach the agent through an unmodified bridge; an older pasted skill simply never reads them.
 
+## Document-type calibration rides in the snapshot
+
+> Added 2026-07-21 (OBS-039). Change `agentCalibrationBlock` or the paste's calibration pointer and update this section in the same task.
+
+The snapshot carries `calibration: string` beside `stage` and `maturity` — `agentCalibrationBlock(classifyDocumentClass(stage))` from `src/services/documentClass.ts`. It is **empty on `prd_spec`**, which is the strict anchor, and the paste says so explicitly so an agent doesn't read the blank as a missing value and fall back to guessing.
+
+**Why it is data rather than prose in the prompt.** Two reasons, and the second is the load-bearing one.
+
+- **Cost.** A paste-side rule would have to carry the whole decision table, so the agent could classify the document itself — paid every session, in every genre. Shipped as data it is *resolved*: the strict-anchor case (the PM persona writing PRDs) pays nothing at all, and only the relaxed genres carry ~200 tokens per `/doc` pull.
+- **The app already knows.** `stage` is a value the user set. Handing the agent a conclusion drawn from it beats handing it a rule and hoping it applies it the same way our own pipeline does.
+
+**Why it cannot move behind the reference URL, unlike almost everything else the prompt slimming moved.** The boundary validates taxonomy and register, and every rule it enforces teaches itself on rejection — a prescriptive submission comes back with the rule named and the fragment quoted, so guidance about phrasing can be fetched on demand or skipped entirely without lasting harm. **A miscalibrated observation has no such channel.** A PRD-strict `unsupported_claim` on a personal essay is register-clean and taxonomy-valid, so `submitExternalObservation` accepts it and the author sees it. Nothing downstream can notice. So calibration must arrive unbidden — in the snapshot, with the pointer to read it in the paste where it cannot be missed.
+
+**It is a strictness dial, never an off switch.** Every non-empty block ends by restating that contradiction, clarity, and undefined_jargon are unchanged and fully in play, and `agentSnapshot.test.ts` asserts that across every genre. Relaxing contradiction off-genre would drop the check users value most on exactly the documents where an agent is least sure of itself.
+
+**It is a sibling of the two built-in blocks, not a reuse of them.** `sectionCalibrationBlock` / `docCalibrationBlock` spend most of their words on what to extract into the claim ledger. A connected agent has no extraction stage and no ledger — it reads and posts in one pass — so those sentences would be describing machinery it cannot see. `agentCalibrationBlock` carries the same policy in the agent's own vocabulary and folds both tiers into one block.
+
 ## When the draft is too thin to review (the maturity band)
 
 > Added 2026-07-20 (UX-029). Change `snapshotMaturity` or the skill's band rules and update this section in the same task.
@@ -349,7 +366,7 @@ What the skill now instructs per band:
 
 While parked, the agent is in `/wait`, so the bridge broadcasts `waiting`, and `agentPassPhase` reports `watching` — re-armed every ≤60 s, so it never decays to `quiet` for as long as the deferral lasts.
 
-This is accurate on its own terms (someone is attached and will react the moment you type) and it is the right thing for the author to see. But it is worth stating plainly, because the readout **cannot distinguish** a deferred single pass from opt-in watch mode: both park on the same endpoint. If that distinction ever needs to be visible, it is a change in `agentActivityView` / `ControlCenter`, not here. Related: UX-029's secondary, unconfirmed note about an agent appearing to enter watch mode unasked.
+This is accurate on its own terms (someone is attached and will react the moment you type) and it is the right thing for the author to see. It was worth stating plainly when the readout could not distinguish a deferred first pass from opt-in watch mode, since both park on the same endpoint. **Since 2026-07-21 the distinction mostly dissolved: watching is the default.** The skill now instructs the agent to keep watching after its first pass rather than stopping, so `watching` is the ordinary resting state rather than an opt-in the readout was quietly conflating. UX-029's secondary note — an agent appearing to enter watch mode unasked — is retired by the same change: it is asked, by default. If a deferral-versus-watching distinction is ever needed, it is still a change in `agentActivityView` / `ControlCenter`, not here.
 
 ### `docVersion` is app-local, and can move backwards
 
@@ -357,7 +374,7 @@ This is accurate on its own terms (someone is attached and will react the moment
 
 The app's `docVersion` is function-local to `startAgentBridge` and starts at **0** on every mount (`agentBridgeClient.ts`). The **bridge process** keeps whatever it was last told and assigns it verbatim in its `/snapshot` handler, with no monotonicity guard. So reloading the tab after, say, 7 material versions makes the app push `1` to a bridge that had been serving `7`.
 
-An agent parked on `/wait?since=7` then sees nothing resolve until six more material edits accumulate. Under opt-in watch mode a human was in the loop and would notice; a deferral parks **unattended**, which is what turns this from a nuisance into something that reads as a hang.
+An agent parked on `/wait?since=7` then sees nothing resolve until six more material edits accumulate. When watching follows a completed first pass the author has already seen output and would notice the silence; a deferral parks **unattended**, before anything has been reported, which is what turns this from a nuisance into something that reads as a hang.
 
 **What makes it survivable** is the skill's park rule: re-pull `/doc` on every `/wait` return, `{"timeout": true}` included, and decide from `maturity` rather than from the version number. The worst case is then 60 s of latency, not an indefinite park. That rule is load-bearing for this reason as much as for the missed-wake one — **do not "simplify" it into waiting on `docVersion` alone.**
 

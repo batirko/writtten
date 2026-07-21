@@ -1032,8 +1032,24 @@ body,
   border: 0.5px solid var(--color-border);
   border-radius: var(--radius-md);
   background: var(--color-paper);
-  max-height: 96px;
-  overflow: hidden;
+}
+
+/* The prompt is short enough to read in place now (UX-032), so this scrolls rather than
+   cropping behind a fade. The cap keeps Cancel reachable without scrolling the modal past
+   it; on a phone it shrinks further, where the viewport is the scarce thing.
+   `overscroll-behavior` stops a flick inside the box from carrying on into the modal. */
+.connect-prompt-scroll {
+  max-height: 260px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.connect-explain {
+  display: inline-block;
+  margin-top: var(--space-2xs);
+  font-size: var(--text-label);
+  color: var(--color-accent);
+  text-underline-offset: 2px;
 }
 .connect-prompt pre {
   margin: 0;
@@ -1047,17 +1063,15 @@ body,
      rule constraining them — without this it forces horizontal overflow at 375px. */
   overflow-wrap: anywhere;
 }
-.connect-prompt-fade {
-  position: absolute;
-  inset: auto 0 0 0;
-  height: 34px;
-  background: linear-gradient(to bottom, transparent, var(--color-paper));
-  pointer-events: none;
-}
+/* Stays absolute against `.connect-prompt`, which no longer scrolls — the inner
+   `.connect-prompt-scroll` does. Pinning the button to the *box* rather than to the
+   scrolled content is what keeps this panel's primary affordance on screen once the user
+   starts reading. The right offset clears the scrollbar gutter. */
 .connect-copy {
   position: absolute;
   top: var(--space-xs);
-  right: var(--space-xs);
+  right: 14px;
+  z-index: 1;
 }
 
 .connect-disclosure {
@@ -3236,6 +3250,19 @@ body,
   .connect-prompt pre {
     /* Belt and braces over the base rule's overflow-wrap. */
     word-break: break-word;
+  }
+  /* The prompt wraps to far more lines at 375px than at modal width, so the desktop cap
+     would eat most of a phone screen and push Cancel below the fold. Shorter box, more
+     scrolling — the right trade where the viewport is the scarce resource. */
+  .connect-prompt-scroll {
+    max-height: 180px;
+  }
+  /* Same reasoning as `.connect-btn-sm` below: an 18px text link is well under a
+     comfortable touch target, and this one is the only route from the app to the
+     explanation of what the user is about to hand their agent. Padding only — the link
+     text stays the same size. */
+  .connect-explain {
+    padding-block: 9px;
   }
   /* Pairing is desktop-only, but the controls are not unreachable on a phone: a
      pairing made on desktop shows up here, and Disconnect/Forget is the one thing

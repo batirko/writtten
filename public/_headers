@@ -6,6 +6,14 @@
   Cache-Control: no-cache
 /manifest.webmanifest
   Cache-Control: no-cache
+# The bridge script and the agent reference are fetched by a connected agent from this
+# origin, and both are versioned with the app rather than content-hashed. The recovery
+# path for "your agent is running an older bridge" is the user re-running the setup
+# command — which only works if that fetch is not served from cache.
+/writtten-bridge.mjs
+  Cache-Control: no-cache
+/agent/reference.md
+  Cache-Control: no-cache
 /assets/*
   Cache-Control: public, max-age=31536000, immutable
 /*

@@ -10,6 +10,7 @@
 import { readLiveDoc, type SnapshotSection } from "../model/docSnapshotSource";
 import { loadActiveObservationsForDocument, type Observation } from "../store/db";
 import { documentMaturity, type MaturityLevel } from "./documentMaturity";
+import { agentCalibrationBlock, classifyDocumentClass } from "./documentClass";
 import type { SectionMember } from "./types";
 
 export interface AgentSnapshotObservation {
@@ -32,6 +33,18 @@ export interface AgentSnapshotBody {
   /** How far along the draft is — the same three-band judgement our own engine
    *  runs on (UX-029). See `snapshotMaturity`. */
   maturity: MaturityLevel;
+  /**
+   * How strict to be on this genre, derived from `stage` (OBS-039). Empty string on a
+   * PRD/spec — the strict baseline, which the skill says explicitly so an agent doesn't
+   * read the absence as a missing value.
+   *
+   * Rides in the snapshot rather than the pasted prompt for two reasons. It is *resolved*
+   * — the app already knows what the document is, so the agent gets the conclusion instead
+   * of a decision table it would have to apply to itself. And it costs the strict-anchor
+   * case (the PM persona writing PRDs) exactly nothing, where a paste-side rule would be
+   * paid by every session of every genre.
+   */
+  calibration: string;
 }
 
 /**
@@ -115,5 +128,6 @@ export async function buildAgentSnapshot(docId: string): Promise<AgentSnapshotBo
     sections: live.sections,
     activeObservations: active.map(toAgentObservation),
     maturity: snapshotMaturity(live.members),
+    calibration: agentCalibrationBlock(classifyDocumentClass(live.stage)),
   };
 }

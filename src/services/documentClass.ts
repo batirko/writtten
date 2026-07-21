@@ -126,3 +126,29 @@ export function docCalibrationBlock(c: DocumentClass): string {
   }
   return `\nDocument-type calibration — this is ${CLASS_LABELS[c]}, not a PRD or spec. Do NOT raise missing_topic or structure_flow for the absence of PRD sections (objective, scope, success metrics, timeline, risks); those are PRD constructs, not omissions here. Judge structure by the norms of this genre. Contradiction and clarity are unchanged.`;
 }
+
+/**
+ * The same calibration policy, addressed to a **connected agent** (OBS-039).
+ *
+ * Why this exists rather than concatenating the two blocks above: those are written for
+ * our own two-stage pipeline and spend most of their words on what to *extract into the
+ * claim ledger*. An external agent has no extraction stage and no ledger — it reads the
+ * document and posts observations in one pass — so that half is not merely redundant to
+ * it, it describes machinery it cannot see. What transfers is the policy: which checks
+ * relax off-genre, and which stay fully on.
+ *
+ * Both tiers are folded into one block because an agent does both in a single pass.
+ * `prd_spec` returns "" for the same reason it does above — it is the strict baseline, and
+ * the snapshot says so rather than sending an empty-looking instruction. This is the only
+ * calibration a BYOA review ever receives: the boundary validates taxonomy and register,
+ * but a PRD-strict observation on a personal essay is register-clean and taxonomy-valid,
+ * so it is accepted. Nothing downstream can catch a miscalibrated card.
+ */
+export function agentCalibrationBlock(c: DocumentClass): string {
+  if (c === "prd_spec") return "";
+  const subject =
+    c === "unknown"
+      ? "The document type is not yet identified, so do not assume this is a PRD or spec."
+      : `This is ${CLASS_LABELS[c]}, not a PRD or spec.`;
+  return `${subject} Raise unsupported_claim ONLY for hard, checkable external-fact assertions — statistics, or claims about the current state of the world. Opinions, first-person reflection, rhetorical or narrative framing, hyperbolic emphasis, and genre-normal statements are not unsupported claims here, and neither are they strategic tensions. Do not raise missing_topic or structure_flow for the absence of PRD sections (objective, scope, success metrics, timeline, risks) — those are PRD constructs, not omissions in this genre; judge structure by the norms of this kind of writing. Contradiction, clarity, and undefined_jargon are unchanged and fully in play.`;
+}
