@@ -3,6 +3,7 @@ import { scheduleEval } from "./orchestrator";
 import { evaluateSection, evaluateDocument, evaluateLedgerContradictions } from "./evaluator";
 import { orphanClaimsForBlock, updateObservationStatus } from "../store/db";
 import { harness } from "../debug/harness";
+import { subscribeDocSettled } from "../model/docSettleSignal";
 import type { EvalContext, SectionMember } from "./types";
 
 /**
@@ -79,6 +80,49 @@ describe("orchestrator — the agent holds the slot", () => {
     await vi.runAllTimersAsync();
     expect(evaluateDocument).not.toHaveBeenCalled();
     expect(evaluateLedgerContradictions).not.toHaveBeenCalled();
+  });
+
+  /**
+   * UX-033, at the layer that caused it. The gate above stops *evaluations*; it must
+   * not stop the *fact that the document settled*, which is what wakes a connected
+   * agent. This regression shipped because the agent's wake was derived from the
+   * activity count the test below asserts stays at zero — so the two properties are
+   * in direct tension and are deliberately pinned side by side. A future change that
+   * satisfies one by breaking the other fails here.
+   */
+  it("still announces the settle, so a connected agent gets woken", async () => {
+    builtinActive = false;
+    const woken = vi.fn();
+    const off = subscribeDocSettled(woken);
+    scheduleEval(
+      { kind: "block-settle-pause", sectionId: "secA", members: memberFor("secA") },
+      TEXT,
+      ctx
+    );
+    await vi.runAllTimersAsync();
+    expect(woken).toHaveBeenCalledTimes(1);
+    off();
+  });
+
+  it("collapses a burst across sections into one settle announcement", async () => {
+    builtinActive = false;
+    const woken = vi.fn();
+    const off = subscribeDocSettled(woken);
+    scheduleEval(
+      { kind: "block-settle-pause", sectionId: "secA", members: memberFor("secA") },
+      TEXT,
+      ctx
+    );
+    scheduleEval(
+      { kind: "block-settle-completion", sectionId: "secB", members: memberFor("secB") },
+      TEXT,
+      ctx
+    );
+    await vi.runAllTimersAsync();
+    // One push per burst, not one per section — the agent re-reads the whole
+    // document anyway, so N pushes would cost it N passes for one edit.
+    expect(woken).toHaveBeenCalledTimes(1);
+    off();
   });
 
   /**

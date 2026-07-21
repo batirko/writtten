@@ -265,6 +265,12 @@ Two different questions, deliberately decoupled in `pushSnapshot` (`src/services
 | Should we push?           | **Every settle**, always — so `GET /doc` is a complete, current snapshot.                           |
 | Should `docVersion` bump? | Only on a **material** change — this is what resolves the agent's `/wait` and costs it a re-review. |
 
+**What "settle" means, and what it must never mean again.** The wake comes from `docSettleSignal` (`src/model/docSettleSignal.ts`), announced by the orchestrator when a burst of section-settle triggers drains — **above** the engine gate, so the built-in evaluator standing down cannot silence it.
+
+> It used to come from the falling edge of the orchestrator's outstanding-work count (`activitySignal`, 5→4→…→0), on the reasoning that our eval queue draining implied the document had settled. Engine exclusivity broke that implication: with an agent holding the slot the built-in evaluator never arms, the count never leaves 0, and there is no falling edge — in exactly the mode the bridge exists for. The agent kept the empty snapshot it received at connect and was never sent another, for the whole session (UX-033).
+>
+> The two facts — _the document settled_ and _writtten has no outstanding work_ — coincided for one release and are now separate modules. `pending` is specifically **not** reused to carry the settle: `processStatusView` reads a non-zero count under the agent engine as a real in-flight call armed before the switch and prints `evaluating · N` for it, so arming a counter for work that will never run would make that readout lie. `orchestrator.engine.test.ts` pins both properties side by side, since satisfying either one by breaking the other is the failure mode.
+
 `docVersion` does **not** bump in two cases:
 
 - **Only the observations changed.** Bumping would wake `/wait` → re-review → possibly re-submit → wake itself, forever. Every accepted external card changes `activeObservations`, so this is the common case, not a corner.

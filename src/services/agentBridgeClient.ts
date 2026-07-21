@@ -11,7 +11,7 @@
  * handler is injected, which keeps the transport unit-testable in a bare node worker and
  * keeps enforcement in exactly one place.
  */
-import { getActivityPending, subscribeActivity } from "../model/activitySignal";
+import { subscribeDocSettled } from "../model/docSettleSignal";
 // Pure module (its own imports are type-only) — importing it keeps this transport
 // DB-free and trivially loadable in a bare node test worker.
 import {
@@ -269,22 +269,20 @@ export function clearPairing(): void {
 // ---------------------------------------------------------------------------
 
 /**
- * The falling edge of the orchestrator's outstanding-work count is the settle signal:
- * `pending` reaching 0 means nothing is debouncing, queued, or in flight, and the count
- * is recomputed in `dispatch`'s finally — after the evaluation's DB writes resolve — so
- * the observations read at that instant are the settled set.
+ * The document-settle signal is the wake. Coalescing lives in the orchestrator,
+ * which owns the window, so this is a pass-through.
  *
- * `subscribeActivity` replays the current value on subscribe; seeding `prev` from
- * `getActivityPending()` makes the `wasBusy` guard swallow that replay. Concurrent
- * sections collapse naturally (5→4→…→0 fires once).
+ * **This used to read the falling edge of the orchestrator's outstanding-work count**
+ * (`pending` 5→4→…→0), on the reasoning that our eval queue draining implied the
+ * document had settled. Engine exclusivity broke that implication: with an agent
+ * holding the slot the built-in evaluator never arms, so the count never leaves 0,
+ * so there is no falling edge — in exactly the mode this bridge exists for. The
+ * agent kept the empty snapshot it got at connect and was never sent another
+ * (UX-033). The lesson worth keeping: *the document settled* and *writtten has no
+ * outstanding work* are different facts that happened to coincide for one release.
  */
 export function subscribeSettled(fn: () => void): () => void {
-  let prev = getActivityPending();
-  return subscribeActivity((n) => {
-    const wasBusy = prev > 0;
-    prev = n;
-    if (wasBusy && n === 0) fn();
-  });
+  return subscribeDocSettled(fn);
 }
 
 // ---------------------------------------------------------------------------

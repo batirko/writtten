@@ -23,6 +23,7 @@ import {
 import { llmLogger } from "../model/logger";
 import { harness } from "../debug/harness";
 import { setActivityPending } from "../model/activitySignal";
+import { notifyDocSettled } from "../model/docSettleSignal";
 import { isNearLimit } from "../model/rpmBudget";
 import { isBuiltinEngineActive } from "./evalEngine";
 import { nanoid } from "nanoid";
@@ -109,6 +110,34 @@ let pendingBootstrapSweep: { ctx: EvalContext; onComplete?: () => void } | null 
 // ---------------------------------------------------------------------------
 // Internal helpers
 // ---------------------------------------------------------------------------
+
+/**
+ * Coalescer for the document-settle signal, deliberately separate from
+ * `coalesceTimers`.
+ *
+ * It shares `COALESCE_MS` — there is one settle window, and two constants would
+ * drift — but it is counted by nothing and gated by nothing. `coalesceTimers`
+ * feeds `recomputePending()`, so arming one of those under the agent engine
+ * would print `evaluating · 1` for work that will never run; and it sits below
+ * the engine gate, which is precisely why the bridge went blind (UX-033).
+ *
+ * Draining to empty is what fires: concurrent sections collapse into a single
+ * notification, matching the `wasBusy && n === 0` collapse the bridge relied on
+ * back when it derived settle from the activity count.
+ */
+const settleNoticeTimers = new Map<string, ReturnType<typeof setTimeout>>();
+
+function armDocSettleNotice(sectionId: string): void {
+  const existing = settleNoticeTimers.get(sectionId);
+  if (existing) clearTimeout(existing);
+  settleNoticeTimers.set(
+    sectionId,
+    setTimeout(() => {
+      settleNoticeTimers.delete(sectionId);
+      if (settleNoticeTimers.size === 0) notifyDocSettled();
+    }, COALESCE_MS)
+  );
+}
 
 /** Push the current "work outstanding" count to the readiness signal. Idle (0)
  *  means nothing is debouncing, queued, or in flight. */
@@ -490,6 +519,21 @@ export function scheduleEval(
   if (trigger.kind === "block-removed") {
     handleBlockRemoved(trigger.blockId, ctx, onComplete);
     return;
+  }
+
+  // ABOVE the engine gate, and that placement is the whole fix for UX-033: the
+  // document settling is a fact about the document, not about whether writtten
+  // intends to evaluate it. A connected agent needs the fact; the built-in
+  // evaluator standing down must not suppress it.
+  //
+  // Fires regardless of `text`: an emptied section still changed the document,
+  // and the subscriber re-reads it rather than trusting a payload.
+  if (
+    trigger.kind === "block-settle-pause" ||
+    trigger.kind === "block-settle-completion" ||
+    trigger.kind === "block-settle-blur"
+  ) {
+    armDocSettleNotice(trigger.sectionId);
   }
 
   // Engine exclusivity: the built-in evaluator only arms when it holds the slot
