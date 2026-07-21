@@ -160,7 +160,7 @@ opening line or two is not yet something to react to.
 
 ```
 curl -s -X POST -H "Authorization: Bearer {{TOKEN}}" -H "Content-Type: application/json" \
-  -d '{"type":"contradiction","scope":"span","anchorText":"ship by the end of Q3","text":"..."}' \
+  -d '{"type":"contradiction","scope":"span","anchorText":"ship by the end of Q3","conflictingAnchorText":"rollout begins in Q2","text":"..."}' \
   http://127.0.0.1:<port>/submit
 ```
 
@@ -169,11 +169,21 @@ curl -s -X POST -H "Authorization: Bearer {{TOKEN}}" -H "Content-Type: applicati
 | `type` | One of the nine above. Required. |
 | `scope` | `"span"` (anchored to a passage) or `"document"` (whole-doc). Required. |
 | `anchorText` | **Required for `span`.** A verbatim quote from the document — writtten resolves it locally to find the passage. Quote at least ~6 consecutive words, copied exactly. |
+| `conflictingAnchorText` | **`contradiction` and `strategic_tension` only.** A verbatim quote of the *other* passage — the one the first is in tension with. Optional, but send it whenever you can name both sides. |
 | `text` | Your observation. Required. |
 | `confidence` | Optional `"low" \| "medium" \| "high"`. A hint; writtten decides the card's final volume. |
 
 You never send offsets, block ids, or any internal identifier — you don't have them, by
-design. `anchorText` is the only way to point at something.
+design. Quotes are the only way to point at something.
+
+**Both sides of a conflict.** A contradiction is a relationship between two passages, so
+name both: `anchorText` is one side, `conflictingAnchorText` is the other, and writtten
+highlights each in the document. Send only one anchor and the reader sees half of what
+your text describes and has to hunt for the rest. The two passages may sit in the same
+paragraph — a bullet asserting two incompatible things is a real contradiction — they just
+cannot be the *same* passage. Both quotes are resolved the same way and the same
+rules apply to each; if either fails you get `anchor_unresolved` and nothing is stored, so
+re-quote and resend. If you genuinely cannot quote a second side, omit the field.
 
 The request **blocks until writtten answers** (up to 10 s), so the response is the
 verdict:
@@ -191,9 +201,9 @@ Submit one at a time and read each verdict before the next.
 |---|---|
 | `malformed` | A field is missing, mistyped, or invented. Send only the fields in the table above. |
 | `unknown_type` | `type` wasn't one of the nine. Pick the closest real one or drop the observation. |
-| `invalid_scope` | `scope` wasn't `span`/`document`, or a `span` had no `anchorText`. |
+| `invalid_scope` | `scope` wasn't `span`/`document`, a `span` had no `anchorText`, or you attached `conflictingAnchorText` to something other than a `span` conflict. |
 | `register_violation` | `rule` names the rule. Restate declaratively, drop the question mark, cut to 240 chars. |
-| `anchor_unresolved` | Your quote isn't in the document. Re-quote at least ~6 consecutive words verbatim — copy, don't paraphrase. |
+| `anchor_unresolved` | A quote isn't in the document, or both quotes landed on the same passage. The hint names which. Re-quote at least ~6 consecutive words verbatim — copy, don't paraphrase. |
 | `duplicate_suppressed` | The author already dismissed this. Drop it and move on; don't rephrase and retry. |
 | `duplicate_active` | A card already covers it — `observationId` says which. Drop it. |
 | `source_budget_exceeded` | You have 25 active observations. Stop submitting; retract something first if it matters. |
@@ -303,7 +313,7 @@ Endpoints — every one requires the token (Authorization: Bearer <t> or ?token=
 
   agent GET  /doc              latest snapshot ({ connected: false } before the first push)
   agent GET  /wait?since=<n>   long-poll; resolves when a newer docVersion arrives
-  agent POST /submit           { type, scope, anchorText?, text, confidence? } — held until verdict
+  agent POST /submit           { type, scope, anchorText?, conflictingAnchorText?, text, confidence? } — held until verdict
   agent POST /retract          { observationId }
 `;
 

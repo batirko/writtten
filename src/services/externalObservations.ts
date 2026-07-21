@@ -57,9 +57,10 @@ export const MAX_SOURCE_NAME_LENGTH = 32;
 const EXTERNAL_TEXT_CAP = 240;
 
 /** The fixed taxonomy (invariant 2). All nine types are admissible to external
- *  sources — including the cross-claim ones, whose external form is
- *  single-anchor (no `conflictingBlockId` machinery, and exempt from the
- *  evaluator's conflict lifecycle). */
+ *  sources. The cross-claim ones may carry a second quote (`conflictingAnchorText`,
+ *  § _Both sides of a conflict_) but stay exempt from the evaluator's conflict
+ *  lifecycle — that exemption keys on `isEvaluatorOwned`, not on the absence of
+ *  `conflictingBlockId`, so the two are independent. */
 const OBSERVATION_TYPES: ReadonlySet<string> = new Set<Observation["type"]>([
   "clarity",
   "contradiction",
@@ -86,8 +87,17 @@ const ALLOWED_FIELDS: ReadonlySet<string> = new Set([
   "type",
   "scope",
   "anchorText",
+  "conflictingAnchorText",
   "text",
   "confidence",
+]);
+
+/** The two types whose finding is a *relationship between two passages*, and so
+ *  the only ones for which a second quote means anything. Naming them here
+ *  rather than testing `kind` keeps the rule readable at the rejection site. */
+const CONFLICT_TYPES: ReadonlySet<string> = new Set<Observation["type"]>([
+  "contradiction",
+  "strategic_tension",
 ]);
 
 /** The self-correction move for each register rule, so a rejected agent knows
@@ -168,6 +178,9 @@ interface ParsedSubmission {
   scope: Observation["scope"];
   text: string;
   anchorText?: string;
+  /** The counterpart passage, for conflict types only. Optional: an agent that
+   *  cannot quote the other side submits single-anchor, exactly as before. */
+  conflictingAnchorText?: string;
   confidence?: Observation["confidence"];
 }
 
@@ -230,6 +243,27 @@ export function submitExternalObservation(
       hint: 'A "document" submission must not carry anchorText. If the observation is about a specific passage, submit it with scope "span" instead.',
     };
   }
+  // The second quote is meaningful only where the finding IS a relationship
+  // between two passages. Rejected rather than ignored elsewhere, per the
+  // no-silent-drop rule that governs every unknown field: an agent attaching a
+  // counterpart to a `clarity` card has misunderstood the type, and hearing so
+  // is what corrects it.
+  if (sub.conflictingAnchorText != null) {
+    if (!CONFLICT_TYPES.has(sub.type)) {
+      return {
+        ok: false,
+        code: "invalid_scope",
+        hint: `conflictingAnchorText names the passage a finding conflicts WITH, so it applies only to ${[...CONFLICT_TYPES].join(" and ")}. A "${sub.type}" observation is about one passage; drop the second quote.`,
+      };
+    }
+    if (sub.scope !== "span") {
+      return {
+        ok: false,
+        code: "invalid_scope",
+        hint: 'A conflict between two passages is a "span" observation anchored on the first of them, with conflictingAnchorText naming the second. Supply anchorText and scope "span", or drop conflictingAnchorText.',
+      };
+    }
+  }
 
   // --- 4. register_violation ------------------------------------------------
   // Every rule is hard here, INCLUDING `length`, which the internal prompt
@@ -261,12 +295,7 @@ export function submitExternalObservation(
   let anchorQuote: string | undefined;
 
   if (sub.scope === "span") {
-    const quote = sub.anchorText as string;
-    // Same trailing-punctuation tolerance the evaluator's own claim anchoring
-    // uses (anchorClaimsToMembers), for a quote lifted out of mid-sentence.
-    const anchored =
-      anchorSubstring(ctx.members, quote) ??
-      anchorSubstring(ctx.members, quote.replace(/[.,;:!?]+$/, ""));
+    const anchored = resolveQuote(ctx, sub.anchorText as string);
     if (!anchored) {
       // Hard reject rather than degrading to document scope: silent degradation
       // would teach the agent that sloppy anchoring works.
@@ -279,11 +308,51 @@ export function submitExternalObservation(
     blockId = anchored.blockId;
     startOffset = anchored.startOffset;
     endOffset = anchored.endOffset;
-    // The verbatim source slice, which may differ in case from what the agent
-    // sent (anchoring falls back to case-insensitive). The card quotes the
-    // document's own words, never the agent's rendering of them.
-    const member = ctx.members.find((m) => m.blockId === anchored.blockId);
-    anchorQuote = member?.text.slice(anchored.startOffset, anchored.endOffset);
+    anchorQuote = anchored.sourceSlice;
+  }
+
+  // The counterpart side. Same machinery, same hard-reject rule — and the
+  // symmetry is the point: half a resolved conflict rendered as a single
+  // highlight is exactly the defect this field exists to fix (UX-037), so
+  // accepting it silently would reintroduce the bug and hide the cause.
+  //
+  // Rejection is affordable here precisely because the field is OPTIONAL. An
+  // agent that cannot quote the other side omits it and gets the old
+  // single-anchor card; one that supplied it opted in, has the document in
+  // front of it, and can retry within the same pass.
+  let conflictingBlockId: string | undefined;
+  let conflictingStartOffset: number | undefined;
+  let conflictingEndOffset: number | undefined;
+  let conflictingQuote: string | undefined;
+
+  if (sub.conflictingAnchorText != null) {
+    const other = resolveQuote(ctx, sub.conflictingAnchorText);
+    if (!other) {
+      return {
+        ok: false,
+        code: "anchor_unresolved",
+        hint: "conflictingAnchorText does not appear in the document. Quote at least ~6 consecutive words verbatim from the passage this one conflicts with — or omit the field and submit the observation with a single anchor.",
+      };
+    }
+    // Both quotes landing on the same characters means the agent named one
+    // passage twice; there is no second side to show, and rendering it would
+    // draw one highlight while claiming two. Same block is fine — a paragraph
+    // can contradict itself — but the same span is not.
+    if (
+      other.blockId === blockId &&
+      other.startOffset === startOffset &&
+      other.endOffset === endOffset
+    ) {
+      return {
+        ok: false,
+        code: "anchor_unresolved",
+        hint: "anchorText and conflictingAnchorText resolved to the same passage. Quote the two different passages that are in tension; if the tension is within one statement, submit it with a single anchor.",
+      };
+    }
+    conflictingBlockId = other.blockId;
+    conflictingStartOffset = other.startOffset;
+    conflictingEndOffset = other.endOffset;
+    conflictingQuote = other.sourceSlice;
   }
 
   const { severity, confidence, priority } = computePriority({
@@ -302,6 +371,18 @@ export function submitExternalObservation(
     ...(blockId != null ? { blockId, startOffset, endOffset } : {}),
     ...(sub.anchorText != null ? { anchorText: sub.anchorText } : {}),
     ...(anchorQuote != null ? { anchorQuote } : {}),
+    // Stored as the document's own words, not the agent's rendering of them —
+    // the same rule `anchorQuote` follows for the primary side. The highlighter
+    // and the archive card both read `conflictingAnchorText`, so it must be the
+    // slice that re-anchors, not the submitted paraphrase.
+    ...(conflictingBlockId != null
+      ? {
+          conflictingBlockId,
+          conflictingStartOffset,
+          conflictingEndOffset,
+          conflictingAnchorText: conflictingQuote,
+        }
+      : {}),
     source: ctx.source,
   };
 
@@ -385,6 +466,37 @@ function malformed(hint: string): ParseResult {
   return { ok: false, verdict: { ok: false, code: "malformed", hint } };
 }
 
+/**
+ * Resolve one agent-supplied quote against the live document.
+ *
+ * Shared by both sides of a conflict so they cannot drift: if the primary
+ * anchor tolerates trailing punctuation and falls back to case-insensitive
+ * matching, the counterpart must too, or an agent would face two different
+ * standards for two quotes lifted the same way out of the same document.
+ *
+ * `sourceSlice` is the document's own characters for the resolved range, which
+ * may differ in case from what the agent sent. Cards quote the document, never
+ * the agent's rendering of it.
+ */
+function resolveQuote(
+  ctx: ExternalSubmissionContext,
+  quote: string
+): { blockId: string; startOffset: number; endOffset: number; sourceSlice?: string } | null {
+  // Same trailing-punctuation tolerance the evaluator's own claim anchoring
+  // uses (anchorClaimsToMembers), for a quote lifted out of mid-sentence.
+  const anchored =
+    anchorSubstring(ctx.members, quote) ??
+    anchorSubstring(ctx.members, quote.replace(/[.,;:!?]+$/, ""));
+  if (!anchored) return null;
+  const member = ctx.members.find((m) => m.blockId === anchored.blockId);
+  return {
+    blockId: anchored.blockId,
+    startOffset: anchored.startOffset,
+    endOffset: anchored.endOffset,
+    sourceSlice: member?.text.slice(anchored.startOffset, anchored.endOffset),
+  };
+}
+
 function parseSubmission(input: unknown): ParseResult {
   if (typeof input !== "object" || input === null || Array.isArray(input)) {
     return malformed("A submission must be a JSON object.");
@@ -406,6 +518,16 @@ function parseSubmission(input: unknown): ParseResult {
   if (raw.anchorText !== undefined && typeof raw.anchorText !== "string") {
     return malformed('"anchorText" must be a string when present.');
   }
+  if (raw.conflictingAnchorText !== undefined) {
+    if (typeof raw.conflictingAnchorText !== "string") {
+      return malformed('"conflictingAnchorText" must be a string when present.');
+    }
+    if (raw.conflictingAnchorText.trim() === "") {
+      return malformed(
+        '"conflictingAnchorText" must not be empty. Omit the field entirely if you are not naming a second passage.'
+      );
+    }
+  }
   if (raw.confidence !== undefined) {
     if (typeof raw.confidence !== "string" || !CONFIDENCES.has(raw.confidence)) {
       return malformed('"confidence" must be one of: low, medium, high.');
@@ -421,6 +543,9 @@ function parseSubmission(input: unknown): ParseResult {
       scope: raw.scope as Observation["scope"],
       text: raw.text,
       ...(raw.anchorText !== undefined ? { anchorText: raw.anchorText as string } : {}),
+      ...(raw.conflictingAnchorText !== undefined
+        ? { conflictingAnchorText: raw.conflictingAnchorText as string }
+        : {}),
       ...(raw.confidence !== undefined
         ? { confidence: raw.confidence as Observation["confidence"] }
         : {}),

@@ -535,7 +535,7 @@ describe("computeObservationRanges (C9 hit-testing)", () => {
     expect(narrow.to - narrow.from).toBeLessThan(broad.to - broad.from);
   });
 
-  it("yields two ranges (primary + conflicting) for a cross-block conflict, one for same-block", () => {
+  it("yields two ranges (primary + conflicting) for a cross-block conflict", () => {
     const cross = spanObs("x", "", {
       type: "contradiction",
       startOffset: 0,
@@ -545,7 +545,50 @@ describe("computeObservationRanges (C9 hit-testing)", () => {
       conflictingEndOffset: 9999,
     });
     expect(computeObservationRanges(doc(), [cross])).toHaveLength(2);
-    const same = { ...cross, conflictingBlockId: "b1" };
+  });
+
+  /**
+   * UX-037. A contradiction between two passages of ONE paragraph is a real and
+   * common shape — a bullet asserting two incompatible things — and it used to
+   * render one highlight for a card whose text named two passages, because the
+   * guard keyed on same-block rather than on same-span.
+   */
+  it("draws both sides of a same-block conflict when the spans differ", () => {
+    const text = doc().firstChild!.textContent;
+    const a = text.slice(0, 6);
+    const b = text.slice(text.length - 6);
+    const same = spanObs("x", "", {
+      type: "contradiction",
+      anchorText: a,
+      startOffset: 0,
+      endOffset: 6,
+      conflictingBlockId: "b1",
+      conflictingAnchorText: b,
+      conflictingStartOffset: text.length - 6,
+      conflictingEndOffset: text.length,
+    });
+    const ranges = computeObservationRanges(doc(), [same]);
+    expect(ranges).toHaveLength(2);
+    expect(ranges.map((r) => r.side).sort()).toEqual(["conflicting", "primary"]);
+    // Two distinct ranges, not one drawn twice.
+    expect(ranges[0].from).not.toBe(ranges[1].from);
+  });
+
+  /**
+   * The degenerate case the old same-block guard was really protecting against,
+   * and it is reachable without an agent: evaluator-owned conflicts commonly
+   * carry the 0:9999 whole-block sentinel on BOTH sides, so two claims drawn
+   * from one paragraph resolve to identical ranges. One span, one decoration.
+   */
+  it("drops a conflicting side that resolves to the primary's own range", () => {
+    const same = spanObs("x", "", {
+      type: "contradiction",
+      startOffset: 0,
+      endOffset: 9999,
+      conflictingBlockId: "b1",
+      conflictingStartOffset: 0,
+      conflictingEndOffset: 9999,
+    });
     expect(computeObservationRanges(doc(), [same])).toHaveLength(1);
   });
 
