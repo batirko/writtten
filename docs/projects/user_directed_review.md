@@ -1,5 +1,5 @@
 ---
-status: in-progress
+status: done
 kind: spec
 phases: [8]
 summary: Make the agent-connected engine user-directable — batch review passes as a steerable conversation (in-taxonomy, skill-level) and user-requested custom lenses ("find where my text sounds AI-written") as one parameterized `user_lens` observation type — without opening the taxonomy or weakening the register boundary.
@@ -13,7 +13,9 @@ summary: Make the agent-connected engine user-directable — batch review passes
 
 ## Status
 
-**Idea — direction settled in an owner ideation session 2026-07-20; design pass completed the same day; not yet built.** Scheduling settled with the owner: the **steering half is folded into the existing prompt-rework milestone** ("Slim the connect prompt", `docs/plan.md` Phase 8) — both rewrite the same artifact, so one rewrite carries both — and that **combined rework waited on the `user_lens` design pass**, so the skill is rewritten exactly once with steering *and* lens guidance included. Accepted consequence (owner call over the alternative of keeping the rework unblocked): the lens design pass joined the pre-spike path, since the rework gates the spike's first impression.
+**Done — shipped 2026-07-21, both halves.** The `user_lens` build landed in #242 (type, boundary, priority, lint, suppression, card face, invariant test) and the steering contract plus the lens section of the skill landed in #243 with the prompt rework. Historical record of how it was scheduled follows, kept because the ordering was a deliberate owner call.
+
+**Original scheduling note (2026-07-20).** Scheduling settled with the owner: the **steering half is folded into the existing prompt-rework milestone** ("Slim the connect prompt", `docs/plan.md` Phase 8) — both rewrite the same artifact, so one rewrite carries both — and that **combined rework waited on the `user_lens` design pass**, so the skill is rewritten exactly once with steering *and* lens guidance included. Accepted consequence (owner call over the alternative of keeping the rework unblocked): the lens design pass joined the pre-spike path, since the rework gates the spike's first impression.
 
 **The design pass is done (2026-07-20).** Every open decision is resolved in § _Settled design_ below, and § _What the rewritten skill must carry_ states exactly what lens guidance the rework has to include — **the prompt rework is unblocked.** The plan milestone re-rated 🟠 → 🟢 accordingly. The `user_lens` *build* still follows engine exclusivity; steering has no standalone milestone.
 
@@ -46,7 +48,7 @@ Phase 8 — `user_lens` build (after the design pass; follows engine exclusivity
 - [x] `registerLint.ts`: `user_lens` must reach the `claim-index` and `section-number` rules, plus adversarial rows in `register-lint-corpus.ts`.
 - [x] `evaluatorAnchoring.ts`: `user_lens` joins the span-only suppression set.
 - [x] Card face renders the lens label, not the raw type name (`SidecarFeed.tsx`); lens label added to the agent snapshot allowlist (`agentSnapshot.ts`) and kept **out** of the debug export. **Shared `TypeTag` covers all three sites that name a type — card head, grouped "N more" list, and the archive.**
-- [ ] Skill section teaching the agent when `user_lens` is admissible (only for an explicit user request, label = the user's own words) with validated ✅/❌ examples — see § _What the rewritten skill must carry_. **Owned by the prompt-rework session, not this build** — that file is being rewritten wholesale exactly once, so the lens wording is handed over rather than edited in.
+- [x] Skill section teaching the agent when `user_lens` is admissible (only for an explicit user request, label = the user's own words) with validated ✅/❌ examples — see § _What the rewritten skill must carry_. **Done 2026-07-21** by the prompt-rework session (#243), not this build — the skill was rewritten wholesale exactly once, carrying steering *and* lens guidance, so the lens wording was handed over rather than edited in. `docs/skills/writtten-agent.md` § _Lenses (`user_lens`)_ ships the admissibility rule, the verbatim-label rule, both scopes, the identical-register rule, and the name-what-you-found-don't-deliver-a-verdict distinction, with the taxonomy row machine-validated.
 - [x] Adversarial fixtures in `externalObservations.test.ts`: a lens submission that prescribes (reject), a lens label on a non-lens type (reject), a `user_lens` with no label (reject), an oversized label.
 - [x] New invariant test: no built-in eval path can emit `user_lens` (see § _Perception risk_, risk 3). **`agentOnlyTypes.invariant.test.ts`, keyed on an exported `AGENT_ONLY_TYPES` set; verified to go red when the invariant is broken.**
 - [x] Update `docs/mechanics/agent-bridge.md` in the same task — the span-only suppression change is a documented-lifecycle change.
