@@ -471,6 +471,60 @@ describe("bridge script — relay round-trip", { timeout: 25_000 }, () => {
     await events.close();
   });
 
+  /**
+   * UX-034. The only moment the bridge can observe the agent going away: a
+   * parked `/wait` whose connection drops because the session ended. The bridge
+   * already cleaned up silently, so the app went on reporting `watching` for the
+   * full idle window after the agent was gone.
+   *
+   * Driven against the real spawned script — an aborted fetch is precisely what
+   * a killed agent session does to a held request.
+   */
+  it("announces a dropped /wait connection as a `parted` event", async () => {
+    const controller = new AbortController();
+    const events = await openEvents(base, controller);
+    expect((await events.next()).event).toBe("hello");
+
+    // Park for real: `since` is ahead of the current version, so the bridge holds.
+    const parkController = new AbortController();
+    const parked = fetch(`${base}/wait?since=99999`, {
+      headers: auth,
+      signal: parkController.signal,
+    }).catch(() => {});
+
+    expect((await events.next()).event).toBe("waiting");
+
+    // The agent's session ends while parked.
+    parkController.abort();
+    await parked;
+
+    const parted = await events.next();
+    expect(parted.event).toBe("parted");
+    expect(typeof parted.data.t).toBe("number");
+    await events.close();
+  });
+
+  /**
+   * The other half, and the reason the waiter carries `answered`: the bridge's
+   * own timeout reply closes the response too. Reporting that as a departure
+   * would flicker a healthy watch loop to `quiet` every WAIT_TIMEOUT_MS.
+   */
+  it("does not announce `parted` when the bridge answers /wait itself", async () => {
+    const controller = new AbortController();
+    const events = await openEvents(base, controller);
+    expect((await events.next()).event).toBe("hello");
+
+    // Stale `since` → answered immediately by the bridge, connection closes.
+    await fetch(`${base}/wait?since=0`, { headers: auth });
+    expect((await events.next()).event).toBe("waiting");
+
+    // A `parted` would arrive before any later event; using the next real one as
+    // a fence proves its absence without sleeping.
+    await fetch(`${base}/doc`, { headers: auth });
+    expect((await events.next()).event).toBe("pulled");
+    await events.close();
+  });
+
   it("relays a retraction", async () => {
     const controller = new AbortController();
     const events = await openEvents(base, controller);

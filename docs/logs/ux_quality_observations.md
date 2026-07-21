@@ -466,7 +466,7 @@ Each entry follows the format:
 ### UX-034 — An agent that ends its session stays "watching" for up to 90 seconds; the bridge already knows and says nothing (BYOA)
 
 **Date:** 2026-07-20\
-**Status:** open\
+**Status:** **fixed 2026-07-21** — the bridge now broadcasts `parted` when a parked `/wait` connection drops, distinguished from its own timeout reply by an `answered` flag on the waiter. `partedAt` is compared against the newest other signal rather than latching, so a reconnecting agent reads `reading` again. The known limit stands and is now stated in the mechanics doc: this catches the agent going *away*, not deciding to *stop*.\ **Live verification found a second bug the unit tests could not see:** `agentSourceSignal`'s `samePass` de-duplication guard compared a hand-listed subset of `AgentPass`, and `partedAt` is the one field that changes *alone* — so the update was discarded as "nothing changed" and the readout kept saying `watching`. The sibling fields added in the same change survived only by luck (`accepted` moves with `lastSubmissionAt`, `readingSince` with `lastPullAt`). Now an exhaustive key walk, with `agentSourceSignal.test.ts` asserting per-field propagation generated from the type, so a future field is covered without anyone remembering.
 **Area/Component:** `writtten-bridge.mjs` `handleWait` (the `res.on("close")` cleanup); `agentActivityView.ts` `AGENT_PASS_IDLE_MS = 90_000`.\
 **Interaction:** The agent finished and stopped polling. The status row read `reading` for about another minute, then flipped to `watching`.\
 **Expected:** Some earlier signal that the agent has gone.\
@@ -478,7 +478,7 @@ Each entry follows the format:
 ### UX-035 — The reading counter measures time since the last pull, not how long the pass has been running (BYOA)
 
 **Date:** 2026-07-20\
-**Status:** open\
+**Status:** **fixed 2026-07-21** — the counter is anchored to `readingSince` (the start of the current reading stretch) instead of `lastPullAt`. `agentPassPhase` decides whether a stretch is still running, so "is it still reading" has one definition; parking, departing, or decaying ends it.\
 **Area/Component:** `agentActivityView.ts:108` — `reading · ${formatElapsed(now - pass.lastPullAt)}`.\
 **Interaction:** Watched the status row during an active review. The counter sat at `0:00` for a stretch, then began ticking normally, and never did it again in that session.\
 **Expected:** A counter that goes up while the agent is reading.\
@@ -490,7 +490,7 @@ Each entry follows the format:
 ### UX-036 — Submissions are invisible in the status row: the agent is only ever "reading" or "watching" (BYOA)
 
 **Date:** 2026-07-20\
-**Status:** open\
+**Status:** **fixed 2026-07-21** — the status row reports `N landed`, counting boundary *acceptances* for the current stretch. This is the honest version of the number the earlier `N submitted` decision rejected: a rejected burst still re-arms decay (it is the agent working) but can never claim a card the author cannot see.\
 **Area/Component:** `agentActivityView.ts` `agentPassPhase` — `lastSubmissionAt` is folded into the `reading` phase (line 85) and surfaced nowhere.\
 **Interaction:** The agent submitted several observations. The status row said `reading` throughout, exactly as it had while the agent was only reading.\
 **Expected:** Some visible difference between an agent that is reading and one that is producing.\

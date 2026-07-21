@@ -16,7 +16,7 @@
  * multi-agent choreography), so this is a single value, not a collection.
  */
 
-import type { AgentPass } from "../sidecar/agentActivityView";
+import { EMPTY_PASS, type AgentPass } from "../sidecar/agentActivityView";
 
 /** Where the pairing is. `disconnected` means the bridge went away but the
  *  cards it submitted are still in the feed — cards outlive the socket
@@ -47,15 +47,28 @@ type Listener = (status: AgentSourceStatus) => void;
 let status: AgentSourceStatus = { state: "idle" };
 const listeners = new Set<Listener>();
 
+/**
+ * Field-complete comparison, and it has to stay that way.
+ *
+ * This was a hand-listed subset of `AgentPass` and rotted silently the moment
+ * the type grew: `partedAt` changes *alone* — nothing else moves when an agent's
+ * connection drops — so an update carrying only that was discarded as "nothing
+ * changed", and the readout kept saying `watching` after the agent had gone.
+ * The two fields added beside it survived by luck: `accepted` moves with
+ * `lastSubmissionAt` and `readingSince` with `lastPullAt`, both already listed.
+ *
+ * Written as an exhaustive key walk rather than a longer hand-list, so a new
+ * field is compared by default instead of by remembering. `agentSourceSignal.test.ts`
+ * pins that per-field, because the failure mode is pure silence: nothing throws,
+ * nothing logs, the UI just stops updating for one kind of change — which is why
+ * the unit tests passed while the live app was wrong.
+ */
+const PASS_KEYS = Object.keys(EMPTY_PASS) as (keyof AgentPass)[];
+
 function samePass(a: AgentPass | undefined, b: AgentPass | undefined): boolean {
   if (a === b) return true;
   if (!a || !b) return false;
-  return (
-    a.lastPushAt === b.lastPushAt &&
-    a.lastPullAt === b.lastPullAt &&
-    a.lastSubmissionAt === b.lastSubmissionAt &&
-    a.lastWaitAt === b.lastWaitAt
-  );
+  return PASS_KEYS.every((k) => a[k] === b[k]);
 }
 
 /** Push a new pairing state. No-op if nothing changed, so a bridge client that

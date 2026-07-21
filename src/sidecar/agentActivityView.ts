@@ -56,6 +56,38 @@ export interface AgentPass {
   lastSubmissionAt: number | null;
   /** Last `GET /wait` — the agent parking in watch mode. */
   lastWaitAt: number | null;
+  /**
+   * When the current *reading stretch* began — not the last pull (UX-035).
+   *
+   * The counter used to read `now - lastPullAt`, and every `GET /doc` resets
+   * that, so an agent polling in a loop re-zeroed it continuously: `reading ·
+   * 0:00` for minutes, then "starting" the moment the agent stopped pulling.
+   * The label named a pass while the number measured an event, and it reported
+   * the smaller of the two — understating how long the author had been waiting,
+   * which is the one direction this readout must not err in.
+   */
+  readingSince: number | null;
+  /**
+   * Cards *accepted* by the boundary during the current reading stretch (UX-036).
+   *
+   * Deliberately acceptances, not submissions. An earlier `N submitted` counter
+   * was dropped for exactly the right reason — it counted attempts, so a
+   * register-lint burst could read `5 submitted` above a feed that gained
+   * nothing. Counting what landed makes the number always match what the author
+   * can see, which is the only version worth showing.
+   */
+  accepted: number;
+  /**
+   * The bridge saw a parked `/wait` connection drop — the agent's session ended
+   * (UX-034).
+   *
+   * Catches the agent going *away*, not the agent deciding to *stop*: one whose
+   * process is alive but which never calls `/wait` again after a normal timeout
+   * leaves no connection to close, and only the idle window catches that. Worth
+   * having anyway, because it turns the common case — the user quits their agent
+   * session — from a 90-second lie into an immediate truth.
+   */
+  partedAt: number | null;
 }
 
 export const EMPTY_PASS: AgentPass = {
@@ -63,6 +95,9 @@ export const EMPTY_PASS: AgentPass = {
   lastPullAt: null,
   lastSubmissionAt: null,
   lastWaitAt: null,
+  readingSince: null,
+  accepted: 0,
+  partedAt: null,
 };
 
 /** The last moment the agent demonstrably did anything. */
@@ -77,6 +112,13 @@ export function agentPassPhase(pass: AgentPass, now: number): AgentPassPhase {
   const heard = lastHeardFrom(pass);
   if (heard === null) return pass.lastPushAt === null ? "none" : "awaiting";
   if (now - heard >= AGENT_PASS_IDLE_MS) return "quiet";
+
+  // An observed departure beats the idle window (UX-034). Checked against
+  // `heard` rather than applied unconditionally, because the bridge reports a
+  // dropped `/wait` connection and the agent may reconnect and pull again
+  // straight afterwards — a later signal means it came back, and a stale
+  // `partedAt` must not pin a live pass to `quiet`.
+  if (pass.partedAt !== null && pass.partedAt >= heard) return "quiet";
 
   // Whichever signal is most recent wins, which orders the watch cycle correctly
   // without any state machine: park (/wait) → wake → pull (/doc) → submit →
@@ -105,7 +147,14 @@ export function formatElapsed(ms: number): string {
 export function agentStatusPhrase(pass: AgentPass, now: number): string | null {
   const phase = agentPassPhase(pass, now);
   if (phase === "awaiting") return "awaiting pickup";
-  if (phase === "reading") return `reading · ${formatElapsed(now - (pass.lastPullAt ?? now))}`;
+  if (phase === "reading") {
+    // Anchored to the stretch, falling back to the last pull for a pass that
+    // predates the field (a live session across a reload) rather than to `now`,
+    // which would print a fresh 0:00 over a review already under way.
+    const since = pass.readingSince ?? pass.lastPullAt ?? now;
+    const landed = pass.accepted > 0 ? ` · ${pass.accepted} landed` : "";
+    return `reading · ${formatElapsed(now - since)}${landed}`;
+  }
   if (phase === "watching") return "watching";
   return null;
 }

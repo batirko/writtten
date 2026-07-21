@@ -535,9 +535,10 @@ function handleWait(req, res, url) {
   // snapshot that lands between the agent's /doc read and its /wait call, and watch mode
   // then stalls a full timeout per cycle for no visible reason.
   if (snapshot && docVersion > since) return send(res, 200, { docVersion });
-  const w = { res, since, timer: null };
+  const w = { res, since, timer: null, answered: false };
   w.timer = setTimeout(() => {
     waiters.delete(w);
+    w.answered = true;
     send(res, 200, { timeout: true });
   }, WAIT_TIMEOUT_MS);
   waiters.add(w);
@@ -546,6 +547,16 @@ function handleWait(req, res, url) {
   res.on("close", () => {
     clearTimeout(w.timer);
     waiters.delete(w);
+    // A close we did NOT cause is the agent leaving — its session ended, or the
+    // process was killed, while parked here. That is the only moment the bridge
+    // can observe a departure at all, and it used to be swallowed: the app kept
+    // reporting "watching" for the full idle window after the agent was gone.
+    // `answered` separates it from our own timeout reply above, which closes the
+    // response too.
+    //
+    // Note the limit: an agent that simply never calls /wait again after a
+    // normal timeout leaves no connection to close. Decay still covers that.
+    if (!w.answered) broadcast("parted", { t: Date.now() });
   });
 }
 

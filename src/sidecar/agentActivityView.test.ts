@@ -144,3 +144,62 @@ describe("formatElapsed", () => {
     expect(formatElapsed(-5_000)).toBe("0:00");
   });
 });
+
+// ---------------------------------------------------------------------------
+// The three truthfulness fixes (UX-034 / UX-035 / UX-036)
+// ---------------------------------------------------------------------------
+
+describe("reading stretch, not last pull (UX-035)", () => {
+  /**
+   * The bug in one assertion. The counter read `now - lastPullAt`, so a polling
+   * agent re-zeroed it on every `GET /doc` — `reading · 0:00` over a pass that
+   * was minutes old, understating how long the author had been waiting.
+   */
+  it("keeps counting across repeated pulls", () => {
+    const p = pass({
+      readingSince: T,
+      lastPullAt: T + 130_000, // polled again 10s ago
+    });
+    expect(agentStatusPhrase(p, T + 140_000)).toBe("reading · 2:20");
+  });
+
+  it("falls back to the last pull for a pass with no stretch recorded", () => {
+    // A live session across a reload: the field is absent, but `now` would
+    // print a fresh 0:00 over a review already under way.
+    const p = pass({ lastPullAt: T });
+    expect(agentStatusPhrase(p, T + 7_000)).toBe("reading · 0:07");
+  });
+});
+
+describe("landed count (UX-036)", () => {
+  it("is omitted until something lands", () => {
+    expect(agentStatusPhrase(pass({ readingSince: T, lastPullAt: T }), T + 5_000)).toBe(
+      "reading · 0:05"
+    );
+  });
+
+  it("reports what reached the feed", () => {
+    const p = pass({ readingSince: T, lastPullAt: T, accepted: 2 });
+    expect(agentStatusPhrase(p, T + 5_000)).toBe("reading · 0:05 · 2 landed");
+  });
+});
+
+describe("observed departure (UX-034)", () => {
+  it("goes quiet immediately, without waiting out the idle window", () => {
+    const p = pass({ lastPullAt: T, lastWaitAt: T + 1_000, partedAt: T + 2_000 });
+    // Well inside AGENT_PASS_IDLE_MS — previously this read `watching`.
+    expect(agentPassPhase(p, T + 3_000)).toBe("quiet");
+    expect(agentStatusPhrase(p, T + 3_000)).toBeNull();
+  });
+
+  /**
+   * A departure is a fact about a moment, not a latch. The bridge reports a
+   * dropped `/wait` and the agent may reconnect and pull straight after; a stale
+   * `partedAt` must not pin a live pass to `quiet`.
+   */
+  it("is overridden by a later signal — the agent came back", () => {
+    const p = pass({ partedAt: T, lastPullAt: T + 1_000, readingSince: T + 1_000 });
+    expect(agentPassPhase(p, T + 4_000)).toBe("reading");
+    expect(agentStatusPhrase(p, T + 4_000)).toBe("reading · 0:03");
+  });
+});

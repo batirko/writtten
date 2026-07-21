@@ -109,6 +109,7 @@ The status vocabulary, and what the dot does with each:
 | `awaiting pickup` | Snapshot sent; the agent has not read it.     | rest             |
 | `watching`        | Agent parked in `GET /wait`.                  | rest             |
 | `reading · 0:20`  | Agent pulled `/doc` and is reviewing.         | pulse            |
+| `reading · 2:14 · 2 landed` | …with cards accepted this stretch.  | pulse            |
 | `evaluating · 2`  | writtten is computing.                        | pulse + tier hue |
 | `still working…`  | Our stall detector fired.                     | stalled          |
 
@@ -130,13 +131,15 @@ Three things stay writtten's alone, each for a mechanical reason rather than for
 
 Connection state is **liveness, not activity** — a chip reading `connected` says nothing about whether the agent is doing anything. And the `status` row cannot answer it either: `setActivityPending` has exactly one writer (`orchestrator.ts`) publishing _writtten's own_ outstanding eval work, and BYOA makes zero model calls, so it reads `idle` for the entire time an agent is reviewing.
 
-So the row carries a second line, derived by `agentActivityView.ts` from four raw facts on `BridgeStatus.pass` — `lastPushAt` · `lastPullAt` · `lastSubmissionAt` · `submitted`:
-
-`agentPassPhase` derives one of five phases from four timestamps on `BridgeStatus.pass` — `lastPushAt` · `lastPullAt` · `lastSubmissionAt` · `lastWaitAt`. Whichever signal is most recent wins, which orders the watch cycle (park → wake → pull → submit → park) with no state machine. `quiet` yields the status row entirely rather than coining a second word for the same non-event; the hollow dot on the `agent` row already says "attached, not active".
+`agentPassPhase` derives one of five phases from the raw facts on `BridgeStatus.pass` — `lastPushAt` · `lastPullAt` · `lastSubmissionAt` · `lastWaitAt` · `readingSince` · `accepted` · `partedAt`. Whichever signal is most recent wins, which orders the watch cycle (park → wake → pull → submit → park) with no state machine. `quiet` yields the status row entirely rather than coining a second word for the same non-event; the hollow dot on the `agent` row already says "attached, not active".
 
 **Two signals feed it that the bridge previously kept to itself.** `GET /doc` is the agent picking the document up — the missing "started" signal — and `GET /wait` is the agent parking in watch mode. Both are now one `broadcast()` in their handler and one named `addEventListener` client-side.
 
-**Submissions are tracked as a timestamp, never a displayed count.** A rejected burst is still the agent working, so it re-arms the decay window — but it counts _submissions_, not acceptances, so a visible "5 submitted" could sit above a feed that gained nothing. The cards themselves are the honest report of what an agent contributed.
+**Submissions re-arm decay on any verdict; only acceptances are displayed.** A rejected burst is still the agent working, so the timestamp moves regardless — but the visible count is `accepted`, not attempts. An earlier `N submitted` was dropped for the right reason (a register-lint burst could read "5 submitted" above a feed that gained nothing) and then nothing replaced it, leaving the agent's output entirely unreported (UX-036). `N landed` counts what actually reached the feed, so the number can never claim more than the author can see.
+
+**The elapsed counter is anchored to the reading _stretch_, not the last pull** (UX-035). `now - lastPullAt` re-zeroed on every `GET /doc`, so an agent polling in a loop read `reading · 0:00` through a pass that was minutes old and appeared to "start" only when it stopped pulling. The label named a pass while the number measured an event, and it reported the smaller — understating the wait, the one direction this readout must not err in. `readingSince` holds while `agentPassPhase` still says `reading`, so consecutive pulls extend a stretch; parking, departing, or decaying ends it and the next pull starts a fresh one with a fresh `accepted` count. `agentPassPhase` is the arbiter rather than a hand-rolled comparison, so "is it still reading" has exactly one definition.
+
+**A departure is observed where one is observable** (UX-034). The bridge's `/wait` handler already registered `res.on("close")` to clean up a parked waiter — so it knew the instant a watching agent's connection dropped, and said nothing, while the app went on reporting `watching` for the full idle window. It now broadcasts `parted`, distinguished from its own timeout reply by an `answered` flag on the waiter (that reply closes the response too, and reporting it would flicker a healthy watch loop to `quiet` every `WAIT_TIMEOUT_MS`). `partedAt` is compared against the newest other signal rather than latching, so an agent that reconnects and pulls is `reading` again. **Known limit:** this catches the agent going _away_, not the agent deciding to _stop_ — one whose process is alive but which never calls `/wait` again leaves no connection to close, and only decay covers that.
 
 **Three constraints shape this, and each rules out an obvious alternative.**
 
