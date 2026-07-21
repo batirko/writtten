@@ -21,7 +21,7 @@ import {
 } from "./docPassMateriality";
 import type { MaturityLevel } from "./documentMaturity";
 import { llmLogger, type AgentEventInfo } from "../model/logger";
-import { EMPTY_PASS, type AgentPass } from "../sidecar/agentActivityView";
+import { EMPTY_PASS, agentPassPhase, type AgentPass } from "../sidecar/agentActivityView";
 
 /** Bumped only on a breaking protocol change. Equal → connect; anything else → refuse
  *  with "re-copy the prompt". Lives in three places by design: here, the skill template,
@@ -498,7 +498,22 @@ export function startAgentBridge(deps: BridgeDeps): AgentBridgeHandle {
         // it read nothing — counting it as pickup would start an elapsed timer
         // against a document that never travelled.
         if (d.connected === false) return;
-        pass = { ...pass, lastPullAt: now() };
+        // A pull only STARTS a stretch when one isn't already running, so a
+        // polling agent extends its pass instead of restarting it (UX-035).
+        // `agentPassPhase` is the arbiter rather than a hand-rolled comparison,
+        // so "is it still reading" has one definition — a stretch ends by
+        // parking, by departing, or by decaying, and all three live there.
+        const t = now();
+        const continuing = agentPassPhase(pass, t) === "reading";
+        pass = {
+          ...pass,
+          lastPullAt: t,
+          // A resumed stretch also clears a stale departure: the agent
+          // demonstrably came back.
+          partedAt: continuing ? pass.partedAt : null,
+          readingSince: continuing ? (pass.readingSince ?? t) : t,
+          accepted: continuing ? pass.accepted : 0,
+        };
         logEvent({ event: "pull", docVersion: d.docVersion, sessionId: sessionId || undefined });
         emit();
       } catch {
@@ -511,6 +526,14 @@ export function startAgentBridge(deps: BridgeDeps): AgentBridgeHandle {
     // silence, which is exactly how a stalled watch session hid in plain sight.
     source.addEventListener("waiting", () => {
       pass = { ...pass, lastWaitAt: now() };
+      emit();
+    });
+
+    // The agent's parked `/wait` connection dropped — its session ended
+    // (UX-034). Additive, like `pulled` and `waiting`: an older pasted bridge
+    // simply never sends it and the idle window still covers the case.
+    source.addEventListener("parted", () => {
+      pass = { ...pass, partedAt: now() };
       emit();
     });
 
@@ -613,7 +636,15 @@ export function startAgentBridge(deps: BridgeDeps): AgentBridgeHandle {
         // of rejections is still the agent working, and it is exactly the case a
         // debug export needs to show.
         const payload = (env.payload ?? {}) as { type?: unknown; scope?: unknown };
-        pass = { ...pass, lastSubmissionAt: now() };
+        // ...but only an ACCEPTED one is counted for display (UX-036). The
+        // timestamp re-arms decay on any verdict; the number reports what
+        // actually reached the feed, so it can never claim more than the author
+        // can see.
+        pass = {
+          ...pass,
+          lastSubmissionAt: now(),
+          accepted: pass.accepted + (verdict.result === "accepted" ? 1 : 0),
+        };
         logEvent({
           event: "submission",
           sessionId: sessionId || undefined,

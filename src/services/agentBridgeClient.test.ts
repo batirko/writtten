@@ -927,3 +927,102 @@ describe("pass ownership across bridge runs", () => {
     expect(h.handle.getStatus().pass.lastPullAt).toBeTypeOf("number");
   });
 });
+
+// ---------------------------------------------------------------------------
+// Readout truthfulness — the client half (UX-034 / UX-035 / UX-036)
+// ---------------------------------------------------------------------------
+
+describe("agent pass — stretch, landings, departure", () => {
+  async function connected() {
+    const h = makeHarness();
+    const es = await until(() => h.sources[0]);
+    es.open();
+    es.emit("hello", { agentName: "Claude Code", sessionId: "s1" });
+    await until(() => h.handle.getStatus().state === "connected");
+    return { h, es };
+  }
+
+  /** UX-035: consecutive pulls extend one stretch rather than restarting it. */
+  it("holds readingSince across repeated pulls", async () => {
+    const { h, es } = await connected();
+    es.emit("pulled", { docVersion: 1, connected: true });
+    const first = h.handle.getStatus().pass.readingSince;
+    expect(first).toBeTypeOf("number");
+
+    es.emit("pulled", { docVersion: 1, connected: true });
+    es.emit("pulled", { docVersion: 1, connected: true });
+    const pass = h.handle.getStatus().pass;
+    expect(pass.readingSince).toBe(first);
+    // The last pull still moves — decay keys on it.
+    expect(pass.lastPullAt).toBeGreaterThanOrEqual(first as number);
+  });
+
+  /** Parking ends the stretch, so waking starts a fresh one with a fresh count. */
+  it("starts a new stretch after the agent parks, and resets the landed count", async () => {
+    const { h, es } = await connected();
+    es.emit("pulled", { docVersion: 1, connected: true });
+    es.emit("submission", { sid: "s-1", payload: { type: "clarity", scope: "document" } });
+    await until(() => h.handle.getStatus().pass.accepted === 1);
+
+    es.emit("waiting", { since: 1 });
+    es.emit("pulled", { docVersion: 2, connected: true });
+
+    const pass = h.handle.getStatus().pass;
+    expect(pass.accepted).toBe(0);
+    expect(pass.readingSince).toBeGreaterThanOrEqual(pass.lastWaitAt as number);
+  });
+
+  /**
+   * UX-036: the count is acceptances, not attempts. A rejected burst is still
+   * the agent working — it re-arms decay — but it must never claim a card the
+   * author cannot see.
+   */
+  it("counts only what the boundary accepted", async () => {
+    const h = makeHarness({
+      onSubmission: async (p) => {
+        const payload = p as { ok?: boolean };
+        return payload.ok
+          ? { result: "accepted", observationId: "o1" }
+          : { result: "rejected", code: "register_violation" };
+      },
+    });
+    const es = await until(() => h.sources[0]);
+    es.open();
+    es.emit("hello", { agentName: "Claude Code", sessionId: "s1" });
+    await until(() => h.handle.getStatus().state === "connected");
+
+    es.emit("pulled", { docVersion: 1, connected: true });
+    es.emit("submission", { sid: "a", payload: { ok: true } });
+    await until(() => h.handle.getStatus().pass.accepted === 1);
+    es.emit("submission", { sid: "b", payload: { ok: false } });
+    await until(() => h.handle.getStatus().pass.lastSubmissionAt !== null);
+
+    const pass = h.handle.getStatus().pass;
+    expect(pass.accepted).toBe(1);
+    // ...but the rejection still counts as activity.
+    expect(agentPassPhase(pass, Date.now())).toBe("reading");
+  });
+
+  /** UX-034: the bridge's `parted` event ends the pass without waiting out decay. */
+  it("goes quiet the moment the bridge reports the agent left", async () => {
+    const { h, es } = await connected();
+    es.emit("pulled", { docVersion: 1, connected: true });
+    es.emit("waiting", { since: 1 });
+    expect(agentPassPhase(h.handle.getStatus().pass, Date.now())).toBe("watching");
+
+    es.emit("parted", { t: Date.now() });
+    expect(agentPassPhase(h.handle.getStatus().pass, Date.now())).toBe("quiet");
+  });
+
+  it("recovers when the agent reconnects and pulls again", async () => {
+    const { h, es } = await connected();
+    es.emit("pulled", { docVersion: 1, connected: true });
+    es.emit("parted", { t: Date.now() });
+    expect(agentPassPhase(h.handle.getStatus().pass, Date.now())).toBe("quiet");
+
+    es.emit("pulled", { docVersion: 2, connected: true });
+    const pass = h.handle.getStatus().pass;
+    expect(pass.partedAt).toBeNull();
+    expect(agentPassPhase(pass, Date.now())).toBe("reading");
+  });
+});
