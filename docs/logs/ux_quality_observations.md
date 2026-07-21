@@ -414,6 +414,40 @@ Each entry follows the format:
 **Notes:** Made *visible* by the PR #228 readout, not caused by it: the status row now distinguishes `watching` from `idle`, so a future occurrence reads as a parked agent at a glance instead of as silence. Filed at 029 because 023–026 were taken by a concurrent session and 027–028 by #228.\
 **Resolved 2026-07-20.** The snapshot now carries `maturity` (`unformed | forming | mature`) from the same `documentMaturity()` the built-in engine gates on, and the skill states the rule per band: on `unformed`, say so once and park — deferring the single pass that was asked for, not entering watch mode — then review when the band moves. Two things found while building that the report could not have known. **(1)** The band had to be folded into the wake gate (`stableContentHash`), because `blockCount` is a re-partition signal and `agentPushFingerprint` exists to flatten those away: splitting a paragraph moves `unformed → forming` with the prose fingerprinting identically, so a parked agent would have slept through the exact event it was waiting for (worse for tables, whose text never reaches `sections[]` at all). The guard was verified to fail against the un-folded hash. **(2)** The skill now also states that `{"timeout": true}` is plumbing and never a cue to review — naming the specific misreading, not only supplying the correct rule. The secondary watch-mode-unasked note was **not** acted on, per the owner; note the deferral does render as `watching`, since it parks on the same endpoint (recorded as a known reading in `docs/mechanics/agent-bridge.md`).
 
+### UX-030 — The Engine strip and the connect section read as two panels stacked, not one decision (BYOA)
+
+**Date:** 2026-07-20\
+**Status:** open — reinforces the scheduled Settings rework (`docs/plan.md` Phase 8).\
+**Area/Component:** `ControlCenter.tsx` Engine strip (`ENGINE_OPTIONS`, `engineHelp`) immediately above `ConnectAgent.tsx`'s `setting-section connect-agent`.\
+**Interaction:** Opened Settings with `?agent=1`, selected **Your agent**.\
+**Expected:** One coherent surface: pick an engine, then set that engine up.\
+**Actual:** Three stacked text blocks with no hierarchy between them — the engine help line ("Your agent reads it. No key, no quota…"), then a `CONNECT YOUR AGENT` section title in caps, then a lede repeating nearly the same claim ("No API key, and your document never leaves this machine"). The engine help and the connect lede are **the same sentence twice**, ~60px apart, which is what makes the stack read as two unrelated panels that happen to be adjacent. Compounding it, the primary button and its help text share a line: `<button class="connect-btn">` is followed by an inline `<span class="setting-help">` (`ConnectAgent.tsx:120-130`), so the browser-support sentence wraps around the button rather than sitting under it.\
+**Failure mode:** the section title is doing work the engine selection already did. Once **Your agent** is the selected engine, "CONNECT YOUR AGENT" is not a new topic — it is the body of the choice just made, and titling it as a peer section flattens the relationship. The duplicated sentence is the visible symptom of two components each introducing the same feature because neither knows the other rendered.\
+**Notes:** Not a new milestone — the **Settings screen rework** (`docs/plan.md` Phase 8) already owns this, and was explicitly sequenced *after* engine exclusivity precisely because the key-vs-agent slot had to settle first. It has now settled, so this entry is the concrete brief that milestone was waiting for: the strip and the connect section want to be one progressive-disclosure surface, and the duplicate lede plus the inline-help collision are the two smallest fixes inside it.
+
+### UX-031 — The connect panel lectures every browser about Safari, in the one branch Safari never reaches (BYOA)
+
+**Date:** 2026-07-20\
+**Status:** open\
+**Area/Component:** `ConnectAgent.tsx:128-130` — the `setting-help` under the connect CTA; `agentBrowserSupport.ts`.\
+**Interaction:** Opened the connect panel in Chrome.\
+**Expected:** Copy that reflects the browser I am actually in — or says nothing, since it works here.\
+**Actual:** "Chrome, Edge, or Firefox. Safari can't reach a local bridge." — static text under the button, addressed to a user who is by construction not in Safari.\
+**Failure mode:** the line renders **only inside the `support.supported` branch**. UX-027 already added `agentBrowserSupport.ts` and a dedicated unsupported branch (`ConnectAgent.tsx:98-112`) that states the Safari limit properly, with no CTA and no spinner — so by the time this help text renders, the app has *already determined the browser can connect*. It is residue from before the detection existed: a generic disclaimer surviving next to the specific check that superseded it. Same family as UX-027 itself (the product holds the information and doesn't act on it), one layer up: there we knew and proceeded anyway; here we know and still hedge.\
+**Direction (owner, 2026-07-20):** make it browser-aware with an explicit **unknown** fallback. The predicate is `navigator.vendor === "Apple Computer, Inc."` && `https:` — everything else is "supported", which lumps *known-good* (Chrome, Edge, Firefox) together with *unrecognized*. Those deserve different copy: known-good needs none, unknown wants a short "this may not work in your browser" hedge. The current line is the unknown-case copy shown to everyone.\
+**Notes:** Worth checking the LNA sentence in the waiting state at the same time — Chrome may prompt for local network access, Firefox doesn't, and telling a Firefox user to expect a prompt that never comes is the same defect in the opposite direction.
+
+### UX-032 — The connect prompt can only be copied, never read (BYOA)
+
+**Date:** 2026-07-20\
+**Status:** open\
+**Area/Component:** `ConnectAgent.tsx` connect CTA → `agentPrompt.ts`; canonical skill at `docs/skills/writtten-agent.md`, served at writtten.com/agent.\
+**Interaction:** Pressed **Connect your agent** and looked for what I was about to hand my agent.\
+**Expected:** Some way to see what the thing does before pasting ~27k characters of instructions and an executable script into an agent session.\
+**Actual:** A copy button. The prompt is generated, copied to the clipboard, and never shown — there is no expand, no preview, and no link to the published explanation, even though one exists and is public.\
+**Failure mode:** this is the **trust half** of the prompt-slimming milestone, showing up in the UI rather than in the agent's reaction. That milestone is about the paste being too big and too self-authorizing for an agent to accept; this is the same paste being opaque to the *user*, who is asked to relay instructions they cannot inspect. A user who won't read 27k characters would still read a two-line summary of what their agent is being asked to do — and the person most likely to want that is exactly the security-conscious dev the GTM spike targets. Withholding it while asking for trust is backwards.\
+**Direction:** surface the existing explanation rather than write a new one — a link to writtten.com/agent (or the in-repo skill) beside the copy button, and/or a disclosure that reveals the prompt inline. Cheap, and it gets cheaper after slimming, when there is a ~20-line prompt genuinely worth showing in place.\
+**Notes:** Folds naturally into the **prompt slimming** milestone (`docs/plan.md` Phase 8), which is already rewriting this surface and already has "move review guidance behind a URL" as one of its five directions — this is the same URL, pointed at the user instead of the agent. Note `public/agent/index.html` currently carries a `noindex` that comes off at launch.
 
 ### UX-033 — A connected agent was never sent the document; it reviewed the empty snapshot from connect, forever (BYOA)
 
@@ -428,3 +462,51 @@ Each entry follows the format:
 **Fix:** separate the conflated facts. `notifyDocSettled` / `subscribeDocSettled` (`src/model/docSettleSignal.ts`) carry *the document settled*; `activitySignal` keeps carrying *writtten has outstanding work*. The orchestrator announces the settle from its own coalescer, sharing `COALESCE_MS` so there is one window, armed **above** the engine gate and counted by nothing. `pending` was deliberately not reused: `processStatusView` treats a non-zero count under the agent engine as a real pre-switch call and prints `evaluating · N`, so arming a counter for work that will never run would make the readout lie.\
 **Verified live against a real spawned bridge**, not only in unit tests: baseline pull reproduced the bug exactly (`docVersion 1`, 0 chars, `maturity: unformed`); typing then drove `docVersion` 2 → 3 → 4 with the prose arriving each time, the delta hint reading `changedSections [0] since 2`, and `maturity` progressing `unformed` → `forming` at 186 words (the 150-word bar). Throughout, `data-pending` stayed `0` and `dotTier` stayed null — lane A's property intact.\
 **Guard:** `orchestrator.engine.test.ts` now pins "still announces the settle" and "never raises the pending count" **side by side**, because they are in direct tension and a future change that satisfies one by breaking the other is exactly how this shipped. Plus burst-collapse coverage and, in `agentBridgeClient.test.ts`, an agent-engine case asserting the wake does not depend on the activity count.
+
+### UX-034 — An agent that ends its session stays "watching" for up to 90 seconds; the bridge already knows and says nothing (BYOA)
+
+**Date:** 2026-07-20\
+**Status:** open\
+**Area/Component:** `writtten-bridge.mjs` `handleWait` (the `res.on("close")` cleanup); `agentActivityView.ts` `AGENT_PASS_IDLE_MS = 90_000`.\
+**Interaction:** The agent finished and stopped polling. The status row read `reading` for about another minute, then flipped to `watching`.\
+**Expected:** Some earlier signal that the agent has gone.\
+**Actual:** Both phases are technically accurate and both are stale. The agent's last act was a `GET /wait`, so `lastWaitAt` became the most recent signal and `watching` is what the phase derivation returns — for a full `AGENT_PASS_IDLE_MS` after the agent is gone. Nothing distinguishes an agent parked in a live watch loop from one whose session ended.\
+**Failure mode:** the milestone that built this readout ruled out an agent-side "done" call, correctly — it would grow the prompt the slimming milestone is shrinking, and it would be unenforceable anyway. But it concluded from that that decay was the *only* available answer, and **that inference skipped a signal the bridge already observes**: `handleWait` registers `res.on("close")` to clean up a parked waiter, so the bridge learns immediately when a watching agent's connection drops (session ended, process killed, Ctrl-C). It cleans up silently and tells the app nothing.\
+**Direction:** broadcast when a *parked* waiter's response closes without having been answered — distinguishing a client abort from the bridge's own `WAIT_TIMEOUT_MS` reply. Same additive shape as `pulled` and `waiting`: one `broadcast()` in the bridge, one named `addEventListener` in the client, no `protocolVersion` bump, and an older pasted bridge simply never sends it.\
+**Known limit, worth stating so it isn't mistaken for a full fix:** this catches the agent's *connection* going away, not the agent *deciding to stop*. An agent whose process is alive but which never calls `/wait` again after a normal timeout leaves no connection to close, and only decay can catch that. The win is turning "session ended" from a 90-second lie into an instant transition — which is the case the user actually hit.
+
+### UX-035 — The reading counter measures time since the last pull, not how long the pass has been running (BYOA)
+
+**Date:** 2026-07-20\
+**Status:** open\
+**Area/Component:** `agentActivityView.ts:108` — `reading · ${formatElapsed(now - pass.lastPullAt)}`.\
+**Interaction:** Watched the status row during an active review. The counter sat at `0:00` for a stretch, then began ticking normally, and never did it again in that session.\
+**Expected:** A counter that goes up while the agent is reading.\
+**Actual:** Frozen at `0:00`, then healthy.\
+**Failure mode:** not a stuck timer — the tick is fine (`ControlCenter.tsx:566`, a 1 s interval gated on the `reading` phase). The counter is `now - lastPullAt`, and **every `GET /doc` resets `lastPullAt`**. An agent polling in a tight loop therefore re-zeroes the counter on each pull, so it reads `0:00` continuously while a pass that is genuinely minutes old is under way; it "starts working" the moment the agent stops re-pulling. The non-reproducibility is the tell — it needs a burst of rapid pulls, which only some agent behaviours produce.\
+**Why it matters more than a cosmetic tick:** the readout's stated contract is *report facts, not progress* — elapsed time was chosen precisely because it is something writtten knows. But the label says `reading` (a pass) while the number measures *since last pull* (an event). Under a polling agent those diverge, and the row reports the smaller number, which understates how long the user has been waiting. It is the readout's own honesty rule broken by a subtler mechanism than the one it was written to prevent.\
+**Direction:** anchor the counter to the start of the current reading stretch rather than the latest pull — i.e. the first pull since the last `watching`/`quiet`/push — so consecutive pulls extend a pass instead of restarting it. Pure change to `agentActivityView.ts` plus one field on `AgentPass`; no protocol change.
+
+### UX-036 — Submissions are invisible in the status row: the agent is only ever "reading" or "watching" (BYOA)
+
+**Date:** 2026-07-20\
+**Status:** open\
+**Area/Component:** `agentActivityView.ts` `agentPassPhase` — `lastSubmissionAt` is folded into the `reading` phase (line 85) and surfaced nowhere.\
+**Interaction:** The agent submitted several observations. The status row said `reading` throughout, exactly as it had while the agent was only reading.\
+**Expected:** Some visible difference between an agent that is reading and one that is producing.\
+**Actual:** Two phase words for the whole lifecycle. Submissions re-arm the decay window and change nothing the user can see.\
+**Failure mode:** deliberate — the comment states that a submission keeps the phase `reading` because the agent has not gone back to waiting. That is defensible for *phase*, but it means the one signal that proves the agent is doing the work it was asked to do never reaches the row. Compounding it, the earlier `N submitted` counter was dropped on the correct reasoning that it counted **submissions, not acceptances**, so a register-lint burst could read `5 submitted` over a feed that gained nothing. Both decisions are individually right and together they leave production entirely unreported.\
+**Direction:** report **acceptances**, which is the honest version of the number the earlier decision rejected — the cards are already the ground truth, so a phase or suffix keyed on accepted-this-pass says something true and non-redundant. Cheap: the boundary's verdict is already known at the point the pass facts are updated. Worth deciding alongside UX-034, since both change what the status row can say.\
+**Second half of the report:** *"watching even when not polling"* — that is UX-034, filed separately because its fix is bridge-side.
+
+### UX-037 — A contradiction from an agent highlights only one of the two passages it is about (BYOA)
+
+**Date:** 2026-07-20\
+**Status:** open — **design consequence, not a defect in the code as written.**\
+**Area/Component:** `externalObservations.ts:61` (external conflict cards are single-anchor by construction); `App.tsx:571` (dual highlight requires `obs.conflictingBlockId != null`).\
+**Interaction:** Several sessions with a connected agent. Every `contradiction` card highlighted one passage; the passage it contradicts was never marked.\
+**Expected:** Both sides lit, as the built-in engine does.\
+**Actual:** One anchor, always — and it is unreachable, not intermittent: the boundary accepts a single `anchorText` and never populates `conflictingBlockId`, and the dual-highlight path requires it. Decision 4 of the BYOA design record chose this ("external conflict-type cards are single-anchor, no `conflictingBlockId` machinery") and explicitly accepted the hero-type trust risk, with the source chip named as the containment.\
+**Failure mode — what changed under it:** **both halves of that rationale are now gone.** The chip was removed outright by engine exclusivity, and, more seriously, an agent is no longer a *second* source whose weaker cards sit beside precision-guarded ones — it is **the** engine. So for every BYOA user the product's hero observation type is permanently degraded, with no stronger version available anywhere in the app and nothing on the card admitting it. A contradiction names a relationship between two passages; showing one of them makes the reader hunt for the other, which is the specific work the anchoring machinery exists to remove.\
+**Direction:** let a conflict-type submission carry a second verbatim quote, resolved locally by the same substring machinery as the first, and populate `conflictingBlockId` when both resolve. The invariant that matters is *the agent never learns block identity* — quotes preserve that, since resolution stays app-side. Rejection semantics follow decision (a): if the second quote does not resolve, hard-reject with a hint rather than silently degrading to one anchor, which is what taught sloppy anchoring in the first place. The conflict **lifecycle** exemptions stay as they are; this is about what the card shows, not about who may close it.\
+**Notes:** re-opens a settled decision, so it wants an explicit owner call rather than a quiet fix. Sequence with the engine-exclusivity follow-ups — this is the second thing that decision made more expensive than it looked (the first being the stale-copy sweep).
