@@ -141,21 +141,67 @@ describe("welcome modal", () => {
 });
 
 describe("engine control", () => {
-  it("renders no agent tab, and says why in its place", () => {
+  it("keeps the agent tab visible but never selectable, and says why", () => {
     enableAgentPreview();
     render(createElement(ControlCenter, controlProps));
     act(() => openSettings());
 
-    // The segmented control is gone entirely rather than left showing one option —
-    // a choice of one is noise, which is already why the group hides when the flag
-    // is off. Not a disabled tab: on iOS every browser is WebKit, so most affected
-    // users are on touch, where a disabled control gives no reason on tap.
-    expect(document.querySelector('[data-testid="engine-select"]')).toBeNull();
-    const note = document.querySelector('[data-testid="engine-agent-unavailable"]');
-    expect(note?.textContent).toMatch(/chrome, edge, or firefox/i);
-    // Somewhere to land for the user who has heard of the feature. Trailing slash is
-    // load-bearing — the SW denylist covers the no-slash form.
-    expect(note?.querySelector("a")?.getAttribute("href")).toBe("/agent/");
+    // The tab stays so someone who has heard of the feature finds where it went.
+    const tab = document.querySelector('[data-testid="engine-agent-blocked"]');
+    expect(tab).not.toBeNull();
+    expect(tab?.getAttribute("aria-disabled")).toBe("true");
+    // Never the `disabled` attribute: a disabled button fires no mouse events in
+    // most browsers, so the tooltip explaining it would never appear.
+    expect((tab as HTMLButtonElement).disabled).toBe(false);
+    // Not pressed, and not *un*pressed either — it is outside the selection.
+    expect(tab?.hasAttribute("aria-pressed")).toBe(false);
+
+    const tip = document.querySelector('[data-testid="engine-agent-tip"]');
+    expect(tip?.textContent).toMatch(/chrome, edge, or firefox/i);
+    // Trailing slash is load-bearing — the SW denylist covers the no-slash form.
+    expect(tip?.querySelector("a")?.getAttribute("href")).toBe("/agent/");
+    // Reachable non-visually too: hover and tap are both pointer affordances.
+    expect(tab?.getAttribute("aria-describedby")).toBe(tip?.getAttribute("id"));
+  });
+
+  /**
+   * The touch equivalent, which is the majority path rather than a courtesy: every
+   * iOS browser is WebKit, so most of the people who ever see this tab cannot hover.
+   * Hover itself is CSS (`:has`) and so is not observable here — this guards the
+   * half that is JS, and the half that would silently rot.
+   */
+  it("reveals the reason on tap, and closes again on a tap outside", () => {
+    enableAgentPreview();
+    render(createElement(ControlCenter, controlProps));
+    act(() => openSettings());
+    const tab = document.querySelector('[data-testid="engine-agent-blocked"]');
+    const tip = () => document.querySelector('[data-testid="engine-agent-tip"]');
+
+    expect(tip()?.className).not.toMatch(/is-open/);
+    act(() => {
+      tab?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+    expect(tip()?.className).toMatch(/is-open/);
+
+    // A tip opened by tap has no pointer to leave, so it needs an explicit way out.
+    act(() => {
+      document.body.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true }));
+    });
+    expect(tip()?.className).not.toMatch(/is-open/);
+  });
+
+  it("tapping the blocked tab reveals, and never selects", () => {
+    enableAgentPreview();
+    render(createElement(ControlCenter, controlProps));
+    act(() => openSettings());
+    act(() => {
+      document
+        .querySelector('[data-testid="engine-agent-blocked"]')
+        ?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+    // The whole point of keeping the tab: it must not become a way to take the slot.
+    expect(isBuiltinEngineActive()).toBe(true);
+    expect(document.querySelector('[data-testid="connect-agent"]')).toBeNull();
   });
 
   /**

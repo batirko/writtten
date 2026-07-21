@@ -626,18 +626,6 @@ body,
   font-size: var(--text-ui-sm);
   color: var(--color-ink-2);
 }
-/* The one link this note carries — the WebKit "what this is" route out to /agent/
-   (UX-044). Takes the house treatment .settings-oss-repo and .settings-legal already
-   use (accent, underline only on hover). Left unstyled it fell back to the UA
-   default, and a bright underlined blue was the loudest thing in the panel — which
-   inverts the point, since this line reports a limitation. */
-.setting-note-idle a {
-  color: var(--color-accent-strong);
-  text-decoration: none;
-}
-.setting-note-idle a:hover {
-  text-decoration: underline;
-}
 /* "✓ Key set" — the per-field status now carries the credential state (the
    standing key-status card was retired). Bold + the success green so it reads
    at a glance against the muted helper text around it. */
@@ -699,6 +687,91 @@ body,
 }
 .engine-seg svg {
   flex: none;
+}
+
+/* The agent tab on a browser that can never reach a loopback bridge (UX-044).
+   Visible, so someone who has heard of the feature finds where it went — but never
+   selectable. Dimmer than an unselected tab, because "unavailable" has to read
+   differently from "not picked", and those are the only two states this strip has. */
+.engine-tab-blocked,
+.engine-seg button.engine-tab-blocked:hover {
+  color: var(--color-border-strong);
+  cursor: default;
+}
+
+/* Positioning context for the tip. `.engine-seg` clips its children to keep the
+   active tab's tint inside its rounded corners, so the tip cannot live in there. */
+.engine-seg-wrap {
+  position: relative;
+}
+
+/* Same treatment as `.impact-popover`, the app's other hover explainer. Padding-top
+   rather than a `top` offset leaves no dead gap between tab and tip, so travelling
+   the pointer down into the tip doesn't dismiss it mid-reach. */
+.engine-tip {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  z-index: 10;
+  width: max-content;
+  max-width: min(260px, 100%);
+  padding: 5px 0 0;
+  /* Hidden by opacity, never `visibility` / `display`. Two reasons, both learned
+     the hard way here: `visibility: hidden` drops the tip out of the accessibility
+     tree, which would defeat the `aria-describedby` that makes the blocked tab
+     self-explaining without a pointer at all; and transitioning `visibility` leaves
+     it stuck at its start value whenever the browser suspends transitions (Safari
+     does this for a backgrounded window), so the tip silently never appears.
+     `pointer-events` does the job `visibility` was there for. */
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--dur-fast) var(--ease-out);
+}
+.engine-tip::before {
+  content: "";
+  position: absolute;
+  inset: 5px 0 0;
+  background: var(--color-ink);
+  border-radius: 5px;
+}
+.engine-tip {
+  color: #f5f5f7;
+  font-size: 0.7rem;
+  line-height: 1.5;
+}
+/* The text sits above the ::before sheet that paints the bubble. */
+.engine-tip > * {
+  position: relative;
+}
+.engine-tip a {
+  position: relative;
+  color: oklch(80% 0.09 274);
+  text-decoration: none;
+  white-space: nowrap;
+}
+.engine-tip a:hover {
+  text-decoration: underline;
+}
+
+/* Tap-revealed (touch, and keyboard Enter) — the majority path here, since every
+   iOS browser is WebKit and none of them hover. */
+.engine-tip.is-open {
+  opacity: 1;
+  pointer-events: auto;
+}
+/* Hover-revealed. `:has` scopes to a pointer device so a tap doesn't leave a
+   stuck sticky-hover tip behind it on touch. Keyboard focus is deliberately
+   outside that query — it must reveal the reason on any device. */
+@media (hover: hover) {
+  .engine-seg-wrap:has(.engine-tab-blocked:hover) .engine-tip,
+  .engine-seg-wrap:has(.engine-tip:hover) .engine-tip {
+    opacity: 1;
+    pointer-events: auto;
+  }
+}
+.engine-seg-wrap:has(.engine-tab-blocked:focus-visible) .engine-tip {
+  opacity: 1;
+  pointer-events: auto;
 }
 
 /* --- Multi-provider BYOK settings (docs/projects/multi_provider_router.md §D) --- */

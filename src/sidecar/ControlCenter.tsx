@@ -349,6 +349,10 @@ export const ENGINE_OPTIONS: EngineOption[] = [
   },
 ];
 
+/** Ties the blocked tab to its explanation for assistive tech (`aria-describedby`),
+ *  which is the non-visual equivalent of the hover/tap reveal. */
+const AGENT_TIP_ID = "engine-agent-tip";
+
 export function engineHelp(engine: EngineId): string {
   return (ENGINE_OPTIONS.find((o) => o.id === engine) ?? ENGINE_OPTIONS[0]).help;
 }
@@ -555,6 +559,11 @@ export function ControlCenter({
   // scoped to WebKit **and** https: by the predicate itself, so a self-hoster on
   // http://localhost keeps the agent path, which genuinely works there.
   const [agentSupport] = useState(currentAgentBrowserSupport);
+  // Tap-to-reveal for the blocked agent tab's explanation. Hover is handled in CSS;
+  // this is the touch (and keyboard-Enter) equivalent, which is the *majority* path
+  // here rather than a courtesy — see the tip's comment at its render site.
+  const [agentTipOpen, setAgentTipOpen] = useState(false);
+  const engineSegRef = useRef<HTMLDivElement>(null);
   // Set while a switch away from a live pairing waits on the user's answer.
   const [switchConfirm, setSwitchConfirm] = useState(false);
   const [archiveOnSwitch, setArchiveOnSwitch] = useState(false);
@@ -623,6 +632,17 @@ export function ControlCenter({
       }),
     [agentSupport.supported]
   );
+
+  // A tip opened by tap has no pointer to leave, so it needs an explicit way out.
+  // Same idiom as the control-center's own tap-open below.
+  useEffect(() => {
+    if (!agentTipOpen) return;
+    const onOutside = (e: PointerEvent) => {
+      if (!engineSegRef.current?.contains(e.target as Node)) setAgentTipOpen(false);
+    };
+    document.addEventListener("pointerdown", onOutside);
+    return () => document.removeEventListener("pointerdown", onOutside);
+  }, [agentTipOpen]);
 
   // Touch open: the actions reveal on hover / focus-within on desktop, but a
   // phone has neither — tapping the anchor pins the control-center open so its
@@ -1059,16 +1079,11 @@ export function ControlCenter({
             {agentBridgeEnabled() && (
               <div className="setting-group">
                 <label>Engine</label>
-                {/* On a browser that cannot reach a loopback bridge, the choice is
-                    not a choice — so it isn't rendered as one. A tab is an offer
-                    like the two CTAs were, and the rule for all three is the same:
-                    don't offer what cannot work (UX-044). Not a disabled tab: on
-                    iOS — where every browser is WebKit, so most of the affected
-                    users are — a disabled control gives no reason on tap. The line
-                    below carries the reason instead, in the place the choice would
-                    have been, and the seg is dropped entirely rather than left
-                    showing one option, matching the flag-off case just above. */}
-                {agentSupport.supported ? (
+                {/* The wrapper exists only to anchor the tip: `.engine-seg` clips its
+                    own children (`overflow: hidden`, which is what keeps the active
+                    tab's tint inside the rounded corners), so a popover rendered
+                    inside it is invisible. Owner-caught on the mock, 2026-07-21. */}
+                <div className="engine-seg-wrap" ref={engineSegRef}>
                   <div
                     className="engine-seg"
                     data-testid="engine-select"
@@ -1077,13 +1092,30 @@ export function ControlCenter({
                   >
                     {ENGINE_OPTIONS.map((opt) => {
                       const active = opt.id === engine;
+                      // On a browser that can never reach a loopback bridge the agent
+                      // tab stays visible but is never selectable — someone who has
+                      // heard of the feature should find where it went, and be told
+                      // why in the same gesture (owner, 2026-07-21; UX-044).
+                      const blocked = opt.id === "agent" && !agentSupport.supported;
                       return (
                         <button
                           key={opt.id}
                           type="button"
-                          className={active ? "is-active" : undefined}
-                          aria-pressed={active}
-                          onClick={() => selectEngine(opt.id)}
+                          className={
+                            [active ? "is-active" : "", blocked ? "engine-tab-blocked" : ""]
+                              .filter(Boolean)
+                              .join(" ") || undefined
+                          }
+                          // `aria-disabled`, never the `disabled` attribute: a disabled
+                          // button fires no mouse events in most browsers, so the very
+                          // tooltip that explains it would never appear.
+                          aria-disabled={blocked || undefined}
+                          aria-pressed={blocked ? undefined : active}
+                          aria-describedby={blocked ? AGENT_TIP_ID : undefined}
+                          data-testid={blocked ? "engine-agent-blocked" : undefined}
+                          onClick={() =>
+                            blocked ? setAgentTipOpen((v) => !v) : selectEngine(opt.id)
+                          }
                         >
                           {opt.id === "builtin" ? <KeyIcon /> : <TerminalIcon />}
                           {opt.label}
@@ -1091,15 +1123,26 @@ export function ControlCenter({
                       );
                     })}
                   </div>
-                ) : (
-                  <span className="setting-note-idle" data-testid="engine-agent-unavailable">
-                    Agent review needs Chrome, Edge, or Firefox — Safari can&rsquo;t reach a
-                    bridge on this machine.{" "}
-                    <a href="/agent/" target="_blank" rel="noreferrer">
-                      What this is
-                    </a>
-                  </span>
-                )}
+                  {/* Hover reveals this on a pointer device (CSS `:has`); tapping the
+                      tab toggles it. Touch is not the edge case here — every iOS
+                      browser is WebKit, so most of the people who ever see this tab
+                      have no hover at all, and a hover-only reason would be
+                      unreadable to them (CLAUDE.md § Design quality). */}
+                  {!agentSupport.supported && (
+                    <div
+                      id={AGENT_TIP_ID}
+                      role="note"
+                      data-testid="engine-agent-tip"
+                      className={`engine-tip${agentTipOpen ? " is-open" : ""}`}
+                    >
+                      Safari can&rsquo;t reach a bridge on this machine. Open writtten in
+                      Chrome, Edge, or Firefox to use an agent.{" "}
+                      <a href="/agent/" target="_blank" rel="noreferrer">
+                        What this is
+                      </a>
+                    </div>
+                  )}
+                </div>
                 {/* The two paths differ in who runs the checks, what they cost, and
                     where the document travels. Naming that at the moment of choosing
                     is the whole containment now that the per-card chip is gone. */}
