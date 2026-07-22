@@ -157,7 +157,10 @@ describe("engine control", () => {
     expect(tab?.hasAttribute("aria-pressed")).toBe(false);
 
     const tip = document.querySelector('[data-testid="engine-agent-tip"]');
-    expect(tip?.textContent).toMatch(/chrome, edge, or firefox/i);
+    expect(tip?.textContent).toMatch(/chrome.*edge.*firefox/i);
+    // The AI app's own browser is offered as a working target, not framed as blocked:
+    // it is Chromium-based, so it reaches the bridge, and the agent already lives there.
+    expect(tip?.textContent).toMatch(/ai app/i);
     // Trailing slash is load-bearing — the SW denylist covers the no-slash form.
     expect(tip?.querySelector("a")?.getAttribute("href")).toBe("/agent/");
     // Reachable non-visually too: hover and tap are both pointer affordances.

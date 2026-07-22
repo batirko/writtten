@@ -1140,15 +1140,15 @@ export function ControlCenter({
                           raised only element children above it, so the two sentences
                           (a text node) hid behind the sheet and only the link showed. */}
                       <div className="engine-tip-card">
-                        {/* Not just "Safari" — the block is WebKit-on-https, which also
-                            catches the in-app browser some AI coding tools embed, and
-                            that is exactly where a BYOA user is likely standing. Named
-                            as a category, not per-app: a specific app's engine can
-                            change under us, and a per-app capability claim would rot. */}
+                        {/* The AI coding app's own browser goes in the *works* list, not
+                            the blocked one: it is Chromium-based, so it reaches the
+                            bridge — and a BYOA user already runs that app, with the agent
+                            right there in it, so it is the most natural target of all.
+                            Only WebKit-on-https (Safari, iOS) is actually blocked. */}
                         <p className="engine-tip-text">
-                          Safari and some in-app browsers &mdash; including those in AI coding
-                          tools &mdash; can&rsquo;t reach a bridge on this machine. Open writtten
-                          in Chrome, Edge, or Firefox to connect an agent.
+                          Safari can&rsquo;t reach a bridge on this machine. Open writtten in
+                          Chrome, Edge, Firefox, or your AI app&rsquo;s own browser to connect an
+                          agent.
                         </p>
                         <a
                           className="engine-tip-link"
