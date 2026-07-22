@@ -444,17 +444,25 @@
 
       <ul class="checks">
         <li>
-          <strong>Your browser will ask permission first.</strong> Chrome and Firefox both
-          show a prompt about reaching other apps or services on this device &mdash;
-          that is this connection, and you have to <strong>Allow</strong> it. If you block it,
-          the bridge can never answer and nothing on screen will explain why, so allow it or
-          clear the choice in your browser&rsquo;s site permissions.
+          <strong>The browser built into your AI coding app</strong> is the most natural home for
+          this &mdash; writtten and your agent end up side by side in one app, and the agent you
+          connect is already running right there. These browsers are generally built on the same
+          engine as Chrome, so they reach the bridge the same way desktop Chrome does. Open writtten
+          in that browser and connect from inside the app.
+        </li>
+        <li>
+          <strong>Your browser will ask permission first.</strong> Chrome, Edge, Firefox, and the
+          Chromium-based browsers inside AI apps show a prompt about reaching other apps or services
+          on this device &mdash; that is this connection, and you have to <strong>Allow</strong> it.
+          If you block it, the bridge can never answer and nothing on screen will explain why, so
+          allow it or clear the choice in your browser&rsquo;s site permissions.
         </li>
         <li><strong>Chrome and Edge</strong> work, once you allow the prompt.</li>
         <li><strong>Firefox</strong> works, once you allow the prompt.</li>
         <li>
-          <strong>Safari</strong> does not, and has no setting to change it. Use one of the others,
-          or run writtten locally.
+          <strong>Safari</strong> does not, and has no setting to change it: its engine blocks this
+          connection whenever the page is served over https. Use one of the others, or self-host
+          writtten on <code>http://localhost</code>, where the block doesn&rsquo;t apply.
         </li>
       </ul>
 
