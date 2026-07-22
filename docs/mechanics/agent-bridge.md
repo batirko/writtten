@@ -18,7 +18,7 @@ It lives in `services/`, not `model/`, because selection sits **above** `ModelRo
 
 | Event                                                              | Slot goes to                            | Where                          |
 | ------------------------------------------------------------------ | --------------------------------------- | ------------------------------ |
-| picking "Your agent" in Settings, or the `connect-agent` deep-link | `agent`                                 | `ControlCenter`                |
+| picking "Your agent" in Settings, or the `connect-agent` deep-link | `agent` — **only where a bridge is reachable** (§ _Browsers never offered the path_) | `ControlCenter`                |
 | picking a key provider                                             | `builtin`, **tearing the pairing down** | `ControlCenter.selectEngine`   |
 | a browser that can't reach loopback (agent selected in Safari)     | `builtin`, via `releaseAgentEngine()`   | `useAgentBridge` resume effect |
 | the BYOA flag is off                                               | `builtin`, whatever storage says        | `evalEngine` hydrate           |
@@ -32,6 +32,30 @@ The surviving asymmetry is narrower and still load-bearing: a browser that can *
 What this costs is that **"selected but not running" became an ordinary resting state** rather than a near-unreachable one — see § _Saying when nothing is reading_ below, which is the other half of the same decision and not optional.
 
 Deselecting a live pairing tears it down rather than leaving it connected-but-ignored: a bridge that keeps pushing and submitting into a writtten that ignores it is the parallel-source world through the back door, and it parks the user's agent in a wait loop forever. When it has active cards the switch asks first (`engine-switch-confirm`, archive unchecked — the cards belong to the user); with none it is silent, matching Disconnect's own rule.
+
+### Browsers never offered the path
+
+`src/services/agentOffer.ts` — `agentPathOffered()` — answers *should this browser be offered the agent path at all?*, and is the gate on **every on-ramp**: the first-run welcome modal (`App.tsx`), the keyless banner (`SidecarFeed.tsx`), and the Engine control (`ControlCenter.tsx`). It ANDs two independent reasons to say no: the BYOA preview flag, and `agentBrowserSupport.ts` — WebKit **and** `https:`, so a self-hoster on `http://localhost` keeps a path that genuinely works there, and iOS Chrome/Firefox are caught because the predicate reads `navigator.vendor`, not a UA "Safari" token.
+
+Before 2026-07-21 every on-ramp asked only the flag, and the detection module — which already existed, already pure — was consulted nowhere but inside the connect panel, one level *below* the choice, where it is only ever read after the fact. So Safari was offered the path on three surfaces at once (UX-044).
+
+**The expensive half was invisible.** All three on-ramps routed through `openSettings("connect-agent")`, whose handler called `setEngine("agent")` with no support check. The agent then held the slot, gating the built-in evaluator off through all four `isBuiltinEngineActive()` guards — against a slot WebKit can never serve, since `connect()` returns early and the pairing never starts. The user was told the agent was unavailable and was **not** told the engine that worked had just been paused; the copy naming the pause renders only in the `connected` state, which WebKit cannot reach.
+
+What ships (owner, 2026-07-21, after seeing an earlier build that removed the tab entirely): **the agent tab stays visible and is never selectable**, and it explains itself on hover or tap in a **light info-card** (`.engine-tip-card` — surface bg, hairline border, soft shadow; a dark tooltip was tried first and read as a heavy slab for two sentences of copy). Someone who has heard of the feature finds where it went and is told why in the same gesture. The card links `/agent/`, the static page that already covers the feature and its Safari section in full.
+
+The copy offers the AI coding app's own browser as a **working** target, not a blocked one: *"Safari can't reach a bridge on this machine. Open writtten in Chrome, Edge, Firefox, or your AI app's own browser to connect an agent."* Only WebKit-on-https (Safari, iOS) is blocked. A BYOA user is by construction running an AI coding tool (Claude Code / Codex / Cursor), whose embedded browser is **Chromium-based** and so reaches the bridge exactly as desktop Chrome does — and with the agent already in that app, it is the most natural target of all. The predicate reflects this precisely, which is why the tip never shows inside a Chromium in-app browser in the first place. (A matching update to `public/agent/index.html` is an owed follow-up, 2026-07-22.)
+
+Three implementation constraints, each of which broke a version of this before it worked:
+
+- **`aria-disabled`, never the `disabled` attribute.** A disabled button fires no mouse events in most browsers, so the card that explains the disablement would never appear. The click handler no-ops into the card toggle instead of `selectEngine`.
+- **The card is anchored outside `.engine-seg`.** That element sets `overflow: hidden` to keep the active tab's tint inside its rounded corners, so a popover rendered inside it is clipped to nothing. `.engine-seg-wrap` exists solely to be the positioning context.
+- **Hidden by `opacity` + `pointer-events`, never `visibility`; and the content is a real element, never a bare text node.** `visibility: hidden` removes the card from the accessibility tree, defeating the `aria-describedby` that makes the tab self-explaining without a pointer — and transitioning `visibility` leaves it pinned at its start value whenever the browser suspends transitions (Safari does this for a backgrounded window), so the card silently never appears. The bare-text-node trap was its own bug: the first light-card attempt painted the background as a `::before` sheet and raised only element children above it, so the two-sentence text node hid behind the sheet and only the `<a>` showed — hence the card background lives on a real `.engine-tip-card` element, not a pseudo-sheet.
+
+**Hover is CSS (`:has`, scoped to `@media (hover: hover)`); tap is React state.** The tap path is not a courtesy — every iOS browser is WebKit, so most of the people who will ever see this tab cannot hover, and a hover-only reason would be unreadable to them (CLAUDE.md § Design quality). Keyboard `:focus-visible` reveals it too, deliberately outside the hover media query so it works on any device.
+
+**Offering and running are guarded separately, on purpose.** `agentPathOffered()` governs only what is shown. The slot is guarded where it *moves* — `selectEngine` and the `connect-agent` deep-link handler both refuse `agent` when support is false — and a stale `"agent"` written by a session on another browser is handed back at mount by `releaseAgentEngine()` (the row in the table above). Hiding a button is a UI decision; the built-in evaluator staying live is an invariant, and it must not depend on one.
+
+Verified in Safari 2026-07-22 on an https origin with the preview flag on: the agent tab present and `aria-disabled` (and *not* DOM-disabled); the card hidden at rest and revealed on tap with **all of its text visible** (the light-card rebuild's whole point), sitting 6 px under the tab; no CTA on either on-ramp; no agent clause in the keyless copy; and `localStorage["writtten_engine"]` never written — including after tapping the blocked tab and after dispatching the `connect-agent` deep-link directly, which opens Settings but moves nothing. Clean at 375 px (card 250 px, no horizontal overflow). CSS hover could not be driven programmatically (it needs a real pointer, and macOS Accessibility was not granted) and was confirmed by the owner by hand.
 
 ### Saying when nothing is reading
 

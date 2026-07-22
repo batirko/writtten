@@ -689,6 +689,93 @@ body,
   flex: none;
 }
 
+/* The agent tab on a browser that can never reach a loopback bridge (UX-044).
+   Visible, so someone who has heard of the feature finds where it went — but never
+   selectable. Dimmer than an unselected tab, because "unavailable" has to read
+   differently from "not picked", and those are the only two states this strip has. */
+.engine-tab-blocked,
+.engine-seg button.engine-tab-blocked:hover {
+  color: var(--color-border-strong);
+  cursor: default;
+}
+
+/* Positioning context for the tip. `.engine-seg` clips its children to keep the
+   active tab's tint inside its rounded corners, so the tip cannot live in there. */
+.engine-seg-wrap {
+  position: relative;
+}
+
+/* Reveal + positioning wrapper only — the card below carries the looks. `top: 100%`
+   plus `padding-top` (not a `top` offset) leaves no dead gap between tab and card,
+   so travelling the pointer down into the card doesn't dismiss it mid-reach.
+   Hidden by opacity + `pointer-events`, never `visibility` / `display`: `visibility:
+   hidden` drops the card out of the accessibility tree, defeating the
+   `aria-describedby` that makes the blocked tab self-explaining without a pointer;
+   and transitioning `visibility` leaves it pinned at its start value whenever the
+   browser suspends transitions (Safari does this for a backgrounded window), so the
+   card silently never appears. */
+.engine-tip {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  z-index: 10;
+  width: min(250px, 100%);
+  padding-top: 6px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--dur-fast) var(--ease-out);
+}
+/* A light info-card, not a dark tooltip: two sentences read better here than crammed
+   into a terse bubble, and it sits more calmly over the settings than a solid slab
+   (owner, 2026-07-22). Content is a real element — the first version painted this as
+   a `::before` sheet and raised only element children above it, so the two-sentence
+   text node hid behind the sheet and only the link showed (UX-044). */
+.engine-tip-card {
+  background: var(--color-surface);
+  border: 0.5px solid var(--color-border-strong);
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+  padding: 10px 12px;
+}
+.engine-tip-text {
+  margin: 0;
+  font-size: 0.75rem;
+  line-height: 1.5;
+  color: var(--color-ink-2);
+}
+.engine-tip-link {
+  display: inline-block;
+  margin-top: 8px;
+  font-size: 0.75rem;
+  color: var(--color-accent-strong);
+  text-decoration: none;
+  white-space: nowrap;
+}
+.engine-tip-link:hover {
+  text-decoration: underline;
+}
+
+/* Tap-revealed (touch, and keyboard Enter) — the majority path here, since every
+   iOS browser is WebKit and none of them hover. */
+.engine-tip.is-open {
+  opacity: 1;
+  pointer-events: auto;
+}
+/* Hover-revealed. `:has` scopes to a pointer device so a tap doesn't leave a
+   stuck sticky-hover tip behind it on touch. Keyboard focus is deliberately
+   outside that query — it must reveal the reason on any device. */
+@media (hover: hover) {
+  .engine-seg-wrap:has(.engine-tab-blocked:hover) .engine-tip,
+  .engine-seg-wrap:has(.engine-tip:hover) .engine-tip {
+    opacity: 1;
+    pointer-events: auto;
+  }
+}
+.engine-seg-wrap:has(.engine-tab-blocked:focus-visible) .engine-tip {
+  opacity: 1;
+  pointer-events: auto;
+}
+
 /* --- Multi-provider BYOK settings (docs/projects/multi_provider_router.md §D) --- */
 .provider-seg {
   display: flex;

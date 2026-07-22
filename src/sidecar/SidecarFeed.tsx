@@ -5,6 +5,7 @@ import { formatAnchorExcerpt } from "./anchorExcerpt";
 import type { GroupedObservation } from "./feedBudget";
 import { openSettings } from "./settingsGate";
 import { agentBridgeEnabled } from "../services/featureFlags";
+import { agentPathOffered } from "../services/agentOffer";
 import { getEngine, subscribeEngine, type EngineId } from "../services/evalEngine";
 import { closureReasonLabel } from "./closureLabel";
 import {
@@ -101,7 +102,12 @@ function KeyIcon() {
 }
 
 function KeylessBanner({ demoActive }: { demoActive: boolean }) {
-  const agent = agentBridgeEnabled();
+  // Gates the link *and* the prose. On a browser that cannot reach a loopback
+  // bridge there is no agent path to offer, and the sub-line's "an agent keeps it
+  // on your machine entirely" is the same offer made in words — dropping the
+  // button while keeping the promise would leave the reader hunting for a route
+  // that does not exist here (UX-044).
+  const agent = agentPathOffered();
   return (
     <div className="keyless-banner" data-testid="keyless-banner" role="note">
       <span className="keyless-banner-icon">
