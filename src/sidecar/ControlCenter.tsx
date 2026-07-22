@@ -1135,11 +1135,30 @@ export function ControlCenter({
                       data-testid="engine-agent-tip"
                       className={`engine-tip${agentTipOpen ? " is-open" : ""}`}
                     >
-                      Safari can&rsquo;t reach a bridge on this machine. Open writtten in
-                      Chrome, Edge, or Firefox to use an agent.{" "}
-                      <a href="/agent/" target="_blank" rel="noreferrer">
-                        What this is
-                      </a>
+                      {/* Content lives in a real element, never as a bare text node:
+                          the first version painted the card as a `::before` sheet and
+                          raised only element children above it, so the two sentences
+                          (a text node) hid behind the sheet and only the link showed. */}
+                      <div className="engine-tip-card">
+                        {/* Not just "Safari" — the block is WebKit-on-https, which also
+                            catches the in-app browser some AI coding tools embed, and
+                            that is exactly where a BYOA user is likely standing. Named
+                            as a category, not per-app: a specific app's engine can
+                            change under us, and a per-app capability claim would rot. */}
+                        <p className="engine-tip-text">
+                          Safari and some in-app browsers &mdash; including those in AI coding
+                          tools &mdash; can&rsquo;t reach a bridge on this machine. Open writtten
+                          in Chrome, Edge, or Firefox to connect an agent.
+                        </p>
+                        <a
+                          className="engine-tip-link"
+                          href="/agent/"
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          What this is <span aria-hidden="true">&rarr;</span>
+                        </a>
+                      </div>
                     </div>
                   )}
                 </div>

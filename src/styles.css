@@ -705,51 +705,53 @@ body,
   position: relative;
 }
 
-/* Same treatment as `.impact-popover`, the app's other hover explainer. Padding-top
-   rather than a `top` offset leaves no dead gap between tab and tip, so travelling
-   the pointer down into the tip doesn't dismiss it mid-reach. */
+/* Reveal + positioning wrapper only — the card below carries the looks. `top: 100%`
+   plus `padding-top` (not a `top` offset) leaves no dead gap between tab and card,
+   so travelling the pointer down into the card doesn't dismiss it mid-reach.
+   Hidden by opacity + `pointer-events`, never `visibility` / `display`: `visibility:
+   hidden` drops the card out of the accessibility tree, defeating the
+   `aria-describedby` that makes the blocked tab self-explaining without a pointer;
+   and transitioning `visibility` leaves it pinned at its start value whenever the
+   browser suspends transitions (Safari does this for a backgrounded window), so the
+   card silently never appears. */
 .engine-tip {
   position: absolute;
   top: 100%;
   right: 0;
   z-index: 10;
-  width: max-content;
-  max-width: min(260px, 100%);
-  padding: 5px 0 0;
-  /* Hidden by opacity, never `visibility` / `display`. Two reasons, both learned
-     the hard way here: `visibility: hidden` drops the tip out of the accessibility
-     tree, which would defeat the `aria-describedby` that makes the blocked tab
-     self-explaining without a pointer at all; and transitioning `visibility` leaves
-     it stuck at its start value whenever the browser suspends transitions (Safari
-     does this for a backgrounded window), so the tip silently never appears.
-     `pointer-events` does the job `visibility` was there for. */
+  width: min(250px, 100%);
+  padding-top: 6px;
   opacity: 0;
   pointer-events: none;
   transition: opacity var(--dur-fast) var(--ease-out);
 }
-.engine-tip::before {
-  content: "";
-  position: absolute;
-  inset: 5px 0 0;
-  background: var(--color-ink);
-  border-radius: 5px;
+/* A light info-card, not a dark tooltip: two sentences read better here than crammed
+   into a terse bubble, and it sits more calmly over the settings than a solid slab
+   (owner, 2026-07-22). Content is a real element — the first version painted this as
+   a `::before` sheet and raised only element children above it, so the two-sentence
+   text node hid behind the sheet and only the link showed (UX-044). */
+.engine-tip-card {
+  background: var(--color-surface);
+  border: 0.5px solid var(--color-border-strong);
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+  padding: 10px 12px;
 }
-.engine-tip {
-  color: #f5f5f7;
-  font-size: 0.7rem;
+.engine-tip-text {
+  margin: 0;
+  font-size: 0.75rem;
   line-height: 1.5;
+  color: var(--color-ink-2);
 }
-/* The text sits above the ::before sheet that paints the bubble. */
-.engine-tip > * {
-  position: relative;
-}
-.engine-tip a {
-  position: relative;
-  color: oklch(80% 0.09 274);
+.engine-tip-link {
+  display: inline-block;
+  margin-top: 8px;
+  font-size: 0.75rem;
+  color: var(--color-accent-strong);
   text-decoration: none;
   white-space: nowrap;
 }
-.engine-tip a:hover {
+.engine-tip-link:hover {
   text-decoration: underline;
 }
 
