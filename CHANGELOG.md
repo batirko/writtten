@@ -8,6 +8,13 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 > conventional-commit PR titles; a new version section is prepended when a release PR merges.
 > See `docs/mechanics/release_and_deploy.md`.
 
+## [0.9.2](https://github.com/batirko/writtten/compare/writtten-v0.9.1...writtten-v0.9.2) (2026-07-23)
+
+
+### Fixed
+
+* **byoa:** a resumed pairing must check the local-network permission, not reattach blind ([#258](https://github.com/batirko/writtten/issues/258)) ([115f1ca](https://github.com/batirko/writtten/commit/115f1cafa3f18ef89a0558441a1f82e142df9958))
+
 ## [0.9.1](https://github.com/batirko/writtten/compare/writtten-v0.9.0...writtten-v0.9.1) (2026-07-23)
 
 
