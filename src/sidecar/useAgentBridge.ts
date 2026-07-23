@@ -26,6 +26,12 @@ import {
   type AgentBrowserSupport,
 } from "../services/agentBrowserSupport";
 import {
+  currentLoopbackPermission,
+  preflightBranch,
+  subscribeLoopbackPermission,
+  type LoopbackPermission,
+} from "../services/agentLocalNetworkPermission";
+import {
   submitExternalObservation,
   sanitizeSourceName,
 } from "../services/externalObservations";
@@ -49,6 +55,33 @@ import { nanoid } from "nanoid";
 
 /** Single-document app; mirrors the constant in App.tsx / Editor.tsx. */
 const DOC_ID = "default";
+
+/**
+ * How long to wait before admitting the wait isn't going anywhere.
+ *
+ * The probe loop is deliberately patient and silent — on Chrome the first fetch
+ * can hang until the local-network prompt is answered, so impatience would strand
+ * a pairing that was about to work. But patience with nothing on screen is the
+ * defect this milestone exists to remove, and the causes we *cannot* detect are
+ * the ones that need it most: a dialog the browser suppressed, an embedded shell
+ * that force-denies every permission, Firefox (whose state we can't yet vouch
+ * for), or the user allowing it and simply never running the bridge.
+ *
+ * Long enough to clear a slow allow-then-start, short enough that nobody decides
+ * the product is broken first.
+ */
+const STALLED_AFTER_MS = 25_000;
+
+/**
+ * Where the local-network pre-flight is in its two-step handshake.
+ *
+ * `asking` exists because the probe is *what raises the browser dialog*, so
+ * anything we render at probe time appears at the same instant as the dialog —
+ * and in the same corner of the screen, since both point at the address bar. The
+ * dialog is browser chrome and always wins that fight. Explaining first and
+ * probing second is the only ordering where the explanation can actually be read.
+ */
+export type PreflightPhase = "none" | "asking" | "blocked";
 
 const IDLE: BridgeStatus = {
   state: "idle",
@@ -80,6 +113,21 @@ export interface AgentBridgeView {
    *  submitted (closure reason `source_revoked`); `false` keeps the cards, which
    *  then read as revoked-but-kept on their chips. */
   revoke: (archive: boolean) => Promise<void>;
+  /** The local-network pre-flight step, when this browser's state warrants one. */
+  preflight: PreflightPhase;
+  /** Acknowledge the pre-flight and start probing — the act that raises the dialog. */
+  proceed: () => void;
+  /** Re-read the permission after the user has gone and changed it. */
+  recheckPermission: () => void;
+  /** The initial wait has run long enough that silence is no longer honest. */
+  stalled: boolean;
+  /**
+   * We could not read the permission, so the waiting state keeps the old
+   * unconditional "your browser will ask" line. False once a real reading let us
+   * say something better (or say nothing, on `granted`). Defaults true, which is
+   * exactly today's behaviour — the honest posture when we know nothing.
+   */
+  permissionUnreadable: boolean;
 }
 
 export function useAgentBridge(): AgentBridgeView {
@@ -89,7 +137,12 @@ export function useAgentBridge(): AgentBridgeView {
   const [prompt, setPrompt] = useState<string | null>(null);
   const [promptError, setPromptError] = useState<string | null>(null);
   const [activeFromSource, setActiveFromSource] = useState(0);
+  const [preflight, setPreflight] = useState<PreflightPhase>("none");
+  const [stalled, setStalled] = useState(false);
+  const [permissionUnreadable, setPermissionUnreadable] = useState(true);
   const handleRef = useRef<AgentBridgeHandle | null>(null);
+  /** The live PermissionStatus, kept so the pre-flight can watch it change. */
+  const permissionRef = useRef<LoopbackPermission | null>(null);
   /** Feeds the boundary's rate check — survives re-renders, resets with the pairing. */
   const lastSubmissionAtRef = useRef<number | undefined>(undefined);
 
@@ -197,10 +250,9 @@ export function useAgentBridge(): AgentBridgeView {
     };
   }, [start, support.supported]);
 
-  const connect = useCallback(() => {
-    // Nothing to wait for on a browser that cannot reach loopback. The panel
-    // shows the reason instead of a spinner that can never resolve.
-    if (!support.supported) return;
+  /** The probe itself — and therefore the moment the browser dialog is raised. */
+  const beginPairing = useCallback(() => {
+    setPreflight("none");
     setPromptError(null);
     setPrompt(null);
     // Generating a new prompt invalidates the previous pairing — exactly one at a time.
@@ -209,7 +261,82 @@ export function useAgentBridge(): AgentBridgeView {
     buildAgentPrompt({ token: pairing.token, ports: pairing.ports, origin: pairing.origin })
       .then(setPrompt)
       .catch(() => setPromptError("Couldn't build the prompt. Reload and try again."));
-  }, [start, support.supported]);
+  }, [start]);
+
+  const connect = useCallback(() => {
+    // Nothing to wait for on a browser that cannot reach loopback. The panel
+    // shows the reason instead of a spinner that can never resolve.
+    if (!support.supported) return;
+    void (async () => {
+      const permission = await currentLoopbackPermission();
+      permissionRef.current = permission;
+      setPermissionUnreadable(preflightBranch(permission) === "unknown");
+      switch (preflightBranch(permission)) {
+        case "prompt":
+          // Explain before probing, never alongside it.
+          setPreflight("asking");
+          return;
+        case "denied":
+          // The one case worth refusing outright: probing here buys a wait that
+          // cannot end, which is the failure this milestone was written about.
+          setPreflight("blocked");
+          return;
+        default:
+          // `granted` (nothing to say) and `unknown` (nothing we can say
+          // truthfully — the fallback copy carries it) both go straight through.
+          beginPairing();
+      }
+    })();
+  }, [beginPairing, support.supported]);
+
+  /**
+   * The user changed the permission somewhere we can't see and came back. Read
+   * it again rather than trusting the branch we captured before they left.
+   */
+  const recheckPermission = useCallback(() => {
+    void (async () => {
+      const permission = await currentLoopbackPermission();
+      permissionRef.current = permission;
+      setPermissionUnreadable(preflightBranch(permission) === "unknown");
+      if (preflightBranch(permission) === "denied") {
+        setPreflight("blocked");
+        return;
+      }
+      beginPairing();
+    })();
+  }, [beginPairing]);
+
+  /**
+   * Watch the permission while the pre-flight is on screen.
+   *
+   * The payoff is the blocked branch: a user who goes to site settings and allows
+   * it gets moved on without having to find our button again. `onchange` is
+   * present on every status measured, so this costs one listener and removes a
+   * dead end.
+   */
+  useEffect(() => {
+    if (preflight === "none") return;
+    const permission = permissionRef.current;
+    if (!permission?.status) return;
+    return subscribeLoopbackPermission(permission.status, () => {
+      if (permission.status?.state === "granted") beginPairing();
+    });
+  }, [preflight, beginPairing]);
+
+  /**
+   * Start the "this isn't going anywhere" clock, scoped to the *initial* wait.
+   *
+   * Deliberately not applied to `disconnected`, which has its own retry story and
+   * a name on screen — the user there knows what they're waiting for.
+   */
+  useEffect(() => {
+    if (status.state !== "waiting") {
+      setStalled(false);
+      return;
+    }
+    const timer = setTimeout(() => setStalled(true), STALLED_AFTER_MS);
+    return () => clearTimeout(timer);
+  }, [status.state]);
 
   const cancel = useCallback(() => {
     handleRef.current?.stop();
@@ -218,6 +345,9 @@ export function useAgentBridge(): AgentBridgeView {
     setPrompt(null);
     setPromptError(null);
     setStatus(IDLE);
+    // Backing out of the pre-flight is a cancel too — and it has no pairing to
+    // tear down, since nothing has touched loopback yet.
+    setPreflight("none");
     // Deliberately does NOT release the slot. Tearing down a pairing is not the same
     // act as choosing a key, and the app must not choose one on the user's behalf:
     // that silently starts spending their API quota moments after they disconnected,
@@ -304,5 +434,10 @@ export function useAgentBridge(): AgentBridgeView {
     cancel,
     activeFromSource,
     revoke,
+    preflight,
+    proceed: beginPairing,
+    recheckPermission,
+    stalled,
+    permissionUnreadable,
   };
 }

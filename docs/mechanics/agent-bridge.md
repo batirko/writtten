@@ -215,6 +215,27 @@ The bridge is plain HTTP on loopback, which WebKit on Apple platforms refuses fr
 
 The predicate is `navigator.vendor === "Apple Computer, Inc."` **and** an `https:` origin. Vendor rather than a UA substring: it catches iOS Chrome and iOS Firefox, which are WebKit underneath and equally blocked, and does not false-positive on desktop Chrome (whose UA carries a `Safari` token for historical reasons). Scoped to HTTPS because from an `http://localhost` origin the request is same-scheme and unblocked — refusing there would deny the self-hoster a path that works.
 
+### The local-network permission, and the two-step it forces
+
+Every browser that _can_ reach the bridge gates it behind a local-network permission. The dialog is browser chrome — invisible to the page, unobservable by any automation — but the **state behind it is readable** before we ever probe (`agentLocalNetworkPermission.ts`), and that is what the connect flow branches on.
+
+**The permission name is per-engine, and each engine answers for the other's name with a plausible wrong value.** Measured 2026-07-23 on `https://writtten.com`, every reading validated by querying `geolocation`/`notifications`/`camera` in the same call:
+
+| engine      | `local-network-access` | `local-network`  |
+| ----------- | ---------------------- | ---------------- |
+| Chrome 150  | `granted` ← real gate  | `prompt` (decoy) |
+| Firefox 152 | throws `TypeError`     | `prompt`         |
+
+So the module tries an **ordered list, first-that-resolves**. The order is load-bearing: `local-network-access` first, because on Chrome the other name reads `prompt` even when loopback is genuinely granted — reversing it would raise a pre-flight at every connect for every Chrome user who already allowed it. Only `local-network-access` is a **confirmed gate** (a real grant reads back through it); Firefox's `local-network` resolves but has never been observed tracking a grant, so it is treated as no reading at all until it is. An unconfirmed name may never drive the refuse-to-probe branch: mis-hiding a pre-flight costs a paragraph, a wrong `denied` blocks a connection that would have worked.
+
+**A `denied` reading is verified against a control row before it is believed.** The Electron-based browsers inside AI coding apps — which `/agent` recommends first — return `denied` for _everything_, controls included. That is a shell reporting its own policy, not the user's answer, and a shell can deny the Permissions API while still letting the loopback fetch through. When all three controls are also `denied`, the reading is discarded as unreadable.
+
+**Four branches, and a two-step.** `granted` shows nothing and goes straight to waiting (every repeat connect). `prompt` raises a pre-flight. `denied` refuses to probe and shows the recovery path. Anything unreadable keeps the old unconditional "your browser will ask" line.
+
+The pre-flight is **two-step on purpose**: the probe _is_ what raises the dialog, so anything rendered at probe time appears at the same instant and in the same corner of the screen — and browser chrome always wins that fight. The user clicks Connect, reads what is about to happen (and optionally _why_ a writing tool wants the local network: the loopback hop is the mechanism behind "your document is not sent to writtten's servers"), then Continue starts the probe. Repeat users never see it.
+
+**And a floor under all of it.** After 25 s of waiting with no handshake, the panel names the three causes it cannot distinguish — permission not allowed · bridge not started · every port busy. Every detection above can still be wrong (a suppressed dialog, a force-denying shell, an allow followed by no bridge), and "waits forever with nothing explaining why" is the failure this whole area exists to remove.
+
 ## Lifecycle — what may close an external card
 
 **The rule: an observation carrying `source` is not the evaluator's to close.** Our model has no standing to decide another critic's finding is resolved, and no precision floor covering that judgement.
