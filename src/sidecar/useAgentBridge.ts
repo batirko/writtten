@@ -143,6 +143,11 @@ export function useAgentBridge(): AgentBridgeView {
   const handleRef = useRef<AgentBridgeHandle | null>(null);
   /** The live PermissionStatus, kept so the pre-flight can watch it change. */
   const permissionRef = useRef<LoopbackPermission | null>(null);
+  /** A pairing whose reattach is deferred behind the pre-flight — set when a
+   *  *resume* (not a fresh connect) has to explain or recover before it probes.
+   *  Reattaching the existing pairing rather than minting a new one matters: an
+   *  agent may still be running that bridge, and a new token would strand it. */
+  const pendingResumeRef = useRef<Pairing | null>(null);
   /** Feeds the boundary's rate check — survives re-renders, resets with the pairing. */
   const lastSubmissionAtRef = useRef<number | undefined>(undefined);
 
@@ -216,40 +221,6 @@ export function useAgentBridge(): AgentBridgeView {
     return handleRef.current.subscribe(setStatus);
   }, []);
 
-  // Resume an existing pairing across a reload, so re-running the bridge reconnects with
-  // no UI work (decision 7).
-  useEffect(() => {
-    if (!agentBridgeEnabled()) return;
-    const existing = loadPairing();
-    // A browser that cannot reach loopback at all (chose the agent in Chrome, opened
-    // writtten in Safari) can never serve the slot it holds — and unlike "not
-    // connected yet", that is not a state the user can act their way out of on this
-    // machine. Hand the slot back.
-    if (!support.supported) {
-      releaseAgentEngine();
-      return;
-    }
-    // No stored pairing is NOT a release any more. Selecting the agent is a standing
-    // choice, so "agent selected, nothing attached" is an ordinary state that
-    // survives a reload — the panel says "Connect your agent", and the readout says
-    // nothing is reading. Releasing here would silently move the user to a key they
-    // did not pick, which is the defect this model exists to remove (UX-041).
-    if (!existing) return;
-    const unsubscribe = start(existing);
-    void buildAgentPrompt({
-      token: existing.token,
-      ports: existing.ports,
-      origin: existing.origin,
-    })
-      .then(setPrompt)
-      .catch(() => setPromptError("Couldn't build the prompt. Reload and try again."));
-    return () => {
-      unsubscribe();
-      handleRef.current?.stop();
-      handleRef.current = null;
-    };
-  }, [start, support.supported]);
-
   /** The probe itself — and therefore the moment the browser dialog is raised. */
   const beginPairing = useCallback(() => {
     setPreflight("none");
@@ -263,10 +234,39 @@ export function useAgentBridge(): AgentBridgeView {
       .catch(() => setPromptError("Couldn't build the prompt. Reload and try again."));
   }, [start]);
 
+  /** Reattach a stored pairing rather than minting a new one — the resume
+   *  counterpart of `beginPairing`, used once the pre-flight (if any) is cleared. */
+  const resumePairing = useCallback(
+    (pairing: Pairing) => {
+      setPreflight("none");
+      setPromptError(null);
+      start(pairing);
+      void buildAgentPrompt({
+        token: pairing.token,
+        ports: pairing.ports,
+        origin: pairing.origin,
+      })
+        .then(setPrompt)
+        .catch(() => setPromptError("Couldn't build the prompt. Reload and try again."));
+    },
+    [start]
+  );
+
+  /** Leave the pre-flight and start reading: reattach a deferred resume if there
+   *  is one (an agent may still be on that bridge), otherwise mint a fresh pairing. */
+  const proceedFromPreflight = useCallback(() => {
+    const resume = pendingResumeRef.current;
+    pendingResumeRef.current = null;
+    if (resume) resumePairing(resume);
+    else beginPairing();
+  }, [beginPairing, resumePairing]);
+
   const connect = useCallback(() => {
     // Nothing to wait for on a browser that cannot reach loopback. The panel
     // shows the reason instead of a spinner that can never resolve.
     if (!support.supported) return;
+    // A fresh connect is never a resume — drop any pairing a prior resume deferred.
+    pendingResumeRef.current = null;
     void (async () => {
       const permission = await currentLoopbackPermission();
       permissionRef.current = permission;
@@ -302,21 +302,79 @@ export function useAgentBridge(): AgentBridgeView {
         setPreflight("blocked");
         return;
       }
-      beginPairing();
+      proceedFromPreflight();
     })();
-  }, [beginPairing]);
+  }, [proceedFromPreflight]);
 
   /** Stop probing and surface the recovery — the block is unrecoverable until
    *  the user changes a browser setting, so waiting on it is the dead end this
-   *  feature exists to remove. */
+   *  feature exists to remove. The pairing is *kept*, not cleared: a block is a
+   *  browser setting, not a teardown, and the agent's bridge may still be running,
+   *  so allowing again should reattach that pairing rather than mint a new token.
+   *  Deferring it lets the watcher (or Try again) resume it. */
   const showBlocked = useCallback(() => {
     handleRef.current?.stop();
     handleRef.current = null;
-    clearPairing();
     setPrompt(null);
     setStatus(IDLE);
+    pendingResumeRef.current = loadPairing();
     setPreflight("blocked");
   }, []);
+
+  // Resume an existing pairing across a reload, so re-running the bridge reconnects
+  // with no UI work (decision 7) — but not blind.
+  useEffect(() => {
+    if (!agentBridgeEnabled()) return;
+    // A browser that cannot reach loopback at all (chose the agent in Chrome, opened
+    // writtten in Safari) can never serve the slot it holds — and unlike "not
+    // connected yet", that is not a state the user can act their way out of on this
+    // machine. Hand the slot back.
+    if (!support.supported) {
+      releaseAgentEngine();
+      return;
+    }
+    // No stored pairing is NOT a release any more. Selecting the agent is a standing
+    // choice, so "agent selected, nothing attached" is an ordinary state that
+    // survives a reload — the panel says "Connect your agent", and the readout says
+    // nothing is reading. Releasing here would silently move the user to a key they
+    // did not pick, which is the defect this model exists to remove (UX-041).
+    const existing = loadPairing();
+    if (!existing) return;
+
+    // A resumed pairing must consult the permission the same way a fresh connect
+    // does. The first build skipped it and reattached blind — so a permission
+    // blocked *between* sessions resumed straight into a probe that could never
+    // answer, with nothing on screen saying why, and `permissionRef` left empty so
+    // even the live watcher couldn't see the block. Now the resume branches like
+    // connect, deferring the actual reattach behind the pre-flight (`pendingResume`)
+    // so `granted` later reconnects the existing bridge rather than minting a token.
+    let cancelled = false;
+    void (async () => {
+      const permission = await currentLoopbackPermission();
+      if (cancelled) return;
+      permissionRef.current = permission;
+      setPermissionUnreadable(preflightBranch(permission) === "unknown");
+      switch (preflightBranch(permission)) {
+        case "denied":
+          pendingResumeRef.current = existing;
+          setPreflight("blocked");
+          return;
+        case "prompt":
+          // Reattaching would raise the dialog cold again; explain first.
+          pendingResumeRef.current = existing;
+          setPreflight("asking");
+          return;
+        default:
+          resumePairing(existing);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      handleRef.current?.stop();
+      handleRef.current = null;
+    };
+  }, [resumePairing, support.supported]);
 
   /**
    * Watch the permission from the pre-flight all the way through the wait.
@@ -337,13 +395,13 @@ export function useAgentBridge(): AgentBridgeView {
     return subscribeLoopbackPermission(st, () => {
       if (st.state === "granted") {
         // Only when we're parked on the callout; during the wait the in-flight
-        // probe will succeed on its own, and beginPairing would double the pairing.
-        if (preflight !== "none") beginPairing();
+        // probe will succeed on its own, and proceeding would double the pairing.
+        if (preflight !== "none") proceedFromPreflight();
       } else if (st.state === "denied") {
         showBlocked();
       }
     });
-  }, [preflight, status.state, beginPairing, showBlocked]);
+  }, [preflight, status.state, proceedFromPreflight, showBlocked]);
 
   /**
    * Start the "this isn't going anywhere" clock, scoped to the *initial* wait.
@@ -367,9 +425,10 @@ export function useAgentBridge(): AgentBridgeView {
     setPrompt(null);
     setPromptError(null);
     setStatus(IDLE);
-    // Backing out of the pre-flight is a cancel too — and it has no pairing to
-    // tear down, since nothing has touched loopback yet.
+    // Backing out of the pre-flight is a cancel too — drop any deferred resume so
+    // a later allow doesn't silently reattach a pairing the user just dismissed.
     setPreflight("none");
+    pendingResumeRef.current = null;
     // Deliberately does NOT release the slot. Tearing down a pairing is not the same
     // act as choosing a key, and the app must not choose one on the user's behalf:
     // that silently starts spending their API quota moments after they disconnected,
@@ -457,7 +516,7 @@ export function useAgentBridge(): AgentBridgeView {
     activeFromSource,
     revoke,
     preflight,
-    proceed: beginPairing,
+    proceed: proceedFromPreflight,
     recheckPermission,
     stalled,
     permissionUnreadable,
