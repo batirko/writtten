@@ -16,9 +16,6 @@ export function ConnectAgent({
   cancel,
   activeFromSource,
   revoke,
-  preflight,
-  proceed,
-  recheckPermission,
   stalled,
   permissionUnreadable,
 }: AgentBridgeView) {
@@ -113,7 +110,12 @@ export function ConnectAgent({
         </>
       )}
 
-      {support.supported && status.state === "idle" && preflight === "none" && (
+      {/* The pre-flight and blocked states render as an app-level callout pinned
+          toward the address bar (`AgentPreflightCallout`), not here — the browser's
+          own prompt appears up there, and a warning about a decision has to sit
+          where the decision does. This section keeps showing the connect button
+          behind the dim, so backing out of the callout returns the user to it. */}
+      {support.supported && status.state === "idle" && (
         <>
           <p className="connect-lede">
             Review with a coding agent you already run — Claude Code, Codex, or another. No
@@ -131,86 +133,6 @@ export function ConnectAgent({
             Chrome, Edge, or Firefox. Safari can&rsquo;t reach a local bridge.
           </span>
         </>
-      )}
-
-      {/* Stage 1. Raised by the click, before anything touches loopback — because
-          the probe IS what raises the browser dialog, so a block rendered at probe
-          time appears at the same instant, in the same corner, and loses: the
-          dialog is browser chrome and sits above the page. Explaining first is the
-          only ordering where the explanation can be read at all. Repeat users
-          never see this — a `granted` reading skips straight to waiting. */}
-      {support.supported && preflight === "asking" && (
-        <div className="connect-preflight" role="group" data-testid="connect-agent-preflight">
-          <p className="connect-preflight-title">
-            Next, your browser will ask to reach your local network
-          </p>
-          <p className="connect-preflight-body">
-            That prompt <em>is</em> this connection — allow it and your agent can answer. It
-            appears near your address bar.
-          </p>
-          {/* A disclosure, styled as one. An underlined accent link here read as
-              navigation to another page, which it isn't. */}
-          <details className="connect-preflight-why">
-            <summary>Why does a writing tool need this?</summary>
-            <p>
-              Your agent runs a small bridge on this machine. writtten talks to it over
-              127.0.0.1 — a hop that never leaves your computer. That loopback is exactly why
-              your document isn&rsquo;t sent to writtten&rsquo;s servers.
-            </p>
-          </details>
-          <div className="connect-actions">
-            <button
-              type="button"
-              className="connect-btn connect-btn-primary"
-              data-testid="connect-agent-preflight-continue"
-              onClick={proceed}
-            >
-              Continue
-            </button>
-            <button type="button" className="connect-btn" onClick={cancel}>
-              Cancel
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* The case this milestone was written about, now detectable: probing would
-          buy a wait that can never end, so we don't. Deliberately worded to hold
-          whether the browser recorded a block or a dismissal — which of those
-          `denied` means is unmeasured, and claiming the wrong one is worse than
-          describing the state we can actually see. */}
-      {support.supported && preflight === "blocked" && (
-        <div className="connect-denied" role="alert" data-testid="connect-agent-blocked">
-          <p className="connect-denied-text">
-            Your browser isn&rsquo;t allowing writtten to reach your local network. Nothing can
-            connect until it does — allow local network access in your site settings for
-            writtten, then try again.
-          </p>
-          <div className="connect-actions">
-            <button
-              type="button"
-              className="connect-btn"
-              data-testid="connect-agent-recheck"
-              onClick={recheckPermission}
-            >
-              Try again
-            </button>
-            {/* A way back out. Without it this block replaces the connect button
-                permanently for anyone who can't change the setting, leaving the
-                section with no path to its own starting state. */}
-            <button type="button" className="connect-btn" onClick={cancel}>
-              Not now
-            </button>
-            <a
-              className="connect-explain"
-              href="/agent/#browsers"
-              target="_blank"
-              rel="noreferrer"
-            >
-              How to clear it →
-            </a>
-          </div>
-        </div>
       )}
 
       {status.state === "waiting" && (

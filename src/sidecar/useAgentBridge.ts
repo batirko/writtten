@@ -306,22 +306,44 @@ export function useAgentBridge(): AgentBridgeView {
     })();
   }, [beginPairing]);
 
+  /** Stop probing and surface the recovery — the block is unrecoverable until
+   *  the user changes a browser setting, so waiting on it is the dead end this
+   *  feature exists to remove. */
+  const showBlocked = useCallback(() => {
+    handleRef.current?.stop();
+    handleRef.current = null;
+    clearPairing();
+    setPrompt(null);
+    setStatus(IDLE);
+    setPreflight("blocked");
+  }, []);
+
   /**
-   * Watch the permission while the pre-flight is on screen.
+   * Watch the permission from the pre-flight all the way through the wait.
    *
-   * The payoff is the blocked branch: a user who goes to site settings and allows
-   * it gets moved on without having to find our button again. `onchange` is
-   * present on every status measured, so this costs one listener and removes a
-   * dead end.
+   * Two payoffs, and the second is a bug the first build shipped without. (1) A
+   * user who allows in site settings is moved on without hunting for a button —
+   * the auto-continue. (2) A user who clicks **Block** on the real dialog, which
+   * only appears *after* `beginPairing` has left the pre-flight, would otherwise
+   * be met with a silent probe loop until the 25 s floor — the old watcher was
+   * torn down the moment the pre-flight closed. Watching until `connected` means
+   * a live block flips straight to the recovery. `onchange` is present on every
+   * status measured, so this is one listener.
    */
   useEffect(() => {
-    if (preflight === "none") return;
-    const permission = permissionRef.current;
-    if (!permission?.status) return;
-    return subscribeLoopbackPermission(permission.status, () => {
-      if (permission.status?.state === "granted") beginPairing();
+    if (status.state === "connected") return;
+    const st = permissionRef.current?.status;
+    if (!st) return;
+    return subscribeLoopbackPermission(st, () => {
+      if (st.state === "granted") {
+        // Only when we're parked on the callout; during the wait the in-flight
+        // probe will succeed on its own, and beginPairing would double the pairing.
+        if (preflight !== "none") beginPairing();
+      } else if (st.state === "denied") {
+        showBlocked();
+      }
     });
-  }, [preflight, beginPairing]);
+  }, [preflight, status.state, beginPairing, showBlocked]);
 
   /**
    * Start the "this isn't going anywhere" clock, scoped to the *initial* wait.

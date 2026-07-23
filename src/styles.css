@@ -2465,35 +2465,75 @@ body,
 }
 
 /* ---- Local-network permission pre-flight (BYOA) --------------------------
-   Two blocks that stand in for the connect button rather than sitting beside
-   it, because both replace the action rather than annotating it.
-
-   Tinted, not grey-ruled: the note above reserves the flat grey rule for
-   statements with no action ("Safari can't reach a bridge"), and both of these
-   carry a CTA. Amber is deliberately NOT used even though `denied` is a
-   failure — this file reserves amber for problems in the user's *document*,
-   and borrowing it here would make a browser setting read as a writing
-   problem. */
-.connect-preflight,
-.connect-denied {
-  margin: var(--space-xs) 0;
-  padding: 11px 12px;
-  background: var(--color-accent-tint);
-  border-radius: var(--radius-md);
+   An app-level callout, portaled to <body> and pinned toward the top-left of
+   the viewport — where Chrome and Firefox both drop the local-network prompt
+   (near the address bar / site-info icon). It deliberately leaves the Settings
+   modal: the browser's dialog is chrome that sits above the page, and a warning
+   about a decision has to appear where the decision does, not as a line in a
+   panel the user scans past (the videoconferencing pattern). The scrim dims the
+   whole app, modal included, so attention goes up to the prompt. */
+.agent-preflight-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 2100; /* above the settings modal (1000) and its confirms */
+  background: var(--color-scrim);
+  animation: fadeIn var(--dur-fast) var(--ease-out);
 }
-.connect-preflight-title {
+.agent-preflight-callout {
+  position: fixed;
+  top: 14px;
+  left: 16px;
+  width: min(360px, calc(100vw - 32px));
+  background: var(--color-surface);
+  border: 1px solid var(--color-accent);
+  border-radius: 10px;
+  box-shadow: 0 8px 28px rgba(26, 26, 24, 0.18);
+  padding: 14px 15px;
+  animation: fadeIn var(--dur-fast) var(--ease-out);
+}
+/* The upward notch, pointing at the address bar the copy tells the user to look
+   at. On `denied` the callout is recovery, not an arrow to a prompt, so the
+   notch is dropped and a left accent rule stands in. */
+.agent-preflight-notch {
+  position: absolute;
+  top: -6px;
+  left: 26px;
+  width: 12px;
+  height: 12px;
+  background: var(--color-surface);
+  border-left: 1px solid var(--color-accent);
+  border-top: 1px solid var(--color-accent);
+  transform: rotate(45deg);
+}
+.agent-preflight-callout.is-blocked {
+  border-color: var(--color-border-strong);
+  border-left: 3px solid var(--color-accent);
+}
+.agent-preflight-callout.is-blocked .agent-preflight-notch {
+  display: none;
+}
+.agent-preflight-title {
   margin: 0 0 var(--space-2xs);
-  font-size: var(--text-ui-sm);
+  font-size: var(--text-ui);
   font-weight: 500;
-  line-height: 1.4;
+  line-height: 1.35;
   color: var(--color-ink);
 }
-.connect-preflight-body,
-.connect-denied-text {
+.agent-preflight-body {
   margin: 0;
   font-size: var(--text-ui-sm);
   line-height: 1.5;
   color: var(--color-ink-2);
+}
+.agent-preflight-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  margin-top: var(--space-sm);
+}
+/* Pushes the escape hatch to the far edge, away from the primary recovery. */
+.agent-preflight-dismiss {
+  margin-left: auto;
 }
 
 /* The "why does a writing tool need this" disclosure. Marker is a rotating
