@@ -1,5 +1,7 @@
 /** @vitest-environment jsdom */
 import { describe, it, expect, beforeEach, vi } from "vitest";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { createElement } from "react";
 import { createRoot } from "react-dom/client";
 import { act } from "react";
@@ -32,6 +34,13 @@ function render(view: Partial<AgentBridgeView> & { state: BridgeState }) {
     cancel: rest.cancel ?? vi.fn(),
     activeFromSource: rest.activeFromSource ?? 0,
     revoke: rest.revoke ?? vi.fn(async () => undefined),
+    preflight: rest.preflight ?? "none",
+    proceed: rest.proceed ?? vi.fn(),
+    recheckPermission: rest.recheckPermission ?? vi.fn(),
+    stalled: rest.stalled ?? false,
+    // Defaults to the unreadable branch so the existing cases keep asserting the
+    // old unconditional warning; the branch-specific cases opt out explicitly.
+    permissionUnreadable: rest.permissionUnreadable ?? true,
   };
   act(() => {
     createRoot(container).render(createElement(ConnectAgent, props));
@@ -262,5 +271,108 @@ describe("ConnectAgent — teardown", () => {
 
     const confirm = container.querySelector('[data-testid="connect-agent-confirm"]');
     expect(confirm?.textContent).toContain("1 observation ");
+  });
+
+  describe("the local-network permission pre-flight", () => {
+    it("asks before probing, and Continue is what starts the probe", () => {
+      // The probe is what raises the browser dialog, so the explanation has to be
+      // a separate step ahead of it — not something rendered alongside it.
+      const proceed = vi.fn();
+      const text = render({ state: "idle", preflight: "asking", proceed });
+
+      expect(text).toContain("your browser will ask to reach your local network");
+      // The connect button is replaced, not accompanied.
+      expect(container.querySelector('[data-testid="connect-agent-start"]')).toBeNull();
+
+      act(() => {
+        container
+          .querySelector<HTMLButtonElement>('[data-testid="connect-agent-preflight-continue"]')!
+          .click();
+      });
+      expect(proceed).toHaveBeenCalledOnce();
+    });
+
+    it("answers why a writing tool wants the local network, in a disclosure", () => {
+      render({ state: "idle", preflight: "asking" });
+      const why = container.querySelector(".connect-preflight-why");
+      // A <details>, not a link — the first build styled it as an underlined
+      // accent link, which read as navigation to another page.
+      expect(why?.tagName).toBe("DETAILS");
+      expect(why?.textContent).toContain("127.0.0.1");
+    });
+
+    it("on denied, refuses to probe and offers the recovery path instead", () => {
+      const recheckPermission = vi.fn();
+      const text = render({ state: "idle", preflight: "blocked", recheckPermission });
+
+      expect(text).toContain("allowing writtten to reach your local network");
+      expect(container.querySelector('[data-testid="connect-agent-start"]')).toBeNull();
+
+      act(() => {
+        container.querySelector<HTMLButtonElement>('[data-testid="connect-agent-recheck"]')!.click();
+      });
+      expect(recheckPermission).toHaveBeenCalledOnce();
+    });
+
+    it("leaves a way out of the blocked state", () => {
+      // Found in the browser: the block replaces the connect button, so without a
+      // dismiss anyone who can't change the setting is stranded in this section
+      // with no route back to its own starting state.
+      const cancel = vi.fn();
+      render({ state: "idle", preflight: "blocked", cancel });
+
+      const back = [...container.querySelectorAll("button")].find(
+        (b) => b.textContent === "Not now"
+      );
+      act(() => back!.click());
+      expect(cancel).toHaveBeenCalledOnce();
+    });
+
+    it("points recovery at a browser-support section that actually exists", () => {
+      render({ state: "idle", preflight: "blocked" });
+      const href = container
+        .querySelector('[data-testid="connect-agent-blocked"] a')
+        ?.getAttribute("href");
+      expect(href).toBe("/agent/#browsers");
+
+      // Assert the target, not just the link. A deep link to a heading nobody
+      // kept is a silently broken promise — and the page is hand-written HTML
+      // with no other anchors, so nothing else would catch its removal.
+      // Resolved from cwd, not `import.meta.url`: this file runs under jsdom,
+      // where `import.meta.url` is an http URL and `readFileSync` rejects it.
+      const page = readFileSync(join(process.cwd(), "public/agent/index.html"), "utf8");
+      expect(page).toContain('id="browsers"');
+    });
+
+    it("says nothing about permissions once the state is readable", () => {
+      // `granted` is every repeat connect. Repeating the warning there is the
+      // noise that sinks a warning nobody needs.
+      const text = render({ state: "waiting", permissionUnreadable: false });
+      expect(text).not.toContain("Your browser will ask for permission");
+    });
+
+    it("keeps the unconditional warning when the permission is unreadable", () => {
+      // Firefox and anything else we can't vouch for. Saying the generic true
+      // thing beats saying nothing.
+      const text = render({ state: "waiting", permissionUnreadable: true });
+      expect(text).toContain("Your browser will ask for permission");
+    });
+  });
+
+  describe("the wait that isn't going anywhere", () => {
+    it("stays quiet until the wait has actually run long", () => {
+      const text = render({ state: "waiting", stalled: false });
+      expect(text).not.toContain("Still nothing");
+    });
+
+    it("names all three causes without claiming to know which", () => {
+      // Every detection built here can still be wrong — a suppressed dialog, a
+      // force-denying shell, an allow followed by no bridge. This is the net.
+      const text = render({ state: "waiting", stalled: true });
+      expect(text).toContain("Still nothing on 127.0.0.1");
+      expect(text).toContain("the local-network prompt");
+      expect(text).toContain("started the bridge yet");
+      expect(text).toContain("every candidate port was busy");
+    });
   });
 });

@@ -435,7 +435,7 @@
         </p>
       </div>
 
-      <h2>Browser support</h2>
+      <h2 id="browsers">Browser support</h2>
 
       <p>
         The connection is a web page talking to a server on your own machine, and browsers differ on
@@ -454,8 +454,12 @@
           <strong>Your browser will ask permission first.</strong> Chrome, Edge, Firefox, and the
           Chromium-based browsers inside AI apps show a prompt about reaching other apps or services
           on this device &mdash; that is this connection, and you have to <strong>Allow</strong> it.
-          If you block it, the bridge can never answer and nothing on screen will explain why, so
-          allow it or clear the choice in your browser&rsquo;s site permissions.
+          It is worth knowing why a writing tool asks: the bridge runs on your own machine and
+          writtten reaches it over <code>127.0.0.1</code>, a hop that never leaves your computer.
+          That loopback is precisely why your document is not sent to writtten&rsquo;s servers, so
+          the permission is the mechanism behind that claim rather than an exception to it. If you
+          block it, the bridge can never answer and nothing on screen will explain why, so allow it
+          or clear the choice in your browser&rsquo;s site permissions.
         </li>
         <li><strong>Chrome and Edge</strong> work, once you allow the prompt.</li>
         <li><strong>Firefox</strong> works, once you allow the prompt.</li>

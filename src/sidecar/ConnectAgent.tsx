@@ -16,6 +16,11 @@ export function ConnectAgent({
   cancel,
   activeFromSource,
   revoke,
+  preflight,
+  proceed,
+  recheckPermission,
+  stalled,
+  permissionUnreadable,
 }: AgentBridgeView) {
   const [copied, setCopied] = useState(false);
   const [copyFailed, setCopyFailed] = useState(false);
@@ -108,7 +113,7 @@ export function ConnectAgent({
         </>
       )}
 
-      {support.supported && status.state === "idle" && (
+      {support.supported && status.state === "idle" && preflight === "none" && (
         <>
           <p className="connect-lede">
             Review with a coding agent you already run — Claude Code, Codex, or another. No
@@ -128,6 +133,86 @@ export function ConnectAgent({
         </>
       )}
 
+      {/* Stage 1. Raised by the click, before anything touches loopback — because
+          the probe IS what raises the browser dialog, so a block rendered at probe
+          time appears at the same instant, in the same corner, and loses: the
+          dialog is browser chrome and sits above the page. Explaining first is the
+          only ordering where the explanation can be read at all. Repeat users
+          never see this — a `granted` reading skips straight to waiting. */}
+      {support.supported && preflight === "asking" && (
+        <div className="connect-preflight" role="group" data-testid="connect-agent-preflight">
+          <p className="connect-preflight-title">
+            Next, your browser will ask to reach your local network
+          </p>
+          <p className="connect-preflight-body">
+            That prompt <em>is</em> this connection — allow it and your agent can answer. It
+            appears near your address bar.
+          </p>
+          {/* A disclosure, styled as one. An underlined accent link here read as
+              navigation to another page, which it isn't. */}
+          <details className="connect-preflight-why">
+            <summary>Why does a writing tool need this?</summary>
+            <p>
+              Your agent runs a small bridge on this machine. writtten talks to it over
+              127.0.0.1 — a hop that never leaves your computer. That loopback is exactly why
+              your document isn&rsquo;t sent to writtten&rsquo;s servers.
+            </p>
+          </details>
+          <div className="connect-actions">
+            <button
+              type="button"
+              className="connect-btn connect-btn-primary"
+              data-testid="connect-agent-preflight-continue"
+              onClick={proceed}
+            >
+              Continue
+            </button>
+            <button type="button" className="connect-btn" onClick={cancel}>
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* The case this milestone was written about, now detectable: probing would
+          buy a wait that can never end, so we don't. Deliberately worded to hold
+          whether the browser recorded a block or a dismissal — which of those
+          `denied` means is unmeasured, and claiming the wrong one is worse than
+          describing the state we can actually see. */}
+      {support.supported && preflight === "blocked" && (
+        <div className="connect-denied" role="alert" data-testid="connect-agent-blocked">
+          <p className="connect-denied-text">
+            Your browser isn&rsquo;t allowing writtten to reach your local network. Nothing can
+            connect until it does — allow local network access in your site settings for
+            writtten, then try again.
+          </p>
+          <div className="connect-actions">
+            <button
+              type="button"
+              className="connect-btn"
+              data-testid="connect-agent-recheck"
+              onClick={recheckPermission}
+            >
+              Try again
+            </button>
+            {/* A way back out. Without it this block replaces the connect button
+                permanently for anyone who can't change the setting, leaving the
+                section with no path to its own starting state. */}
+            <button type="button" className="connect-btn" onClick={cancel}>
+              Not now
+            </button>
+            <a
+              className="connect-explain"
+              href="/agent/#browsers"
+              target="_blank"
+              rel="noreferrer"
+            >
+              How to clear it →
+            </a>
+          </div>
+        </div>
+      )}
+
       {status.state === "waiting" && (
         <>
           <div className="connect-status" role="status" data-testid="connect-agent-status">
@@ -141,23 +226,47 @@ export function ConnectAgent({
             </p>
           )}
 
-          {/* Promoted out of the "Not working?" disclosure (2026-07-20 field report).
-              Chrome and Firefox both ask to reach other apps and services on this device
-              the moment we probe loopback — an unannounced prompt a user reasonably
-              dismisses. Blocking it is near-unrecoverable: the app waits forever with
-              nothing on screen explaining why, and the remedy is buried in browser site
-              permissions. A warning about a decision has to be readable BEFORE the
-              decision, so it cannot live in a collapsed disclosure.
+          {/* Promoted out of the "Not working?" disclosure (2026-07-20 field report),
+              and now CONDITIONAL rather than unconditional.
+
+              This line is the fallback branch: it runs only when we could not read
+              the permission state at all. When we can read it, the pre-flight above
+              said this better and earlier, and a `granted` reading means there is
+              nothing to warn about — repeating it at every later connect is the
+              noise that sinks a warning nobody needs.
 
               Deliberately browser-agnostic. Naming which browser prompts is what shipped
               wrong twice: the copy claimed Chrome asks and Firefox doesn't, and both
               halves were written from the spec's assumption rather than measurement. That
               claim rots with each browser release; "your browser will ask" does not. */}
-          <p className="connect-warn-soft">
-            Your browser will ask for permission to reach your local network &mdash; that
-            prompt is this connection. <strong>Allow it</strong>, or the bridge can never
-            answer.
-          </p>
+          {permissionUnreadable && (
+            <p className="connect-warn-soft">
+              Your browser will ask for permission to reach your local network &mdash; that
+              prompt is this connection. <strong>Allow it</strong>, or the bridge can never
+              answer.
+            </p>
+          )}
+
+          {/* The wait is patient and silent by design — on Chrome the first probe can
+              hang until the dialog is answered. But "waits forever with nothing on
+              screen explaining why" is this milestone's actual complaint, and it
+              survives every detection we just built: a suppressed dialog, an embedded
+              shell that force-denies everything, a browser whose state we can't vouch
+              for, or an allow followed by no bridge. Naming the three real causes
+              without claiming to know which is the only honest thing we can say. */}
+          {stalled && (
+            <div className="connect-stalled" role="status" data-testid="connect-agent-stalled">
+              <p className="connect-stalled-title">Still nothing on 127.0.0.1</p>
+              <p className="connect-stalled-body">
+                Any of three things — we can&rsquo;t tell which from here:
+              </p>
+              <ul className="connect-stalled-list">
+                <li>the local-network prompt wasn&rsquo;t allowed</li>
+                <li>your agent hasn&rsquo;t started the bridge yet</li>
+                <li>every candidate port was busy</li>
+              </ul>
+            </div>
+          )}
 
           {/* The old line — "it has your connection details baked in" — described the
               paste's plumbing and not its content, at a moment when the content was 33k

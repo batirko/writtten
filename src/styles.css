@@ -2464,6 +2464,109 @@ body,
   margin: 0;
 }
 
+/* ---- Local-network permission pre-flight (BYOA) --------------------------
+   Two blocks that stand in for the connect button rather than sitting beside
+   it, because both replace the action rather than annotating it.
+
+   Tinted, not grey-ruled: the note above reserves the flat grey rule for
+   statements with no action ("Safari can't reach a bridge"), and both of these
+   carry a CTA. Amber is deliberately NOT used even though `denied` is a
+   failure — this file reserves amber for problems in the user's *document*,
+   and borrowing it here would make a browser setting read as a writing
+   problem. */
+.connect-preflight,
+.connect-denied {
+  margin: var(--space-xs) 0;
+  padding: 11px 12px;
+  background: var(--color-accent-tint);
+  border-radius: var(--radius-md);
+}
+.connect-preflight-title {
+  margin: 0 0 var(--space-2xs);
+  font-size: var(--text-ui-sm);
+  font-weight: 500;
+  line-height: 1.4;
+  color: var(--color-ink);
+}
+.connect-preflight-body,
+.connect-denied-text {
+  margin: 0;
+  font-size: var(--text-ui-sm);
+  line-height: 1.5;
+  color: var(--color-ink-2);
+}
+
+/* The "why does a writing tool need this" disclosure. Marker is a rotating
+   chevron rather than the platform triangle, and the summary is ink-2 with no
+   underline: the first build styled it as an underlined accent link, which read
+   as navigation to another page. */
+.connect-preflight-why {
+  margin-top: var(--space-xs);
+  padding-top: var(--space-xs);
+  border-top: 0.5px solid var(--color-border);
+}
+.connect-preflight-why > summary {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: var(--text-ui-sm);
+  color: var(--color-ink-2);
+  cursor: pointer;
+  list-style: none;
+}
+.connect-preflight-why > summary::-webkit-details-marker {
+  display: none;
+}
+.connect-preflight-why > summary::before {
+  content: "›";
+  font-size: 1.1em;
+  line-height: 1;
+  color: var(--color-muted);
+  transition: transform var(--dur-fast) var(--ease-out);
+}
+.connect-preflight-why[open] > summary::before {
+  transform: rotate(90deg);
+}
+.connect-preflight-why > summary:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+.connect-preflight-why > p {
+  margin: var(--space-xs) 0 0 14px;
+  font-size: var(--text-ui-sm);
+  line-height: 1.55;
+  color: var(--color-ink-2);
+}
+
+/* The wait admitting it isn't going anywhere. Grey rule, not tint — unlike the
+   two above it has no single action to offer, only three candidate causes, so
+   it states rather than asks. */
+.connect-stalled {
+  margin-top: var(--space-sm);
+  padding: 6px 2px 6px 10px;
+  border-left: 2px solid var(--color-border-strong);
+}
+.connect-stalled-title {
+  margin: 0 0 var(--space-2xs);
+  font-size: var(--text-ui-sm);
+  font-weight: 500;
+  color: var(--color-ink);
+}
+.connect-stalled-body {
+  margin: 0;
+  font-size: var(--text-ui-sm);
+  line-height: 1.5;
+  color: var(--color-ink-2);
+}
+.connect-stalled-list {
+  margin: var(--space-2xs) 0 0;
+  padding-left: 16px;
+  font-size: var(--text-ui-sm);
+  line-height: 1.7;
+  color: var(--color-ink-2);
+}
+
 /* Teardown confirm: the "also archive its cards" option. Checkbox rather than a
    second danger button — the destructive half is opt-in, and a two-button
    "keep / archive" pair would make them read as equally weighted. */
