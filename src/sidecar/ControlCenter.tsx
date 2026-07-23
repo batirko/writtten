@@ -23,6 +23,7 @@ import { agentBridgeEnabled } from "../services/featureFlags";
 import { getEngine, setEngine, subscribeEngine, type EngineId } from "../services/evalEngine";
 import { currentAgentBrowserSupport } from "../services/agentBrowserSupport";
 import { ConnectAgent } from "./ConnectAgent";
+import { AgentPreflightCallout } from "./AgentPreflightCallout";
 import { useAgentBridge } from "./useAgentBridge";
 import { agentStatusView } from "./agentStatusView";
 import { agentPassPhase, agentStatusPhrase } from "./agentActivityView";
@@ -1472,6 +1473,11 @@ export function ControlCenter({
           </div>
         </div>
       )}
+
+      {/* App-level, so it escapes the Settings modal and pins toward the address
+          bar where the browser's own prompt appears. Portals to <body>; renders
+          nothing unless a pre-flight is active. */}
+      {agentBridgeEnabled() && <AgentPreflightCallout {...agentBridge} />}
 
       <div
         ref={controlCenterRef}

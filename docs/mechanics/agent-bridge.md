@@ -234,6 +234,10 @@ So the module tries an **ordered list, first-that-resolves**. The order is load-
 
 The pre-flight is **two-step on purpose**: the probe _is_ what raises the dialog, so anything rendered at probe time appears at the same instant and in the same corner of the screen — and browser chrome always wins that fight. The user clicks Connect, reads what is about to happen (and optionally _why_ a writing tool wants the local network: the loopback hop is the mechanism behind "your document is not sent to writtten's servers"), then Continue starts the probe. Repeat users never see it.
 
+It renders as an **app-level callout** (`AgentPreflightCallout`, portaled to `<body>`, pinned top-left toward the address bar over a dimmed app), not inside the Settings modal. An earlier build kept it in the connect section, where it read as a line that blinked past and where its action landed on the same spot the user had just clicked "Connect" — the browser's own prompt is chrome above the page, so the warning about it has to sit where it appears.
+
+The permission watcher lives **through the wait**, not just while the callout shows. The real dialog only appears _after_ the probe starts (i.e. after the callout has closed), so a user who clicks **Block** on it must still be caught: `local-network-access` flips to `denied`, and the watcher stops probing and raises the blocked callout instead of looping into the 25 s floor. The same watcher **auto-continues** the moment the user allows in site settings — no button to hunt for.
+
 **And a floor under all of it.** After 25 s of waiting with no handshake, the panel names the three causes it cannot distinguish — permission not allowed · bridge not started · every port busy. Every detection above can still be wrong (a suppressed dialog, a force-denying shell, an allow followed by no bridge), and "waits forever with nothing explaining why" is the failure this whole area exists to remove.
 
 ## Lifecycle — what may close an external card
