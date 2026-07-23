@@ -8,6 +8,13 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 > conventional-commit PR titles; a new version section is prepended when a release PR merges.
 > See `docs/mechanics/release_and_deploy.md`.
 
+## [0.9.1](https://github.com/batirko/writtten/compare/writtten-v0.9.0...writtten-v0.9.1) (2026-07-23)
+
+
+### Fixed
+
+* **byoa:** move the permission pre-flight to a standout callout, and stop waiting blind on a live block ([#256](https://github.com/batirko/writtten/issues/256)) ([bd4873b](https://github.com/batirko/writtten/commit/bd4873b4b5932189785ad9dc5f0b79088c04e1d7))
+
 ## [0.9.0](https://github.com/batirko/writtten/compare/writtten-v0.8.0...writtten-v0.9.0) (2026-07-23)
 
 
