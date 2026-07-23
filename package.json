@@ -1,6 +1,6 @@
 {
   "name": "writtten",
-  "version": "0.9.0",
+  "version": "0.9.1",
   "description": "A local-first writing tool where you do all the writing and the AI only reacts, flagging contradictions, unsupported claims, and gaps. It never rewrites your prose.",
   "private": true,
   "license": "Apache-2.0",
