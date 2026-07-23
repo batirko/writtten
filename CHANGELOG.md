@@ -8,6 +8,34 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 > conventional-commit PR titles; a new version section is prepended when a release PR merges.
 > See `docs/mechanics/release_and_deploy.md`.
 
+## [0.9.0](https://github.com/batirko/writtten/compare/writtten-v0.8.0...writtten-v0.9.0) (2026-07-23)
+
+
+### Added
+
+* **byoa:** give the connected agent our draft-maturity rule (UX-029) ([#232](https://github.com/batirko/writtten/issues/232)) ([6edaa0a](https://github.com/batirko/writtten/commit/6edaa0a8ab79260635a4d9829e3d783e0b71cf51))
+* **byoa:** let an agent anchor both sides of a contradiction (UX-037) ([#239](https://github.com/batirko/writtten/issues/239)) ([ff987b2](https://github.com/batirko/writtten/commit/ff987b222139b25cccf61073961d2b7cb490fb43))
+* **byoa:** let the user point their agent at their own lens (user_lens) ([#242](https://github.com/batirko/writtten/issues/242)) ([c594905](https://github.com/batirko/writtten/commit/c594905a7a6b0826dd0f14b4d5fd0e553ed68838))
+* **byoa:** materiality floor on the agent wake, not a byte-change detector ([#221](https://github.com/batirko/writtten/issues/221)) ([af42d49](https://github.com/batirko/writtten/commit/af42d495cf577fddf0d1ebdd43d1c97ae7237536))
+* **byoa:** read the local-network permission before probing, and never wait blind ([#255](https://github.com/batirko/writtten/issues/255)) ([ddd29c7](https://github.com/batirko/writtten/commit/ddd29c7a9ac4a82a52dd75009627161b2024b3bd))
+* **byoa:** report the agent's pass honestly — activity, evidence, and three silent failures ([#228](https://github.com/batirko/writtten/issues/228)) ([70adc9f](https://github.com/batirko/writtten/commit/70adc9f7d5a6d0bb977e459719e15a53d1cf3fa4))
+* **byoa:** serve the bridge script, and stop slimming the prompt that earns trust ([#243](https://github.com/batirko/writtten/issues/243)) ([49e89d9](https://github.com/batirko/writtten/commit/49e89d9fb0dea6faebffdba3d637404afa68e3df))
+* **byoa:** tell the agent WHAT changed, not just that something did ([#225](https://github.com/batirko/writtten/issues/225)) ([7986624](https://github.com/batirko/writtten/commit/798662407e1b00509d4de5f3e854f5cc8aba9b20))
+* **engine:** make a connected agent the engine, not a parallel source ([#234](https://github.com/batirko/writtten/issues/234)) ([27b89c6](https://github.com/batirko/writtten/commit/27b89c679fbf0d6ea50b5184b3b3ac5226574915))
+
+
+### Fixed
+
+* **byoa:** correct the browser-permission copy, and warn before the prompt ([#237](https://github.com/batirko/writtten/issues/237)) ([d6275ec](https://github.com/batirko/writtten/commit/d6275ecf1745fac7157f2ce0337f9781fd7fb95f))
+* **byoa:** make the agent status row report what is actually true ([#240](https://github.com/batirko/writtten/issues/240)) ([792c629](https://github.com/batirko/writtten/commit/792c629c3fd1a4822a4038e8a8c8cc068a036693))
+* **byoa:** stop offering Safari the agent path it cannot take (UX-044) ([#253](https://github.com/batirko/writtten/issues/253)) ([6d3bc52](https://github.com/batirko/writtten/commit/6d3bc52ff4cd3fe411fb64ca89b171025b0a7c95))
+* **byoa:** the engine tab is the selection — disconnecting no longer switches it ([#251](https://github.com/batirko/writtten/issues/251)) ([ad7b3b1](https://github.com/batirko/writtten/commit/ad7b3b1b526202eda3d09ba44ac5f86b6df314b2))
+* **byoa:** wake the agent on document settle, not on our eval queue draining ([#235](https://github.com/batirko/writtten/issues/235)) ([12f3f24](https://github.com/batirko/writtten/commit/12f3f24b38590c46051e1d88cdb8754362e3d542))
+* **editor:** list paste splitting and Backspace escape from lists ([#224](https://github.com/batirko/writtten/issues/224)) ([f27ecc3](https://github.com/batirko/writtten/commit/f27ecc3eb1c32bd351a5e1f8746091e4b9458547))
+* **editor:** merge a multi-block list item's later block instead of lifting the item ([#226](https://github.com/batirko/writtten/issues/226)) ([587e112](https://github.com/batirko/writtten/commit/587e11220f3ccbe31d78e67a2f56f9f7bfb5ec5d))
+* **eval:** make the corpus harness fail loudly instead of measuring nothing ([#245](https://github.com/batirko/writtten/issues/245)) ([864b49f](https://github.com/batirko/writtten/commit/864b49f268edd1042ba256545514ac0a0747cd3d))
+* point the worktree ignore rules at the real worktree path ([#241](https://github.com/batirko/writtten/issues/241)) ([0b173e3](https://github.com/batirko/writtten/commit/0b173e3ecdb09b9e4cc8725d067f34be2c93dde6))
+
 ## [0.8.0](https://github.com/batirko/writtten/compare/writtten-v0.7.0...writtten-v0.8.0) (2026-07-20)
 
 
