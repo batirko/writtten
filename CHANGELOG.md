@@ -8,6 +8,13 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 > conventional-commit PR titles; a new version section is prepended when a release PR merges.
 > See `docs/mechanics/release_and_deploy.md`.
 
+## [0.10.1](https://github.com/batirko/writtten/compare/writtten-v0.10.0...writtten-v0.10.1) (2026-07-24)
+
+
+### Fixed
+
+* **byoa:** detect a mid-session permission revoke (instant watch + POST-timeout backstop) ([#264](https://github.com/batirko/writtten/issues/264)) ([3b2be1b](https://github.com/batirko/writtten/commit/3b2be1b92828431ed63ab0d5977d87f7a10e3de6))
+
 ## [0.10.0](https://github.com/batirko/writtten/compare/writtten-v0.9.2...writtten-v0.10.0) (2026-07-24)
 
 
