@@ -4,6 +4,7 @@ import { createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { act } from "react";
 import { useAgentBridge } from "./useAgentBridge";
+import { EMPTY_PASS } from "./agentActivityView";
 import type { LoopbackPermission } from "../services/agentLocalNetworkPermission";
 
 // A resumed pairing must consult the local-network permission the same way a fresh
@@ -12,9 +13,20 @@ import type { LoopbackPermission } from "../services/agentLocalNetworkPermission
 // pins. We drive the real hook through a probe component (no renderHook in this repo)
 // and control only the permission reading, the stored pairing, and the bridge start.
 
+/** Captures the hook's `setStatus` so a test can drive the bridge to "connected". */
+let emitStatus: ((s: unknown) => void) | null = null;
 const startAgentBridge = vi.fn((config: { pairing: { token: string } }) => {
   void config; // typed so `.mock.calls[0][0]` is inspectable; not otherwise needed here
-  return { subscribe: () => () => {}, stop: () => {}, getStatus: () => ({}) as never };
+  return {
+    subscribe: (fn: (s: unknown) => void) => {
+      emitStatus = fn;
+      return () => {
+        emitStatus = null;
+      };
+    },
+    stop: () => {},
+    getStatus: () => ({}) as never,
+  };
 });
 const createPairing = vi.fn((origin: string) => ({
   token: "fresh-token",
@@ -75,6 +87,43 @@ function reading(state: string, confirmed = true): LoopbackPermission {
   };
 }
 
+/** A reading whose PermissionStatus is live — `fire(next)` drives an onchange,
+ *  the way the browser does when the user flips the setting mid-session. */
+function liveReading(initial: string) {
+  let handler: (() => void) | null = null;
+  const status = {
+    state: initial,
+    addEventListener(type: string, fn: () => void) {
+      if (type === "change") handler = fn;
+    },
+    removeEventListener() {
+      handler = null;
+    },
+    fire(next: string) {
+      status.state = next;
+      handler?.();
+    },
+  };
+  const reading: LoopbackPermission = {
+    state: initial as LoopbackPermission["state"],
+    name: "local-network-access",
+    confirmed: true,
+    status,
+  };
+  return { reading, status };
+}
+
+/** A minimal `connected` BridgeStatus for the fake handle to emit. */
+const CONNECTED = {
+  state: "connected",
+  agentName: "A",
+  port: 1,
+  error: null,
+  docVersion: null,
+  sessionId: "s",
+  pass: EMPTY_PASS,
+};
+
 let captured: ReturnType<typeof useAgentBridge>;
 function Probe() {
   captured = useAgentBridge();
@@ -97,6 +146,7 @@ beforeEach(() => {
   startAgentBridge.mockClear();
   createPairing.mockClear();
   loadPairing.mockReset();
+  emitStatus = null;
   container = document.createElement("div");
   document.body.appendChild(container);
   root = createRoot(container);
@@ -146,6 +196,32 @@ describe("useAgentBridge — resuming a stored pairing consults the permission",
     expect(startAgentBridge).toHaveBeenCalledTimes(1);
     expect(captured.preflight).toBe("none");
     expect(captured.permissionUnreadable).toBe(true);
+  });
+
+  it("catches a permission revoked WHILE connected and flips to the blocked recovery", async () => {
+    // Field bug (2026-07-24): revoking mid-session leaves the SSE open, so nothing
+    // else notices; the watcher must, and it must not have bailed at "connected".
+    loadPairing.mockReturnValue({ token: "stored", ports: [1], origin: "o", createdAt: 0 });
+    const live = liveReading("granted");
+    currentLoopbackPermission.mockResolvedValue(live.reading);
+
+    await mount();
+    expect(startAgentBridge).toHaveBeenCalledTimes(1);
+    expect(captured.preflight).toBe("none");
+
+    // The bridge reports connected.
+    await act(async () => {
+      emitStatus!(CONNECTED);
+      await Promise.resolve();
+    });
+    expect(captured.status.state).toBe("connected");
+
+    // The user turns the permission off in site settings.
+    await act(async () => {
+      live.status.fire("denied");
+      await Promise.resolve();
+    });
+    expect(captured.preflight).toBe("blocked");
   });
 
   it("does nothing when there is no stored pairing", async () => {

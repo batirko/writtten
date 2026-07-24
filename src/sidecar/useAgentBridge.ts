@@ -377,25 +377,30 @@ export function useAgentBridge(): AgentBridgeView {
   }, [resumePairing, support.supported]);
 
   /**
-   * Watch the permission from the pre-flight all the way through the wait.
+   * Watch the permission from the pre-flight all the way through a *live* session.
    *
-   * Two payoffs, and the second is a bug the first build shipped without. (1) A
-   * user who allows in site settings is moved on without hunting for a button —
-   * the auto-continue. (2) A user who clicks **Block** on the real dialog, which
-   * only appears *after* `beginPairing` has left the pre-flight, would otherwise
-   * be met with a silent probe loop until the 25 s floor — the old watcher was
-   * torn down the moment the pre-flight closed. Watching until `connected` means
-   * a live block flips straight to the recovery. `onchange` is present on every
-   * status measured, so this is one listener.
+   * Three payoffs. (1) A user who allows in site settings is moved on without
+   * hunting for a button — the auto-continue. (2) A user who clicks **Block** on
+   * the real dialog (which appears only after `beginPairing` leaves the pre-flight)
+   * is met with the recovery instead of a silent probe loop. (3) A permission
+   * **revoked mid-session** flips straight to the blocked callout — the field bug
+   * (2026-07-24) this closes: an earlier build bailed the instant the state read
+   * `connected`, on the now-false assumption that clearing the gate once cleared it
+   * for good. Revoking while connected doesn't error the open SSE stream (the
+   * browser gates a request when it *starts*), so without this the chip stayed
+   * "connected" while every push hung. `showBlocked` keeps the pairing, so
+   * re-allowing reconnects the still-running bridge on its own.
+   *
+   * Where the permission is unreadable — Firefox, an embedded shell — `status` is
+   * null and there is nothing to watch; the POST timeout is the backstop there.
    */
   useEffect(() => {
-    if (status.state === "connected") return;
     const st = permissionRef.current?.status;
     if (!st) return;
     return subscribeLoopbackPermission(st, () => {
       if (st.state === "granted") {
-        // Only when we're parked on the callout; during the wait the in-flight
-        // probe will succeed on its own, and proceeding would double the pairing.
+        // Only when we're parked on the callout; a live session is already served,
+        // and proceeding would mint a second pairing.
         if (preflight !== "none") proceedFromPreflight();
       } else if (st.state === "denied") {
         showBlocked();
