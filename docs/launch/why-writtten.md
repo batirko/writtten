@@ -8,7 +8,7 @@ Every AI writing tool has the same shape: the machine produces text, and you edi
 
 Because the part it makes frictionless is the thinking.
 
-In knowledge work, the document isn't the point — it's the residue. The point is the thinking that produced it: the argument you had to make coherent, the contradiction you had to resolve, the claim you had to actually stand behind. When you offload the writing to a model, you offload that too. You get a clean draft and a slightly emptier head. Do it for a year and you've traded your judgment for convenience without noticing the exchange rate.
+In knowledge work, the document isn't the point — it's the residue. The point is the thinking that produced it: the argument you had to make coherent, the contradiction you had to resolve, the claim you had to actually stand behind. When you offload the writing to a model, you offload that too. You get a clean draft and a slightly emptier head. Do it for a year and you've traded away a good deal of judgment for convenience, without ever noticing the trade.
 
 **writtten inverts it.** You write every word. The AI never touches your prose. Instead it rides alongside — a live feed of _observations_ that react to what you've written:
 
