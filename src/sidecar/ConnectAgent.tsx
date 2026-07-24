@@ -6,6 +6,7 @@
  */
 import { useEffect, useState } from "react";
 import type { AgentBridgeView } from "./useAgentBridge";
+import { AGENT_CAPABILITY_ASKS } from "./agentCapabilities";
 
 export function ConnectAgent({
   support,
@@ -330,6 +331,44 @@ export function ConnectAgent({
             Its observations appear in your feed. writtten&rsquo;s own checks are paused
             while it holds the slot.
           </span>
+
+          {/* What the connection is *for* — the only place in the app that says it
+              (UX-043). Everything above this rule is plumbing the user did not ask about;
+              everything below is capability that shipped and that nobody could find,
+              because it was written only in the file addressed to the agent.
+
+              Deliberately three things a person would say rather than three feature names,
+              and deliberately here rather than in the two rejected homes: the agent's own
+              end-of-pass report is agent-asserted and only exists *after* a pass, so it
+              cannot inform someone who has just connected; first-run naming fights the
+              welcome modal's trim (UX-042). This is also the emptiest surface in the flow,
+              so it costs no density anywhere that has any to spare. */}
+          <div className="connect-asks">
+            <p className="connect-asks-lede">It takes direction in your agent session:</p>
+            <ul className="connect-asks-list">
+              {AGENT_CAPABILITY_ASKS.map(({ ask }) => (
+                <li key={ask}>&ldquo;{ask}&rdquo;</li>
+              ))}
+            </ul>
+            {/* The one real quality lever on this path, and it is not a setting: an agent
+                arrives with its working directory, while writtten's own critic sees the
+                document and nothing else. Framed as reach, with the honest edge attached —
+                the same context that lets it say "this isn't true" is context the reader
+                will not have. */}
+            <p className="connect-asks-reach">
+              It reviews from the folder you started it in &mdash; so it knows what
+              you&rsquo;ve written elsewhere. Your reader doesn&rsquo;t.
+            </p>
+            <a
+              className="connect-explain"
+              data-testid="connect-agent-capabilities"
+              href="/agent/#ask"
+              target="_blank"
+              rel="noreferrer"
+            >
+              What else you can ask it for →
+            </a>
+          </div>
         </>
       )}
 

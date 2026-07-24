@@ -132,6 +132,34 @@ describe("what the paste must carry — because no rejection teaches it", () => 
     expect(paste).toMatch(/genuine logical incompatibility/i);
   });
 
+  describe("the retraction permission (UX-043)", () => {
+    // The capability shipped with the endpoint documented and the *permission* not: the
+    // 2026-07-20 dogfood agent withdrew four of seven cards having inferred it was allowed.
+    // Inference is not a contract — a more literal agent leaves stale cards standing, and
+    // an author who asks for a cull gets refused for a rule that does not exist. The panel
+    // now advertises this to the user (agentCapabilities.ts), so it has to stay true here.
+
+    it("says the agent may withdraw its own findings, including on request", () => {
+      expect(paste).toMatch(/### 4\. Withdraw what no longer holds/);
+      // Both halves matter and only one is intuitive. Self-correction is what a critic
+      // already believes it may do; carrying out "leave the three that matter most" is the
+      // half a cautious agent refuses without being told.
+      expect(paste).toMatch(/withdraw when the author asks you to/i);
+    });
+
+    it("scopes withdrawal to its own cards, and answers rather than closes for the rest", () => {
+      // The wall is currently an *emergent* property of two unrelated facts — the id-free
+      // snapshot and the one `sessionId` check in externalObservationLifecycle.ts — so the
+      // paste is where it is actually stated. If this drifts, an agent starts guessing ids
+      // at cards writtten wrote.
+      expect(paste).toMatch(/only close what you submitted \*\*this session\*\*/i);
+      expect(paste).toMatch(/answer instead of closing/i);
+      // The reason, not just the rule: a delegated cull removes the feed the author was
+      // going to judge and teaches writtten nothing, because retract writes no suppression.
+      expect(paste).toMatch(/a withdrawal teaches it nothing/i);
+    });
+  });
+
   // OBS-039: an agent review runs with none of the document-type calibration our own
   // prompts carry, so a personal essay gets PRD-grade strictness and its anecdotes come
   // back as unsupported claims. The boundary cannot catch it — such a card is
@@ -302,7 +330,7 @@ describe("watch by default, and the offer that teaches it (2026-07-21)", () => {
   });
 
   it("teaches the user their options once, after the first pass — not before it", () => {
-    const report = paste.indexOf("### 4. Report, then keep watching");
+    const report = paste.indexOf("### 5. Report, then keep watching");
     const offer = paste.indexOf("tell them how to steer you");
     expect(report).toBeGreaterThan(-1);
     expect(offer).toBeGreaterThan(report);
