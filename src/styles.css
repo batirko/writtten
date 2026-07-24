@@ -2578,6 +2578,16 @@ body,
   line-height: 1.55;
   color: var(--color-ink-2);
 }
+/* Inline "per-browser steps" link inside a disclosure paragraph — accent, and
+   kept on one line so the arrow never orphans. */
+.connect-preflight-link {
+  color: var(--color-accent-strong);
+  text-decoration: none;
+  white-space: nowrap;
+}
+.connect-preflight-link:hover {
+  text-decoration: underline;
+}
 
 /* The wait admitting it isn't going anywhere. Grey rule, not tint — unlike the
    two above it has no single action to offer, only three candidate causes, so

@@ -126,7 +126,16 @@ describe("AgentPreflightCallout", () => {
       expect(cancel).toHaveBeenCalledOnce();
     });
 
-    it("deep-links recovery to a browser-support section that actually exists", () => {
+    it("gives the recovery steps inline, not only as a trip to the article", () => {
+      render({ preflight: "blocked" });
+      const disclosure = document.querySelector('[data-testid="agent-preflight-blocked"] details');
+      expect(disclosure?.tagName).toBe("DETAILS");
+      // The steps themselves are present in the fold, not just a link out.
+      expect(disclosure?.textContent).toContain("permissions");
+      expect(disclosure?.textContent).toContain("reload");
+    });
+
+    it("demotes the browser-specific detail to a link, to a section that exists", () => {
       render({ preflight: "blocked" });
       const href = document
         .querySelector('[data-testid="agent-preflight-blocked"] a')

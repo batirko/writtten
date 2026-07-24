@@ -80,6 +80,26 @@ export function AgentPreflightCallout({
               Your agent can&rsquo;t be reached until you allow it in this site&rsquo;s browser
               permissions. It continues the moment you do.
             </p>
+            {/* Steps inline, not a trip to the article — recovering from a dead end
+                shouldn't cost a page load. Deliberately browser-agnostic: this state
+                only fires on the confirmed Chromium gate, but exact labels ("Apps on
+                device") rot, which is the per-browser-copy trap this feature has hit
+                before. The demoted link carries the specifics. */}
+            <details className="connect-preflight-why">
+              <summary>How do I clear it?</summary>
+              <p>
+                Open this site&rsquo;s permissions from the icon just left of the address bar,
+                allow local network access (or reset it), then reload.{" "}
+                <a
+                  className="connect-preflight-link"
+                  href="/agent/#browsers"
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  Per-browser steps &rarr;
+                </a>
+              </p>
+            </details>
             <div className="agent-preflight-actions">
               <button
                 type="button"
@@ -89,14 +109,6 @@ export function AgentPreflightCallout({
               >
                 Try again
               </button>
-              <a
-                className="connect-explain"
-                href="/agent/#browsers"
-                target="_blank"
-                rel="noreferrer"
-              >
-                How to clear it →
-              </a>
               <button
                 type="button"
                 className="connect-btn agent-preflight-dismiss"
