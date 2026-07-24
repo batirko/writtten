@@ -2464,6 +2464,81 @@ body,
   margin: 0;
 }
 
+/* ---- "New version ready" reload banner -----------------------------------
+   A quiet bottom-center toast, shown only when a newer build has downloaded.
+   Fixed so it rides above any surface; the surface/border/shadow rhythm matches
+   the pre-flight callout so the app has one "system nudge" language. */
+.update-banner {
+  position: fixed;
+  left: 50%;
+  bottom: var(--space-md);
+  transform: translateX(-50%);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  max-width: min(440px, calc(100vw - 2 * var(--space-md)));
+  padding: 10px 12px 10px 15px;
+  background: var(--color-surface);
+  border: 0.5px solid var(--color-border-strong);
+  border-radius: 10px;
+  box-shadow: 0 6px 24px rgba(26, 26, 24, 0.13);
+}
+.update-banner-text {
+  min-width: 0;
+}
+.update-banner-title {
+  margin: 0;
+  font-size: var(--text-ui-sm);
+  line-height: 1.4;
+  color: var(--color-ink);
+}
+.update-banner-meta {
+  margin: 2px 0 0;
+  font-size: var(--text-label);
+  line-height: 1.4;
+  color: var(--color-muted);
+}
+.update-banner-actions {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.update-banner-reload {
+  padding: 6px 13px;
+  border: none;
+  border-radius: var(--radius-sm);
+  font-family: var(--font-sans);
+  font-size: var(--text-ui-sm);
+  font-weight: 500;
+  color: #fff;
+  background: var(--color-accent);
+  cursor: pointer;
+}
+.update-banner-reload:hover {
+  background: var(--color-accent-strong);
+}
+.update-banner-later {
+  padding: 6px 10px;
+  border: none;
+  background: none;
+  font-family: var(--font-sans);
+  font-size: var(--text-ui-sm);
+  color: var(--color-muted);
+  cursor: pointer;
+}
+.update-banner-later:hover {
+  color: var(--color-ink-2);
+}
+@media (max-width: 720px) {
+  .update-banner {
+    left: var(--space-sm);
+    right: var(--space-sm);
+    transform: none;
+    max-width: none;
+  }
+}
+
 /* ---- Local-network permission pre-flight (BYOA) --------------------------
    An app-level callout, portaled to <body> and pinned toward the top-left of
    the viewport — where Chrome and Firefox both drop the local-network prompt

@@ -26,7 +26,11 @@ export default defineConfig({
   plugins: [
     react(),
     VitePWA({
-      registerType: 'autoUpdate',
+      // 'prompt', not 'autoUpdate': a new build surfaces as a reload banner the user
+      // chooses to apply, rather than a silent auto-reload that could interrupt
+      // mid-sentence. (The banner is also the *visible* signal that an update landed —
+      // the stale-service-worker episode was invisible until it was measured.)
+      registerType: 'prompt',
       workbox: {
         // The SW's default NavigationRoute rewrites every in-scope navigation to
         // the SPA shell (index.html). The static pages under public/ are real

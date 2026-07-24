@@ -9,6 +9,7 @@ import "@fontsource/jetbrains-mono";
 import "./styles.css";
 import App from "./App";
 import { ErrorBoundary } from "./ErrorBoundary";
+import { AppUpdatePrompt } from "./pwa/AppUpdatePrompt";
 
 // Top-level ErrorBoundary (lifecycle_integrity.md § L9): a render/lifecycle crash
 // in the app shows a calm recovery surface instead of a white screen. Wrapping
@@ -18,6 +19,9 @@ createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <ErrorBoundary>
       <App />
+      {/* App-shell chrome: the update banner sits outside App so a new build can be
+          offered even if App's own tree is mid-recovery. */}
+      <AppUpdatePrompt />
     </ErrorBoundary>
   </StrictMode>
 );
