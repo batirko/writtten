@@ -23,6 +23,9 @@ export function ConnectAgent({
   const [copyFailed, setCopyFailed] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [archiveCards, setArchiveCards] = useState(false);
+  /** The prompt renders folded to its opening framing and unfolds on click — see the
+   *  comment above the box for why that is not the truncation UX-032 rejected. */
+  const [promptOpen, setPromptOpen] = useState(false);
 
   /** Tearing a pairing down is only a decision when the source left something
    *  behind. With no cards to strand, Disconnect just disconnects — a dialog
@@ -190,27 +193,52 @@ export function ConnectAgent({
             </div>
           )}
 
-          {/* The old line — "it has your connection details baked in" — described the
-              paste's plumbing and not its content, at a moment when the content was 33k
-              characters the user could not see. Naming the two things the agent is
-              actually asked to do is what makes the readable prompt below worth reading. */}
+          {/* One line, one question answered in place: *what does this do*. It used to
+              take three — a meta line describing the paste, a link to /agent as the only
+              real answer, and a disclosure bullet carrying the reassurance that nothing
+              lands in the user's project (UX-042). The link stays, demoted from the only
+              answer to the longer one. The reassurance moved up here because it answers
+              the question a reader has *while* deciding to paste, not after it failed. */}
           <p className="connect-meta">
-            Paste this into your agent session. It asks your agent to fetch a small relay
-            script and talk to this page over 127.0.0.1.
+            Paste this into your agent session. It fetches a small relay script to your temp
+            folder and talks to this page over 127.0.0.1 &mdash; nothing is written to your
+            project.{" "}
+            <a
+              className="connect-explain"
+              data-testid="connect-agent-explain"
+              href="/agent/"
+              target="_blank"
+              rel="noreferrer"
+            >
+              What this asks your agent to do →
+            </a>
           </p>
 
           {promptError ? (
             <p className="connect-warn">{promptError}</p>
           ) : (
             <>
-              {/* Shown whole, scrolled — not clipped with a fade (UX-032). The preview was
-                  a concession to a prompt too long to display; slimming removed the reason
-                  for it, and a user asked to relay instructions to their own agent should
-                  be able to read them first. That is the same argument the /agent page
-                  makes to the security-conscious reader, pointed at the person holding the
-                  clipboard. */}
+              {/* A peek that unfolds, and this is NOT the fade UX-032 rejected — read this
+                  before "restoring" the old behaviour.
+
+                  UX-032's complaint was a preview that `slice(0, 420)`d the prompt and
+                  trailed off behind a gradient with **no way to reach the rest**: the user
+                  was asked to relay instructions to their own agent and could not read
+                  them. That property is intact. Nothing is sliced — the whole prompt is in
+                  the DOM, selectable and copyable, at every moment; only its visible height
+                  is folded, behind a labelled control that says so. Folding it is what lets
+                  the rest of this panel be seen at all beside a ~300-line document.
+
+                  What the peek shows is chosen, not arbitrary: the opening framing — the
+                  title, the critic role, the inversion. OBS-040 measured that framing as the
+                  part that decides whether a third-party agent accepts the paste at all, so
+                  the most trust-bearing lines are the ones on screen by default. */}
               <div className="connect-prompt">
-                <div className="connect-prompt-scroll">
+                <div
+                  className={`connect-prompt-scroll${promptOpen ? " is-open" : ""}`}
+                  data-testid="connect-agent-prompt-box"
+                  id="connect-agent-prompt-box"
+                >
                   <pre data-testid="connect-agent-prompt">
                     {prompt ?? "Building your prompt…"}
                   </pre>
@@ -224,16 +252,19 @@ export function ConnectAgent({
                 >
                   {copied ? "Copied" : "Copy"}
                 </button>
+                {/* Full-width by design: it earns a comfortable touch target with no extra
+                    rule, and an unfold a phone can't reach is the same as no unfold. */}
+                <button
+                  type="button"
+                  className="connect-prompt-unfold"
+                  data-testid="connect-agent-prompt-unfold"
+                  aria-expanded={promptOpen}
+                  aria-controls="connect-agent-prompt-box"
+                  onClick={() => setPromptOpen((open) => !open)}
+                >
+                  {promptOpen ? "Collapse the prompt" : "Show the whole prompt"}
+                </button>
               </div>
-              <a
-                className="connect-explain"
-                data-testid="connect-agent-explain"
-                href="/agent/"
-                target="_blank"
-                rel="noreferrer"
-              >
-                What this asks your agent to do →
-              </a>
             </>
           )}
 
@@ -252,13 +283,12 @@ export function ConnectAgent({
               <br />
               Safari can&rsquo;t connect to a local bridge; use Chrome, Edge, or Firefox.
               <br />
-              {/* Was: "the bridge script is written to a file on your machine… delete it
-                  when you're done." It used to land in whatever directory the agent was
-                  running in — usually the user's own repo (UX-039). It now goes to the
-                  system temp directory, so there is nothing to clean up. */}
-              The relay script is downloaded to your system temp folder and runs from
-              there. Nothing is written to your project.
-              <br />
+              {/* The temp-folder line moved up into the paste instruction (UX-042) — it
+                  answers "what does this do to my machine", which is a question asked
+                  before pasting, not after it failed. It is deliberately not repeated
+                  here. (It exists at all because the script used to land in whatever
+                  directory the agent was running in — usually the user's own repo,
+                  UX-039 — and the disclosure told them to go delete it.) */}
               All ports busy? Cancel and connect again for a fresh list.
             </div>
           </details>

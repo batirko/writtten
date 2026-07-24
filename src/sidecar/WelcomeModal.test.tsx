@@ -99,6 +99,82 @@ describe("WelcomeModal", () => {
   });
 
   // -------------------------------------------------------------------------
+  // The folded detail (UX-042) — "one claim, one ask"
+  // -------------------------------------------------------------------------
+
+  it("folds the taxonomy and the rhythm onto the term rather than deleting them", () => {
+    // The trim is a hierarchy change, not a deletion pass: what the product looks
+    // for and when it stays quiet are still first-run facts, they just wait to be
+    // asked for. If a later change drops the term, this fails rather than quietly
+    // shipping a modal that no longer says what writtten notices.
+    const div = renderWith();
+    const term = div.querySelector('[data-testid="welcome-term"]')!;
+    expect(div.textContent).not.toMatch(/contradictions/i);
+
+    act(() => {
+      term.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+    const detail = div.querySelector("#welcome-term-detail")?.textContent ?? "";
+    expect(detail).toMatch(/contradictions/i);
+    expect(detail).toMatch(/unclear passages/i);
+    expect(detail).toMatch(/quiet while you draft/i);
+  });
+
+  it("opens the detail by click, not by hover alone (375px has no hover)", () => {
+    // A phone reaches this only by tap. The term is a <button> for the same reason
+    // the focus trap can see it — a hover-gated <span> would be unreachable twice over.
+    const div = renderWith();
+    const term = div.querySelector('[data-testid="welcome-term"]')!;
+    expect(term.tagName).toBe("BUTTON");
+    expect(term.getAttribute("aria-expanded")).toBe("false");
+    act(() => {
+      term.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+    expect(term.getAttribute("aria-expanded")).toBe("true");
+    act(() => {
+      term.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+    expect(term.getAttribute("aria-expanded")).toBe("false");
+  });
+
+  it("opens the detail on keyboard focus, with no delay", () => {
+    // Hover gets a delay so it doesn't flash at a pointer crossing the sentence; a
+    // keyboard user tabbed here deliberately and shouldn't be made to wait. Verified
+    // live too — Tab lands on the term and it unfolds — but pinned here because focus
+    // events only fire in a document that holds system focus, so a browser check of
+    // this silently passes as a no-op when the window is in the background.
+    const div = renderWith();
+    const term = div.querySelector<HTMLElement>('[data-testid="welcome-term"]')!;
+    act(() => {
+      term.focus();
+    });
+    expect(term.getAttribute("aria-expanded")).toBe("true");
+    expect(div.querySelector("#welcome-term-detail")).not.toBeNull();
+  });
+
+  it("Escape closes the open detail without closing the modal", () => {
+    // Innermost first. Dismissing the whole welcome because the reader finished a
+    // footnote would punish the curiosity the term exists to invite.
+    let closed = 0;
+    const div = renderWith({ onClose: () => (closed += 1) });
+    const term = div.querySelector('[data-testid="welcome-term"]')!;
+    act(() => {
+      term.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+    act(() => {
+      document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
+    });
+    expect(closed).toBe(0);
+    expect(div.querySelector("#welcome-term-detail")).toBeNull();
+
+    // Second Escape, with nothing unfolded, closes the modal as it always did.
+    act(() => {
+      document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
+    });
+    expect(closed).toBe(1);
+  });
+
+  // -------------------------------------------------------------------------
   // The second on-ramp (BYOA, spec decision 3)
   // -------------------------------------------------------------------------
 

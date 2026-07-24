@@ -248,6 +248,14 @@ The permission watcher lives **through the wait**, not just while the callout sh
 
 **And a floor under all of it.** After 25 s of waiting with no handshake, the panel names the three causes it cannot distinguish — permission not allowed · bridge not started · every port busy. Every detection above can still be wrong (a suppressed dialog, a force-denying shell, an allow followed by no bridge), and "waits forever with nothing explaining why" is the failure this whole area exists to remove.
 
+### The prompt rests folded (UX-042, 2026-07-24)
+
+The waiting state shows the prompt **folded to its opening framing**, with a full-width `Show the whole prompt` button across the bottom of the box. What is visible by default is chosen rather than arbitrary: the title, the critic role, and the inversion paragraph — the framing OBS-040 measured as the part that decides whether a third-party agent accepts the paste at all. The most trust-bearing lines are the ones on screen.
+
+**This is not the truncation UX-032 rejected, and the distinction is mechanical rather than a matter of judgement.** UX-032 threw out a `prompt.slice(0, 420)` behind a gradient with no way to reach the rest — the user was asked to relay instructions to their own agent and could not read them. Here the fold is a `max-height` on the box: the entire string is in the DOM at every moment, selectable, copyable, and reachable through a labelled control that admits it is folded. `ConnectAgent.test.tsx` still asserts the rendered prompt's length equals the whole prompt, and that assertion is the tripwire — an "optimisation" that slices the string to save DOM turns it red.
+
+The unfold is a button, not a hover reveal, and full-width so it clears a touch target with no rule of its own. A phone can reach it; a fade could not.
+
 ## Lifecycle — what may close an external card
 
 **The rule: an observation carrying `source` is not the evaluator's to close.** Our model has no standing to decide another critic's finding is resolved, and no precision floor covering that judgement.
