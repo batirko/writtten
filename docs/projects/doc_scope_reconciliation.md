@@ -35,19 +35,19 @@ An observation is archived for one of four reasons (`src/model/logger.ts`):
 
 Reconciliation runs on every eval (regenerate → dedupe / supersede / auto-close / insert). There are **two** reconcilers:
 
-- `reconcileObservations` (block/section-scoped, `src/services/evaluator.ts:184`) — matches on **content-sig, then span + text**. Robust.
-- `reconcileDocumentObservations` (document-scoped, `src/services/evaluator.ts:287`) — matches on **type alone, positionally**. This is the broken one.
+- `reconcileObservations` (block/section-scoped, `src/services/evaluator.ts`) — matches on **content-sig, then span + text**. Robust.
+- `reconcileDocumentObservations` (document-scoped, `src/services/evaluator.ts`) — matches on **type alone, positionally**. This is the broken one.
 
 ### The "still true?" call exists — but only at section level
 
-The section-eval prompt appends the passage's prior observations and asks the model to return a `resolved_prior` array of indices that no longer apply (`src/services/evaluator.ts:609`, consumed at `:837`). Those become `resolved_prior` archives. **Document-scope observations (`missing_topic`, `underexposed_topic`, `structure_flow`, `audience_mismatch`) are never asked this question.** They are only ever positionally superseded or auto-closed against a blind regeneration.
+The section-eval prompt appends the passage's prior observations and asks the model to return a `resolved_prior` array of indices that no longer apply (in `src/services/evaluator.ts`). Those become `resolved_prior` archives. **Document-scope observations (`missing_topic`, `underexposed_topic`, `structure_flow`, `audience_mismatch`) are never asked this question.** They are only ever positionally superseded or auto-closed against a blind regeneration.
 
 ### The bug: type-bucketed positional supersession
 
-`reconcileDocumentObservations` dedupes a new observation against an existing one only on exact text **or > 0.6 Jaccard** similarity (the OBS-012 guard, `:306`). Anything below that falls through to:
+`reconcileDocumentObservations` dedupes a new observation against an existing one only on exact text **or > 0.6 Jaccard** similarity (the OBS-012 guard). Anything below that falls through to:
 
 ```ts
-// evaluator.ts:320 — "first unconsumed existing of the same type"
+// evaluator.ts — "first unconsumed existing of the same type"
 const supersedable = existing.find((e) => e.type === newO.type && !matchedExistingIds.has(e.id));
 ```
 
@@ -58,12 +58,12 @@ It grabs the **first unmatched existing observation of the same type**, regardle
 The first `doc-idle` produced 5 `missing_topic` / 3 `underexposed_topic` / 2 `structure_flow`. The second produced 5 / 3 / 3. All 10 of the first set were archived as `superseded`:
 
 1. **False supersession links.** "Missing risks/social-engineering mitigations" was archived `supersededBy` a note about a missing problem statement — unrelated. `supersededBy` is not a semantic link within a type bucket; it is positional.
-2. **Flicker of stable notes.** "Alternative solutions … not discussed" came back **byte-identical** yet was superseded + re-inserted with a new id instead of deduped — its slot was consumed first. "Rollout/launch plan" (Jaccard ≈ 0.64, _above_ threshold) likewise churned. The engine built to stop flicker (`:156`) does not, for doc-scope.
+2. **Flicker of stable notes.** "Alternative solutions … not discussed" came back **byte-identical** yet was superseded + re-inserted with a new id instead of deduped — its slot was consumed first. "Rollout/launch plan" (Jaccard ≈ 0.64, _above_ threshold) likewise churned. The engine built to stop flicker does not, for doc-scope.
 3. **Silent drops of still-true critiques.** Run 2 stochastically omitted "risks", "business impact", "non-happy-path UX" — all still true of the document (the only edit between runs was adding an "Out of scope" section). They were archived as `superseded`, not resolved. Because per-type **counts stayed flat** (5/3/2 → 5/3/3), the loss is invisible in aggregate. Compounded by the budget feed: these low/medium-severity doc-scope notes were likely below the 7-group budget line, sitting collapsed in "also noticed," so the user may never have seen them before they were swapped.
 
 ### Edit → reassessment granularity (related gap)
 
-When a user edits text linked to a note, there is **no span-aware / per-note reassessment**. `scheduleEval` dispatches a full **section-eval for the whole block** (`src/services/orchestrator.ts:393`); editing the exact noted sentence and editing an unrelated word in the same block take the identical path. TipTap decorations track the note's _position_ through the edit but never re-judge its _truth_. Consequences:
+When a user edits text linked to a note, there is **no span-aware / per-note reassessment**. `scheduleEval` dispatches a full **section-eval for the whole block** (`src/services/orchestrator.ts`); editing the exact noted sentence and editing an unrelated word in the same block take the identical path. TipTap decorations track the note's _position_ through the edit but never re-judge its _truth_. Consequences:
 
 - **Doc-scope notes ignore the edit entirely** until the next whole-doc `doc-idle` pass.
 - **Cross-block notes go stale.** A contradiction note anchored to block A is not re-checked when an edit to block B resolves the conflict — only when A re-evals or a sweep runs.
@@ -166,7 +166,7 @@ Wherever the "close enough to be the same note" floor sits, it dials stability �
 
 ## Known gap — the `stage-changed` path was never reconciled (UX-012)
 
-This work repaired the **`doc-idle`** reconcile path. The **`stage-changed`** path was out of scope and still runs the original Phase-2 mechanism: `handleStageChanged` (`src/services/orchestrator.ts:381`) blanket-marks every `scope: "document"` observation `superseded` and re-runs doc-quality blind — no priors injected, no best-match, no grace, no resolution-awareness. So everything Tier 1/2 fixed for `doc-idle` (no false `superseded`, keep-by-id, honest labels) is undone the moment the stage changes.
+This work repaired the **`doc-idle`** reconcile path. The **`stage-changed`** path was out of scope and still runs the original Phase-2 mechanism: `handleStageChanged` (`src/services/orchestrator.ts`) blanket-marks every `scope: "document"` observation `superseded` and re-runs doc-quality blind — no priors injected, no best-match, no grace, no resolution-awareness. So everything Tier 1/2 fixed for `doc-idle` (no false `superseded`, keep-by-id, honest labels) is undone the moment the stage changes.
 
 Surfaced 2026-06-25 (live `gemini-2.5-pro [paid]` session, 21 triggers / 23 calls / 13 archives): the **first** `doc-idle` graded the doc with no stage and returned a `suggested_stage`; the user accepted it; the resulting `stage-changed` immediately superseded all 10 freshly-created doc-scope notes and regenerated near-identical ones as new ids. The wipe is defensible when the user _meaningfully re-scopes the audience_, but not for the none→suggested transition where content is unchanged. Tracked as **UX-012** (`docs/logs/ux_quality_observations.md`) and a Phase-6 Signal-quality milestone in `docs/plan.md`.
 
@@ -179,7 +179,7 @@ Neither single direction is sufficient: routing _everything_ through the reconci
 
 **How to tell the two apart.** The transition carries enough signal: a `none → <suggested>` transition where the new stage equals the model's just-returned `suggested_stage` is the auto-applied case (1); every other transition — including any later stage edit, and any change away from an already-set stage — is case (2). (If distinguishing "accepted the suggestion" from "typed the same value by hand" proves fiddly, treat _all_ `none → X` as case (1): a first stage assignment never has a meaningfully-different prior audience to re-grade against, so skipping the wipe is safe there too.)
 
-**Implementation sketch.** In `handleStageChanged` (`src/services/orchestrator.ts:381`): branch on the transition. Case (1): skip the supersede loop and the immediate `handleDocIdle` re-run (or run a no-op that doesn't wipe) — the next natural `doc-idle` covers it. Case (2): drop the blanket `updateObservationStatus(..., "superseded")` loop and instead invoke the resolution-aware doc reconciler that `handleDocIdle` already calls, passing the existing doc-scope observations as priors so the regenerated set reconciles against them. No DB migration (reuses the Workstream-A path + `missCount`/grace already shipped). Add `EvalContext` access to the _prior_ stage if not already available, to classify the transition.
+**Implementation sketch.** In `handleStageChanged` (`src/services/orchestrator.ts`): branch on the transition. Case (1): skip the supersede loop and the immediate `handleDocIdle` re-run (or run a no-op that doesn't wipe) — the next natural `doc-idle` covers it. Case (2): drop the blanket `updateObservationStatus(..., "superseded")` loop and instead invoke the resolution-aware doc reconciler that `handleDocIdle` already calls, passing the existing doc-scope observations as priors so the regenerated set reconciles against them. No DB migration (reuses the Workstream-A path + `missCount`/grace already shipped). Add `EvalContext` access to the _prior_ stage if not already available, to classify the transition.
 
 **Tests.** (a) none→suggested (auto-applied) leaves all doc-scope observations active, zero archives, no immediate regen; (b) a genuine re-scope keeps still-true critiques by id (no false `superseded`) and only closes ones the model resolves or that age out via grace; (c) the classifier routes a hand-edited stage change to case (2). Extends the existing `evaluateDocument` routing tests.
 

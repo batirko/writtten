@@ -77,7 +77,7 @@ Recommend scheduling **P1/P2 correctness fixes before further Phase 4 work**, be
 
 ### Finding 1 — Headings are evaluated as standalone blocks → hallucination _(highest leverage)_
 
-When a section is pasted, the markdown heading and its body become **separate ProseMirror blocks**, and the heading is evaluated **on its own with no body text**. There is no heading/node-type filter; `src/editor/Editor.tsx:286` fires a `settle-blur` for any block whose `text.trim().length >= 10`, and the blur path has **no terminal-punctuation requirement**. "Background" (10 chars), "Success metrics" (15), "Scope — what's in" (17), "Proposed solution" (17) all qualify.
+When a section is pasted, the markdown heading and its body become **separate ProseMirror blocks**, and the heading is evaluated **on its own with no body text**. There is no heading/node-type filter; `src/editor/Editor.tsx` fires a `settle-blur` for any block whose `text.trim().length >= 10`, and the blur path has **no terminal-punctuation requirement**. "Background" (10 chars), "Success metrics" (15), "Scope — what's in" (17), "Proposed solution" (17) all qualify.
 
 Evidence from the debug log:
 
@@ -136,9 +136,9 @@ Of the 27 active observations, near-duplicates abound:
 
 ### Finding 6 — Trigger storm during the paste workflow
 
-The paste-section-by-section workflow means the user repeatedly switches to the source app to copy → `window.blur` fires a `settle-blur:window-blurred`. Block `QuAiklt1JO` alone triggered at 20:47:11, 20:48:09, **and** 20:48:50 — re-evaluating unchanged content. `Editor.tsx:286` fires window-blur for any block ≥10 chars with **no content-changed guard**.
+The paste-section-by-section workflow means the user repeatedly switches to the source app to copy → `window.blur` fires a `settle-blur:window-blurred`. Block `QuAiklt1JO` alone triggered at 20:47:11, 20:48:09, **and** 20:48:50 — re-evaluating unchanged content. `Editor.tsx` fires window-blur for any block ≥10 chars with **no content-changed guard**.
 
-**Assessment:** on a free tier with finite RPD, re-evaluating unchanged blocks on every window-blur wastes budget and risks 429s mid-session. Trigger _coalescing_ exists (250 ms window, `orchestrator.ts:38`) but it doesn't dedup against "already evaluated this exact text."
+**Assessment:** on a free tier with finite RPD, re-evaluating unchanged blocks on every window-blur wastes budget and risks 429s mid-session. Trigger _coalescing_ exists (250 ms window, `orchestrator.ts`) but it doesn't dedup against "already evaluated this exact text."
 
 ### Finding 7 — A 40.6-second "fast" response
 

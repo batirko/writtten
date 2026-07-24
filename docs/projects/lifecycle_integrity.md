@@ -41,7 +41,7 @@ The audit's one-line verdict: _"a promising prototype with unusually good archit
 - [x] Added a dedicated `tsconfig.test.json` (includes `src` + `vitest.record.config.ts`, `types: ["node", "jsdom"]`) referenced from the root `tsconfig.json`, and excluded `*.test.ts`/`*.test.tsx` from `tsconfig.app.json`. Installed `@types/node` + `@types/jsdom`. (2026-06-13)
 - [x] Fixed `vite.config.ts` — imports `defineConfig` from `vitest/config`. (2026-06-13)
 - [x] Removed the duplicate `blockId` key in `src/services/evaluator.test.ts` (the shorthand `blockId` after the explicit `blockId: "block1"`). (2026-06-13)
-- [x] Cleared all 31 lint errors: `@typescript-eslint/no-unused-vars` set with `ignoreRestSiblings: true` for the destructure-to-omit idiom (`debugLog.ts:216`, `logger.ts:525`); `no-explicit-any` turned off for `**/*.test.{ts,tsx}` only (DOM/mock casts — tsc still type-checks them); the two production `any` casts given precise types (`harness.ts` → `LLMLogEntry["type"]`, `debugLog.ts` → `as unknown as Record<string, unknown>`). The idb-seal rules are untouched. (2026-06-13)
+- [x] Cleared all 31 lint errors: `@typescript-eslint/no-unused-vars` set with `ignoreRestSiblings: true` for the destructure-to-omit idiom (`debugLog.ts`, `logger.ts`); `no-explicit-any` turned off for `**/*.test.{ts,tsx}` only (DOM/mock casts — tsc still type-checks them); the two production `any` casts given precise types (`harness.ts` → `LLMLogEntry["type"]`, `debugLog.ts` → `as unknown as Record<string, unknown>`). The idb-seal rules are untouched. (2026-06-13)
 - [x] Side fix required for green CI: the Projects Index in `plan.md` used bare names; `projects.index.test.ts` (24 failures, pre-existing on `main`) requires markdown links — converted all 22 rows to `[name](projects/name.md)`. (2026-06-13)
 - [x] Added `.github/workflows/ci.yml` running `npm ci` → lint → build → test on push to `main` + all PRs (Node 20). Build is green: `dist/` produced incl. PWA `sw.js`/manifest. (2026-06-13)
 
@@ -53,7 +53,7 @@ The audit's one-line verdict: _"a promising prototype with unusually good archit
 
 ### L3 — Fix the eval-wedge under strong-call failure — ✅ done (audit #3)
 
-> **Re-verified 2026-06-14: the wedge was real on current `main`.** `saveBlockSummary` with the dirty-check `hash` ran at `evaluator.ts:705`, _before_ the strong contradiction call (`:805`) and `reconcileObservations` (`:902`), with a terminal `catch` (`:903`) that only `console.error`s. A thrown `router.strong()` skipped reconcile but left the hash saved, so the next eval short-circuited on the hash match (`:615`) — section wedged until its text changed.
+> **Re-verified 2026-06-14: the wedge was real on current `main`.** `saveBlockSummary` with the dirty-check `hash` ran in `evaluator.ts` _before_ the strong contradiction call and `reconcileObservations`, with a terminal `catch` that only `console.error`s. A thrown `router.strong()` skipped reconcile but left the hash saved, so the next eval short-circuited on the hash match — section wedged until its text changed.
 
 - [x] **Fixed via option (b): atomic dirty-check.** Moved the `saveBlockSummary` hash write to _after_ `reconcileObservations` (both the main path and the empty-section path). `saveClaimsForBlock` stays before the contradiction call (the ledger read needs it). On a strong-call failure the hash is now never committed, so the next trigger re-runs the whole eval; existing observations are left untouched (reconcile is skipped, not run with partial data). (2026-06-14)
 - [x] **Rejected option (a)** (reconcile fast obs on strong-failure): the reconcile orphan pass (`:280–289`) auto-closes any existing observation on the section's blocks not present in the new set, so reconciling a fast-only batch would _falsely auto-close a still-valid contradiction_ (absent only because the strong call failed). Documented as an invariant test.
@@ -101,7 +101,7 @@ The audit's one-line verdict: _"a promising prototype with unusually good archit
 
 ### L8 — Editor hot-path perf — 🟡 Med · ⚙️ (audit #10; parked in plan Phase 9; profiling protocol written 2026-07-16)
 
-**The suspects (desk analysis, unchanged):** every `onUpdate` runs `getBlockIds` + `getWordCount` + `emitBlockOrderIfChanged` + `resolveSection` → `resolveSections`, which materializes `combinedText` for **every section** (`src/editor/section.ts:71–80`) per keystroke; `onSelectionUpdate` does another full resolve. The LLM-side "no full-document scan" invariant holds; this is CPU-side O(doc) per keystroke. Also: `refreshObservations` full-table scans after every eval; the archive list is unbounded/unvirtualized.
+**The suspects (desk analysis, unchanged):** every `onUpdate` runs `getBlockIds` + `getWordCount` + `emitBlockOrderIfChanged` + `resolveSection` → `resolveSections`, which materializes `combinedText` for **every section** (`src/editor/section.ts`) per keystroke; `onSelectionUpdate` does another full resolve. The LLM-side "no full-document scan" invariant holds; this is CPU-side O(doc) per keystroke. Also: `refreshObservations` full-table scans after every eval; the archive list is unbounded/unvirtualized.
 
 **Profiling protocol (run this before writing any fix — it is also the scheduling trigger):**
 

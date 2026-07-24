@@ -240,7 +240,7 @@ Today, `Editor.tsx` calls `evaluateBlock()` directly from two places. Phase 1 pu
 
 ## 7. The observation lifecycle vs. new generations
 
-This is where today's evaluator src/services/evaluator.ts:75-81 is wrong. It blanket-closes every active observation that touches the block before running the new eval. Three failure modes:
+This is where today's evaluator (`src/services/evaluator.ts`) is wrong. It blanket-closes every active observation that touches the block before running the new eval. Three failure modes:
 
 1. **Flicker.** A real, still-valid observation disappears for the duration of the eval and reappears — the feed visibly jitters.
 2. **Identity loss.** The "reborn" observation has a new `id`, so hover state, scroll position, any UI affordance pinned to that observation is lost.
@@ -306,7 +306,7 @@ While a block is being re-evaluated, its existing observations dim to ~70% opaci
 
 ### Active-provider chip
 
-Already exists (SidecarFeed.tsx:54-58). Promote it: when the active provider changes mid-session (rotation/fallback fired), pulse the chip briefly so the user notices that quality may have shifted, per the rotation/debugging project doc.
+Already exists (the `provider-chip` in `ControlCenter.tsx`). Promote it: when the active provider changes mid-session (rotation/fallback fired), pulse the chip briefly so the user notices that quality may have shifted, per the rotation/debugging project doc.
 
 ### What never happens in the feed
 

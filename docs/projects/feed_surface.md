@@ -135,11 +135,11 @@ Folded into the control-center anchor (§ 2) — a single dot, icon-only at firs
 
 #### 5a. Weak/strong tier colour cue (field-decided 2026-07-07 — supersedes the paid-tier accent)
 
-**Decision (user):** the indicator should differentiate the **running model tier** (weak/fast vs strong/adjudicator) by colour — not just show the model name as text. This **supersedes** the current free-vs-paid signal (the `data-paid` border tint + the `paid` text chip, `ControlCenter.tsx:596/1301`), which was flagged as redundant chrome — instead of a paid marker, the same visual budget carries a _meaningful_ tier cue.
+**Decision (user):** the indicator should differentiate the **running model tier** (weak/fast vs strong/adjudicator) by colour — not just show the model name as text. This **supersedes** the current free-vs-paid signal (the `data-paid` border tint + the `paid` text chip, `ControlCenter.tsx`), which was flagged as redundant chrome — instead of a paid marker, the same visual budget carries a _meaningful_ tier cue.
 
-**What's shipped today (baseline).** The dot encodes **activity only** — `idle` (grey-green `--activity-idle`), `working` (calm blue `--activity-working` + pulse), `stalled` (red `--sem-problem-high`); `anchorState` derives from `stalled`/`pending` (`ControlCenter.tsx:351`) and never sees the tier. The only tier signal is `data-paid` (free-vs-paid, not weak-vs-strong).
+**What's shipped today (baseline).** The dot encodes **activity only** — `idle` (grey-green `--activity-idle`), `working` (calm blue `--activity-working` + pulse), `stalled` (red `--sem-problem-high`); `anchorState` derives from `stalled`/`pending` (in `ControlCenter.tsx`) and never sees the tier. The only tier signal is `data-paid` (free-vs-paid, not weak-vs-strong).
 
-**The signal exists.** The logger already records per-call `tier: "fast" | "strong"` and `keyTier: "free" | "paid"` (`src/model/logger.ts:18–19`); it's just not threaded to the anchor (which gets only the model name + `[paid]`). The build surfaces the **active/in-flight call's real tier** into a prop the ControlCenter reads.
+**The signal exists.** The logger already records per-call `tier: "fast" | "strong"` and `keyTier: "free" | "paid"` (`src/model/logger.ts`); it's just not threaded to the anchor (which gets only the model name + `[paid]`). The build surfaces the **active/in-flight call's real tier** into a prop the ControlCenter reads.
 
 **Recommended design (confirm at build):**
 

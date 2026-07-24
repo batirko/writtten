@@ -41,17 +41,17 @@ By contrast, the doc-quality pass had its **own** duplicate of the conflict as a
 
 ## Root cause (two facts that compose)
 
-**(a) The all-pairs sweep — the only engine with conflict-resolution logic — never re-runs on edits.** `reconcileSweepContradictions` has correct authoritative-with-grace closing: a pair the sweep stops emitting ages out over `DOC_GRACE_THRESHOLD` misses and closes ([`evaluatorReconcile.ts:490`](../../src/services/evaluatorReconcile.ts)). But `evaluateLedgerContradictions` (the sweep) is triggered **only** by `trigger.kind === "block-paste"` ([`orchestrator.ts:479`](../../src/services/orchestrator.ts)). `doc-idle` runs `evaluateDocument` (doc-quality), not the sweep. So after the initial paste/load, the resolution logic is never given a chance to fire.
+**(a) The all-pairs sweep — the only engine with conflict-resolution logic — never re-runs on edits.** `reconcileSweepContradictions` has correct authoritative-with-grace closing: a pair the sweep stops emitting ages out over `DOC_GRACE_THRESHOLD` misses and closes ([`evaluatorReconcile.ts`](../../src/services/evaluatorReconcile.ts)). But `evaluateLedgerContradictions` (the sweep) is triggered **only** by `trigger.kind === "block-paste"` ([`orchestrator.ts`](../../src/services/orchestrator.ts)). `doc-idle` runs `evaluateDocument` (doc-quality), not the sweep. So after the initial paste/load, the resolution logic is never given a chance to fire.
 
-**(b) The per-section edit path reconciles conflict cards only on their *primary* anchor.** The sweep anchors the card `blockId = S8OD_Yef0E` (Metrics, claim A) and `conflictingBlockId = N4r2-zLRaF` (Timeline, claim B) ([`evaluator.ts:1109`](../../src/services/evaluator.ts)). The user edited **Timeline** — the card's *secondary* (`conflictingBlockId`) side. But `reconcileObservations` builds its candidate set with `memberSet.has(o.blockId)` — **primary side only** ([`evaluatorReconcile.ts:154`](../../src/services/evaluatorReconcile.ts)). So the card was never even a candidate for the Timeline section's reconcile. Editing the *Metrics* (primary) block instead would have orphan-closed it.
+**(b) The per-section edit path reconciles conflict cards only on their *primary* anchor.** The sweep anchors the card `blockId = S8OD_Yef0E` (Metrics, claim A) and `conflictingBlockId = N4r2-zLRaF` (Timeline, claim B) ([`evaluator.ts`](../../src/services/evaluator.ts)). The user edited **Timeline** — the card's *secondary* (`conflictingBlockId`) side. But `reconcileObservations` builds its candidate set with `memberSet.has(o.blockId)` — **primary side only** ([`evaluatorReconcile.ts`](../../src/services/evaluatorReconcile.ts)). So the card was never even a candidate for the Timeline section's reconcile. Editing the *Metrics* (primary) block instead would have orphan-closed it.
 
-**The data model already supports either-side reasoning — the edit path just doesn't use it.** Block *removal* closes cards on both sides: `o.blockId === blockId || o.conflictingBlockId === blockId` ([`orchestrator.ts:174`](../../src/services/orchestrator.ts)). Block *edit* uses only the primary side. Closing that inconsistency is most of the fix.
+**The data model already supports either-side reasoning — the edit path just doesn't use it.** Block *removal* closes cards on both sides: `o.blockId === blockId || o.conflictingBlockId === blockId` ([`orchestrator.ts`](../../src/services/orchestrator.ts)). Block *edit* uses only the primary side. Closing that inconsistency is most of the fix.
 
 A secondary UX wrinkle amplified the confusion: the card's **highlight** was on the Metrics "Q3" text (primary anchor A) while its **message** was about the Timeline "Q2" claim — so the span the user was staring at was in a different block from the one they edited.
 
 ## What already works (don't rebuild it)
 
-For **span cards** (`clarity` / `undefined_jargon` / `unsupported_claim`) the edit-scoped resolution the user's intuition asks for already exists: on settle, the fast-tier section-eval re-extracts the section, and `reconcileObservations` auto-closes any span card on the edited block the fresh eval no longer produces (`resolved_by_edit`, [`evaluatorReconcile.ts:276`](../../src/services/evaluatorReconcile.ts)). Cheap, directed, immediate — this is why the BM25 undefined-jargon card cleared cleanly in the same session. The gap is **only** cross-block conflict cards.
+For **span cards** (`clarity` / `undefined_jargon` / `unsupported_claim`) the edit-scoped resolution the user's intuition asks for already exists: on settle, the fast-tier section-eval re-extracts the section, and `reconcileObservations` auto-closes any span card on the edited block the fresh eval no longer produces (`resolved_by_edit`, [`evaluatorReconcile.ts`](../../src/services/evaluatorReconcile.ts)). Cheap, directed, immediate — this is why the BM25 undefined-jargon card cleared cleanly in the same session. The gap is **only** cross-block conflict cards.
 
 ## Why not "just re-run the sweep on edit"
 
@@ -61,13 +61,13 @@ It would violate hard invariant #3 (no per-keystroke full-document scans; cross-
 
 The two candidate mechanisms compose into one, rather than being an either/or:
 
-- **A — deterministic, no LLM (the gate).** On settle, collect active `contradiction`/`strategic_tension` cards touching any member block on **either** anchor side (widen the [`evaluatorReconcile.ts:154`](../../src/services/evaluatorReconcile.ts) filter to mirror block-removal). For each card:
+- **A — deterministic, no LLM (the gate).** On settle, collect active `contradiction`/`strategic_tension` cards touching any member block on **either** anchor side (widen the [`evaluatorReconcile.ts`](../../src/services/evaluatorReconcile.ts) filter to mirror block-removal). For each card:
   - anchor claim on the edited side is **gone** from the fresh extract → close (grace beat);
   - the incremental check **re-emitted** this exact pair (by `conflictPairKey`) → still conflicts → keep, reset grace;
   - claim **still present but reworded**, pair not re-emitted → *ambiguous* → hand to B.
 - **B — one targeted 2-claim confirm (only on ambiguity).** Re-run a single contradiction check with the *current* text of both sides. `no conflict` → close; still conflicts → keep (and re-anchor to the new text). ~1–2 s, reads 2 claims, fires only when A can't decide — strictly cheaper than firing B on every touched card, strictly more robust than A alone (which would false-close a reworded-but-still-conflicting claim).
 
-**Grace beat.** Applies to A's *absence* close (guards a stochastic re-extraction miss), consistent with how sweep and doc-scope conflict cards already close (`DOC_GRACE_THRESHOLD = 2`, [`evaluatorReconcile.ts:292`](../../src/services/evaluatorReconcile.ts)). A **B-confirmed** resolution is an affirmative signal, not an absence, so it can close immediately without waiting out grace.
+**Grace beat.** Applies to A's *absence* close (guards a stochastic re-extraction miss), consistent with how sweep and doc-scope conflict cards already close (`DOC_GRACE_THRESHOLD = 2`, [`evaluatorReconcile.ts`](../../src/services/evaluatorReconcile.ts)). A **B-confirmed** resolution is an affirmative signal, not an absence, so it can close immediately without waiting out grace.
 
 > **Note on uniformity.** Auto-close is *not* uniform in the codebase today: span-edit closes are immediate; doc-scope + sweep conflict closes use grace; `resolved_prior` and `block_removed` are immediate. This doc adopts grace **for the conflict-resolution path only** (these are sweep-born cards, so grace is the consistent local choice). A broader "unify all auto-archive close semantics" is explicitly out of scope here — flag it as a separate lifecycle item if it's worth doing.
 
@@ -77,7 +77,7 @@ The two candidate mechanisms compose into one, rather than being an either/or:
 
 Inputs threaded from `evaluateSection` (both already exist at the call site): the settle's in-memory `extractedClaims` and the set of conflict pair keys the incremental check just emitted (`freshPairKeys`).
 
-1. **Collect** active `contradiction` / `strategic_tension` cards touching any member block on **either** side: `memberSet.has(o.blockId) || (o.conflictingBlockId != null && memberSet.has(o.conflictingBlockId))` — the same either-side predicate `handleBlockRemoved` already uses (`orchestrator.ts:174`).
+1. **Collect** active `contradiction` / `strategic_tension` cards touching any member block on **either** side: `memberSet.has(o.blockId) || (o.conflictingBlockId != null && memberSet.has(o.conflictingBlockId))` — the same either-side predicate `handleBlockRemoved` already uses (in `orchestrator.ts`).
 2. **A — deterministic classifier**, per card. The *edited side* is whichever anchor sits in `memberSet`; its claim text is `anchorText` (primary) or `conflictingAnchorText` (secondary).
    - **Re-emitted:** `freshPairKeys.has(conflictPairKey(card))` → still conflicts → keep; reset `missCount` to 0.
    - **Gone:** no fresh extracted claim matches the edited side's claim text (match = normalized-text equality, else containment in either direction — the same normalization family `isSpanSuppressed` uses) → the user removed/resolved that claim → close.
