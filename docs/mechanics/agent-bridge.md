@@ -200,6 +200,8 @@ The pass resets on a content-bearing snapshot push (a new version supersedes wha
 
 `dropToDisconnected` fires after `DISCONNECT_GRACE_MS`, and until 2026-07-20 the only readout was the `agent-chip` — inside the hover/tap-gated control center, i.e. "always-on" only once you open it. The author kept writing, believing a critic was reading, and found out by opening Settings.
 
+**Two ways the app learns the agent is gone, and both are needed.** The SSE stream's `onerror` is the fast path — a closed stream drops immediately, a reconnecting one after the grace. But a **permission revoked mid-session** (the user turning "Apps on device" off in Chrome while connected) does _not_ error the stream: the browser gates a request when it _starts_, so the already-open SSE keeps delivering keepalives and the chip reads "connected" — while every new fetch to `127.0.0.1` hangs. The second path catches that: `postJson` (every `/snapshot` and `/verdict`) carries `AbortSignal.timeout(POST_TIMEOUT_MS)`, so a hung push aborts, `pushSnapshot`'s `catch` runs `dropToDisconnected`, and the app stops claiming "connected" (field-found 2026-07-24: without the cap the POST awaited forever, the chip lied, and the agent silently starved). This also covers a bridge process killed without closing its socket.
+
 `AgentDroppedNote` (`SidecarFeed.tsx`) now states it in the feed. Each design note is load-bearing:
 
 - **A strip, not a toast.** The state persists and clears itself when a background retry reconnects, so an interruption would be both missed by anyone not looking and wrong the instant it succeeded. Rendering is derived from `agentSourceSignal`, which is what makes it self-clearing.
