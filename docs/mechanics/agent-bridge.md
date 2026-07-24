@@ -200,6 +200,12 @@ The pass resets on a content-bearing snapshot push (a new version supersedes wha
 
 `dropToDisconnected` fires after `DISCONNECT_GRACE_MS`, and until 2026-07-20 the only readout was the `agent-chip` — inside the hover/tap-gated control center, i.e. "always-on" only once you open it. The author kept writing, believing a critic was reading, and found out by opening Settings.
 
+**Three ways the app learns the agent is gone, because one alone always leaves a hole (field-found 2026-07-24).**
+
+- **SSE `onerror`** — transport death. A closed stream drops immediately, a reconnecting one after the grace. This is what catches the bridge process quitting.
+- **The permission watcher** (`useAgentBridge`) — a permission **revoked mid-session** (the user turning "Apps on device" off in Chrome while connected). This does _not_ error the stream: the browser gates a request when it _starts_, so the already-open SSE keeps delivering keepalives and the chip reads "connected" while every new fetch to `127.0.0.1` hangs. `PermissionStatus.onchange` fires the instant the setting flips, so the watcher — which used to bail the moment the state read `connected`, on the false assumption that clearing the gate once cleared it for good — now runs the whole session and flips straight to the **blocked callout** (specific, with recovery steps), keeping the pairing so re-allowing reconnects the still-running bridge. This is the fast, precise path for the revoke case, and it only works where the permission is _readable_.
+- **The POST timeout** — the backstop for everywhere the watcher can't see: an unreadable permission (Firefox, an embedded shell), or a hang with no permission change behind it. `postJson` (every `/snapshot` and `/verdict`) carries `AbortSignal.timeout(POST_TIMEOUT_MS)`, so a hung push aborts, `pushSnapshot`'s `catch` runs `dropToDisconnected`, and the app stops claiming "connected". Without it a blocked POST awaited forever, the chip lied, and the agent silently starved.
+
 `AgentDroppedNote` (`SidecarFeed.tsx`) now states it in the feed. Each design note is load-bearing:
 
 - **A strip, not a toast.** The state persists and clears itself when a background retry reconnects, so an interruption would be both missed by anyone not looking and wrong the instant it succeeded. Rendering is derived from `agentSourceSignal`, which is what makes it self-clearing.

@@ -704,6 +704,89 @@ describe("snapshot push", () => {
 });
 
 // ---------------------------------------------------------------------------
+// Push liveness — a hung POST must not leave the chip lying "connected"
+// ---------------------------------------------------------------------------
+
+describe("snapshot push liveness", () => {
+  /** A bespoke bridge (not makeHarness — it doesn't expose per-request init). */
+  function connect(fetchImpl: typeof fetch) {
+    const sources: FakeEventSource[] = [];
+    let settle = () => {};
+    const handle = startAgentBridge({
+      pairing,
+      fetchImpl,
+      eventSourceImpl: (url) => {
+        const es = new FakeEventSource(url);
+        sources.push(es);
+        return es;
+      },
+      subscribeSettled: (fn) => {
+        settle = fn;
+        return () => {};
+      },
+      readSnapshot: async () => ({
+        title: "T",
+        stage: "S",
+        sections: [{ heading: "H", text: "b" }],
+        activeObservations: [],
+      }),
+      onSubmission: async () => ({ result: "accepted", observationId: "o" }),
+      logEvent: () => {},
+    });
+    return { handle, sources, settle: () => settle() };
+  }
+
+  it("sends /snapshot with an abort signal, so a hung push can time out instead of awaiting forever", async () => {
+    let snapshotSignal: AbortSignal | null | undefined;
+    const h = connect((async (input: string, init?: RequestInit) => {
+      const url = String(input);
+      if (url.includes("/handshake"))
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ protocolVersion: AGENT_PROTOCOL_VERSION, agentName: "A" }),
+        } as Response;
+      if (url.includes("/snapshot")) snapshotSignal = init?.signal;
+      return { ok: true, status: 200, json: async () => ({ ok: true }) } as Response;
+    }) as unknown as typeof fetch);
+
+    (await until(() => h.sources[0])).open();
+    await until(() => snapshotSignal !== undefined);
+    // The regression guard: drop the signal from postJson and this fails.
+    expect(snapshotSignal).toBeInstanceOf(AbortSignal);
+    h.handle.stop();
+  });
+
+  it("drops to disconnected when a push fails — the revoked-permission case", async () => {
+    // A permission revoked mid-session leaves the open SSE alive (so the chip still
+    // reads "connected") while every new fetch to 127.0.0.1 hangs; the abort signal
+    // turns that hang into the rejection asserted here, and the app stops lying.
+    let failSnapshot = false;
+    const h = connect((async (input: string) => {
+      const url = String(input);
+      if (url.includes("/handshake"))
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ protocolVersion: AGENT_PROTOCOL_VERSION, agentName: "A" }),
+        } as Response;
+      if (url.includes("/snapshot") && failSnapshot)
+        throw new DOMException("The operation timed out.", "TimeoutError");
+      return { ok: true, status: 200, json: async () => ({ ok: true }) } as Response;
+    }) as unknown as typeof fetch);
+
+    (await until(() => h.sources[0])).open();
+    await until(() => h.handle.getStatus().state === "connected");
+
+    failSnapshot = true;
+    h.settle();
+    await until(() => h.handle.getStatus().state === "disconnected");
+    expect(h.handle.getStatus().state).toBe("disconnected");
+    h.handle.stop();
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Settle detection against the real docSettleSignal
 // ---------------------------------------------------------------------------
 

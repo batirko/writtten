@@ -38,6 +38,17 @@ const PAIRING_STORAGE_KEY = "writtten_agent_pairing";
 const PROBE_INTERVAL_MS = 2_000;
 const RECONNECT_INTERVAL_MS = 10_000;
 const PROBE_TIMEOUT_MS = 1_500;
+/**
+ * Cap on an app→bridge POST (`/snapshot`, `/verdict`). Loopback relays resolve in
+ * milliseconds, so this only ever bites a request that has *stopped answering* —
+ * the bridge process gone, or the local-network permission revoked mid-session,
+ * which leaves the open SSE stream alive (so the chip still reads "connected")
+ * while every new fetch to 127.0.0.1 hangs. Without a cap, `pushSnapshot`'s POST
+ * awaits forever, its `catch → dropToDisconnected` never runs, and the app keeps
+ * claiming "connected" while the agent silently starves. Generous, because a real
+ * loopback POST is never slow — this is a liveness backstop, not a latency budget.
+ */
+const POST_TIMEOUT_MS = 10_000;
 /** EventSource reconnects on its own; only give up on the chip after this. */
 const DISCONNECT_GRACE_MS = 8_000;
 /** Decision (e): one pending verdict at a time, ≥500 ms apart. */
@@ -611,6 +622,9 @@ export function startAgentBridge(deps: BridgeDeps): AgentBridgeHandle {
         "Content-Type": "application/json",
       },
       body: JSON.stringify(body),
+      // A hung POST (permission revoked mid-session, bridge gone) must fail loudly
+      // so the caller's disconnect path runs — see POST_TIMEOUT_MS.
+      signal: AbortSignal.timeout(POST_TIMEOUT_MS),
     });
   }
 
