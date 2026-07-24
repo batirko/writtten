@@ -1333,7 +1333,15 @@ body,
   color: var(--color-accent);
 }
 
-.welcome-modal {
+/* Compound selector so the width wins regardless of source order — `.modal-card`
+   is declared later in this file, so a bare `.welcome-modal` loses the
+   equal-specificity tie and the card silently renders at the shared 340px. It did
+   exactly that from the day this rule was written until 2026-07-24; the settings
+   modal above was already doubled for this reason and this one was missed.
+   400px is not decorative — below 390px both on-ramp labels ("Add your key" /
+   "Connect your agent") wrap onto two lines, which ranks nothing but looks broken
+   in the row that .welcome-modal-primary argues must read as two equal paths. */
+.modal-card.welcome-modal {
   width: 400px;
 }
 /* The dialog owns focus on open (for the trap + SR), but it's a container, not a
