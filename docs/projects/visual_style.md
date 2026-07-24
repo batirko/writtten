@@ -217,7 +217,7 @@ Card surface `--color-surface`, `--radius-lg`, `--elev-rest`, hairline border. H
 
 #### Impact label (R7a) — settled 2026-06-18
 
-**Why this section exists.** The shipped first-glance impact cue is a 6px `impact-cue` dot at 0.75 opacity (`src/styles.css:322`) with a native `title` tooltip (`SidecarFeed.tsx:114`). Two defects: the dot is **too subtle to be a first layer** of impact (the eye doesn't catch it), and the **native `title` is unreliable** (cursor shows `help` but no tooltip renders in practice). R7a fixes both. Decisions (2026-06-18, interactive):
+**Why this section exists.** The shipped first-glance impact cue is a 6px `impact-cue` dot at 0.75 opacity in `src/styles.css`, with a native `title` tooltip in `SidecarFeed.tsx`. (That is the **pre-R7a** state this section was written against. Neither `.impact-cue` nor the native `title` still exists; R7a shipped 2026-06-26 as `.impact-label` + `.impact-popover`.) Two defects: the dot is **too subtle to be a first layer** of impact (the eye doesn't catch it), and the **native `title` is unreliable** (cursor shows `help` but no tooltip renders in practice). R7a fixes both. Decisions (2026-06-18, interactive):
 
 **The cue → a small text severity label.** Replace the dot with a tiny uppercase severity word — **`HIGH` / `MED` / `LOW`** — set in the same semantic colour the dot used (the `impact-kind-* impact-sev-*` palette in `src/styles.css`), at `--text-label` scale. Rationale:
 
@@ -231,7 +231,7 @@ Card surface `--color-surface`, `--radius-lg`, `--elev-rest`, hairline border. H
 
 - Hover **and** keyboard-focus triggered (the cue is already in the card's focus path); dismiss on blur/mouseleave/`Escape`.
 - `--color-ink`-on-`--color-surface` (or an inverted ink chip), `--radius-sm`, `--elev-hover`, `--text-ui`; positioned above/below the label with simple flip-on-overflow. No animation under `prefers-reduced-motion`.
-- Content is the existing `impactTooltip(severity, confidence, slot)` string (`SidecarFeed.tsx:49`) — e.g. _"High severity · medium confidence — surfaced in main feed"_ — now actually rendered reliably.
+- Content is the then-existing `impactTooltip(severity, confidence, slot)` string in `SidecarFeed.tsx` (since inlined into the card JSX) — e.g. _"High severity · medium confidence — surfaced in main feed"_ — now actually rendered reliably.
 - Accessibility: the label is focusable with `aria-describedby` pointing at the tooltip; the tooltip is `role="tooltip"`. Keep the `data-testid="impact-badge"` hook on the label element so existing harness selectors don't break.
 
 **Scope note.** This is a card-anatomy change (label form + a tiny tooltip component); the semantic colour tokens are **not** re-tuned (§ Semantic colour says don't). Co-owned with `emotional_register.md` only for the _words_ in the tooltip sentence (which already exist); G-register rules don't change.

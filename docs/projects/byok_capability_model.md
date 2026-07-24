@@ -38,8 +38,8 @@ This is **model-router / capability-gating** work — client-side, no server/tel
 ### Phase 9 — multi-key rotation (additive; readiness pass 2026-07-16 — mechanics settled, see § Phase-9 design)
 
 - [ ] **Widen the free-key input to a list.** `createGeminiRouter(freeKey, paidKey?)` → accept `freeKeys: string[]` (a single string stays valid — wrap to a one-element array, so every existing call site and test is untouched). Storage: `writtten_gemini_free_keys` (JSON array) with a one-time migration from the single `writtten_api_key`; the legacy key remains readable as fallback.
-- [ ] **Pool entries become `(keyRef, model)` pairs, expanded key-major per model.** For each model in `FREE_FAST_POOL`/`FREE_STRONG_POOL` (RPD-quality order, `gemini.ts:35–43`), emit one entry per free key **before** advancing to the next model — so extra keys extend the life of the *best* free model rather than just lengthening the tail. `keyRef` is a stable slot id (`free-1`, `free-2`, `paid`), never key material.
-- [ ] **Key `CoolDownRegistry` by `keyRef:model`.** The registry is already an arbitrary-string `Map` (`rotation.ts:36–47`); the change is the key format at the `markUnavailable`/`isAvailable` call sites plus threading `keyRef` through the attempt loop. A per-day 429 on `free-1:gemini-3.5-flash` must leave `free-2:gemini-3.5-flash` available — that non-interference is the feature's acceptance test.
+- [ ] **Pool entries become `(keyRef, model)` pairs, expanded key-major per model.** For each model in `FREE_FAST_POOL`/`FREE_STRONG_POOL` (RPD-quality order, `gemini.ts`), emit one entry per free key **before** advancing to the next model — so extra keys extend the life of the *best* free model rather than just lengthening the tail. `keyRef` is a stable slot id (`free-1`, `free-2`, `paid`), never key material.
+- [ ] **Key `CoolDownRegistry` by `keyRef:model`.** The registry is already an arbitrary-string `Map` (`rotation.ts`); the change is the key format at the `markUnavailable`/`isAvailable` call sites plus threading `keyRef` through the attempt loop. A per-day 429 on `free-1:gemini-3.5-flash` must leave `free-2:gemini-3.5-flash` available — that non-interference is the feature's acceptance test.
 - [ ] **Per-key attribution in stats + logs.** `getApiStats()`/`logger.ts` currently bucket by model; add the `keyRef` dimension (RPD budgets are per key×model, so `remainingToday` is only truthful per pair). Log masking extends `<free>`/`<paid>` to `<free-1>`/`<free-2>`; the debug-log redaction guard (`debugLog.test.ts`) grows a multi-key case.
 - [ ] **Per-key tier detection.** `detectGeminiTier` (`ping.ts`) runs per added key (debounced, as today). A key added to a free slot that probes as **paid** gets a gentle "this key is billed — use it as your paid key?" prompt rather than silently spreading RPD with a billed key.
 - [ ] Optional (unchanged): a third capability tier for mid-capability BYO models (local Llama, Haiku) — better than flash-lite but not trusted to drive authoritative closures. Not needed for the rotation slice; the descriptor is already typed for it (`capability.ts`).
@@ -63,8 +63,8 @@ The rotation plumbing above is invisible to the user; this is the UI over it. It
 Across the codebase `paidKey?: string` is overloaded with three concerns that **coincide in the default Gemini pack but decouple under BYOK**:
 
 1. **A credential** — which key to authenticate with (`gemini.ts`).
-2. **A quota strategy** — which RPD-ordered pool to rotate (`FREE_*_POOL` vs `PAID_*_POOL`, `gemini.ts:33–56`).
-3. **A capability claim** — "this model can reason well enough." This is what every `if (paidKey)` in `evaluator.ts` _actually means_: confident vs hedged prompts (`:799`), resolution-aware doc regen (`:963`, Tier-2 A), authoritative-with-grace sweep (`:1141`, Tier-2 B).
+2. **A quota strategy** — which RPD-ordered pool to rotate (`FREE_*_POOL` vs `PAID_*_POOL`, `gemini.ts`).
+3. **A capability claim** — "this model can reason well enough." This is what every `if (paidKey)` in `evaluator.ts` _actually means_: confident vs hedged prompts, resolution-aware doc regen (Tier-2 A), authoritative-with-grace sweep (Tier-2 B).
 
 For the default pack these are the same fact (paid key → strong pool → `gemini-2.5-pro` → capable). For BYOK they split.
 
@@ -85,11 +85,11 @@ For the default pack these are the same fact (paid key → strong pool → `gemi
 
 The hard seams are sound:
 
-- **`ModelRouter` (`fast`/`strong`)** — a real abstraction; call sites never see provider details (`router.ts:24`).
-- **`createRouter(apiKey, paidKey)`** — single construction funnel; every evaluator entry point goes through it (`factory.ts:36`). One place to change the capability decision.
-- **Mock/record/replay** — provider-agnostic wrap (`factory.ts:13`).
-- **Rotation + cool-down + backoff** — all inside the router module per the stated extension seam (`gemini.ts:245`).
-- **Per-key cool-down registries** — already separate objects (`freeRegistry`/`paidRegistry`, `gemini.ts:76`); the pattern extends to N keys.
+- **`ModelRouter` (`fast`/`strong`)** — a real abstraction; call sites never see provider details (`router.ts`).
+- **`createRouter(apiKey, paidKey)`** — single construction funnel; every evaluator entry point goes through it (`factory.ts`). One place to change the capability decision.
+- **Mock/record/replay** — provider-agnostic wrap (`factory.ts`).
+- **Rotation + cool-down + backoff** — all inside the router module per the stated extension seam (`gemini.ts`).
+- **Per-key cool-down registries** — already separate objects (`freeRegistry`/`paidRegistry`, `gemini.ts`); the pattern extends to N keys.
 
 ## The decision: credential ≠ capability
 

@@ -38,7 +38,7 @@ Read alongside:
 
 - [x] **G1 — Flattery-resistant dismissal (R5.4).**
   - [x] Make `DismissalSuppression` (`src/store/db.ts`) carry the observation `kind`/`severity` of the dismissed item.
-  - [x] Update `isSpanSuppressed` (`src/services/evaluator.ts:111`) so a high-severity defect/`contradiction` dismissal suppresses only _that span_, never the category on other spans. Low-severity nit dismissals keep the existing category/term-wide suppression.
+  - [x] Update `isSpanSuppressed` (`src/services/evaluatorAnchoring.ts`) so a high-severity defect/`contradiction` dismissal suppresses only _that span_, never the category on other spans. Low-severity nit dismissals keep the existing category/term-wide suppression.
   - [x] Decide the gesture: either high-severity dismissal is inherently span-scoped, or it requires a distinct "not a real issue" affordance that doesn't train silence (UI decision — keep it one click).
   - [x] IndexedDB migration for the new suppression fields (follow the existing migration pattern in `src/store/db.ts`).
   - [x] Fixture/test: seed two contradictions on different spans, dismiss one, assert the other still fires (the R5.4 gate in `fidelity-criteria.md`).
@@ -89,7 +89,7 @@ The disguised fix (leading questions) and the cold fix (hostile tone) are the tw
 
 **How it surfaced.** Building the BYOA boundary (`externalObservations.ts`, PR #213) promoted `lintRegister` from a backstop on our own prompt-tuned model to the **hard-reject enforcement gate on untrusted external input**. Probing it with the phrasings the BYOA spec itself names as prescriptive found them passing; a wider probe of 28 realistic critic phrasings found **all 28** passing, across all three lexical families.
 
-**The design defect.** `lintRegister` matches literal lowercased substrings from three hand-written lists (`registerLint.ts:52–99`). Natural language has unbounded surface; a denylist cannot cover it. The most consequential omission is the **bare-imperative** family — `"Add a measurement window."`, `"Define adoption first."`, `"Make this measurable."`, `"Clarify what counts as active."` — which is both the commonest prescriptive form and the most direct violation of the principle. PR #213 added twelve patterns and still left it, because it patched *within* the lexical design rather than replacing it.
+**The design defect.** `lintRegister` matches literal lowercased substrings from three hand-written lists (the `EDITING_VERBS` / `QUALITY_ADJECTIVES` / `INTENSIFIERS` arrays in `registerLint.ts`). Natural language has unbounded surface; a denylist cannot cover it. The most consequential omission is the **bare-imperative** family — `"Add a measurement window."`, `"Define adoption first."`, `"Make this measurable."`, `"Clarify what counts as active."` — which is both the commonest prescriptive form and the most direct violation of the principle. PR #213 added twelve patterns and still left it, because it patched *within* the lexical design rather than replacing it.
 
 Note the ticked G3 bullet above named `"add…"` explicitly. The rule was specified correctly in Phase 6 and implemented only for the `"you need…"` case; nothing tested the gap, so the checkbox closed over it.
 

@@ -260,25 +260,25 @@ The unfold is a button, not a hover reveal, and full-width so it clears a touch 
 
 **The rule: an observation carrying `source` is not the evaluator's to close.** Our model has no standing to decide another critic's finding is resolved, and no precision floor covering that judgement.
 
-Enforced by `isEvaluatorOwned(obs)` (`evaluatorReconcile.ts`), applied at **every** system-driven closure arm:
+Enforced by `isEvaluatorOwned(obs)` (`evaluatorReconcile.ts`), applied at **every** system-driven closure arm (all in `evaluatorReconcile.ts` unless noted):
 
-| Site                            | Arm                                                                |
-| ------------------------------- | ------------------------------------------------------------------ |
-| `evaluatorReconcile.ts` ~`:224` | `resolved_prior` force-close                                       |
-| `evaluatorReconcile.ts` ~`:299` | supersedable pick (external is never _chosen_)                     |
-| `evaluatorReconcile.ts` ~`:332` | the blanket orphan close                                           |
-| `evaluatorReconcile.ts` ~`:407` | doc-scope `resolved_prior`                                         |
-| `evaluatorReconcile.ts` ~`:460` | doc-scope orphan grace — skips the `missCount` bump too            |
-| `evaluatorReconcile.ts` ~`:539` | tension superseded by a contradiction                              |
-| `evaluatorReconcile.ts` ~`:566` | strong-sweep absence grace (the `else` arm only)                   |
-| `evaluatorReconcile.ts` ~`:793` | `reconcileConflictCardsOnEdit` — one guard covers its three closes |
-| `evaluator.ts` ~`:161`          | snapshot-restore stray close                                       |
+| Arm                                                                |
+| ------------------------------------------------------------------ |
+| `resolved_prior` force-close                                       |
+| supersedable pick (external is never _chosen_)                     |
+| the blanket orphan close                                           |
+| doc-scope `resolved_prior`                                         |
+| doc-scope orphan grace — skips the `missCount` bump too            |
+| tension superseded by a contradiction                              |
+| strong-sweep absence grace (the `else` arm only)                   |
+| `reconcileConflictCardsOnEdit` — one guard covers its three closes |
+| snapshot-restore stray close (in `evaluator.ts`)                   |
 
 ### Two deliberate choices in that table
 
 **The guards sit at the close sites, never as a filter when `existing` is loaded.** External cards must still take part in matching and dedup: an incoming native observation landing on an external card's span should be _absorbed_ by it, not rendered a second time. Filtering at load would exempt them and double the feed in one move. `evaluatorReconcile.external.test.ts` pins this distinction directly.
 
-**`evaluator.ts:161` is not in the spec's list.** A snapshot records what _our_ evaluator held at the time, so an agent's card is always "missing" from it — unguarded, a plain undo silently closed every external card in the section. Found during the build; the guard is verified by removing it and watching the test fail.
+**The snapshot-restore close (in `evaluator.ts`) is not in the spec's list.** A snapshot records what _our_ evaluator held at the time, so an agent's card is always "missing" from it — unguarded, a plain undo silently closed every external card in the section. Found during the build; the guard is verified by removing it and watching the test fail.
 
 ### What is _not_ exempt
 
@@ -334,7 +334,7 @@ Two deliberate properties:
 - **Not DEV-gated,** unlike `archiveObs`. For a BYOA session these events are the _only_ evidence that exists, because BYOA makes no model calls and the call log is empty by construction.
 - **No observation text and no document content** — types, codes, versions, and counts only. That is what makes shipping them to production safe, and it is the same reason `archiveObs` (which carries the author's prose) stays dev-only.
 
-> **Caveat — `archive` records are DEV-only, so a production export always reads `archives: 0`.** `archiveObs` (`evaluatorReconcile.ts:67`) returns early outside DEV, by design: an archive record carries the observation's **text**, and the debug drawer ships to production, so surfacing it would put the author's prose into a file users are invited to send us. The consequence is easy to misread — the milestone that motivated this section reasoned _"`archives: 0` is wrong on its own terms, a retraction closes a card,"_ which is true in dev and **not** something a real user's export will ever show. Read a production `archives: 0` as "not captured", never as "nothing was closed". The `agent` records above are the prod-visible evidence: a `retract` with `applied: true` proves the closure without carrying any document content, which is exactly why that family is not DEV-gated.
+> **Caveat — `archive` records are DEV-only, so a production export always reads `archives: 0`.** `archiveObs` (`evaluatorReconcile.ts`) returns early outside DEV, by design: an archive record carries the observation's **text**, and the debug drawer ships to production, so surfacing it would put the author's prose into a file users are invited to send us. The consequence is easy to misread — the milestone that motivated this section reasoned _"`archives: 0` is wrong on its own terms, a retraction closes a card,"_ which is true in dev and **not** something a real user's export will ever show. Read a production `archives: 0` as "not captured", never as "nothing was closed". The `agent` records above are the prod-visible evidence: a `retract` with `applied: true` proves the closure without carrying any document content, which is exactly why that family is not DEV-gated.
 
 `agent` is deliberately **not** in the logger's `LIFECYCLE_TYPES` retention bucket: those get evicted first, and bridge events are both low-frequency and the whole evidentiary record.
 

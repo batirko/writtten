@@ -23,17 +23,17 @@ The dead locate affordance is removed for doc-scoped cards: `onHover` (hover→h
 
 ## The problem
 
-Observations carry a first-class `scope` field — `"span" | "document"` (`src/store/db.ts:66`). Span observations point at a specific string; document observations are about the doc as a whole (`missing_topic`, `structure_flow`, `audience_mismatch`, and `underexposed_topic` when it fires doc-wide). `scope` already drives two things behind the scenes:
+Observations carry a first-class `scope` field — `"span" | "document"` (`src/store/db.ts`). Span observations point at a specific string; document observations are about the doc as a whole (`missing_topic`, `structure_flow`, `audience_mismatch`, and `underexposed_topic` when it fires doc-wide). `scope` already drives two things behind the scenes:
 
-- **Editor highlighting** — the highlighter only paints `scope === "span"` (`src/editor/extensions/ObservationHighlighter.ts:141`). Hovering a doc-scoped card highlights **nothing**.
+- **Editor highlighting** — the highlighter only paints `scope === "span"` (`src/editor/extensions/ObservationHighlighter.ts`). Hovering a doc-scoped card highlights **nothing**.
 - **Feed positioning** — unanchored doc-scoped notes are pinned to the bottom of their band, with high-priority ones lifted into the "Key issues" band (`src/sidecar/feedBudget.ts`; the band structure is the UX-015 work, `plan.md`).
 
-But **the card itself is scope-blind.** `src/sidecar/SidecarFeed.tsx` never references `scope`: a `missing_topic` card renders the exact same chrome as a `clarity` card, and — this is the crux — it keeps every interactive affordance a span card has (`SidecarFeed.tsx:148–165`):
+But **the card itself is scope-blind.** `src/sidecar/SidecarFeed.tsx` never references `scope`: a `missing_topic` card renders the exact same chrome as a `clarity` card, and — this is the crux — it keeps every interactive affordance a span card has (in `SidecarFeed.tsx`):
 
 - `onHover` → tries to highlight a span → **no-op** for doc scope.
 - `onClick` → `obs-card-activate` → scroll-to-and-pulse the span → **no-op** for doc scope.
 
-So a document-scoped card **invites the user to "find where this is" and then silently does nothing.** That is worse than a missing label — it is a dead affordance that quietly teaches the user the feed is flaky. The only accidental tell today is the absence of the `card-anchor` quote line (`SidecarFeed.tsx:204`), which is indistinguishable from "this card just has a short body."
+So a document-scoped card **invites the user to "find where this is" and then silently does nothing.** That is worse than a missing label — it is a dead affordance that quietly teaches the user the feed is flaky. The only accidental tell today is the absence of the `card-anchor` quote line (in `SidecarFeed.tsx`), which is indistinguishable from "this card just has a short body."
 
 ### It's also a regression
 

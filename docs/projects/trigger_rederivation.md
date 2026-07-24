@@ -48,8 +48,8 @@ Should evaluation triggers be **only** text-manipulation / text-state events, wi
 
 Eight triggers; six are already pure manipulation events (Enter-completion, cursor departure, bulk paste, import, stage change, block removal). The two time-based ones are both **conjunctions with text-state gates**, not bare clocks:
 
-- **3s pause settle** — dispatches only on terminal punctuation ∧ ≥15 chars (`EVAL_DEBOUNCE_MS`, `Editor.tsx:42`).
-- **12s doc-idle** — reaches the model only if maturity ≠ unformed ∧ the doc-state hash changed since the last pass (`DOC_IDLE_MS`, `Editor.tsx:44`; `docStateHash` dirty check, `evaluator.ts:838–845`). An idle firing on an unchanged doc is a free no-op.
+- **3s pause settle** — dispatches only on terminal punctuation ∧ ≥15 chars (`EVAL_DEBOUNCE_MS`, `Editor.tsx`).
+- **12s doc-idle** — reaches the model only if maturity ≠ unformed ∧ the doc-state hash changed since the last pass (`DOC_IDLE_MS`, `Editor.tsx`; `docStateHash` dirty check, `evaluator.ts`). An idle firing on an unchanged doc is a free no-op.
 
 So the state conditions the hunch asks for **already exist**; the timers are the scheduler on top of them.
 
@@ -95,7 +95,7 @@ Sub-threshold deltas **accumulate** rather than vanish — a run of small edits 
 
 The floor is a **second, semantic dirty-check layered behind the existing hash dirty-check**, not a replacement. The hash check stays byte-exact (it is the replay/mock identity and the free "nothing changed at all" short-circuit); the floor only engages when the hash says *something* changed and asks *whether it could matter*.
 
-**Persistence — no schema change.** The doc-eval-state store is already a string KV (`saveDocEvalState(key, value)` / `loadDocEvalState(key)`, `db.ts:493`), and the sweep already namespaces into it (`${docId}::sweep`). The floor snapshot rides the same store as JSON under **`${docId}::floor`**:
+**Persistence — no schema change.** The doc-eval-state store is already a string KV (`saveDocEvalState(key, value)` / `loadDocEvalState(key)`, `db.ts`), and the sweep already namespaces into it (`${docId}::sweep`). The floor snapshot rides the same store as JSON under **`${docId}::floor`**:
 
 ```ts
 // src/services/docPassMateriality.ts (new, pure — no DB, no LLM)
@@ -122,7 +122,7 @@ export function isMaterialDelta(prev: DocPassSnapshot, next: Omit<DocPassSnapsho
 
 **Accumulation is structural, not a counter:** the snapshot is written only when a pass actually **runs**, so every idle diffs against the *last executed pass*, and small edits across sections accumulate until ≥K summaries differ — nothing is ever discarded. The one shape that would never accumulate (endless reword-only churn inside a single section) is caught by the flush rule: each hash-dirty-but-sub-floor idle increments `subFloorDirtyStreak` (persisted in the snapshot); at **`SUBFLOOR_FLUSH_STREAK = 4`** the pass runs anyway and the streak resets. This bounds both the staleness of the feed **and** the doc-scope grace-closure latency (a stale card's close is delayed by at most 4 sub-floor idles per grace beat).
 
-**Wiring (`evaluateDocument`, directly after the `docStateHash` check at `evaluator.ts:861`):**
+**Wiring (`evaluateDocument`, directly after the `docStateHash` check at `evaluator.ts`):**
 
 - hash unchanged → return (exactly today — the floor never runs).
 - hash changed → `loadDocEvalState(`${docId}::floor`)`; **no snapshot (legacy/first pass) → run** and write one.
