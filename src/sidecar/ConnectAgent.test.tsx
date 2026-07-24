@@ -204,7 +204,9 @@ describe("ConnectAgent — states", () => {
     }
     // The reach line — the one quality lever on this path, and the only place the product
     // admits that the agent knows things this document doesn't say.
-    expect(text).toMatch(/folder you started it in/i);
+    expect(text).toMatch(/folder on your machine/i);
+    // The honest edge is half the point and is the half a future trim would drop first.
+    expect(text).toMatch(/your reader only gets the document/i);
     expect(
       container.querySelector('[data-testid="connect-agent-capabilities"]')
     ).not.toBeNull();
