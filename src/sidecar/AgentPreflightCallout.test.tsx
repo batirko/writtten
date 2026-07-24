@@ -94,13 +94,21 @@ describe("AgentPreflightCallout", () => {
       expect(why?.textContent).toContain("127.0.0.1");
     });
 
-    it("backs out via the scrim as well as Cancel", () => {
+    it("does NOT dismiss on a scrim click — only its buttons close it", () => {
+      // Field-reported 2026-07-24: an accidental click on the canvas lost the
+      // callout. It carries a decision / the only recovery, so a click-away must
+      // do nothing; Cancel is the deliberate exit.
       const cancel = vi.fn();
       render({ preflight: "asking", cancel });
       act(() => {
         document.querySelector<HTMLElement>(".agent-preflight-scrim")!.click();
       });
-      expect(cancel).toHaveBeenCalled();
+      expect(cancel).not.toHaveBeenCalled();
+
+      act(() => {
+        [...document.querySelectorAll("button")].find((b) => b.textContent === "Cancel")!.click();
+      });
+      expect(cancel).toHaveBeenCalledOnce();
     });
   });
 
