@@ -326,12 +326,9 @@ export function ConnectAgent({
       )}
 
       {confirming && (
-        <div
-          className="modal-scrim"
-          data-testid="connect-agent-confirm"
-          onClick={() => setConfirming(false)}
-        >
-          <div className="modal-card" onClick={(e) => e.stopPropagation()}>
+        // A decision dialog: closes through its own buttons, not a click-away.
+        <div className="modal-scrim" data-testid="connect-agent-confirm">
+          <div className="modal-card">
             <p style={{ margin: "0 0 var(--space-2xs)", fontWeight: 500 }}>
               Disconnect {status.agentName ?? "this agent"}?
             </p>

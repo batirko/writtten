@@ -30,15 +30,16 @@ export function AgentPreflightCallout({
   const asking = preflight === "asking";
 
   return createPortal(
-    // Scrim dims the whole app so attention goes up to the address bar. Clicking
-    // it backs out — the same escape the app's other modals give.
-    <div className="agent-preflight-scrim" onClick={cancel}>
+    // Scrim dims the whole app and swallows clicks to the canvas behind — but a
+    // scrim click is NOT a dismiss. This carries a decision (proceed) or the only
+    // recovery from a blocked permission; an accidental click-away lost it
+    // (field-reported 2026-07-24). It closes only through its own buttons.
+    <div className="agent-preflight-scrim">
       <div
         className={`agent-preflight-callout${asking ? "" : " is-blocked"}`}
         role={asking ? "dialog" : "alertdialog"}
         aria-modal="true"
         data-testid={asking ? "agent-preflight-asking" : "agent-preflight-blocked"}
-        onClick={(e) => e.stopPropagation()}
       >
         <span className="agent-preflight-notch" aria-hidden="true" />
         {asking ? (

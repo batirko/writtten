@@ -966,12 +966,9 @@ export function ControlCenter({
   return (
     <>
       {showClearConfirm && (
-        <div
-          className="modal-scrim"
-          data-testid="clear-modal"
-          onClick={() => setShowClearConfirm(false)}
-        >
-          <div className="modal-card" onClick={(e) => e.stopPropagation()}>
+        // A destructive-action confirm: closes through its own buttons, not a click-away.
+        <div className="modal-scrim" data-testid="clear-modal">
+          <div className="modal-card">
             <p style={{ margin: "0 0 var(--space-md)" }}>
               Clear the workspace? This erases all text, observations, and history.
             </p>
@@ -1001,12 +998,9 @@ export function ControlCenter({
       {/* Switching away from a connected agent. Says the thing the plain Disconnect
           dialog doesn't have to: that the switch is what causes the disconnect. */}
       {switchConfirm && (
-        <div className="modal-scrim" onClick={() => setSwitchConfirm(false)}>
-          <div
-            className="modal-card"
-            data-testid="engine-switch-confirm"
-            onClick={(e) => e.stopPropagation()}
-          >
+        // A decision dialog: closes through its own buttons, not a click-away.
+        <div className="modal-scrim">
+          <div className="modal-card" data-testid="engine-switch-confirm">
             <p className="modal-title" style={{ marginBottom: "var(--space-xs)" }}>
               Switch to an API key?
             </p>
