@@ -8,6 +8,18 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 > conventional-commit PR titles; a new version section is prepended when a release PR merges.
 > See `docs/mechanics/release_and_deploy.md`.
 
+## [0.10.0](https://github.com/batirko/writtten/compare/writtten-v0.9.2...writtten-v0.10.0) (2026-07-24)
+
+
+### Added
+
+* **pwa:** surface a new build as a reload banner, and check for updates on a live tab ([#262](https://github.com/batirko/writtten/issues/262)) ([ff78dd0](https://github.com/batirko/writtten/commit/ff78dd0f6c1a941d83b0e504c93096b1b170c03b))
+
+
+### Fixed
+
+* **byoa:** give the blocked-state recovery steps inline, not a trip to the article ([#261](https://github.com/batirko/writtten/issues/261)) ([8606d5f](https://github.com/batirko/writtten/commit/8606d5ffead8411a429f1a00e1bf88027ca282e0))
+
 ## [0.9.2](https://github.com/batirko/writtten/compare/writtten-v0.9.1...writtten-v0.9.2) (2026-07-23)
 
 
