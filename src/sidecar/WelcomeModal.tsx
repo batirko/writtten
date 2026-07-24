@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 
 // ---------------------------------------------------------------------------
 // WelcomeModal — the first-run interruption (onboarding_first_run.md § Revision
@@ -6,10 +6,18 @@ import { useEffect, useRef } from "react";
 // the API-key requirement — because keyless the evaluator does nothing on the
 // user's own text, and the quiet empty state would otherwise mask that.
 //
-// Copy order is value-first: the inversion, then the rhythm, then the key ask,
-// then the two actions. Product chrome, not an observation — so it carries a
-// headline and isn't bound by the declarative-only observation rules; it still
-// stays terse and non-salesy.
+// **One claim, one ask** (UX-042, 2026-07-24). Above the buttons there is now
+// only the title, the inversion claim, and a single line naming what it takes to
+// start. The reader's decision here is one bit wide — key, agent, watch, or
+// leave — and it used to sit under four blocks of orientation, which is how a
+// surface with no hierarchy reads: everything equally load-bearing, i.e. nothing.
+// Nothing was deleted. The taxonomy (*what* I notice) and the rhythm (*when* I
+// stay quiet) moved into the claim itself, on a dotted term that unfolds them —
+// the detail now lands where the curiosity is, instead of as a paragraph the
+// reader must first decide whether to read.
+//
+// Product chrome, not an observation — so it carries a headline and isn't bound
+// by the declarative-only observation rules; it still stays terse and non-salesy.
 //
 // Reuses the shared .modal-scrim / .modal-card primitive; adds a focus trap +
 // Escape (the settings/clear modals only close on scrim-click). Not re-openable
@@ -58,6 +66,32 @@ export function WelcomeModal({
 }: WelcomeModalProps) {
   const cardRef = useRef<HTMLDivElement>(null);
 
+  // The taxonomy + rhythm, folded onto the dotted term in the claim.
+  //
+  // Three ways in, deliberately: hover (delayed, so it doesn't flash at a pointer
+  // crossing the sentence), keyboard focus (immediate — a keyboard user reached it
+  // on purpose), and click/tap on any pointer. The last one is not optional: a
+  // phone has no hover, and this is the only route to what the product actually
+  // looks for. A ref shadows the state because the Escape handler below must read
+  // it without re-binding — that effect restores focus on cleanup, so re-running
+  // it on every open/close would yank focus out of the dialog mid-read.
+  const [tipOpen, setTipOpen] = useState(false);
+  const tipOpenRef = useRef(false);
+  const hoverTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const openTip = () => {
+    tipOpenRef.current = true;
+    setTipOpen(true);
+  };
+  const closeTip = () => {
+    if (hoverTimer.current) clearTimeout(hoverTimer.current);
+    hoverTimer.current = null;
+    tipOpenRef.current = false;
+    setTipOpen(false);
+  };
+
+  useEffect(() => () => void (hoverTimer.current && clearTimeout(hoverTimer.current)), []);
+
   // Move focus into the dialog on open (so keyboard/SR users land inside it and
   // the trap works), but focus the CARD CONTAINER, not an actionable button —
   // programmatic `.focus()` on a button renders as a :focus-visible ring, so
@@ -71,6 +105,13 @@ export function WelcomeModal({
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         e.preventDefault();
+        // Innermost thing first. Escape while the term is unfolded closes the
+        // term, not the modal — dismissing the whole welcome because the reader
+        // finished reading a footnote would punish curiosity.
+        if (tipOpenRef.current) {
+          closeTip();
+          return;
+        }
         onClose();
         return;
       }
@@ -126,28 +167,50 @@ export function WelcomeModal({
           You write. I notice.
         </h2>
         <p className="welcome-modal-voice">
-          You write every word. I read alongside and point out what&rsquo;s worth a second look
-          &mdash; contradictions, unclear passages, claims that lean on nothing. I never write or
-          rewrite your text.
+          You write every word. I read alongside and{" "}
+          <button
+            type="button"
+            className="welcome-term"
+            data-testid="welcome-term"
+            aria-expanded={tipOpen}
+            aria-describedby={tipOpen ? "welcome-term-detail" : undefined}
+            onClick={() => (tipOpen ? closeTip() : openTip())}
+            onMouseEnter={() => {
+              hoverTimer.current = setTimeout(openTip, 300);
+            }}
+            onMouseLeave={closeTip}
+            onFocus={openTip}
+            onBlur={closeTip}
+          >
+            point out what&rsquo;s worth a second look
+          </button>
+          . I never write or rewrite your text.
+          {tipOpen && (
+            <span className="welcome-term-detail" id="welcome-term-detail">
+              Contradictions, unclear passages, claims that lean on nothing. Quiet while you
+              draft. Sharper as you revise.
+            </span>
+          )}
         </p>
-        <p className="welcome-modal-rhythm">Quiet while you draft. Sharper as you revise.</p>
 
-        <div className="welcome-modal-keynote">
-          <p>
-            {onConnectAgent ? (
-              <>
-                To read <em>your</em> writing I need model access &mdash; an API key that stays on
-                this device, free to start with Gemini, or a coding agent you already run. Neither
-                yet? Watch a recorded example first.
-              </>
-            ) : (
-              <>
-                To read <em>your</em> writing I need an API key &mdash; free to start with Gemini,
-                and it stays on this device. No key yet? Watch a recorded example first.
-              </>
-            )}
-          </p>
-        </div>
+        {/* Was a brand-tinted block holding a three-clause paragraph. The tint was
+            stacking an accent surface directly above two accent-filled buttons, and a
+            single sentence needs no container to be found. The "watch a recorded
+            example" clause came out too — "See it in action" sits one row below and
+            says it better than a sentence pointing at it can. */}
+        <p className="welcome-modal-keynote">
+          {onConnectAgent ? (
+            <>
+              To read <em>your</em> writing I need model access &mdash; an API key that stays on
+              this device, or a coding agent you already run.
+            </>
+          ) : (
+            <>
+              To read <em>your</em> writing I need an API key &mdash; free to start with Gemini,
+              and it stays on this device.
+            </>
+          )}
+        </p>
 
         {/* The two on-ramps carry identical weight: they are alternative routes to
             the same capability, and outlining one would rank them (spec decision 3,

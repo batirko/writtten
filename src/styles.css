@@ -1120,8 +1120,9 @@ body,
   margin-top: var(--space-sm);
 }
 
-/* The full prompt is ~27 KB — clipped with a fade so it proves itself without burying
-   the modal. Copy is the real affordance. */
+/* The prompt box. ~300 lines of it, so it rests folded to its opening framing and
+   unfolds on click (UX-042) — the whole string is always present, only the visible
+   height changes. Not the fade UX-032 rejected; see the comment in ConnectAgent.tsx. */
 .connect-prompt {
   position: relative;
   margin-top: 10px;
@@ -1130,22 +1131,54 @@ body,
   background: var(--color-paper);
 }
 
-/* The prompt is short enough to read in place now (UX-032), so this scrolls rather than
-   cropping behind a fade. The cap keeps Cancel reachable without scrolling the modal past
-   it; on a phone it shrinks further, where the viewport is the scarce thing.
-   `overscroll-behavior` stops a flick inside the box from carrying on into the modal. */
+/* Folded: ~10 lines, which is the title, the critic role, and the inversion paragraph —
+   the framing OBS-040 measured as the part that earns an agent's acceptance. Unfolded:
+   the old cap, which keeps Cancel reachable without scrolling the modal past it; on a
+   phone both shrink, where the viewport is the scarce thing. `overscroll-behavior` stops
+   a flick inside the box from carrying on into the modal.
+
+   No transition between the two: animating max-height animates layout, and the honest
+   alternative to a janky reflow is an instant one. */
 .connect-prompt-scroll {
+  max-height: 168px;
+  overflow: hidden;
+}
+.connect-prompt-scroll.is-open {
   max-height: 260px;
   overflow-y: auto;
   overscroll-behavior: contain;
 }
 
-.connect-explain {
-  display: inline-block;
-  margin-top: var(--space-2xs);
+/* The unfold sits inside the box, full width, below the content — so it reads as the
+   box's own bottom edge rather than a control floating near it, and so it is a real
+   touch target without a `min-height` of its own. */
+.connect-prompt-unfold {
+  display: block;
+  width: 100%;
+  padding: 9px 12px;
+  border: none;
+  border-top: 0.5px solid var(--color-border);
+  border-radius: 0 0 var(--radius-md) var(--radius-md);
+  background: var(--color-sidecar);
+  color: var(--color-ink-2);
+  font-family: inherit;
   font-size: var(--text-label);
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease-out);
+}
+.connect-prompt-unfold:hover {
+  background: var(--color-border);
+}
+
+/* Inline at the end of the paste instruction now, not a block on its own row (UX-042).
+   The accent keeps it findable inside a muted sentence; `nowrap` keeps the arrow with
+   the words it belongs to when the line wraps. */
+.connect-explain {
   color: var(--color-accent);
+  text-decoration: underline;
   text-underline-offset: 2px;
+  white-space: nowrap;
 }
 .connect-prompt pre {
   margin: 0;
@@ -1327,7 +1360,9 @@ body,
   margin: 0 0 10px;
 }
 
+/* Anchors the folded detail below itself. */
 .welcome-modal-voice {
+  position: relative;
   font-family: var(--font-sans);
   font-size: var(--text-ui);
   line-height: 1.55;
@@ -1335,27 +1370,57 @@ body,
   margin: 0 0 10px;
 }
 
-.welcome-modal-rhythm {
+/* The dotted term (UX-042) — the taxonomy and the rhythm fold onto the phrase they
+   describe. A <button>, not a <span>: the modal's focus trap selects buttons, so this
+   joins the tab order for free, and a span would be unreachable by keyboard. The dotted
+   underline is the "there is more here" convention; `cursor: help` says it on hover
+   without promising navigation. */
+.welcome-term {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: help;
+  text-decoration: underline dotted var(--color-border-strong);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+  transition: color var(--dur-fast) var(--ease-out);
+}
+.welcome-term:hover,
+.welcome-term[aria-expanded="true"] {
+  color: var(--color-ink);
+  text-decoration-color: var(--color-accent);
+}
+
+/* Spans the paragraph's own box rather than floating off the term: at 375px a bubble
+   anchored to a mid-sentence word has nowhere to go without leaving the card. Absolute
+   so unfolding never reflows the buttons under it — the decision must not move while
+   the reader is reading about it. */
+.welcome-term-detail {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 100%;
+  z-index: 2;
+  margin-top: var(--space-2xs);
+  padding: 9px 11px;
+  border: 0.5px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-sidecar);
   font-size: var(--text-ui-sm);
-  line-height: 1.45;
-  color: var(--color-muted);
-  margin: 0 0 var(--space-md);
+  line-height: 1.55;
+  color: var(--color-ink-2);
 }
 
-/* The key ask, held in a brand-tint block — after the value framing, never
-   opening cold. */
+/* The key ask — one line, no container. It was a brand-tint block, which stacked an
+   accent surface immediately above two accent-filled buttons and gave a single sentence
+   a box it did not need (UX-042). */
 .welcome-modal-keynote {
-  background: var(--color-accent-tint);
-  border-radius: var(--radius-lg);
-  padding: 10px var(--space-sm);
-  margin: 0 0 var(--space-md);
-}
-
-.welcome-modal-keynote p {
   font-size: var(--text-ui-sm);
   line-height: 1.5;
   color: var(--color-ink-2);
-  margin: 0;
+  margin: 0 0 var(--space-md);
 }
 
 /* No align-items here: the default `stretch` is what makes the two on-ramps
@@ -3560,6 +3625,18 @@ body,
     flex-direction: column;
   }
 
+  /* The unfolded term overlays on desktop so the decision underneath never jumps while
+     the reader is reading about it. On a phone that trade inverts: the copy wraps to
+     more lines in a shorter card, and measured at 375px the overlay cleared "Add your
+     key" by a single pixel — one more word of copy and the primary CTA would be sitting
+     under an opaque panel. In flow it pushes instead, so the buttons move but are never
+     covered. A card that scrolls beats a button that can't be tapped. */
+  .welcome-term-detail {
+    position: static;
+    display: block;
+    margin-top: var(--space-xs);
+  }
+
   /* Connect-your-agent: the pairing flow is desktop-only (it needs a terminal running an
      agent), but the section must still be readable and must not push the modal wide.
      .modal-card is max-width:88vw, so the long unbreakable tokens in the prompt preview —
@@ -3575,17 +3652,28 @@ body,
     /* Belt and braces over the base rule's overflow-wrap. */
     word-break: break-word;
   }
-  /* The prompt wraps to far more lines at 375px than at modal width, so the desktop cap
-     would eat most of a phone screen and push Cancel below the fold. Shorter box, more
-     scrolling — the right trade where the viewport is the scarce resource. */
+  /* The prompt wraps to far more lines at 375px than at modal width, so both caps come
+     down — the desktop folded height would eat most of a phone screen and push the
+     unfold and Cancel below the fold. Shorter box, more scrolling — the right trade
+     where the viewport is the scarce resource. */
   .connect-prompt-scroll {
+    max-height: 128px;
+  }
+  .connect-prompt-scroll.is-open {
     max-height: 180px;
   }
+  /* Measured 32px at its desktop rhythm — under a comfortable target, and this is the
+     only route to the rest of what the user is about to hand their agent. Same remedy
+     as `.connect-btn-sm` below: the box grows, the label doesn't. */
+  .connect-prompt-unfold {
+    min-height: 36px;
+  }
   /* Same reasoning as `.connect-btn-sm` below: an 18px text link is well under a
-     comfortable touch target, and this one is the only route from the app to the
-     explanation of what the user is about to hand their agent. Padding only — the link
-     text stays the same size. */
+     comfortable touch target. It sits inline in a sentence now, and padding alone on an
+     inline box grows the hit area without growing the line — so it also takes
+     `inline-block`, which it can afford because the label is `nowrap` either way. */
   .connect-explain {
+    display: inline-block;
     padding-block: 9px;
   }
   /* Pairing is desktop-only, but the controls are not unreachable on a phone: a

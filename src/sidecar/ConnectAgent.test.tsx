@@ -92,12 +92,57 @@ describe("ConnectAgent — states", () => {
     // was 33k characters. Slimming removed the reason, and a user asked to relay
     // instructions to their own agent should be able to read them first. A future change
     // that reintroduces truncation to "tidy up" the panel should fail here.
+    //
+    // It still passes under the UX-042 fold, and that is the point rather than a
+    // loophole: the fold is a max-height on the box, so the whole string stays in the
+    // DOM, selectable and copyable, at every moment. Only the visible height changes.
+    // If someone "implements the peek" by slicing the string, this goes red — which is
+    // exactly the difference between a peek and the preview UX-032 threw out.
     const tail = "the last line the user must be able to read";
     const long = `${"a filler line of prompt text\n".repeat(40)}${tail}`;
     render({ state: "waiting", prompt: long });
     const pre = container.querySelector('[data-testid="connect-agent-prompt"]');
     expect(pre?.textContent).toContain(tail);
     expect(pre?.textContent?.length).toBe(long.length);
+  });
+
+  it("rests folded and unfolds on click, with the whole prompt present throughout (UX-042)", () => {
+    // ~300 lines rendered at full height left no room for anything else in the panel.
+    // The unfold is a real button with aria-expanded — not a hover reveal, not a fade
+    // that merely suggests there is more.
+    const tail = "the last line the user must be able to read";
+    const long = `${"a filler line of prompt text\n".repeat(40)}${tail}`;
+    render({ state: "waiting", prompt: long });
+    const box = container.querySelector('[data-testid="connect-agent-prompt-box"]')!;
+    const unfold = container.querySelector<HTMLButtonElement>(
+      '[data-testid="connect-agent-prompt-unfold"]'
+    )!;
+    const pre = container.querySelector('[data-testid="connect-agent-prompt"]');
+
+    expect(unfold.tagName).toBe("BUTTON");
+    expect(unfold.getAttribute("aria-expanded")).toBe("false");
+    expect(box.className).not.toContain("is-open");
+    // Folded, the text is already all there — the fold is height, not content.
+    expect(pre?.textContent?.length).toBe(long.length);
+
+    act(() => {
+      unfold.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+    expect(unfold.getAttribute("aria-expanded")).toBe("true");
+    expect(box.className).toContain("is-open");
+    expect(pre?.textContent?.length).toBe(long.length);
+  });
+
+  it("answers what the paste does in place, with the article as the longer read (UX-042)", () => {
+    // The link used to be the only answer, one level off-surface. It stays, demoted to
+    // the deep read; the sentence beside it now carries the short true version — including
+    // the reassurance that nothing lands in the user's project, which used to sit inside
+    // the collapsed "Not working?" disclosure, i.e. after the doubt rather than before it.
+    const text = render({ state: "waiting", prompt: "x" });
+    expect(text).toMatch(/temp folder/i);
+    expect(text).toMatch(/nothing is written to your project/i);
+    const meta = container.querySelector(".connect-meta")!;
+    expect(meta.querySelector('[data-testid="connect-agent-explain"]')).not.toBeNull();
   });
 
   it("points at the public explanation of what the paste does (UX-032)", () => {
