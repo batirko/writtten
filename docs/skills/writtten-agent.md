@@ -283,9 +283,34 @@ Submit one at a time and read each verdict before the next.
 | `source_budget_exceeded` | You have 25 active observations. Stop submitting; retract something first if it matters. |
 | `rate_limited` | Slow down — one submission at a time, ~500 ms apart. |
 
-To withdraw one of your own: `POST /retract` with `{"observationId": "…"}`.
+### 4. Withdraw what no longer holds
 
-### 4. Report, then keep watching
+```
+curl -s -X POST -H "Authorization: Bearer {{TOKEN}}" -H "Content-Type: application/json" \
+  -d '{"observationId":"…"}' http://127.0.0.1:<port>/retract
+```
+
+Cards you submitted are yours to take back, and taking one back is ordinary reviewing rather
+than an admission of failure. Withdraw when you no longer stand behind it — you read further
+and the document did establish the claim, the author rewrote the passage, two of your cards
+say one thing. **And withdraw when the author asks you to:** *"leave the three that matter
+most"*, *"drop the ones that aren't worth my time"* are requests you can carry out across
+your own pass, one retraction at a time.
+
+You can only close what you submitted **this session**. writtten's own cards and cards from
+an earlier session are refused, and you hold no ids for them in any case — the snapshot
+carries no identifiers by design, so what you can withdraw is exactly what you have an
+`observationId` for from your own accepted submissions.
+
+**When the author asks you to cull cards that are not yours, answer instead of closing.**
+You can see every open card in `activeObservations`, so *"which of these matter most, and
+why"* is a question you can answer in your own session — and the author does the dismissing.
+The division is not a technicality. Dismissing a card in writtten teaches it what this
+author does not want to hear, and it stays taught; a withdrawal teaches it nothing, it only
+removes the card. Closing on the author's behalf would quietly spend a judgement they never
+made.
+
+### 5. Report, then keep watching
 
 Tell the user what you submitted and what was accepted or rejected, in plain prose. They
 are looking at the same cards in writtten's feed as you report. If `stage` was empty, add

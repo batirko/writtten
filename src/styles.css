@@ -1171,6 +1171,50 @@ body,
   background: var(--color-border);
 }
 
+/* What you can ask a connected agent for (UX-043). Sits behind a hairline because the
+   lines above it answer "what is true right now" and these answer "what is this for" —
+   two different questions, and running them together is how the second gets skimmed past.
+   This block is the only place in the app that names the capability at all. */
+.connect-asks {
+  margin-top: var(--space-sm);
+  padding-top: var(--space-sm);
+  border-top: 0.5px solid var(--color-border);
+}
+.connect-asks-lede {
+  margin: 0 0 var(--space-2xs);
+  font-size: var(--text-label);
+  color: var(--color-muted);
+}
+/* The asks are the payload and everything around them is context, so they take the only
+   step up in the block: UI-sm ink-2 against 11px muted. The left rule marks them as
+   quoted speech without spending a bullet glyph on each line. */
+.connect-asks-list {
+  margin: 0;
+  padding-left: var(--space-sm);
+  border-left: 0.5px solid var(--color-border);
+  list-style: none;
+  font-size: var(--text-ui-sm);
+  line-height: 1.7;
+  color: var(--color-ink-2);
+}
+.connect-asks-reach {
+  margin: 10px 0 0;
+  font-size: var(--text-label);
+  line-height: 1.55;
+  color: var(--color-muted);
+}
+/* `.connect-explain` gave up its own font-size in UX-042, when it stopped being a block on
+   its own row and became an inline tail on the paste instruction — it now inherits that
+   sentence's 11px. Here it has no host sentence, so it has to name the size itself.
+   Without this it renders at the modal's 16px base and becomes the loudest thing in a
+   panel of 11px muted text: a link about extras out-shouting the connection state. Same
+   inversion UX-044 caught on the Safari note, from the opposite direction. */
+.connect-asks .connect-explain {
+  display: inline-block;
+  margin-top: var(--space-2xs);
+  font-size: var(--text-label);
+}
+
 /* Inline at the end of the paste instruction now, not a block on its own row (UX-042).
    The accent keeps it findable inside a muted sentence; `nowrap` keeps the arrow with
    the words it belongs to when the line wraps. */

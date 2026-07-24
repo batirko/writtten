@@ -6,6 +6,7 @@
  */
 import { useEffect, useState } from "react";
 import type { AgentBridgeView } from "./useAgentBridge";
+import { AGENT_CAPABILITY_ASKS } from "./agentCapabilities";
 
 export function ConnectAgent({
   support,
@@ -330,6 +331,56 @@ export function ConnectAgent({
             Its observations appear in your feed. writtten&rsquo;s own checks are paused
             while it holds the slot.
           </span>
+
+          {/* What the connection is *for* — the only place in the app that says it
+              (UX-043). Everything above this rule is plumbing the user did not ask about;
+              everything below is capability that shipped and that nobody could find,
+              because it was written only in the file addressed to the agent.
+
+              Deliberately three things a person would say rather than three feature names,
+              and deliberately here rather than in the two rejected homes: the agent's own
+              end-of-pass report is agent-asserted and only exists *after* a pass, so it
+              cannot inform someone who has just connected; first-run naming fights the
+              welcome modal's trim (UX-042). This is also the emptiest surface in the flow,
+              so it costs no density anywhere that has any to spare. */}
+          <div className="connect-asks">
+            {/* Reads as something a person tells you, not as a spec line. The reason comes
+                first because the reason is the tip: people treat a connected engine as a
+                switch, and this one is the chat window they already have open. */}
+            <p className="connect-asks-lede">
+              It&rsquo;s the same session you&rsquo;re sitting in, so you can just talk to it:
+            </p>
+            <ul className="connect-asks-list">
+              {AGENT_CAPABILITY_ASKS.map(({ ask }) => (
+                <li key={ask}>&ldquo;{ask}&rdquo;</li>
+              ))}
+            </ul>
+            {/* The one real quality lever on this path, and it is not a setting: an agent
+                arrives with its working directory, while writtten's own critic sees the
+                document and nothing else. The honest edge rides in the second sentence.
+
+                Phrasing note, because the first version was rejected on sight and the
+                reason generalises: it read "…the folder you started it in — so it knows
+                what you've written elsewhere. Your reader doesn't." Three tells stacked —
+                an em dash carrying the rhythm, a staged either/or, and a two-word closing
+                fragment as a mic drop. Each is defensible alone; together they are the
+                cadence people now recognise as machine-written, which is a bad thing for
+                *this* product to sound like on the screen where it explains itself. Two
+                plain sentences, no dash, no kicker. */}
+            <p className="connect-asks-reach">
+              It&rsquo;s running in a folder on your machine, so it can check this draft
+              against the rest of that project. Your reader only gets the document.
+            </p>
+            <a
+              className="connect-explain"
+              data-testid="connect-agent-capabilities"
+              href="/agent/#ask"
+              target="_blank"
+              rel="noreferrer"
+            >
+              What else you can ask it for →
+            </a>
+          </div>
         </>
       )}
 

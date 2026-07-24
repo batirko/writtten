@@ -7,6 +7,7 @@ import { ConnectAgent } from "./ConnectAgent";
 import type { AgentBridgeView } from "./useAgentBridge";
 import type { BridgeState } from "../services/agentBridgeClient";
 import { EMPTY_PASS } from "./agentActivityView";
+import { AGENT_CAPABILITY_ASKS } from "./agentCapabilities";
 
 let container: HTMLDivElement;
 
@@ -191,6 +192,36 @@ describe("ConnectAgent — states", () => {
     expect(text).toContain("Connected · Claude Code");
     // The port is the honest privacy proof — the user can see it is loopback.
     expect(text).toContain("127.0.0.1:8787");
+  });
+
+  // UX-043: every capability a connected agent has was documented only in the file
+  // addressed to the agent, which the user pastes without reading. The connected state
+  // reported an address and a cadence and never said what the connection was for.
+  it("connected says what the agent can be asked for, in a person's words", () => {
+    const text = render({ state: "connected" });
+    for (const { ask } of AGENT_CAPABILITY_ASKS) {
+      expect(text, `the connected panel never renders "${ask}"`).toContain(ask);
+    }
+    // The reach line — the one quality lever on this path, and the only place the product
+    // admits that the agent knows things this document doesn't say.
+    expect(text).toMatch(/folder on your machine/i);
+    // The honest edge is half the point and is the half a future trim would drop first.
+    expect(text).toMatch(/your reader only gets the document/i);
+    expect(
+      container.querySelector('[data-testid="connect-agent-capabilities"]')
+    ).not.toBeNull();
+  });
+
+  it("keeps the capability block out of the states before a connection exists", () => {
+    // The waiting state was just trimmed for saying everything at once (UX-042), and idle
+    // is a decision surface. Naming capability in either is the same aggregate failure one
+    // surface earlier — and in idle it would advertise what the user has not yet got.
+    for (const state of ["idle", "waiting"] as const) {
+      const text = render({ state, prompt: "x" });
+      expect(text, `${state} leaked the capability block`).not.toContain(
+        AGENT_CAPABILITY_ASKS[0].ask
+      );
+    }
   });
 
   it("disconnected keeps the agent's name and says the cards survive", () => {
