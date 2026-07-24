@@ -8,6 +8,13 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 > conventional-commit PR titles; a new version section is prepended when a release PR merges.
 > See `docs/mechanics/release_and_deploy.md`.
 
+## [0.10.2](https://github.com/batirko/writtten/compare/writtten-v0.10.1...writtten-v0.10.2) (2026-07-24)
+
+
+### Fixed
+
+* **byoa:** decision pop-ups close only via their buttons, not an accidental click-away ([#266](https://github.com/batirko/writtten/issues/266)) ([a94d885](https://github.com/batirko/writtten/commit/a94d885e57e9eb44abf43c39e32cad8ee8b03d6c))
+
 ## [0.10.1](https://github.com/batirko/writtten/compare/writtten-v0.10.0...writtten-v0.10.1) (2026-07-24)
 
 
