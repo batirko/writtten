@@ -986,7 +986,7 @@ describe("SidecarFeed — source attribution (BYOA)", () => {
     expect(div.querySelector('[data-testid="obs-group-also"]')).not.toBeNull();
   });
 
-  it("the archive names the source that retracted a card", () => {
+  it("the archive names the source that withdrew a card", () => {
     const div = document.createElement("div");
     document.body.appendChild(div);
     containers.push(div);
@@ -1012,7 +1012,7 @@ describe("SidecarFeed — source attribution (BYOA)", () => {
       div.querySelector<HTMLButtonElement>(".drawer-toggle")?.click();
     });
     expect(div.querySelector('[data-testid="archive-list"]')?.textContent).toContain(
-      "retracted by Claude Code"
+      "withdrawn by Claude Code"
     );
   });
 });
