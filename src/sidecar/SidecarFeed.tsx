@@ -103,10 +103,14 @@ function KeyIcon() {
 
 function KeylessBanner({ demoActive }: { demoActive: boolean }) {
   // Gates the link *and* the prose. On a browser that cannot reach a loopback
-  // bridge there is no agent path to offer, and the sub-line's "an agent keeps it
-  // on your machine entirely" is the same offer made in words — dropping the
-  // button while keeping the promise would leave the reader hunting for a route
-  // that does not exist here (UX-044).
+  // bridge there is no agent path to offer, and the sub-line's agent clause is the
+  // same offer made in words — dropping the button while keeping the promise would
+  // leave the reader hunting for a route that does not exist here (UX-044).
+  //
+  // That clause used to read "an agent keeps it on your machine entirely", which
+  // was false: the agent forwards the writing to whatever model it runs. Corrected
+  // 2026-07-25 to a claim writtten can actually make, in step with the engine help
+  // and both connect ledes.
   const agent = agentPathOffered();
   return (
     <div className="keyless-banner" data-testid="keyless-banner" role="note">
@@ -127,7 +131,7 @@ function KeylessBanner({ demoActive }: { demoActive: boolean }) {
               ? "Reading your own writing needs a key or a connected agent."
               : "Analyzing your own writing needs an API key."
             : agent
-              ? "writtten needs model access to read your text. A key stays on this device; an agent keeps it on your machine entirely."
+              ? "writtten needs model access to read your text. A key stays on this device; an agent reads it straight from this page. Neither goes through a server of ours."
               : "writtten needs an API key to read your text — it stays on this device."}
         </p>
         {/* Plain accent text links, never button-shaped: this opens Settings, and

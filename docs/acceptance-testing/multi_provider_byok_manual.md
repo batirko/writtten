@@ -39,11 +39,19 @@ a row of icons appears; click the **gear ⚙**. (On desktop you can also just cl
 - [ ] **Cost + trust notes** — paid providers show a cost line; **Anthropic** also
       shows a browser-access trust note.
 
-## Part 2 — "Ping model" verdicts (a fake key is enough)
+## Part 2 — key verification decodes the failure (a fake key is enough)
 
-- [ ] On **Anthropic**, type a nonsense key like `sk-ant-nope123`, click **Ping model**.
-      Expected within a couple seconds: a red **"Invalid key."** verdict (plain
-      language, not a raw status code). Same idea on OpenAI.
+> The **"Ping model"** button was removed in the 2026-07-25 settings rework — it
+> re-ran the check that fires on its own and printed the same verdict in a second
+> place. The decode it existed for is unchanged; it now reads on the field itself,
+> per field, which attributes a two-key Gemini setup better than one merged line.
+
+- [ ] On **Anthropic**, type a nonsense key like `sk-ant-nope123` and stop typing.
+      Expected within a couple of seconds, on the field's own subtitle: a red
+      **"✗ Key rejected"** — plain language, not a raw status code. Same on OpenAI.
+- [ ] Go offline and paste a well-shaped key. Expected: an amber **"✓ Key stored ·
+      not verified"** — the honest reading when the provider can't be reached,
+      never a green "set" that over-claims.
 
 *(This proves the whole path works and the browser can reach the providers.)*
 

@@ -6,7 +6,7 @@
     <title>Connect your agent · writtten</title>
     <meta
       name="description"
-      content="Review your writtten draft with a coding agent you already run. No API key, and the document never leaves your machine."
+      content="Review your writtten draft with a coding agent you already run. No API key, and your document goes to your agent, not to a writtten server."
     />
     <!-- noindex: BYOA is still behind the ?agent=1 preview gate
          (`agentBridgeEnabled`, src/services/featureFlags.ts), so a search result would
@@ -24,14 +24,14 @@
     <meta property="og:title" content="Connect your agent &middot; writtten" />
     <meta
       property="og:description"
-      content="Review your writtten draft with a coding agent you already run. No API key, and the document never leaves your machine."
+      content="Review your writtten draft with a coding agent you already run. No API key, and your document goes to your agent, not to a writtten server."
     />
     <meta property="og:image" content="https://writtten.com/og.png" />
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content="Connect your agent &middot; writtten" />
     <meta
       name="twitter:description"
-      content="Review your writtten draft with a coding agent you already run. No API key, and the document never leaves your machine."
+      content="Review your writtten draft with a coding agent you already run. No API key, and your document goes to your agent, not to a writtten server."
     />
     <meta name="twitter:image" content="https://writtten.com/og.png" />
 
@@ -333,15 +333,16 @@
     <main>
       <h1>Connect your agent</h1>
       <p class="lede">
-        Review your draft with a coding agent you already run. No API key, and the document never
-        leaves your machine.
+        Review your draft with a coding agent you already run. No API key, and your document goes to
+        your agent, not to a writtten server.
       </p>
 
       <p class="intro">
         Normally writtten holds a model key and calls a provider from your browser. If you already
         run a coding agent &mdash; Claude Code, Codex, or another &mdash; it can do the reading
-        instead. It uses the model access you already pay for, and your document travels no further
-        than a process on your own computer.
+        instead. It uses the model access you already pay for, and writtten sends your document
+        nowhere but a process on your own computer. Where your agent takes it from there is covered
+        below.
       </p>
 
       <h2>How it works</h2>

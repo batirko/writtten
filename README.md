@@ -42,7 +42,7 @@ You can explore the interface with no configuration at all. For live observation
 
 ## Bring your own key
 
-writtten works with three providers. Each is called directly from your browser using your own key, so your document never passes through a writtten server. Pick a provider in Settings, paste a key, and click **Ping model** to confirm it works. The ping decodes the result into plain language ("invalid key", "billing not enabled", "network / CORS"). Paid providers let you choose the model per tier, and the "what's running" card always shows what is actually in use.
+writtten works with three providers. Each is called directly from your browser using your own key, so your document never passes through a writtten server. Pick a provider in Settings and paste a key — it is verified as you type, and the field says what it found in plain language ("Key verified", "Key rejected", "Key valid · billing not enabled", "Key stored · not verified" when the provider can't be reached). Paid providers let you choose the model per tier behind **Choose models**, and once a key is in, the "what's running" card shows what is actually in use.
 
 | Provider  | Get a key | Free tier | Key format |
 | --------- | --------- | --------- | ---------- |

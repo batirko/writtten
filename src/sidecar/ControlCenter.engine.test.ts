@@ -26,7 +26,30 @@ describe("engine options", () => {
   it("names what each path actually costs and where the document goes", () => {
     expect(engineHelp("builtin")).toMatch(/your key/i);
     expect(engineHelp("agent")).toMatch(/no key/i);
-    expect(engineHelp("agent")).toMatch(/never leaves this machine/i);
+    expect(engineHelp("agent")).toMatch(/goes to your agent/i);
+    expect(engineHelp("agent")).toMatch(/not to a server of ours/i);
+  });
+
+  /**
+   * The guard, and the reason this file changed at all.
+   *
+   * Until 2026-07-25 the assertion above required the OPPOSITE line — the agent
+   * help promised the document "never leaves this machine", and the test pinned
+   * it there. That is false on this path: a connected agent forwards the writing
+   * to whatever model it runs, `/privacy` has said so in print the whole time,
+   * and the pre-flight callout was corrected ahead of the rest.
+   *
+   * A positive assertion alone would not stop the claim coming back — someone
+   * appending a warmer clause to the help line passes every check above. So the
+   * retired phrasing is named and forbidden outright. Both machine variants
+   * ("this machine" / "your machine") are covered because the app and the public
+   * /agent/ page each shipped one of them.
+   */
+  it("never re-promises that the document stays on the machine", () => {
+    for (const id of ["builtin", "agent"] as const) {
+      expect(engineHelp(id)).not.toMatch(/never leaves (this|your) machine/i);
+      expect(engineHelp(id)).not.toMatch(/on your machine entirely/i);
+    }
   });
 
   it("gives the two paths genuinely different copy", () => {
