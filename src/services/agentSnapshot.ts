@@ -55,6 +55,14 @@ export interface AgentSnapshotBody {
  * ship `blockId` / `startOffset` / `endOffset` to the agent the moment anyone adds or
  * reorders a field on `Observation`, silently breaking the "agent never learns block
  * identity" invariant with a green test suite.
+ *
+ * **It carries a second invariant, and that one is easier to delete by accident.** No `id`
+ * here means the only observation id an agent ever holds is the one this app returned on
+ * its own accepted submission — so it can only *name* cards it wrote, and the ownership
+ * check in `externalObservationLifecycle.ts` has nothing left to refuse. Shipping ids so
+ * an agent can reference cards precisely is a reasonable-sounding convenience that would
+ * turn that wall into guess-resistance; if they ever have to ship, the ownership check
+ * needs a replacement first. Pinned by `agentSnapshot.test.ts` § the wall.
  */
 export const AGENT_OBSERVATION_FIELDS = [
   "type",

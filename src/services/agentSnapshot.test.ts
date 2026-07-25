@@ -116,6 +116,29 @@ describe("agent observation projection", () => {
   });
 });
 
+/**
+ * "An agent cannot close a card it never wrote" is a product rule, but no single
+ * line of code states it — it falls out of this allowlist and one ownership check
+ * in `externalObservationLifecycle.ts`, neither of which mentions the other. This
+ * is the allowlist half; the refusals are pinned in that module's test under the
+ * same heading. Between them, removing the rule has to be deliberate.
+ */
+describe("the wall — an agent can only name cards it wrote", () => {
+  it("hands the agent no identifier it could retract with", () => {
+    // The only observation id an agent ever holds is the one returned by its own
+    // accepted submission. Put `id` in this allowlist "so the agent can reference
+    // cards precisely" and the ownership check downstream stops being a wall and
+    // becomes guess-resistance — with this whole suite still green, which is why
+    // the assertion is on the allowlist itself rather than on a projected card.
+    for (const identifier of ["id", "observationId", "blockId", "sessionId"]) {
+      expect(
+        AGENT_OBSERVATION_FIELDS,
+        `${identifier} would let an agent name a card it did not submit`
+      ).not.toContain(identifier);
+    }
+  });
+});
+
 describe("snapshotMaturity — the band the agent is handed (UX-029)", () => {
   const words = (n: number) => Array.from({ length: n }, (_, i) => `w${i}`).join(" ");
   const block = (text: string, extra: Partial<SectionMember> = {}): SectionMember => ({

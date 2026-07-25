@@ -22,17 +22,20 @@ describe("closureReasonLabel", () => {
     );
   });
 
-  it("names the source that retracted a card", () => {
-    // Without this the archive would read "auto closed", which tells the user
-    // the evaluator decided — the opposite of what happened.
+  it("says who closed a withdrawn card, and claims nothing about why", () => {
+    // Two wrong stories to stay clear of. With no label at all the archive reads
+    // "auto closed", which tells the user the evaluator decided — the opposite of
+    // what happened. And the old "retracted by <name>" said the agent changed its
+    // mind, which is false whenever the user asked it to cull; writtten never sees
+    // that conversation, so the motive is not ours to assert.
     expect(closureReasonLabel({ closureReason: "retracted", status: "auto_closed", source })).toBe(
-      "retracted by Claude Code"
+      "withdrawn by Claude Code"
     );
   });
 
-  it("degrades gracefully when a retracted card has lost its source", () => {
+  it("degrades gracefully when a withdrawn card has lost its source", () => {
     expect(closureReasonLabel({ closureReason: "retracted", status: "auto_closed" })).toBe(
-      "retracted"
+      "withdrawn"
     );
   });
 
