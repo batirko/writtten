@@ -384,31 +384,58 @@ describe("ConnectAgent — teardown", () => {
   });
 
   /**
-   * Where the document actually goes (corrected 2026-07-25).
+   * What the lede is for, and what it must not repeat (UX-030, fixed 2026-07-26).
    *
-   * Both ledes promised it "never leaves this machine". That is false: the agent
-   * forwards the writing to whatever model it runs, `/privacy` said the opposite in
-   * print, and the pre-flight callout had already been corrected — leaving this
-   * surface telling the second of two stories.
+   * Two rules, and they pull in opposite directions, which is why both are pinned.
    *
-   * The negative assertion is the load-bearing one. The retired claim is warm and it
-   * reads well, so it is exactly the line that gets re-added by someone polishing the
-   * copy who has not read the privacy page.
+   * 1. The lede must NOT restate where the document goes. The engine help one control
+   *    up already says it, and until this fix both lines ended in the same eleven
+   *    words about 60px apart — two components each introducing the same feature
+   *    because neither knew the other had rendered. The privacy claim belongs at the
+   *    moment of choosing, so it lives in the engine help (guarded in
+   *    `ControlCenter.engine.test.ts`) and not here.
+   * 2. The retired "never leaves this machine" claim must never come back anywhere.
+   *    It is false — the agent forwards the writing to whatever model it runs — and
+   *    it is warm and reads well, so it is exactly the line a copy pass re-adds.
+   *
+   * Rule 1 could be satisfied by deleting the lede outright, so each case also
+   * asserts the thing the lede uniquely carries: which agents this works with.
    */
-  describe("where the document goes", () => {
-    it("the idle lede scopes the claim to writtten, not to the machine", () => {
-      const text = render({ state: "idle" });
-      expect(text).toContain("goes to your agent, not to a writtten server");
-      expect(text).not.toMatch(/never leaves (this|your) machine/i);
+  describe("the lede says its own thing, once", () => {
+    for (const [name, view] of [
+      ["idle", { state: "idle" as const }],
+      [
+        "unsupported",
+        { state: "idle" as const, support: { supported: false, reason: "webkit_loopback" } },
+      ],
+    ] as const) {
+      it(`${name}: names the agents without restating where the document goes`, () => {
+        const text = render(view);
+        expect(text).toMatch(/Claude Code, Codex, or another/);
+        // Both phrasings the duplicated clause has worn: the pre-2026-07-25 wording and
+        // the #281 rewrite. A guard pinned to one string is how this regressed the first
+        // time — the words changed and the duplication rode straight through.
+        expect(text).not.toMatch(/not to a (writtten )?server( of ours)?/i);
+        expect(text).not.toMatch(/no api key/i);
+        expect(text).not.toMatch(/never leaves (this|your) machine/i);
+      });
+    }
+
+    /** The caps section title titled a peer section over the body of a choice the
+     *  user had just made one control up. */
+    it("does not head itself as a section", () => {
+      render({ state: "idle" });
+      expect(container.querySelector(".setting-section-title")).toBeNull();
     });
 
-    it("the unsupported lede says the same thing", () => {
-      const text = render({
-        state: "idle",
-        support: { supported: false, reason: "webkit_loopback" },
-      });
-      expect(text).toContain("goes to your agent, not to a writtten server");
-      expect(text).not.toMatch(/never leaves (this|your) machine/i);
+    /** The button and this sentence were inline siblings, so the sentence wrapped
+     *  around the button instead of sitting under it. */
+    it("stacks the CTA above its qualifying sentence", () => {
+      render({ state: "idle" });
+      const cta = container.querySelector(".connect-cta");
+      expect(cta).not.toBeNull();
+      expect(cta?.querySelector('[data-testid="connect-agent-start"]')).not.toBeNull();
+      expect(cta?.querySelector(".setting-help")).not.toBeNull();
     });
   });
 });
