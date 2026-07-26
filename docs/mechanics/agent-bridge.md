@@ -35,7 +35,7 @@ Deselecting a live pairing tears it down rather than leaving it connected-but-ig
 
 ### Browsers never offered the path
 
-`src/services/agentOffer.ts` — `agentPathOffered()` — answers *should this browser be offered the agent path at all?*, and is the gate on **every on-ramp**: the first-run welcome modal (`App.tsx`), the keyless banner (`SidecarFeed.tsx`), and the Engine control (`ControlCenter.tsx`). It ANDs two independent reasons to say no: the BYOA preview flag, and `agentBrowserSupport.ts` — WebKit **and** `https:`, so a self-hoster on `http://localhost` keeps a path that genuinely works there, and iOS Chrome/Firefox are caught because the predicate reads `navigator.vendor`, not a UA "Safari" token.
+`src/services/agentOffer.ts` — `agentPathOffered()` — answers *should this browser be offered the agent path at all?*, and is the gate on **every on-ramp**: the first-run welcome modal (`App.tsx`), the keyless banner (`SidecarFeed.tsx`), and the Engine control (`ControlCenter.tsx`). It ANDs two independent reasons to say no: the BYOA kill switch, and `agentBrowserSupport.ts` — WebKit **and** `https:`, so a self-hoster on `http://localhost` keeps a path that genuinely works there, and iOS Chrome/Firefox are caught because the predicate reads `navigator.vendor`, not a UA "Safari" token.
 
 Before 2026-07-21 every on-ramp asked only the flag, and the detection module — which already existed, already pure — was consulted nowhere but inside the connect panel, one level *below* the choice, where it is only ever read after the fact. So Safari was offered the path on three surfaces at once (UX-044).
 
@@ -99,22 +99,17 @@ Engine exclusivity removed the premise. One engine holds the slot, so there is n
 
 With the chip gone that argument goes too, and keeping the split would actively contradict the ruling above: two cards on one passage, for a reason the reader can no longer see, read as an unexplained duplicate. Cross-source coexistence is now _historical_ only. Grouping is presentational — near-duplicate absorption happens upstream, at the boundary and in `evaluatorReconcile`.
 
-## Reaching it at all: the preview gate
+## Reaching it at all
 
-Shipped ON but **runtime-gated** (`agentBridgeEnabled()`, `src/services/featureFlags.ts`). A session sees BYOA only after opting in with **`?agent=1`**, which is remembered in `localStorage["writtten_agent_preview"]` so it survives reloads and in-app navigation — without persistence the query string would have to be re-appended for every step of the flow, and the first-run modal would lose it the moment anything navigated.
+**Public since 2026-07-26 (v0.11.0).** Everyone gets BYOA; nothing has to be opted into.
 
-```
-https://writtten.com/?agent=1     → opts this browser in, permanently
-https://writtten.com/             → still on, from the stored key
-```
+Until then it was runtime-gated: the surface appeared only for a session that had visited **`?agent=1`**, remembered in `localStorage["writtten_agent_preview"]`. That gate was a verification device, not a feature toggle — Chrome's Local Network Access prompt only fires from a **public** origin, so the bridge was untestable anywhere but writtten.com, and PR4 shipped there as a _verification release_ with strangers kept out. Its three named preconditions (engine exclusivity, the agent status readout, the connect-prompt rework) all landed, so the gate came off and `public/agent/index.html` lost its `noindex` in the same change. **`?agent=1` is now inert** — links to it still work, because everyone has the feature — and the stored key is no longer read or written.
 
-The gate is temporary and exists for one reason: Chrome's Local Network Access prompt only fires from a **public** origin, so it is untestable anywhere but production. PR4 ships to writtten.com to answer that, and is a _verification release_, not a launch. `public/agent/index.html` carries `noindex` for the same window.
-
-**Removing the gate is the launch action** — replace the body of `agentBridgeEnabled()` with `true` and restore `index,follow` on the page. Do it after the Phase-8 follow-ups (prompt slimming, engine exclusivity, observability), not before.
+`agentBridgeEnabled()` (`src/services/featureFlags.ts`) survives as a **kill switch**, deliberately: BYOA now points strangers' agents at a prompt whose acceptance is hand-verified rather than CI-guarded (OBS-040), and the whole surface should be revertible in one line rather than in nine. Returning `false` removes the connect section, the process-readout row, and every first-run on-ramp; `evalEngine`'s `read()` additionally resolves a stale stored `"agent"` back to the built-in engine, so nobody is left with a document that nothing reads. Source chips on cards already in the feed are **not** flag-gated — attribution must not change because a flag moved.
 
 ## How a user reaches the connect section
 
-Three entry points, all landing in the same section of the Settings modal. All three are gated on `agentBridgeEnabled()` — see the preview gate above.
+Three entry points, all landing in the same section of the Settings modal. All three are gated on `agentBridgeEnabled()` — the kill switch above, on for everyone — and on `agentPathOffered()`, which withholds them from browsers that cannot reach a bridge (see _Browsers never offered the path_).
 
 | Entry point                                   | Carries                                                                                      |
 | --------------------------------------------- | -------------------------------------------------------------------------------------------- |

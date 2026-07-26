@@ -2,7 +2,8 @@
  * Should the agent path be *offered* on this browser, at all?
  *
  * Two independent reasons to say no, and both have to be asked every time:
- *   1. the BYOA preview flag is off — the documented kill switch (`featureFlags.ts`);
+ *   1. the BYOA kill switch is off (`featureFlags.ts` — on for everyone since the
+ *      preview gate came off, but the surface must still fall away in one line);
  *   2. this browser can never reach a loopback bridge (`agentBrowserSupport.ts`).
  *
  * Every surface used to ask only the first, which is how writtten came to offer

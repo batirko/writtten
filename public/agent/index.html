@@ -8,12 +8,7 @@
       name="description"
       content="Review your writtten draft with a coding agent you already run. No API key, and your document goes to your agent, not to a writtten server."
     />
-    <!-- noindex: BYOA is still behind the ?agent=1 preview gate
-         (`agentBridgeEnabled`, src/services/featureFlags.ts), so a search result would
-         point strangers at a feature they cannot reach. The prompt-size reason this
-         comment used to give was retired by #243. Remove this together with the gate,
-         as one launch decision. -->
-    <meta name="robots" content="noindex,follow" />
+    <meta name="robots" content="index,follow" />
     <link rel="icon" href="/favicon.svg" />
 
     <!-- Open Graph / Twitter: the bridge script writtten hands an agent prints
@@ -511,8 +506,10 @@
         <li><strong>Chrome, Edge, and Firefox</strong> all work, once you allow the prompt.</li>
         <li>
           <strong>Safari</strong> does not, and has no setting to change it: its engine blocks this
-          connection whenever the page is served over https. Use one of the others, or self-host
-          writtten on <code>http://localhost</code>, where the block doesn&rsquo;t apply.
+          connection whenever the page is served over https. Open writtten in one of the others
+          &mdash; including <strong>your AI app&rsquo;s own browser</strong>, which is Chromium-based
+          and already has the agent running in it, making it the most natural place of all. Or
+          self-host writtten on <code>http://localhost</code>, where the block doesn&rsquo;t apply.
         </li>
       </ul>
 

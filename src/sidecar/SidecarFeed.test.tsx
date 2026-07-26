@@ -447,7 +447,7 @@ describe("SidecarFeed — keyless banner + empty-state split", () => {
    * that has not read `/privacy` is exactly how it comes back.
    */
   it("does not promise the agent path keeps the document on this machine", () => {
-    setAgentPreview(true);
+    installCleanStorage();
     const sub = renderWith({ hasKey: false }).querySelector(".keyless-banner-sub");
     expect(sub?.textContent).toMatch(/neither goes through a server of ours/i);
     expect(sub?.textContent).not.toMatch(/on your machine entirely/i);
@@ -461,7 +461,7 @@ describe("SidecarFeed — keyless banner + empty-state split", () => {
    * surface. The banner keys on "is anything reading", not "is there a key".
    */
   it("stays away while a connected agent holds the slot with no key", () => {
-    setAgentPreview(true);
+    installCleanStorage();
     setEngine("agent");
     act(() => {
       setAgentSourceStatus({ state: "connected", name: "Claude Code", sessionId: "s1" });
@@ -473,7 +473,7 @@ describe("SidecarFeed — keyless banner + empty-state split", () => {
   });
 
   it("returns the moment that agent is no longer reading, key or not", () => {
-    setAgentPreview(true);
+    installCleanStorage();
     setEngine("agent");
     act(() => {
       setAgentSourceStatus({ state: "disconnected", name: "Claude Code", sessionId: "s1" });
@@ -514,13 +514,13 @@ describe("SidecarFeed — keyless banner + empty-state split", () => {
     expect(opened).toBe(1);
   });
 
-  // The banner is the only re-entry point once the welcome modal is dismissed, so
-  // it carries both on-ramps too (spec decision 3). The gate is runtime (`?agent=1`
-  // remembered in localStorage), so drive it by controlling the store rather than
-  // reading the ambient flag — otherwise the enabled branch would silently never
-  // run, since this tree's Node exposes an inert localStorage.
-  function setAgentPreview(on: boolean) {
-    const map = new Map<string, string>(on ? [["writtten_agent_preview", "1"]] : []);
+  // The banner is the only re-entry point once the welcome modal is dismissed, so it
+  // carries both on-ramps too (spec decision 3). Several cases below call
+  // `setEngine("agent")`, which persists — and jsdom's own localStorage outlives the
+  // test, so the next case would hydrate an agent engine it never asked for. Install a
+  // fresh in-memory store per case instead of depending on file order.
+  function installCleanStorage() {
+    const map = new Map<string, string>();
     vi.stubGlobal("localStorage", {
       getItem: (k: string) => map.get(k) ?? null,
       setItem: (k: string, v: string) => void map.set(k, v),
@@ -535,18 +535,12 @@ describe("SidecarFeed — keyless banner + empty-state split", () => {
 
   afterEach(() => vi.unstubAllGlobals());
 
-  it("hides the agent path when the session has not opted in", () => {
-    setAgentPreview(false);
-    const div = renderWith({ hasKey: false });
-    expect(div.querySelector('[data-testid="keyless-banner-settings"]')?.textContent).toMatch(
-      /add your key/i
-    );
-    expect(div.querySelector('[data-testid="keyless-banner-connect"]')).toBeNull();
-    expect(div.querySelector(".keyless-banner-or")).toBeNull();
-  });
-
-  it("offers the agent path alongside the key path once opted in", () => {
-    setAgentPreview(true);
+  // The "path is hidden" case used to be the preview gate (a session that had never
+  // visited `?agent=1`). BYOA is public since 2026-07-26, so the only reason the agent
+  // path is withheld now is a browser that cannot reach a loopback bridge — covered in
+  // `agentOffer.webkit.test.tsx`, which mocks the support module unsupported.
+  it("offers the agent path alongside the key path", () => {
+    installCleanStorage();
     const div = renderWith({ hasKey: false });
     const connect = div.querySelector('[data-testid="keyless-banner-connect"]');
     const key = div.querySelector('[data-testid="keyless-banner-settings"]');
@@ -560,7 +554,7 @@ describe("SidecarFeed — keyless banner + empty-state split", () => {
   });
 
   it("the agent link deep-links with the connect-agent intent, not a bare open", () => {
-    setAgentPreview(true);
+    installCleanStorage();
     const div = renderWith({ hasKey: false });
     const intents: (string | undefined)[] = [];
     const handler = (e: Event) => intents.push((e as CustomEvent<string | undefined>).detail);

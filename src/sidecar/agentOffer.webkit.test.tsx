@@ -36,11 +36,12 @@ import { agentPathOffered } from "../services/agentOffer";
 import { isBuiltinEngineActive, __resetEngine } from "../services/evalEngine";
 import { __resetAgentSourceStatus } from "../model/agentSourceSignal";
 
-// The preview flag is runtime (`?agent=1` remembered in localStorage), and this
-// tree's Node exposes an inert localStorage — so drive the store directly, or the
-// flag-on branch silently never runs and every assertion below passes vacuously.
-function enableAgentPreview() {
-  const map = new Map<string, string>([["writtten_agent_preview", "1"]]);
+// A fresh store per case. Several assertions below turn on the engine slot never
+// moving to the agent, and jsdom's own localStorage outlives a test — so a single
+// leaked `writtten_engine` would make the next case pass or fail on file order
+// rather than on what it renders.
+function installCleanStorage() {
+  const map = new Map<string, string>();
   vi.stubGlobal("localStorage", {
     getItem: (k: string) => map.get(k) ?? null,
     setItem: (k: string, v: string) => void map.set(k, v),
@@ -93,15 +94,15 @@ const controlProps = {
 };
 
 describe("the offer predicate", () => {
-  it("is false on WebKit even with the preview flag on", () => {
-    enableAgentPreview();
+  it("is false on WebKit even with the BYOA flag on", () => {
+    installCleanStorage();
     expect(agentPathOffered()).toBe(false);
   });
 });
 
 describe("keyless banner", () => {
   it("drops the agent link, and the 'or' that framed it as an equal route", () => {
-    enableAgentPreview();
+    installCleanStorage();
     const div = render(createElement(SidecarFeed, feedProps));
     expect(div.querySelector('[data-testid="keyless-banner-settings"]')?.textContent).toMatch(
       /add your key/i
@@ -116,7 +117,7 @@ describe("keyless banner", () => {
    * the reader hunting for a route that does not exist on this browser.
    */
   it("drops the agent clause from the copy, not just the link", () => {
-    enableAgentPreview();
+    installCleanStorage();
     const div = render(createElement(SidecarFeed, feedProps));
     const banner = div.querySelector('[data-testid="keyless-banner"]')?.textContent ?? "";
     expect(banner).toMatch(/add a key to read your own writing/i);
@@ -142,7 +143,7 @@ describe("welcome modal", () => {
 
 describe("engine control", () => {
   it("keeps the agent tab visible but never selectable, and says why", () => {
-    enableAgentPreview();
+    installCleanStorage();
     render(createElement(ControlCenter, controlProps));
     act(() => openSettings());
 
@@ -174,7 +175,7 @@ describe("engine control", () => {
    * half that is JS, and the half that would silently rot.
    */
   it("reveals the reason on tap, and closes again on a tap outside", () => {
-    enableAgentPreview();
+    installCleanStorage();
     render(createElement(ControlCenter, controlProps));
     act(() => openSettings());
     const tab = document.querySelector('[data-testid="engine-agent-blocked"]');
@@ -194,7 +195,7 @@ describe("engine control", () => {
   });
 
   it("tapping the blocked tab reveals, and never selects", () => {
-    enableAgentPreview();
+    installCleanStorage();
     render(createElement(ControlCenter, controlProps));
     act(() => openSettings());
     act(() => {
@@ -214,14 +215,14 @@ describe("engine control", () => {
    * becomes the *only* way to reach it.
    */
   it("leaves the built-in engine active after Settings is opened", () => {
-    enableAgentPreview();
+    installCleanStorage();
     render(createElement(ControlCenter, controlProps));
     act(() => openSettings());
     expect(isBuiltinEngineActive()).toBe(true);
   });
 
   it("ignores a connect-agent deep link rather than handing over the slot", () => {
-    enableAgentPreview();
+    installCleanStorage();
     render(createElement(ControlCenter, controlProps));
     act(() => openSettings("connect-agent"));
     // Settings still opens — the intent is not an error, it just cannot be honoured

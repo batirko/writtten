@@ -1,4 +1,13 @@
 import { describe, it, expect, afterEach, vi } from "vitest";
+
+/**
+ * The BYOA flag is a plain `true` since the gate came off (`featureFlags.ts`), so the
+ * kill-switch case below can no longer be arranged by withholding a storage key — it has
+ * to move the flag itself. Mocked mutable rather than per-test, because `vi.mock` hoists.
+ */
+const flag = { on: true };
+vi.mock("./featureFlags", () => ({ agentBridgeEnabled: () => flag.on }));
+
 import {
   getEngine,
   setEngine,
@@ -10,13 +19,9 @@ import {
   type EngineId,
 } from "./evalEngine";
 
-/**
- * Mirrors `agentBridgeClient.test.ts`'s installer. Seeded with the BYOA preview flag
- * on, because `evalEngine` resolves to `"builtin"` whenever the flag is off — so a
- * bare store would make every "hydrates agent" case pass for the wrong reason.
- */
+/** Mirrors `agentBridgeClient.test.ts`'s installer. */
 function installStorage(seed: Record<string, string> = {}, over: Partial<Storage> = {}) {
-  const map = new Map<string, string>(Object.entries({ writtten_agent_preview: "1", ...seed }));
+  const map = new Map<string, string>(Object.entries(seed));
   const store = {
     getItem: (k: string) => map.get(k) ?? null,
     setItem: (k: string, v: string) => void map.set(k, v),
@@ -34,6 +39,7 @@ function installStorage(seed: Record<string, string> = {}, over: Partial<Storage
 
 afterEach(() => {
   __resetEngine();
+  flag.on = true;
   vi.unstubAllGlobals();
 });
 
@@ -65,18 +71,15 @@ describe("evalEngine — one slot, one holder", () => {
   });
 
   /**
-   * The kill-switch invariant. `agentBridgeEnabled()` off must remove the entire
-   * surface — including any selection a preview session left behind. Honouring a
-   * stale `"agent"` here would gate the built-in evaluator with no UI left to
-   * un-gate it: a document nothing reads, and no way to notice why.
+   * The kill-switch invariant, and the reason `agentBridgeEnabled()` still exists as a
+   * function now that BYOA is public: turning it off must remove the entire surface —
+   * including any selection a session made while it was on. Honouring a stale `"agent"`
+   * would gate the built-in evaluator with no UI left to un-gate it: a document nothing
+   * reads, and no way to notice why.
    */
   it("refuses a stored agent selection when the BYOA flag is off", () => {
-    const map = new Map([[ENGINE_STORAGE_KEY, "agent"]]); // note: no writtten_agent_preview
-    vi.stubGlobal("localStorage", {
-      getItem: (k: string) => map.get(k) ?? null,
-      setItem: (k: string, v: string) => void map.set(k, v),
-      removeItem: (k: string) => void map.delete(k),
-    });
+    installStorage({ [ENGINE_STORAGE_KEY]: "agent" });
+    flag.on = false;
 
     expect(getEngine()).toBe("builtin");
     expect(isBuiltinEngineActive()).toBe(true);

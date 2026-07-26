@@ -387,7 +387,8 @@ document-level observation you'd otherwise make.
 - **The app never connects.** Check the bridge is still running and printed a port from
   the candidate list. In Chrome the author may need to accept a one-time "allow local
   network access" prompt. Safari cannot connect to a local bridge at all — Chrome, Edge,
-  or Firefox.
+  Firefox, or your own app's browser if it has one, which is Chromium-based and already
+  has you running in it.
 - **"your agent is running an older bridge".** The script is versioned with the app.
   Re-run the download command above to fetch the current one, then restart the bridge.
 - **All candidate ports busy.** Usually a bridge from a previous session still running.
