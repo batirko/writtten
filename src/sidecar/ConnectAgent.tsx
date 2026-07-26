@@ -102,7 +102,7 @@ export function ConnectAgent({
         <>
           <p className="connect-lede">
             Review with a coding agent you already run — Claude Code, Codex, or another. No
-            API key, and your document never leaves this machine.
+            API key, and your document goes to your agent, not to a server of ours.
           </p>
           <div className="connect-blocked" data-testid="connect-agent-unsupported" role="note">
             <p className="connect-blocked-text">
@@ -123,7 +123,7 @@ export function ConnectAgent({
         <>
           <p className="connect-lede">
             Review with a coding agent you already run — Claude Code, Codex, or another. No
-            API key, and your document never leaves this machine.
+            API key, and your document goes to your agent, not to a server of ours.
           </p>
           <button
             type="button"

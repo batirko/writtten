@@ -535,6 +535,86 @@ body,
   color: var(--text-muted);
 }
 
+/* --- Settings hierarchy: decision / configuration / about (rework 2026-07-25).
+   Three ranks carried by WEIGHT and one hairline, with no section headers. The
+   labelled-section treatment was built here in July 2026-07-08 and rejected as
+   over-structured for a modal this size; ranking the existing labels costs no
+   extra blocks, which is the whole point — the screen's problem was that it had
+   too many, all shouting at the same volume.
+
+   Rank 1 is the engine choice. It is the only thing in the body at ink weight and
+   UI size; every other label stays the muted 0.75rem micro-label above, which is
+   correct for a control that configures the path already chosen. Deliberately NOT
+   `.setting-section-title` (uppercase + letter-spaced) — that is the section
+   language, and reusing it would smuggle back the rejected structure.
+
+   Compound selector, and it is load-bearing — the same specificity trap that
+   `.modal-card.settings-modal` documents further down. `.setting-group label` is
+   (0,1,1): one class plus a type. A bare `.setting-label-decision` is (0,1,0) and
+   LOSES. The first build of this rework put `font-size` on the bare class and only
+   `color` on the compound one, and shipped a **12 px ink label** — the colour rank
+   applied, the size rank silently did not, and it read as correct at a glance.
+   Caught by measuring the computed style, not by looking. Keep every promoted
+   property in this one rule. --- */
+.setting-group.setting-group-decision label.setting-label-decision {
+  font-size: var(--text-ui);
+  font-weight: 600;
+  color: var(--color-ink);
+}
+/* The hairline belongs to the decision, not to the body below it: everything
+   under the rule is configuration OF the tab above, which is the relationship the
+   engine strip already has in code and never had on screen. */
+.setting-group-decision {
+  padding-bottom: var(--space-md);
+  margin-bottom: var(--space-xs);
+  border-bottom: 0.5px solid var(--color-border);
+}
+
+/* Rank 3 folds — the optional paid key, the per-tier model pickers, and the About
+   block. A real <details>, never a hover reveal or a tabindex'd div: every fold
+   here has to open by tap on a phone, and iOS does not reliably focus a
+   non-interactive element (CLAUDE.md § Design quality). The body reuses the
+   left-rule indent already established by `.connect-disclosure-body`, so nesting
+   reads the same everywhere in this modal. */
+.setting-fold {
+  margin-top: var(--space-sm);
+  font-size: var(--text-label);
+  color: var(--color-muted);
+}
+.setting-fold > summary {
+  cursor: pointer;
+  /* Roomy enough to tap; negative-margined back so the closed fold keeps the
+     stack's rhythm rather than reserving a button-sized gap. */
+  padding: 6px 0;
+  margin: -6px 0;
+  color: var(--color-accent-strong);
+  border-radius: var(--radius-sm);
+}
+.setting-fold > summary:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+.setting-fold-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2xs);
+  margin-top: var(--space-xs);
+  padding-left: var(--space-sm);
+  border-left: 0.5px solid var(--color-border);
+  line-height: 1.6;
+}
+/* "stored" beside the paid-key summary — the summary swaps from its pitch to a
+   statement once a key exists, and this carries the state. A summary still
+   reading "Add a paid key" over a filled field would be lying. */
+.setting-fold-tag {
+  display: inline-block;
+  padding: 1px 6px;
+  border-radius: var(--radius-sm);
+  background: var(--color-accent-tint);
+  color: var(--color-accent-strong);
+  font-weight: 500;
+}
+
 /* Label row that carries a right-aligned affordance (the Remove-key control) —
    the label stays left, the action sits at the far right on the same baseline. */
 .setting-label-row {
@@ -828,51 +908,10 @@ body,
   font-size: 0.75em;
   color: var(--color-ink-2);
 }
-.ping-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-top: 10px;
-  flex-wrap: wrap;
-}
-.ping-btn {
-  border: 0.5px solid var(--color-border-strong);
-  background: transparent;
-  border-radius: var(--radius-sm);
-  font: inherit;
-  font-size: var(--text-ui-sm);
-  padding: 6px 12px;
-  color: var(--color-ink-2);
-  cursor: pointer;
-}
-.ping-btn:hover:not(:disabled) {
-  background: var(--color-sidecar);
-}
-.ping-btn:disabled {
-  opacity: 0.5;
-  cursor: default;
-}
-.ping-verdict {
-  font-size: var(--text-label);
-  padding: 3px 8px;
-  border-radius: var(--radius-sm);
-  line-height: 1.3;
-}
-.ping-ok {
-  background: oklch(95% 0.03 155);
-  color: oklch(40% 0.09 155);
-}
-.ping-billing,
-.ping-rate_limited {
-  background: oklch(95% 0.05 75);
-  color: oklch(45% 0.11 62);
-}
-.ping-invalid,
-.ping-error,
-.ping-network {
-  background: oklch(95% 0.04 25);
-  color: oklch(47% 0.16 25);
-}
+/* The `.ping-*` rules (button + verdict chip) went with the "Ping model" control
+   in the 2026-07-25 settings rework. The decode they coloured now reads on each
+   key field's own subtitle via `.status-ok` / `.status-bad` / `.status-warn`,
+   whose palette these mirrored. */
 .gemini-tier {
   margin-top: 11px;
   padding: 9px 10px;
@@ -1283,20 +1322,36 @@ body,
   padding: 8px 10px;
 }
 
-/* In-app OSS discoverability — a quiet two-line block above the build stamp so
-   a hosted-demo visitor can find the source and learn they can self-host. Same
-   hairline-divider rhythm as .settings-build; the repo link uses the brand
-   accent (the one coloured thing in an otherwise muted footer). */
-.settings-oss {
+/* The About fold — rank 3, the bottom of the settings hierarchy (rework
+   2026-07-25). Was three stacked blocks (OSS link, site links, build stamp), none
+   of which is a setting; they now share one fold. The build stamp is the summary
+   rather than a hidden line, because it is the one thing a bug report needs and
+   burying it behind a click would cost more than the block it saves. */
+.settings-about {
   margin-top: var(--space-md);
   padding-top: var(--space-sm);
   border-top: 0.5px solid var(--color-border);
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  text-align: center;
   font-size: var(--text-label);
   line-height: 1.5;
+  color: var(--color-muted);
+}
+.settings-about > summary {
+  cursor: pointer;
+  /* Centred like the stamp it replaces. `list-item` display keeps the native
+     disclosure marker; centring the text means padding, not text-align alone. */
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  padding: 4px 0;
+  border-radius: var(--radius-sm);
+}
+.settings-about > summary:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+/* Inside the fold the links stack in the same left-ruled body as every other
+   fold in this modal, so nesting reads one way throughout. */
+.settings-about .setting-fold-body {
+  gap: 3px;
 }
 .settings-oss-repo {
   color: var(--color-accent-strong);
@@ -1309,12 +1364,11 @@ body,
   color: var(--color-muted);
 }
 
-/* Privacy & Terms link — sits directly under the OSS block (no divider of its
-   own, so the two "meta" links read as one cluster) and stays muted, leaving the
-   repo link as the footer's single accent. */
+/* Site links — inside the About fold, directly under the OSS lines (no divider
+   of its own, so the "meta" links read as one cluster) and muted, leaving the
+   repo link as the cluster's single accent. */
 .settings-legal {
   margin-top: var(--space-xs);
-  text-align: center;
   font-size: var(--text-label);
   line-height: 1.5;
 }
@@ -1327,18 +1381,9 @@ body,
   text-decoration: underline;
 }
 
-/* Build stamp at the foot of Settings — deliberately quiet; it exists so a bug
-   report can be pinned to an exact version + commit, not to draw the eye. */
-.settings-build {
-  margin-top: var(--space-md);
-  padding-top: var(--space-sm);
-  border-top: 0.5px solid var(--color-border);
-  font-size: var(--text-label);
-  font-variant-numeric: tabular-nums;
-  color: var(--color-muted);
-  text-align: center;
-}
-
+/* The version + commit, now the About fold's summary (see .settings-about).
+   Deliberately quiet; it exists so a bug report can be pinned to an exact build,
+   not to draw the eye. */
 .settings-build-sha {
   font-family: var(--font-mono, monospace);
   opacity: 0.75;
@@ -3736,6 +3781,35 @@ body,
   .connect-btn-sm {
     min-height: 36px;
     padding-block: 8px;
+  }
+  /* The Settings folds (rework 2026-07-25). Same remedy as the two controls above,
+     and the same reason it is not optional: measured 30px and 25px at their desktop
+     rhythm, and on a phone a <summary> is the ONLY way to reach what is inside —
+     there is no hover to fall back on. The paid-key fold in particular gates a
+     credential field, and the BYOK settings were already unreachable on iOS once.
+     Flex so the label stays vertically centred while only the box grows. */
+  .setting-fold > summary,
+  .settings-about > summary {
+    display: flex;
+    align-items: center;
+    min-height: 36px;
+  }
+  /* `display: flex` drops the native disclosure marker that `list-item` provides,
+     so the fold would lose its only affordance cue. Put it back explicitly. */
+  .setting-fold > summary::before,
+  .settings-about > summary::before {
+    content: "▸";
+    margin-right: 6px;
+    font-size: 0.85em;
+    transition: transform var(--dur-fast) var(--ease-out);
+  }
+  .setting-fold[open] > summary::before,
+  .settings-about[open] > summary::before {
+    transform: rotate(90deg);
+  }
+  /* The About summary centres its stamp; keep that when it becomes a flex row. */
+  .settings-about > summary {
+    justify-content: center;
   }
 }
 

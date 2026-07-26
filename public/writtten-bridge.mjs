@@ -1,7 +1,9 @@
 // writtten-bridge.mjs — writtten agent bridge (protocolVersion 1)
 //
 // A zero-dependency, token-gated relay between the writtten web app and an agent
-// session. Node >= 18. Binds 127.0.0.1 only — the document never leaves this machine.
+// session. Node >= 18. Binds 127.0.0.1 only, so writtten's own hop never leaves this
+// machine — but the agent on the other end forwards your writing to whatever model it
+// runs, and that part is between you and your agent. See https://writtten.com/privacy/.
 //
 // The bridge holds NO review logic. Every submission is validated app-side, in code the
 // agent cannot reach: fixed taxonomy, register lint, locally-resolved anchors. There is

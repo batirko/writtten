@@ -382,4 +382,33 @@ describe("ConnectAgent — teardown", () => {
       expect(text).toContain("every candidate port was busy");
     });
   });
+
+  /**
+   * Where the document actually goes (corrected 2026-07-25).
+   *
+   * Both ledes promised it "never leaves this machine". That is false: the agent
+   * forwards the writing to whatever model it runs, `/privacy` said the opposite in
+   * print, and the pre-flight callout had already been corrected — leaving this
+   * surface telling the second of two stories.
+   *
+   * The negative assertion is the load-bearing one. The retired claim is warm and it
+   * reads well, so it is exactly the line that gets re-added by someone polishing the
+   * copy who has not read the privacy page.
+   */
+  describe("where the document goes", () => {
+    it("the idle lede scopes the claim to writtten, not to the machine", () => {
+      const text = render({ state: "idle" });
+      expect(text).toContain("goes to your agent, not to a server of ours");
+      expect(text).not.toMatch(/never leaves (this|your) machine/i);
+    });
+
+    it("the unsupported lede says the same thing", () => {
+      const text = render({
+        state: "idle",
+        support: { supported: false, reason: "webkit_loopback" },
+      });
+      expect(text).toContain("goes to your agent, not to a server of ours");
+      expect(text).not.toMatch(/never leaves (this|your) machine/i);
+    });
+  });
 });

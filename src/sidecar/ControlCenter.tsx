@@ -14,7 +14,6 @@ import type { ModelCatalog } from "../model/provider";
 import {
   pingProvider,
   detectGeminiTier,
-  type PingResult,
   type PingStatus,
   type GeminiTier,
 } from "../model/ping";
@@ -266,34 +265,12 @@ export function geminiKeyStatus(args: {
   };
 }
 
-// One attributable verdict for a "Ping model" that may have checked one or both
-// Gemini keys. Names each field's outcome and picks the worst status for color.
-// Exported for unit testing.
-export function summarizePing(checks: { field: "free" | "paid"; tier: GeminiTier }[]): PingResult {
-  if (checks.length === 0) return { status: "invalid", label: "Enter a key first." };
-  const word = (t: GeminiTier) =>
-    t === "paid"
-      ? "reachable"
-      : t === "free"
-        ? "reachable (free tier)"
-        : t === "invalid"
-          ? "not recognized"
-          : "unreachable";
-  const label =
-    checks.map((c) => `${c.field === "free" ? "Free" : "Paid"} key ${word(c.tier)}`).join(" · ") +
-    ".";
-  const hasInvalid = checks.some((c) => c.tier === "invalid");
-  const hasUnknown = checks.some((c) => c.tier === "unknown");
-  const paidIsFree = checks.some((c) => c.field === "paid" && c.tier === "free");
-  const status: PingStatus = hasInvalid
-    ? "invalid"
-    : hasUnknown
-      ? "network"
-      : paidIsFree
-        ? "billing"
-        : "ok";
-  return { status, label };
-}
+// The "Ping model" button and its merged verdict were removed in the settings
+// rework (2026-07-25). They restated what the field's own subtitle already says:
+// a debounced auto-verify fires on every key change (`detectGeminiTier` for
+// Gemini, `pingProvider` elsewhere) and `keyStatusView` prints the decoded
+// outcome — per field, which attributes a two-key Gemini setup better than one
+// merged sentence ever did. `src/model/ping.ts` still powers that auto-verify.
 
 // ---------------------------------------------------------------------------
 // Icons
@@ -346,7 +323,12 @@ export const ENGINE_OPTIONS: EngineOption[] = [
   {
     id: "agent",
     label: "Your agent",
-    help: "Your agent reads it. No key, no quota — and the document never leaves this machine.",
+    // Scoped to what writtten can actually promise. The retired line claimed the
+    // document "never leaves this machine", which is false on this path — the
+    // agent forwards the writing to whatever model it runs, and /privacy has said
+    // so in print the whole time. Matches the pre-flight callout's phrasing so the
+    // two surfaces tell one story, and mirrors the key path's own trust note.
+    help: "Your agent reads it. No key, no quota — your document goes to your agent, not to a server of ours.",
   },
 ];
 
@@ -659,12 +641,6 @@ export function ControlCenter({
     return () => document.removeEventListener("pointerdown", onOutside);
   }, [tapOpen]);
 
-  // "Ping model" verdict. Reset whenever the provider or key changes so a stale
-  // verdict never lingers over a different key.
-  const [ping, setPing] = useState<PingResult | null>(null);
-  const [pinging, setPinging] = useState(false);
-  useEffect(() => setPing(null), [providerId, apiKey, geminiPaidKey]);
-
   // Auto-detected Gemini tier (replaces the manual "paid tier" checkbox). We
   // probe `gemini-2.5-pro` once — debounced — whenever a Gemini key is present,
   // and set the capability tier from the result. See ping.ts → detectGeminiTier.
@@ -824,7 +800,6 @@ export function ControlCenter({
     providerId !== "gemini" || (!hasFree && !hasPaid)
       ? null
       : geminiKeyStatus({ hasFree, hasPaid, geminiTier, geminiPaidTier, keyTier });
-  const canPing = hasFree || (providerId === "gemini" && hasPaid);
 
   // Honest per-field subtitle state. The primary field's verification signal is
   // Gemini's tier probe when on Gemini, else the non-Gemini live check. The paid
@@ -841,39 +816,6 @@ export function ControlCenter({
     check: geminiTierToCheck(geminiPaidTier),
     shape: "AIza…",
   });
-
-  const runPing = async () => {
-    setPinging(true);
-    setPing(null);
-    if (providerId === "gemini") {
-      // Gemini's ping doubles as the tier probe (pro-model). With two fields we
-      // check whichever keys are set and report one attributable verdict; the
-      // capability tier is (re)set from the free field's read.
-      const checks: { field: "free" | "paid"; tier: GeminiTier }[] = [];
-      if (hasFree) {
-        setGeminiTier("detecting");
-        const tier = await detectGeminiTier(apiKey);
-        setGeminiTier(tier);
-        if (tier === "paid") onKeyTierChange?.("strong");
-        else if (tier === "free") onKeyTierChange?.("weak");
-        checks.push({ field: "free", tier });
-      }
-      if (hasPaid) {
-        setGeminiPaidTier("detecting");
-        const tier = await detectGeminiTier(geminiPaidKey);
-        setGeminiPaidTier(tier);
-        checks.push({ field: "paid", tier });
-      }
-      setPing(summarizePing(checks));
-    } else {
-      const result = await pingProvider(providerId, apiKey, pingModelFor(providerId));
-      setPing(result);
-      // Keep the subtitle and the manual verdict in lockstep — a click can never
-      // disagree with the auto-verify.
-      setKeyCheck(result.status);
-    }
-    setPinging(false);
-  };
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const handleImportClick = () => fileInputRef.current?.click();
@@ -1072,8 +1014,16 @@ export function ControlCenter({
                 "choice" of one would be noise. The provider strip below then reads
                 exactly as it always has. */}
             {agentBridgeEnabled() && (
-              <div className="setting-group">
-                <label>Engine</label>
+              <div className="setting-group setting-group-decision">
+                {/* Promoted out of the shared muted micro-label. Which path gets you
+                    model access is the decision this modal exists for; the provider
+                    strip below picks a vendor *within* that path. Rendering both at
+                    the same 0.75rem/600/muted is what made the screen read as a pile
+                    of peers with no on-ramp (settings rework, 2026-07-25). Deliberately
+                    NOT the uppercase `.setting-section-title` recipe — labelled
+                    sections were built here and rejected as over-structured
+                    (2026-07-08); this ranks by weight instead of adding a header. */}
+                <label className="setting-label-decision">Engine</label>
                 {/* The wrapper exists only to anchor the tip: `.engine-seg` clips its
                     own children (`overflow: hidden`, which is what keeps the active
                     tab's tint inside the rounded corners), so a popover rendered
@@ -1268,102 +1218,127 @@ export function ControlCenter({
               </span>
             </div>
 
+            {/* Stays on the resting layer, and sits beside the key it describes
+                rather than below the model pickers: what a session costs is part of
+                deciding to paste a paid key, not a detail to find afterwards. */}
+            {meta.paid && meta.cost && <div className="pay-note">{meta.cost}</div>}
+
+            {/* The second Gemini key folds: it is optional, it is the only
+                always-open block a first-run visitor can do nothing with, and the
+                summary keeps its pitch rather than hiding behind a generic
+                "Advanced" — the offer stays on the resting screen, only the field
+                leaves it. `open` is forced whenever a key is stored: a fold that
+                still reads "Add a paid key" over a filled field would be lying,
+                and a stored credential must never be hidden from its owner. */}
             {providerId === "gemini" && (
-              <div className="setting-group" style={{ marginTop: "var(--space-sm)" }}>
-                <div className="setting-label-row">
-                  <label htmlFor="gemini-paid-key-input">
-                    Gemini paid key <span className="model-tier-note">· optional</span>
-                  </label>
-                  {geminiPaidKey && (
-                    <button
-                      type="button"
-                      className="key-remove"
-                      data-testid="remove-paid-key"
-                      onClick={() => onGeminiPaidKeyChange?.("")}
-                    >
-                      Remove
-                    </button>
-                  )}
-                </div>
-                <input
-                  id="gemini-paid-key-input"
-                  data-testid="gemini-paid-key-input"
-                  type="text"
-                  className="masked-key"
-                  autoComplete="off"
-                  spellCheck={false}
-                  data-1p-ignore
-                  data-lpignore="true"
-                  placeholder="Paste a billed Gemini key…"
-                  value={geminiPaidKey}
-                  onChange={(e) => onGeminiPaidKeyChange?.(e.target.value)}
-                />
-                <span className="setting-help">
-                  {geminiPaidKey && (
+              <details
+                className="setting-fold"
+                data-testid="paid-key-fold"
+                open={hasPaid || undefined}
+              >
+                <summary>
+                  {hasPaid ? (
                     <>
-                      <strong className={`status-${paidView.cls}`}>{paidView.text}</strong>
-                      {" · "}
+                      Paid key <span className="setting-fold-tag">stored</span>
                     </>
+                  ) : (
+                    "Add a paid key — unlocks the stronger adjudicator"
                   )}
-                  Unlocks the stronger adjudicator (
-                  <code className="key-shape">gemini-2.5-pro</code>) and keeps working past the free
-                  daily budget. Needs billing enabled.
-                </span>
+                </summary>
+                <div className="setting-fold-body">
+                  <div className="setting-group">
+                    <div className="setting-label-row">
+                      <label htmlFor="gemini-paid-key-input">
+                        Gemini paid key <span className="model-tier-note">· optional</span>
+                      </label>
+                      {geminiPaidKey && (
+                        <button
+                          type="button"
+                          className="key-remove"
+                          data-testid="remove-paid-key"
+                          onClick={() => onGeminiPaidKeyChange?.("")}
+                        >
+                          Remove
+                        </button>
+                      )}
+                    </div>
+                    <input
+                      id="gemini-paid-key-input"
+                      data-testid="gemini-paid-key-input"
+                      type="text"
+                      className="masked-key"
+                      autoComplete="off"
+                      spellCheck={false}
+                      data-1p-ignore
+                      data-lpignore="true"
+                      placeholder="Paste a billed Gemini key…"
+                      value={geminiPaidKey}
+                      onChange={(e) => onGeminiPaidKeyChange?.(e.target.value)}
+                    />
+                    <span className="setting-help">
+                      {geminiPaidKey && (
+                        <>
+                          <strong className={`status-${paidView.cls}`}>{paidView.text}</strong>
+                          {" · "}
+                        </>
+                      )}
+                      Unlocks the stronger adjudicator (
+                      <code className="key-shape">gemini-2.5-pro</code>) and keeps working past the
+                      free daily budget. Needs billing enabled.
+                    </span>
+                  </div>
+                </div>
+              </details>
+            )}
+
+            {/* Only a genuine warning surfaces — an unrecognized key, or a free-tier
+                key in the paid slot. It sits outside the fold on purpose: a bad paid
+                key is exactly the case where the user must be told without opening
+                anything. (The "Ping model" button that used to lead this block is
+                gone — see the note above `summarizePing`'s old home.) */}
+            {geminiStatus?.cls === "invalid" && (
+              <div
+                className={`gemini-tier gemini-tier-${geminiStatus.cls}`}
+                data-testid="gemini-tier"
+                style={{ marginTop: "var(--space-sm)" }}
+              >
+                {geminiStatus.node}
               </div>
             )}
 
-            <div className="setting-group" style={{ marginTop: "var(--space-sm)" }}>
-              <div className="ping-row">
-                <button
-                  type="button"
-                  className="ping-btn"
-                  data-testid="ping-model"
-                  disabled={pinging || !canPing}
-                  onClick={runPing}
-                >
-                  {pinging ? "Pinging…" : "Ping model"}
-                </button>
-                {ping && (
-                  <span
-                    className={`ping-verdict ping-${ping.status}`}
-                    data-testid="ping-verdict"
-                    role="status"
-                  >
-                    {ping.label}
-                  </span>
-                )}
-              </div>
-              {/* The key-status readout is gone; only a genuine warning (an
-                  unrecognized key, or a free-tier key in the paid slot) still
-                  surfaces here — the benign "what's enabled" states don't. */}
-              {geminiStatus?.cls === "invalid" && (
-                <div
-                  className={`gemini-tier gemini-tier-${geminiStatus.cls}`}
-                  data-testid="gemini-tier"
-                >
-                  {geminiStatus.node}
+            {/* Keyed only. The muted "What will run" preview named two models on the
+                one screen where nothing can run them — a first-run visitor with no
+                key. Once a key exists this is the only thing that explains the
+                two-tier routing, so it returns in full. */}
+            {hasActiveKey && (
+              <div className="running-card">
+                <div className="running-head">
+                  <span>What&rsquo;s running</span>
+                  <span className="running-why">and why</span>
                 </div>
-              )}
-            </div>
-
-            <div className={`running-card${hasActiveKey ? "" : " is-preview"}`}>
-              <div className="running-head">
-                <span>{hasActiveKey ? "What's running" : "What will run"}</span>
-                {hasActiveKey && <span className="running-why">and why</span>}
+                {runningRows.map((row) => (
+                  <div className="running-row" key={row.model}>
+                    <code className="running-model">
+                      {row.model}
+                      {row.rotation && <span className="running-rotation"> · {row.rotation}</span>}
+                    </code>
+                    <span>{row.job}</span>
+                  </div>
+                ))}
               </div>
-              {runningRows.map((row) => (
-                <div className="running-row" key={row.model}>
-                  <code className="running-model">
-                    {row.model}
-                    {row.rotation && <span className="running-rotation"> · {row.rotation}</span>}
-                  </code>
-                  <span>{row.job}</span>
-                </div>
-              ))}
-            </div>
+            )}
 
+            {/* The per-tier pickers fold. They are the definition of maintenance —
+                a returning user changing a model, never a first-run step — and they
+                are mutually exclusive with the Gemini paid-key fold above (Gemini has
+                no pickers; the paid providers have no second key field), so a given
+                provider only ever shows ONE fold. That is why this is not a generic
+                "Advanced" drawer: there is nothing to collect into one. */}
             {meta.paid && (
-              <div className="setting-group" style={{ marginTop: "var(--space-md)" }}>
+              <details className="setting-fold" data-testid="model-fold">
+                <summary>Choose models</summary>
+                <div className="setting-fold-body">
+              <div className="setting-group">
                 <label htmlFor="model-select-fast">
                   Fast model <span className="model-tier-note">· frequent</span>
                 </label>
@@ -1397,9 +1372,9 @@ export function ControlCenter({
                   ))}
                 </select>
               </div>
+                </div>
+              </details>
             )}
-
-            {meta.paid && meta.cost && <div className="pay-note">{meta.cost}</div>}
 
             {/* The privacy fact is equally true for every provider: the key rides
                 straight from this browser to the provider and lives only in this
@@ -1422,48 +1397,53 @@ export function ControlCenter({
               </div>
             )}
 
-            {/* In-app OSS discoverability: a hosted-demo visitor should be able
-                to find the source — and learn they can self-host — without
-                leaving for the README. Deliberately quiet, sits above the build
-                stamp. The "run it locally" line is the privacy payoff: cloning
-                takes writtten.com out of the loop entirely. */}
-            <div className="settings-oss" data-testid="oss-link">
-              <a
-                className="settings-oss-repo"
-                href="https://github.com/batirko/writtten"
-                target="_blank"
-                rel="noreferrer"
-              >
-                Open source · github.com/batirko/writtten
-              </a>
-              <span className="settings-oss-note">Clone the repo to run writtten locally.</span>
-            </div>
-
-            <div className="settings-legal" data-testid="legal-link">
-              <a href="/why/" target="_blank" rel="noreferrer">
-                Why writtten
-              </a>
-              {" · "}
-              {agentBridgeEnabled() && (
-                <>
-                  {/* Trailing slash is load-bearing: Cloudflare serves the real
-                      file at the directory path, and the SW denylist covers the
-                      no-slash form. */}
-                  <a href="/agent/" target="_blank" rel="noreferrer">
-                    Connect your agent
+            {/* Three separate footer blocks became one fold. None of them is a
+                setting — they are provenance and legal matter, the lowest-ranked
+                content in the modal, and they were taking three blocks of the
+                resting screen to say so. The build stamp stays on the closed
+                summary because it is the one line a bug report needs, and hiding
+                it behind a click would cost more than it saves. Inside: the source
+                link (a hosted-demo visitor should be able to find the repo and
+                learn they can self-host without leaving for the README — cloning
+                takes writtten.com out of the loop entirely) and the site links. */}
+            <details className="settings-about" data-testid="settings-about">
+              <summary data-testid="build-version">
+                writtten v{__APP_VERSION__}
+                <span className="settings-build-sha"> · {__GIT_SHA__}</span>
+              </summary>
+              <div className="setting-fold-body">
+                <a
+                  className="settings-oss-repo"
+                  data-testid="oss-link"
+                  href="https://github.com/batirko/writtten"
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  Open source · github.com/batirko/writtten
+                </a>
+                <span className="settings-oss-note">Clone the repo to run writtten locally.</span>
+                <div className="settings-legal" data-testid="legal-link">
+                  <a href="/why/" target="_blank" rel="noreferrer">
+                    Why writtten
                   </a>
                   {" · "}
-                </>
-              )}
-              <a href="/privacy/" target="_blank" rel="noreferrer">
-                Privacy &amp; Terms
-              </a>
-            </div>
-
-            <div className="settings-build" data-testid="build-version">
-              writtten v{__APP_VERSION__}
-              <span className="settings-build-sha"> · {__GIT_SHA__}</span>
-            </div>
+                  {agentBridgeEnabled() && (
+                    <>
+                      {/* Trailing slash is load-bearing: Cloudflare serves the real
+                          file at the directory path, and the SW denylist covers the
+                          no-slash form. */}
+                      <a href="/agent/" target="_blank" rel="noreferrer">
+                        Connect your agent
+                      </a>
+                      {" · "}
+                    </>
+                  )}
+                  <a href="/privacy/" target="_blank" rel="noreferrer">
+                    Privacy &amp; Terms
+                  </a>
+                </div>
+              </div>
+            </details>
           </div>
         </div>
       )}

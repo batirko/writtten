@@ -438,6 +438,23 @@ describe("SidecarFeed — keyless banner + empty-state split", () => {
   });
 
   /**
+   * The banner's agent clause promised "an agent keeps it on your machine entirely"
+   * until 2026-07-25 — false, because the agent forwards the writing to whatever
+   * model it runs. Corrected in step with the engine help and both connect ledes so
+   * the whole surface tells one story rather than two.
+   *
+   * The negative half is the guard: the retired line reads well, and a copy pass
+   * that has not read `/privacy` is exactly how it comes back.
+   */
+  it("does not promise the agent path keeps the document on this machine", () => {
+    setAgentPreview(true);
+    const sub = renderWith({ hasKey: false }).querySelector(".keyless-banner-sub");
+    expect(sub?.textContent).toMatch(/neither goes through a server of ours/i);
+    expect(sub?.textContent).not.toMatch(/on your machine entirely/i);
+    expect(sub?.textContent).not.toMatch(/never leaves (this|your) machine/i);
+  });
+
+  /**
    * Engine exclusivity makes `hasKey` the wrong question on its own. A user whose
    * agent holds the slot and is connected is fully served with no key at all —
    * telling them to add one would be false, and the calm empty state is the honest

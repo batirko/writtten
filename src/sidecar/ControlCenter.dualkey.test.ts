@@ -1,10 +1,15 @@
 import { describe, it, expect } from "vitest";
-import { geminiKeyStatus, summarizePing } from "./ControlCenter";
+import { geminiKeyStatus } from "./ControlCenter";
 
-// The two-field Gemini setup routes a free key + an optional billed key. These
-// pure helpers pick the honest status copy and the combined ping verdict; the
-// rest of the plumbing (App key derivation, rotation free→paid fallback) is
-// covered elsewhere. See docs/projects/byok_capability_model.md.
+// The two-field Gemini setup routes a free key + an optional billed key. This
+// pure helper picks the honest status copy; the rest of the plumbing (App key
+// derivation, rotation free→paid fallback) is covered elsewhere. See
+// docs/projects/byok_capability_model.md.
+//
+// A `summarizePing` block sat here until 2026-07-25 and went with the "Ping model"
+// button in the settings rework. Nothing it asserted is unguarded: the one case
+// with product meaning — a free-tier key pasted into the paid slot — is the
+// geminiKeyStatus case above, which is what actually renders the warning now.
 
 describe("geminiKeyStatus — combined two-key read", () => {
   const base = { geminiTier: "idle", geminiPaidTier: "idle", keyTier: "weak" } as const;
@@ -52,41 +57,5 @@ describe("geminiKeyStatus — combined two-key read", () => {
   it("free key only, still detecting → detecting", () => {
     const s = geminiKeyStatus({ ...base, hasFree: true, hasPaid: false, geminiTier: "detecting" });
     expect(s.cls).toBe("detecting");
-  });
-});
-
-describe("summarizePing — combined verdict", () => {
-  it("no keys → invalid nudge", () => {
-    expect(summarizePing([])).toEqual({ status: "invalid", label: "Enter a key first." });
-  });
-
-  it("both keys reachable → ok, both named", () => {
-    const r = summarizePing([
-      { field: "free", tier: "free" },
-      { field: "paid", tier: "paid" },
-    ]);
-    expect(r.status).toBe("ok");
-    expect(r.label).toBe("Free key reachable (free tier) · Paid key reachable.");
-  });
-
-  it("a free-tier key in the paid slot → billing status", () => {
-    const r = summarizePing([
-      { field: "free", tier: "free" },
-      { field: "paid", tier: "free" },
-    ]);
-    expect(r.status).toBe("billing");
-  });
-
-  it("any invalid key dominates → invalid", () => {
-    const r = summarizePing([
-      { field: "free", tier: "invalid" },
-      { field: "paid", tier: "paid" },
-    ]);
-    expect(r.status).toBe("invalid");
-  });
-
-  it("unreachable (no invalid) → network", () => {
-    const r = summarizePing([{ field: "paid", tier: "unknown" }]);
-    expect(r.status).toBe("network");
   });
 });
