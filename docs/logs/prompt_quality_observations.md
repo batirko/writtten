@@ -666,3 +666,24 @@ CAUGHT  "You should shorten the closing line."   → prescriptive
 
 **Guard when fixed:** add adversarial rows to `register-lint-corpus.ts` per that file's rule of the road, covering both halves — and watch the over-rejection direction, since "this section is strong on the migration risk" is a legitimate located observation that a naive positive-adjective rule would eat. → see `docs/projects/philosophy_guardrails.md` (G1) · `docs/projects/user_directed_review.md`
 
+
+### OBS-042 — The agent instructions rule the anchor's *length* but never its *relevance*, so a card can quote one passage and be about another
+
+**Date:** 2026-07-27\
+**Status:** open\
+**Prompt tier:** the **agent skill** (`docs/skills/writtten-agent.md`) — the prompt for an external engine, not one of our model prompts.\
+**Type flag:** anchoring quality (register-clean, taxonomy-valid, and wrong where it points)\
+**Reported as:** owner, dogfood session on writtten.com with Claude Code connected — _"good catch, but wrong anchoring."_\
+**Input excerpt:** a LinkedIn announcement whose second paragraph read _"The first version relied on a single type of engine - API key to 3 AI providers: Gemini, Claude, GPT. What I have released just now enables users to connect app to their local agentic session **instead**. So if you already have a subscription plan to Claude Code, Codex, or other similar tools - **you won't need to issue an API key** and pay for it separately."_
+
+**What happened.** The agent submitted a `clarity` card whose text names two phrases — _"instead"_ reads as replacement, _"you won't need to issue an API key"_ reads as optional — and anchored it to **"The first version relied on a single type of engine"**, which contains neither. The observation was a good one. The reader following the highlight lands on a clause the card never discusses, and has to find the real subject by re-reading the paragraph — the precise work anchoring exists to remove.
+
+**Not an app defect, and worth stating because the opposite is the natural first guess.** `resolveQuote` (`externalObservations.ts`) is a verbatim substring match with only a trailing-punctuation tolerance, and the highlighter paints the characters it matched. There is no fuzzy fallback, no widening to the sentence, no whole-block degrade on the external path. The span highlighted is precisely the span quoted. The choice was the agent's.
+
+**What the prompt actually says.** The submission table's entry for `anchorText` is _"A verbatim quote from the document — writtten resolves it locally to find the passage. Quote at least ~6 consecutive words, copied exactly."_ Every constraint in that sentence is about **form**: verbatim, exact, long enough to be unambiguous. None is about **choosing** the passage. An agent satisfying it to the letter, as this one did, can quote any six consecutive words in the neighbourhood and be fully compliant.
+
+**The second half — the type choice hides the option that would have worked.** The finding was a relation between two phrases, and the two-sided types (`contradiction`, `strategic_tension`) are the only ones that can point at both. The skill's _Both sides of a conflict_ section makes that case well, but it opens _"A contradiction is a relationship between two passages"_ and sits under the conflict types, so an agent writing a clarity card never reads it. The generalisation it does not make is the useful one: **if your text names two passages, you have chosen the wrong type** — one-sided types cannot express what you are seeing, and the anchor degrades to whichever half you picked, or, as here, to neither.
+
+**Failure mode — and why the boundary cannot help.** Same structural shape as OBS-039: a card anchored to the wrong clause is taxonomy-valid, register-clean and under the length cap, so it is accepted, and the self-correcting rejection-hint channel never fires. Anchor relevance can only be taught in the prompt. Compounding it, nothing in the exported log records where an accepted card anchored (UX-052), so the failure is invisible unless someone is watching the screen when it lands.
+
+**Direction:** a relevance rule beside the length rule — anchor the words the observation is *about*, the ones the author has to re-read, not the sentence they live in — and a pointer, outside the conflict section, from "my text names two passages" to the two-sided types. Both are additions inside the existing framing, which OBS-040 established must not be reordered or thinned. Cheap to write; the open question is whether it holds across agents, which needs the anchor-shape logging in UX-052 before it can be measured rather than eyeballed.
