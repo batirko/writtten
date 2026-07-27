@@ -8,6 +8,24 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 > conventional-commit PR titles; a new version section is prepended when a release PR merges.
 > See `docs/mechanics/release_and_deploy.md`.
 
+## [0.11.0](https://github.com/batirko/writtten/compare/writtten-v0.10.2...writtten-v0.11.0) (2026-07-27)
+
+
+### Added
+
+* **byoa:** "Connect your agent" becomes a public feature ([#278](https://github.com/batirko/writtten/issues/278)) ([ec5d643](https://github.com/batirko/writtten/commit/ec5d643189f9b2b3c8690f39a8ef50c7f982331b))
+* **byoa:** say what a connected agent can be asked for (UX-043 + curation piece 1) ([#274](https://github.com/batirko/writtten/issues/274)) ([39092e9](https://github.com/batirko/writtten/commit/39092e91c7120e021300967f89e61e5b65ff2d13))
+* **byoa:** the archive stops guessing why a card was withdrawn (curation 2–4) ([#276](https://github.com/batirko/writtten/issues/276)) ([59d9535](https://github.com/batirko/writtten/commit/59d9535549546f900bacac97ceec9bcc0db2f273))
+* **settings:** rank the settings screen and retire the "never leaves this machine" claim ([#277](https://github.com/batirko/writtten/issues/277)) ([437c48c](https://github.com/batirko/writtten/commit/437c48ceaab9126595a566f045f08aded397a17a))
+
+
+### Fixed
+
+* **byoa:** the connect panel stops introducing itself twice (UX-030) ([#279](https://github.com/batirko/writtten/issues/279)) ([d4851c3](https://github.com/batirko/writtten/commit/d4851c392bb315d52a09f1de16877a39f2556609))
+* **onboarding:** welcome modal renders at its intended 400px, not 340px (UX) ([#271](https://github.com/batirko/writtten/issues/271)) ([42b8a8f](https://github.com/batirko/writtten/commit/42b8a8f47380dfff439274ec786c722aff02e99c))
+* **router:** negotiate request shape instead of guessing it from model ids ([#280](https://github.com/batirko/writtten/issues/280)) ([5464233](https://github.com/batirko/writtten/commit/546423331c3817321c8cb04ed6714f45665fa721))
+* **ux:** give the two on-ramps a hierarchy (UX-042) ([#269](https://github.com/batirko/writtten/issues/269)) ([a7ead16](https://github.com/batirko/writtten/commit/a7ead16a8570434dceb5f45181f3f302de08b4f1))
+
 ## [0.10.2](https://github.com/batirko/writtten/compare/writtten-v0.10.1...writtten-v0.10.2) (2026-07-24)
 
 
