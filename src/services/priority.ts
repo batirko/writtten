@@ -26,8 +26,13 @@ type ClaimKind = ClaimLedgerEntry["kind"];
  * Document-level structural gap types — the only observations R2 modulates by
  * maturity. Defects (contradiction, unsupported_claim) and span nits always
  * surface unchanged. See docs/projects/maturity_aware_severity.md § Scope.
+ *
+ * Exported because this set is now load-bearing in a second place: it is exactly
+ * the half a connected agent holds back on an `unformed` draft (UX-053), and
+ * `agentPrompt.test.ts` derives that assertion from here rather than restating
+ * four type names the skill prose would then be free to drift from.
  */
-const DOC_GAP_TYPES: ReadonlySet<Observation["type"]> = new Set([
+export const DOC_GAP_TYPES: ReadonlySet<Observation["type"]> = new Set([
   "missing_topic",
   "underexposed_topic",
   "structure_flow",

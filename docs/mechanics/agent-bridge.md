@@ -393,7 +393,7 @@ The gate is now `agentPushFingerprint` (`src/services/docPassMateriality.ts`), w
 
 It is not the doc pass's five-clause `isMaterialDelta`, though it lives beside it and shares its normalizer. That floor's clause 2 (*section count or ordered headings differ*) calls a heading split material — correct for a `structure_flow` conclusion, wrong here — and its summary and claim clauses read state that does not exist at the bridge, whose snapshot is `{heading, text}` and id-free by the boundary invariant. The full reasoning is in `docs/projects/agent_connected_eval.md` § _Bridge protocol → Materiality floor_.
 
-**One clause was added 2026-07-20 (UX-029): the `maturity` band.** `stableContentHash` is `agentPushFingerprint(body) + "|" + maturity`, so a band change bumps `docVersion` even when the prose fingerprints identically. This is not symmetry with the doc pass — it closes a hole the flattening itself opens. The fingerprint's purpose is to make re-partitioning invisible, but `blockCount` **is** a re-partition signal: splitting a paragraph at ~120 words moves the band `unformed → forming` without moving a fingerprint byte. Since a `unformed` band tells the agent to park until the draft is reviewable, an agent would sleep through precisely the event it was waiting for. The table case never self-heals — table text is excluded from `sections[]` entirely, so arbitrarily much of it can be typed with the fingerprint frozen.
+**One clause was added 2026-07-20 (UX-029): the `maturity` band.** `stableContentHash` is `agentPushFingerprint(body) + "|" + maturity`, so a band change bumps `docVersion` even when the prose fingerprints identically. This is not symmetry with the doc pass — it closes a hole the flattening itself opens. The fingerprint's purpose is to make re-partitioning invisible, but `blockCount` **is** a re-partition signal: splitting a paragraph at ~120 words moves the band `unformed → forming` without moving a fingerprint byte. Since the band decides whether the four whole-document types are due, an agent would sleep through precisely the event that releases them. The table case never self-heals — table text is excluded from `sections[]` entirely, so arbitrarily much of it can be typed with the fingerprint frozen.
 
 It cannot reintroduce self-waking: maturity is derived from the document, never from the observations.
 
@@ -447,19 +447,25 @@ What the skill now instructs per band:
 
 | Band | The agent's move |
 | --- | --- |
-| `unformed` | Don't review. Say so **once**, then park on `/wait`, re-pulling `/doc` on every return — timeout included — until the band moves. Then run the pass. |
+| `unformed` | Review, holding back the four `DOC_GAP_TYPES` (`missing_topic`, `underexposed_topic`, `structure_flow`, `audience_mismatch`). Say **once** which half is held; run the held four on the first wake after the band moves. |
 | `forming` | Review, but send `missing_topic` / `underexposed_topic` at `"confidence": "low"` — on a half-written draft an absence is as often a section not yet reached as a real omission. |
 | `mature` | The full pass. |
 
-**It defers; it never refuses.** The band is a coarse structural proxy and can be wrong about an unusual document, so the skill tells the agent to name the hold-off and to proceed anyway if the author says so. The failure this converts is not "the agent reviewed too early" — it is six minutes of unexplained silence becoming one sentence.
+**`unformed` splits the pass; it does not suspend it (amended 2026-07-24, UX-053).** Until then the band deferred the *entire* agent pass, which was never what the band means for our own engine: `Editor.tsx` gates only the `doc-idle` arm on it, while `block-settle-pause` fires on any settled span with terminal punctuation and ≥15 characters. So a 120-word draft produced clarity and contradiction cards under the built-in engine and total silence under an agent — while this same rule claimed both critics hold one standard. The held set is now exactly `DOC_GAP_TYPES` (exported from `priority.ts` so the skill's drift test derives it rather than restating four names), which is the identical scope R2 modulates by maturity.
+
+Two arguments that did *not* survive scrutiny and are worth recording so they aren't re-litigated. **Register:** invariant 4's "under-threshold document" clause reads like it forbids this, but the built-in engine has behaved this way since UX-013 — the invariant is about not critiquing an in-progress *sentence*, which the settle trigger already enforces. **Cost:** an agent pass spends the author's own tokens, but an `unformed` document is by construction the cheapest pass an agent will ever run — the document *is* the context — and it was the only one unconditionally skipped. The ~4.1k-token figure that motivated the push materiality floor was measured on a full draft.
+
+**It holds back; it never refuses.** The band is a coarse structural proxy and can be wrong about an unusual document, so the skill tells the agent to name what it is holding and to run the full pass if the author says so. The failure this converts is not "the agent reviewed too early" — it is six minutes of unexplained silence becoming one sentence.
 
 **`confidence: "low"` is a real lever, not decoration.** `externalConfidence` is a downward-only clamp in `computePriority`, dropping the confidence factor 0.75 → 0.5. Note it moves *priority*, not `kind`: `missing_topic` and `underexposed_topic` are already `"opportunity"`, which is why the rule names those two and not `structure_flow` (unconditionally `"problem"` — promising a soft voice for it would be false).
 
-### Known reading: a deferral renders as `watching`
+### Known reading: a hold renders as `watching`
 
-While parked, the agent is in `/wait`, so the bridge broadcasts `waiting`, and `agentPassPhase` reports `watching` — re-armed every ≤60 s, so it never decays to `quiet` for as long as the deferral lasts.
+Between passes the agent is in `/wait`, so the bridge broadcasts `waiting`, and `agentPassPhase` reports `watching` — re-armed every ≤60 s, so it never decays to `quiet` while the agent is attached.
 
-This is accurate on its own terms (someone is attached and will react the moment you type) and it is the right thing for the author to see. It was worth stating plainly when the readout could not distinguish a deferred first pass from opt-in watch mode, since both park on the same endpoint. **Since 2026-07-21 the distinction mostly dissolved: watching is the default.** The skill now instructs the agent to keep watching after its first pass rather than stopping, so `watching` is the ordinary resting state rather than an opt-in the readout was quietly conflating. UX-029's secondary note — an agent appearing to enter watch mode unasked — is retired by the same change: it is asked, by default. If a deferral-versus-watching distinction is ever needed, it is still a change in `agentActivityView` / `ControlCenter`, not here.
+This is accurate on its own terms (someone is attached and will react the moment you type). It was worth stating plainly when the readout could not distinguish a deferred first pass from opt-in watch mode, since both park on the same endpoint. **Since 2026-07-21 that particular conflation dissolved: watching is the default** — the skill instructs the agent to keep watching after its first pass rather than stopping, which also retires UX-029's secondary note about an agent entering watch mode unasked (it is asked, by default).
+
+**What survives is a different collapse, and it is now the live one.** `watching` still means both *holding the whole-document read back* and *read it, nothing to raise* — the author cannot tell which. UX-053 splits that in `processStatusView` / the feed's empty state, exactly where the previous note said such a distinction would have to live. Update this paragraph when it lands.
 
 ### `docVersion` is app-local, and can move backwards
 
