@@ -73,6 +73,8 @@ Each item below maps back to one or more of these.
 - **Reads are free, writes are loud.** Read APIs (`getState`) are pure. Write APIs (`loadDoc`, `clear`) and the mock LLM are clearly namespaced as test affordances so they can never be mistaken for product features (and never violate the "no fix-application" principle — they manipulate _test setup_, never the user's prose on the user's behalf).
 - **Stable contracts.** Event names, `data-testid`s, and the `__sidecar__` shape are an interface the agent depends on; change them deliberately.
 
+> **A seeded document does not survive a reload — and the way it fails looks like a broken feature.** `loadDoc` writes through the editor's `registerDocWriter`, which sets content programmatically, and a programmatic set suppresses the editor's update event — so nothing reaches IndexedDB. Seeded **observations** do persist, because `seedObservation` writes straight to the store. Reload the page, or let an HMR update remount the editor, and you get the worst combination: every card is still in the feed, the document is empty, and so every card renders **unanchored**. Anyone verifying anchoring or highlight work reads that as their own change failing. It is not — the fixture is gone. **Fix:** after `loadDoc`, make one real keystroke in the editor (type a space, delete it). A genuine ProseMirror transaction commits the whole document, and the fixture then survives reloads for as long as you need it. Found 2026-07-27 while verifying the UX-049 highlight rules.
+
 ## 2. Debug state surface (`window.__sidecar__`)
 
 A single namespaced object, attached only when Debug Mode is active:
