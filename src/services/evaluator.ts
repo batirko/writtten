@@ -72,6 +72,7 @@ import {
   setSectionSnapshot,
   type SectionSnapshot,
 } from "./evalSnapshot";
+import { noteEvalCompleted } from "../model/activitySignal";
 
 // ---------------------------------------------------------------------------
 // Re-exports — preserve the public API so callers don't need to change their
@@ -908,6 +909,12 @@ export async function evaluateSection(
       claims: extractedClaims,
       observationIds,
     });
+
+    // A model answered and the result is written down. This is the *positive*
+    // fact the feed's "read your draft — nothing to raise" rests on; inferring it
+    // from the outstanding-work count instead reported an all-clear whenever a
+    // batch failed or never ran, because both drain exactly like success (UX-053).
+    noteEvalCompleted();
   } catch (error) {
     console.error("Evaluation error for section", sectionId, error);
   }

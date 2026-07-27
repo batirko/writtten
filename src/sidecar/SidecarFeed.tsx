@@ -13,6 +13,15 @@ import {
   subscribeAgentSource,
   type AgentSourceStatus,
 } from "../model/agentSourceSignal";
+import { getDocMaturity, subscribeDocMaturity } from "../model/docMaturitySignal";
+import {
+  getActivityPending,
+  subscribeActivity,
+  getLastCompletedAt,
+} from "../model/activitySignal";
+import type { MaturityLevel } from "../services/documentMaturity";
+import { agentPassPhase } from "./agentActivityView";
+import { feedQuietView } from "./feedQuietView";
 
 // Stable per-group key for the pending-dismiss map — mirrors obsAggregation's
 // grouping key (span coords, or a per-obs doc-scope key). Deliberately NOT
@@ -594,6 +603,29 @@ export function SidecarFeed({
   const agentDropped =
     agentBridgeEnabled() && engine === "agent" && agentSource.state === "disconnected";
 
+  // --- Which quiet the empty feed is showing (UX-053) ---
+  // Both engines feed one matrix in `feedQuietView`; only the facts differ. The
+  // agent's come from the pass timestamps already on the pairing signal, ours from
+  // the activity count. `pending` is subscribed here rather than passed as a prop
+  // for the same reason `agentSource` is: the control center reads the identical
+  // signal, and two surfaces deriving one state from one source cannot disagree.
+  const [maturity, setMaturity] = useState<MaturityLevel>(getDocMaturity);
+  useEffect(() => subscribeDocMaturity(setMaturity), []);
+  const [pending, setPending] = useState<number>(getActivityPending);
+  useEffect(() => subscribeActivity(setPending), []);
+  const pass = agentSource.pass;
+  const quiet = feedQuietView({
+    engine,
+    maturity,
+    agentPhase: pass ? agentPassPhase(pass, Date.now()) : null,
+    agentHasPulled: pass?.lastPullAt != null,
+    pending,
+    // Read at render rather than held in state: it is written just before the
+    // count drops, which already re-renders us, so a second subscription would buy
+    // a duplicate render and nothing else.
+    lastCompletedAt: getLastCompletedAt(),
+  });
+
   // Whether anything is actually reading the document — which is what the keyless
   // banner and the empty state are really about, and which `hasKey` alone stopped
   // answering under engine exclusivity. With the agent holding the slot and a live
@@ -785,11 +817,12 @@ export function SidecarFeed({
             // the banner above carries the honest message instead; the calm empty
             // copy must never stand in for silent-nothing.
             !nothingIsReading ? (
-              <div className="sidecar-empty">
-                <p>Quiet while you draft — I'll speak up as you revise.</p>
-                <span className="empty-subtext">
-                  Observations appear here as the document matures.
-                </span>
+              // Which quiet this is, rather than one sentence for three states
+              // (UX-053). The `nothingIsReading` short-circuit above is unchanged
+              // and still owns the no-engine case.
+              <div className="sidecar-empty" data-testid="sidecar-empty" data-quiet={quiet.state}>
+                <p>{quiet.headline}</p>
+                <span className="empty-subtext">{quiet.subtext}</span>
               </div>
             ) : null
           ) : (
