@@ -109,7 +109,7 @@ describe("the paid-key fold", () => {
     // The offer stays readable while the field is away — folding the control must
     // not fold the reason to want it.
     expect(fold?.querySelector("summary")?.textContent).toMatch(/add a paid key/i);
-    expect(fold?.querySelector("summary")?.textContent).toMatch(/stronger adjudicator/i);
+    expect(fold?.querySelector("summary")?.textContent).toMatch(/stronger model/i);
   });
 
   /**

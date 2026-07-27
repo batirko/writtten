@@ -333,11 +333,17 @@
       </p>
 
       <p class="intro">
-        Normally writtten holds a model key and calls a provider from your browser. If you already
-        run a coding agent &mdash; Claude Code, Codex, or another &mdash; it can do the reading
-        instead. It uses the model access you already pay for, and writtten sends your document
-        nowhere but a process on your own computer. Where your agent takes it from there is covered
-        below.
+        writtten needs a model to read your draft, and there are two ways to give it one. Add an API
+        key and writtten calls a provider from your browser. Or, if you already run a coding agent
+        &mdash; Claude Code, Codex, or another &mdash; point writtten at that instead. Both run the
+        same checks under the same rules. What differs is which engine does the reading, what it
+        costs you, and where the draft travels.
+      </p>
+
+      <p>
+        On the agent path there is no key to add, because it uses the model access you already pay
+        for, and writtten sends your draft nowhere but a process on your own computer. Where your
+        agent takes it from there is covered below.
       </p>
 
       <h2>How it works</h2>
@@ -359,18 +365,32 @@
         </li>
         <li>
           <strong>Your agent reviews and submits.</strong> Accepted observations appear in your
-          feed. While your agent is connected it is the only thing reading &mdash; writtten&rsquo;s
-          own checks are paused, so you are never billed twice for the same passage.
+          feed. Only one engine reads at a time, so while your agent holds the slot the key path
+          stays idle. Nothing is reviewed twice, and nothing is paid for twice.
         </li>
       </ol>
 
-      <h2 id="ask">What you can ask it for</h2>
+      <h2 id="ask">How to use it</h2>
 
       <p>
         The connection runs through the agent session you already have open, so everything
         below is something you say to it in your own words while it works. None of it is a
         setting in writtten.
       </p>
+
+      <div class="observation">
+        <p>
+          <strong>It watches by default.</strong> After its first pass your agent keeps reading as
+          you write. It wakes when your text settles, not while you are still typing, and re-reads
+          only the sections that moved.
+        </p>
+        <p>
+          <strong>Or run it in batches.</strong> Say stop and it stops watching; ask for a pass and
+          it starts again. Watching spends your agent&rsquo;s context on every wake, and that
+          context is finite, so if you would rather save it for other work, stop the watch and call
+          for a review when you have actually changed something.
+        </p>
+      </div>
 
       <ul class="checks">
         <li>
@@ -394,30 +414,53 @@
           dismissing a card is how writtten learns what you don&rsquo;t want to hear, and a
           card closed on your behalf teaches it nothing.
         </li>
-        <li>
-          <strong>Tell it to stop.</strong> After its first pass it keeps watching and reacts
-          as you write. Say stop and it stops; say go and it picks back up.
-        </li>
       </ul>
 
+      <h2 id="unlocks">What an agent can do that a key can&rsquo;t</h2>
+
       <p>
-        <strong>The folder you start it in is the one real quality lever here.</strong> Your
-        agent has its working directory: the repository it has open, the docs it has already
-        read. writtten&rsquo;s own critic sees this document and nothing else. That is what
-        separates <em>this claim isn&rsquo;t supported here</em> from <em>this claim
-        isn&rsquo;t true</em>. The same context can also mislead it. Your agent may let a
-        claim stand because it read the spec last week, while your reader has only the
-        document in front of them.
+        The section above is how you drive it. These are things an agent brings whatever you tell
+        it, and that no API key can.
       </p>
+
+      <ul class="checks">
+        <li>
+          <strong>It can check the draft against the project it belongs to.</strong> Your agent
+          has a working directory: the repository it has open, the docs it has already read. A
+          model reached through an API key sees this document and nothing else. That is what
+          separates <em>this claim isn&rsquo;t supported here</em> from <em>this claim
+          isn&rsquo;t true</em>, and it is the one real quality lever on this path &mdash; start
+          the agent in the folder the draft is about. The same context can mislead it, too. Your
+          agent may let a claim stand because it read the spec last week, while your reader has
+          only the document in front of them.
+        </li>
+        <li>
+          <strong>Its list of things to look for isn&rsquo;t fixed.</strong> writtten ships nine
+          observation types and they stay nine; on the key path that is the entire vocabulary. An
+          agent will go looking for anything you name &mdash; <em>&ldquo;flag anything legal would
+          object to&rdquo;</em> &mdash; and the card comes back labelled with the words you used,
+          so a search you asked for never masquerades as one of the nine.
+        </li>
+        <li>
+          <strong>It reads with whatever model you already pay for.</strong> A free API tier gives
+          you a small model; your agent runs the model you chose for it. Nothing extra is metered,
+          because the reading happens inside a session you are already paying for.
+        </li>
+        <li>
+          <strong>You can argue with it.</strong> The cards land in writtten, but the agent that
+          wrote them is sitting in a chat window you already have open. Ask why it flagged a
+          passage, and it will tell you &mdash; something a key-based check has no channel for.
+        </li>
+      </ul>
 
       <h2>What it cannot do</h2>
 
       <p>
         writtten&rsquo;s premise is that you write every word, and a connected agent gets no
         exception. The bridge accepts observations and nothing else: no edit endpoint, no suggestion
-        endpoint, no comment thread, no way to appear in the document as a co-author. That is not a
-        permission you could grant it &mdash; those messages do not exist in the protocol, so there
-        is nothing to ask for.
+        endpoint, no comment thread, no way to appear in the document as a co-author. You could not
+        switch this on if you wanted to. The bridge has no message that means &ldquo;change this
+        text&rdquo;, so there is nothing for an agent to send and nothing for you to allow.
       </p>
 
       <h2>What comes back is checked</h2>
@@ -431,7 +474,7 @@
         <li>It must name one of the nine observation types writtten already uses.</li>
         <li>
           It must be phrased as an observation, not a fix. Prescriptive wording, leading questions,
-          and hedges are rejected by the same rules writtten holds its own model to.
+          and hedges are rejected by the same rules that apply on the key path.
         </li>
         <li>
           It anchors by quoting your text verbatim, and never sees writtten&rsquo;s internal
@@ -446,22 +489,23 @@
       <div class="caveat">
         <p>
           <strong>What the boundary can&rsquo;t check is whether the observation is any good.</strong>
-          writtten&rsquo;s own checks sit behind precision floors and a fixture suite that fails the
-          build when quality regresses. A connected agent&rsquo;s do not, and cannot. Because an
-          agent and an API key are alternatives rather than a pair, you always know which one is
-          reading &mdash; you chose it, and Settings names what each costs. An agent that wastes
-          your attention is one you can switch away from, rather than a feed you stop trusting.
+          On the key path writtten wrote the prompt, so it can hold that prompt to precision floors
+          and to a fixture suite that fails the build when quality regresses. An agent&rsquo;s
+          judgment is its own, and cannot sit behind either. Because an agent and an API key are
+          alternatives rather than a pair, you always know which one is reading &mdash; you chose
+          it, and Settings names what each costs. An agent that wastes your attention is one you can
+          switch away from, rather than a feed you stop trusting.
         </p>
       </div>
 
       <h2>Where your document goes</h2>
 
       <p>
-        With a connected agent, writtten sends your document nowhere. It travels over loopback to a
-        process on your own machine, and from there only wherever your agent already sends its
-        context, under terms you already accepted. That is a stronger claim than the key-based path
-        can make. Once your text reaches your agent, though, writtten has no visibility into it
-        and no control over it. The
+        writtten does not send your draft over the internet on this path. It goes to
+        <code>127.0.0.1</code>, an address that never leaves your computer, and the bridge script
+        hands it to your agent from there. Your agent then sends it wherever it already sends its
+        context, under terms you accepted when you set that agent up. writtten cannot see that hop
+        and cannot control it. The
         <a class="link" href="/privacy/">privacy page</a> says the same at more length.
       </p>
 

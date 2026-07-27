@@ -67,7 +67,7 @@ Grab a free key at <https://aistudio.google.com/app/apikey>.
 - [ ] **Ping** → *"Key works — free tier"* (or *"paid tier"*).
 - [ ] **Paid key → the card updates.** With a **paid** Gemini key, the "What's
       running" card shows **two** rows: `gemini-3.1-flash-lite` (fast) +
-      **`gemini-2.5-pro`** (the deeper adjudication), and the "a paid key unlocks…"
+      **`gemini-2.5-pro`** (the harder calls), and the "a paid key unlocks…"
       line is gone. With a **free** key it stays one row.
 
 ## Part 4 — Live observations

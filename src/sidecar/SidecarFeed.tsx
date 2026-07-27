@@ -131,7 +131,7 @@ function KeylessBanner({ demoActive }: { demoActive: boolean }) {
               ? "Reading your own writing needs a key or a connected agent."
               : "Analyzing your own writing needs an API key."
             : agent
-              ? "writtten needs model access to read your text. A key stays on this device; an agent reads it straight from this page. Neither goes through a server of ours."
+              ? "writtten needs model access to read your text. A key stays on this device; an agent reads it straight from this page. Neither goes through a writtten server."
               : "writtten needs an API key to read your text — it stays on this device."}
         </p>
         {/* Plain accent text links, never button-shaped: this opens Settings, and

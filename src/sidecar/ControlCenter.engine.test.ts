@@ -25,9 +25,24 @@ describe("engine options", () => {
    */
   it("names what each path actually costs and where the document goes", () => {
     expect(engineHelp("builtin")).toMatch(/your key/i);
+    expect(engineHelp("agent")).toMatch(/coding agent/i);
     expect(engineHelp("agent")).toMatch(/no key/i);
-    expect(engineHelp("agent")).toMatch(/goes to your agent/i);
-    expect(engineHelp("agent")).toMatch(/not to a server of ours/i);
+    expect(engineHelp("agent")).toMatch(/not a writtten server/i);
+  });
+
+  /**
+   * Both lines describe an outside engine doing the reading under writtten's rules,
+   * because that is what both are. The retired split ("writtten runs its own checks"
+   * against the agent's) implied two products competing over one feed, which is not
+   * the design — and the same framing had leaked into /agent and the connected panel.
+   * Pinning the shared clause is what stops one path drifting back into ownership
+   * language the next time either line is polished on its own.
+   */
+  it("describes both engines as something doing the reading, not as writtten vs. an outsider", () => {
+    for (const id of ["builtin", "agent"] as const) {
+      expect(engineHelp(id)).toMatch(/does the reading/i);
+      expect(engineHelp(id)).not.toMatch(/(writtten|its) own checks/i);
+    }
   });
 
   /**
@@ -41,13 +56,16 @@ describe("engine options", () => {
    *
    * A positive assertion alone would not stop the claim coming back — someone
    * appending a warmer clause to the help line passes every check above. So the
-   * retired phrasing is named and forbidden outright. Both machine variants
-   * ("this machine" / "your machine") are covered because the app and the public
-   * /agent/ page each shipped one of them.
+   * retired phrasing is named and forbidden outright. Every article variant
+   * ("this" / "your" / "the") is covered: the app and the public /agent/ page each
+   * shipped one of the first two, and the third is the near-miss a 2026-07-27 copy
+   * pass actually produced — "a connection that never leaves the machine", which is
+   * true of the connection, false-sounding about the document, and would have walked
+   * through a guard that only knew two of the three articles.
    */
   it("never re-promises that the document stays on the machine", () => {
     for (const id of ["builtin", "agent"] as const) {
-      expect(engineHelp(id)).not.toMatch(/never leaves (this|your) machine/i);
+      expect(engineHelp(id)).not.toMatch(/never leaves (this|your|the) machine/i);
       expect(engineHelp(id)).not.toMatch(/on your machine entirely/i);
     }
   });

@@ -124,7 +124,7 @@ export function processStatusView({
     anchorState,
     statusText,
     // Gated on OUR in-flight call, not on `working`: an agent-only pass has no
-    // model tier and must never render the strong-adjudication hue.
+    // model tier and must never render the strong-tier hue.
     dotTier: pending > 0 && anchorState === "working" ? displayTier : null,
   };
 }
