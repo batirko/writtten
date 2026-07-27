@@ -1080,6 +1080,18 @@ body,
 .connect-lede {
   margin-bottom: var(--space-sm);
 }
+/* The primary CTA and the sentence qualifying it, stacked (UX-030, logged 2026-07-20,
+   fixed 2026-07-26). `.connect-btn` is inline-block and `.setting-help` is a span, so
+   side by side in the normal flow the browser-support sentence wrapped AROUND the
+   button — it read as a caption glued to the button's right shoulder rather than a
+   line beneath it. `align-items: flex-start` is what keeps the button at its own width
+   instead of stretching it the full modal. */
+.connect-cta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-xs);
+}
 .connect-meta {
   margin-top: var(--space-2xs);
   font-size: var(--text-label);
@@ -3779,6 +3791,16 @@ body,
      tall, well under a comfortable touch target, so the small variant gets real
      height on touch widths. Padding stays put — only the box grows. */
   .connect-btn-sm {
+    min-height: 36px;
+    padding-block: 8px;
+  }
+  /* The primary CTA had been missed by the rule above — measured **29px** at 375px
+     while its smaller sibling got 36px, which is backwards for the panel's main
+     action. Caught 2026-07-26 while restacking it (UX-030). It matters more now than
+     when this block was written: the pairing path is no longer preview-gated (#278),
+     and Android Chrome reaches a loopback bridge perfectly well, so this is a button a
+     phone user can genuinely press. */
+  .connect-btn-primary {
     min-height: 36px;
     padding-block: 8px;
   }

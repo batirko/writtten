@@ -91,8 +91,12 @@ export function ConnectAgent({
   };
 
   return (
+    // No section title. "CONNECT YOUR AGENT" in caps used to head this panel, titling
+    // as a *peer section* something that is really the body of a choice the user made
+    // one control up — once "Your agent" is the selected engine this is not a new
+    // topic (UX-030). Dropping it is half of what stopped the Engine strip and this
+    // panel reading as two unrelated stacked panels.
     <div className="setting-section connect-agent" data-testid="connect-agent">
-      <p className="setting-section-title">Connect your agent</p>
 
       {/* Stated before the first probe, not discovered after it. The old path
           offered the button, started an infinite port poll, and parked the user
@@ -100,9 +104,11 @@ export function ConnectAgent({
           render time. No CTA here: there is nothing this browser can do. */}
       {!support.supported && (
         <>
+          {/* Same trim as the idle branch: the engine help above already says where the
+              draft goes and that there is no key, so repeating it here said it twice on
+              one screen. */}
           <p className="connect-lede">
-            Review with a coding agent you already run — Claude Code, Codex, or another. No
-            API key, and your draft goes to your agent, not to a writtten server.
+            Works with a coding agent you already run — Claude Code, Codex, or another.
           </p>
           <div className="connect-blocked" data-testid="connect-agent-unsupported" role="note">
             <p className="connect-blocked-text">
@@ -121,21 +127,36 @@ export function ConnectAgent({
           behind the dim, so backing out of the callout returns the user to it. */}
       {support.supported && status.state === "idle" && (
         <>
+          {/* The lede carries ONLY what the engine help one control up does not already
+              say — which agents.
+
+              It used to restate the whole pitch, and the overlap survived a rewrite: at
+              its worst the two lines ended in the same eleven words verbatim, and after
+              #281 reworded both they still doubled up on "no key" and "not a writtten
+              server" about 60px apart. Two components each introducing the same feature
+              because neither knows the other rendered (UX-030) — which is a structural
+              fault, so rewording either one never fixes it. The engine help is where the
+              choice is made, so it keeps the claim and this line drops it. */}
           <p className="connect-lede">
-            Review with a coding agent you already run — Claude Code, Codex, or another. No
-            API key, and your draft goes to your agent, not to a writtten server.
+            Works with a coding agent you already run — Claude Code, Codex, or another.
           </p>
-          <button
-            type="button"
-            className="connect-btn connect-btn-primary"
-            data-testid="connect-agent-start"
-            onClick={connect}
-          >
-            Connect your agent
-          </button>
-          <span className="setting-help">
-            Chrome, Edge, or Firefox. Safari can&rsquo;t reach a local bridge.
-          </span>
+          {/* Stacked, not inline. `.connect-btn` is inline-block and `.setting-help` is a
+              span, so the browser-support sentence used to wrap AROUND the button
+              (UX-030, logged 2026-07-20). The wrapper makes the column explicit rather
+              than relying on either element's display. */}
+          <div className="connect-cta">
+            <button
+              type="button"
+              className="connect-btn connect-btn-primary"
+              data-testid="connect-agent-start"
+              onClick={connect}
+            >
+              Connect your agent
+            </button>
+            <span className="setting-help">
+              Chrome, Edge, or Firefox. Safari can&rsquo;t reach a local bridge.
+            </span>
+          </div>
         </>
       )}
 
