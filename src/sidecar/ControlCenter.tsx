@@ -33,6 +33,8 @@ import {
   getAgentSourceStatus,
   type AgentSourceStatus,
 } from "../model/agentSourceSignal";
+import { getDocMaturity, subscribeDocMaturity } from "../model/docMaturitySignal";
+import type { MaturityLevel } from "../services/documentMaturity";
 import { getLlmMode } from "../model/mock";
 import { subscribeStall } from "../model/stallSignal";
 import { subscribeOpenSettings } from "./settingsGate";
@@ -539,6 +541,10 @@ export function ControlCenter({
   const [agentSource, setAgentSource] = useState<AgentSourceStatus>(getAgentSourceStatus);
   useEffect(() => subscribeAgentSource(setAgentSource), []);
   const agentStatus = agentBridgeEnabled() ? agentStatusView(agentSource) : null;
+  // The live maturity band, published by the editor. Feeds the one phrase the
+  // status row gains below the threshold (UX-053).
+  const [maturity, setMaturity] = useState<MaturityLevel>(getDocMaturity);
+  useEffect(() => subscribeDocMaturity(setMaturity), []);
   // Which engine holds the one slot. Same subscribe-plus-useState idiom as the
   // signals above — the module is the source of truth so non-React services (the
   // orchestrator) can read it without prop-drilling.
@@ -867,6 +873,7 @@ export function ControlCenter({
     stalled,
     agentPhrase,
     displayTier,
+    maturity,
   });
   const tierLabel = dotTier === "strong" ? "harder calls" : dotTier === "fast" ? "quick checks" : null;
 
