@@ -370,13 +370,27 @@
         </li>
       </ol>
 
-      <h2 id="ask">What you can ask it for</h2>
+      <h2 id="ask">How to use it</h2>
 
       <p>
         The connection runs through the agent session you already have open, so everything
         below is something you say to it in your own words while it works. None of it is a
         setting in writtten.
       </p>
+
+      <div class="observation">
+        <p>
+          <strong>It watches by default.</strong> After its first pass your agent keeps reading as
+          you write. It wakes when your text settles, not while you are still typing, and re-reads
+          only the sections that moved.
+        </p>
+        <p>
+          <strong>Or run it in batches.</strong> Say stop and it stops watching; ask for a pass and
+          it starts again. Watching spends your agent&rsquo;s context on every wake, and that
+          context is finite, so if you would rather save it for other work, stop the watch and call
+          for a review when you have actually changed something.
+        </p>
+      </div>
 
       <ul class="checks">
         <li>
@@ -400,17 +414,13 @@
           dismissing a card is how writtten learns what you don&rsquo;t want to hear, and a
           card closed on your behalf teaches it nothing.
         </li>
-        <li>
-          <strong>Tell it to stop.</strong> After its first pass it keeps watching and reacts
-          as you write. Say stop and it stops; say go and it picks back up.
-        </li>
       </ul>
 
       <h2 id="unlocks">What an agent can do that a key can&rsquo;t</h2>
 
       <p>
-        The section above is about steering a pass. These are things an agent brings that no API key
-        can, however you steer it.
+        The section above is how you drive it. These are things an agent brings whatever you tell
+        it, and that no API key can.
       </p>
 
       <ul class="checks">

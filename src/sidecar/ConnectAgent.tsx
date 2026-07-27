@@ -380,7 +380,7 @@ export function ConnectAgent({
               target="_blank"
               rel="noreferrer"
             >
-              What else you can ask it for →
+              How to work with it →
             </a>
           </div>
         </>
