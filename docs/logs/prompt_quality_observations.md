@@ -670,7 +670,7 @@ CAUGHT  "You should shorten the closing line."   → prescriptive
 ### OBS-042 — The agent instructions rule the anchor's *length* but never its *relevance*, so a card can quote one passage and be about another
 
 **Date:** 2026-07-27\
-**Status:** open\
+**Status:** **guidance shipped 2026-07-27; effect not yet measured.** Two additions inside the existing framing, under OBS-040's constraint — nothing reordered, nothing moved behind a URL. A relevance rule beside the verbatim one (quote the words the reader has to re-read, not the sentence they sit in), ending on the fact that decides who owns it: writtten checks that the quote *appears*, never that it is the right quote. And a rule lifted out of the conflict section, where a one-sided card never reads it — two passages need a two-sided type, because a one-sided type quotes half of what the text says, or neither. The ✅/❌ pair uses this session's real miss and the two rows differ **only** in `anchorText`, which makes it the one example pair whose ❌ must also lint clean: the mistake being taught is the anchor, and a badly anchored card is register-perfect. Pinned by a test rather than left to the eye. **Whether it holds across agents is unmeasured, and is now measurable** — UX-052 put `anchorWords` on submission rows in the same session, so the next dogfood pass can count whole-paragraph anchors rather than happening to notice one.\
 **Prompt tier:** the **agent skill** (`docs/skills/writtten-agent.md`) — the prompt for an external engine, not one of our model prompts.\
 **Type flag:** anchoring quality (register-clean, taxonomy-valid, and wrong where it points)\
 **Reported as:** owner, dogfood session on writtten.com with Claude Code connected — _"good catch, but wrong anchoring."_\
