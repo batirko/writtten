@@ -695,7 +695,7 @@ Each entry follows the format:
 ### UX-050 — The agent's own heartbeat evicts the record of what it did (BYOA)
 
 **Date:** 2026-07-27\
-**Status:** open\
+**Status:** **fixed 2026-07-27.** `logAgent` collapses an unbroken run of polls at one document version into a single row carrying `repeats` and `lastAt`. Coalescing rather than dropping, because "it kept reading and nothing changed" is a real fact about a watch session — the defect was that the fact cost N rows. Anything the agent *does* lands between polls and starts a new run, so the sequence still reads as "read N times, submitted, read again", and a version bump breaks the run so a row can never claim reads of a document that had already moved. Guarded by a test that fires 120 polls around one submission and asserts the submission is still in the buffer.\
 **Area/Component:** `src/model/logger.ts` `trim` / `maxLlmLogs` · `src/services/agentBridgeClient.ts` (the `pulled` stream handler).\
 **Interaction:** Exported the debug log after a ~1-hour connected session in which the agent submitted five observations and withdrew three.\
 **Expected:** An exported log whose rows are mostly the things that happened.\
@@ -706,7 +706,7 @@ Each entry follows the format:
 ### UX-051 — Clearing the document also wipes the connected agent's session record (BYOA)
 
 **Date:** 2026-07-27\
-**Status:** open\
+**Status:** **fixed 2026-07-27.** The logger keeps the last pairing transition *outside* the ring buffer and re-emits it after a clear when the state is still `connected`, marked `carried: true` so it cannot be read as a fresh connection. Fixed there rather than at the three call sites in `App.tsx`, because the rule is about what a log means, not about what any one button does — a fourth clear path would otherwise reintroduce it. Retaining the old agent rows wholesale was considered and rejected: submissions about a document that no longer exists would read as belonging to the new one. The session id is filled in from the most recent agent row, which also closes a smaller gap — the pairing row is written when the stream opens, before `hello` names the run, so it never carried one.\
 **Area/Component:** `src/App.tsx` — `handleClearWorkspace`, the import handler, and the demo loader all call `llmLogger.clearLogs()`.\
 **Interaction:** Same session as UX-050. The export opens mid-stream on a `pull`, with no `pairing` row anywhere in it.\
 **Expected:** A log exported from a connected session says when the agent connected, under what name, and at which protocol version.\
@@ -717,7 +717,7 @@ Each entry follows the format:
 ### UX-052 — An accepted submission's log row cannot show a mis-anchored card (BYOA)
 
 **Date:** 2026-07-27\
-**Status:** open\
+**Status:** **fixed 2026-07-27.** A submission row now carries `anchorChars` / `anchorWords`, plus `conflictingAnchorWords` when a conflict-type submission named its second passage. Sizes only — the quote itself stays out, which is the property that lets this log family ship to production at all. Computed in the bridge from the payload rather than returned by the boundary, so a *rejected* submission is measured too; the resolved block position was considered and left out, since it answers a question ("did it land in the right paragraph") that no automated reading can settle anyway. The absent `conflictingAnchorWords` turned out to be the more interesting field: it counts how often a two-sided type arrives one-sided, which is the measurement OBS-042 needs.\
 **Area/Component:** `src/model/logger.ts` `AgentEventInfo` (the `submission` fields) · `src/services/agentBridgeClient.ts` (where the row is written, at the point the verdict is known).\
 **Interaction:** A `clarity` card arrived anchored to the opening clause of a paragraph while its text was about two phrases further down it (see OBS-042). Went to the exported log to see how it had been anchored.\
 **Expected:** enough to tell a well-anchored card from a badly-anchored one.\

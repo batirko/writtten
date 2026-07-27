@@ -939,6 +939,56 @@ describe("debug-log evidence", () => {
     });
   });
 
+  // Anchor relevance is the one thing about a submission the boundary does not
+  // judge, so the log is the only place a mis-anchored card can be seen at all
+  // (UX-052) — and it must be seen without the author's prose leaving the app.
+  it("records the size of the anchor quote, and never the quote", async () => {
+    const h = makeHarness({ onSubmission: async () => ({ result: "accepted", observationId: "o1" }) });
+    const es = await until(() => h.sources[0]);
+    es.open();
+    es.emit("hello", { agentName: "Claude Code", sessionId: "s1" });
+    await until(() => h.handle.getStatus().state === "connected");
+
+    const quote = "The first version relied on a single type of engine";
+    es.emit("submission", {
+      sid: "sid-1",
+      payload: { type: "clarity", scope: "span", anchorText: quote, text: "…" },
+    });
+    const rec = await until(() => h.events.find((e) => e.event === "submission"));
+    expect(rec).toMatchObject({ anchorChars: quote.length, anchorWords: 10 });
+    expect(JSON.stringify(rec)).not.toContain("first version");
+  });
+
+  // The absence of this field is the measurement: it says how often a
+  // conflict-type card arrived naming only one of its two passages.
+  it("records the second anchor's size only when the agent named a second passage", async () => {
+    const h = makeHarness({ onSubmission: async () => ({ result: "accepted", observationId: "o1" }) });
+    const es = await until(() => h.sources[0]);
+    es.open();
+    es.emit("hello", { agentName: "Claude Code", sessionId: "s1" });
+    await until(() => h.handle.getStatus().state === "connected");
+
+    es.emit("submission", {
+      sid: "sid-1",
+      payload: {
+        type: "contradiction",
+        scope: "span",
+        anchorText: "ship by the end of Q3",
+        conflictingAnchorText: "rollout begins in Q2",
+        text: "…",
+      },
+    });
+    const both = await until(() => h.events.find((e) => e.event === "submission"));
+    expect(both).toMatchObject({ anchorWords: 6, conflictingAnchorWords: 4 });
+
+    es.emit("submission", {
+      sid: "sid-2",
+      payload: { type: "contradiction", scope: "span", anchorText: "ship by the end of Q3", text: "…" },
+    });
+    const oneSided = await until(() => h.events.filter((e) => e.event === "submission")[1]);
+    expect(oneSided.conflictingAnchorWords).toBeUndefined();
+  });
+
   it("records pairing transitions and snapshot pushes", async () => {
     const h = makeHarness();
     const es = await until(() => h.sources[0]);

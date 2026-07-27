@@ -316,3 +316,82 @@ describe("llmLogger.getInflightTier (activity-dot tier cue)", () => {
     expect(llmLogger.getInflightTier()).toBeNull();
   });
 });
+
+describe("llmLogger agent rows — a BYOA session has to survive its own heartbeat", () => {
+  beforeEach(() => {
+    llmLogger.clearLogs();
+    llmLogger._resetAgentSessionForTests();
+  });
+
+  const agentRows = () => llmLogger.getLogs().filter((l) => l.type === "agent");
+
+  it("collapses an unbroken run of polls at one doc version into a single counted row", () => {
+    llmLogger.logAgent({ event: "pairing", state: "connected", agentName: "Claude Code" });
+    for (let i = 0; i < 120; i++) {
+      llmLogger.logAgent({ event: "pull", docVersion: 5, sessionId: "s1" });
+    }
+    llmLogger.logAgent({
+      event: "submission",
+      obsType: "clarity",
+      scope: "span",
+      result: "accepted",
+      observationId: "o1",
+      sessionId: "s1",
+    });
+
+    const rows = agentRows();
+    // Before coalescing this was 122 rows, and a run this long is two hours of
+    // watch mode — enough to evict the submission out of the shared budget.
+    expect(rows).toHaveLength(3);
+    const pull = rows.find((r) => r.agent?.event === "pull")!;
+    expect(pull.agent?.repeats).toBe(120);
+    expect(pull.agent?.lastAt).toBeTypeOf("string");
+    // The submission is still there, which is the whole point.
+    expect(rows.some((r) => r.agent?.event === "submission")).toBe(true);
+  });
+
+  it("starts a new run when the document moved, or when the agent did something between polls", () => {
+    llmLogger.logAgent({ event: "pull", docVersion: 5, sessionId: "s1" });
+    llmLogger.logAgent({ event: "pull", docVersion: 5, sessionId: "s1" });
+    llmLogger.logAgent({ event: "pull", docVersion: 6, sessionId: "s1" });
+    llmLogger.logAgent({ event: "retract", observationId: "o1", applied: true, sessionId: "s1" });
+    llmLogger.logAgent({ event: "pull", docVersion: 6, sessionId: "s1" });
+
+    const pulls = agentRows().filter((r) => r.agent?.event === "pull");
+    // Three runs: v5 ×2, v6 ×1, then v6 again after the retraction — so the
+    // sequence still reads as "read, read, withdrew a card, read again".
+    expect(pulls.map((p) => [p.agent?.docVersion, p.agent?.repeats ?? 1])).toEqual([
+      [6, 1],
+      [6, 1],
+      [5, 2],
+    ]);
+  });
+
+  it("carries the connection into a cleared log, marked as carried rather than fresh", () => {
+    llmLogger.logAgent({ event: "pairing", state: "connected", agentName: "Claude Code" });
+    llmLogger.logAgent({ event: "pull", docVersion: 2, sessionId: "s1" });
+
+    // Clear workspace / import / load-the-example all land here, and none of
+    // them touch the bridge — the session continues.
+    llmLogger.clearLogs();
+
+    const rows = agentRows();
+    expect(rows).toHaveLength(1);
+    expect(rows[0].agent).toMatchObject({
+      event: "pairing",
+      state: "connected",
+      agentName: "Claude Code",
+      carried: true,
+      // Learned from the pull, because the pairing row is written when the
+      // stream opens — before `hello` names the run.
+      sessionId: "s1",
+    });
+  });
+
+  it("carries nothing when the last thing the bridge said was that it had gone", () => {
+    llmLogger.logAgent({ event: "pairing", state: "connected", agentName: "Claude Code" });
+    llmLogger.logAgent({ event: "pairing", state: "disconnected", agentName: "Claude Code" });
+    llmLogger.clearLogs();
+    expect(agentRows()).toHaveLength(0);
+  });
+});
