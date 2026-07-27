@@ -449,7 +449,7 @@ describe("SidecarFeed — keyless banner + empty-state split", () => {
   it("does not promise the agent path keeps the document on this machine", () => {
     installCleanStorage();
     const sub = renderWith({ hasKey: false }).querySelector(".keyless-banner-sub");
-    expect(sub?.textContent).toMatch(/neither goes through a server of ours/i);
+    expect(sub?.textContent).toMatch(/neither goes through a writtten server/i);
     expect(sub?.textContent).not.toMatch(/on your machine entirely/i);
     expect(sub?.textContent).not.toMatch(/never leaves (this|your) machine/i);
   });

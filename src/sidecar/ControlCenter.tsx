@@ -76,7 +76,7 @@ const PROVIDER_META: Record<ProviderId, ProviderMeta> = {
     tierNote: "Free tier available — no card needed",
     paid: false,
     fastJob: "Watches for contradictions and unclear passages as you write.",
-    strongJob: "The deeper adjudication when checks conflict.",
+    strongJob: "Decides the harder calls, like whether two passages really conflict.",
     sameModelJob:
       "Your free-tier workhorse — watches as you write and handles the deeper checks, rotated to spread your daily quota.",
     cost: "",
@@ -91,7 +91,7 @@ const PROVIDER_META: Record<ProviderId, ProviderMeta> = {
     tierNote: "Paid API account required",
     paid: true,
     fastJob: "Watches for contradictions and unclear passages as you write.",
-    strongJob: "Steps in for the deeper adjudication when checks conflict.",
+    strongJob: "Steps in for the harder calls, like whether two passages really conflict.",
     sameModelJob: "Handles every check.",
     cost: "Roughly 20–40 calls per PRD session, mostly on the cheap model.",
   },
@@ -105,7 +105,7 @@ const PROVIDER_META: Record<ProviderId, ProviderMeta> = {
     tierNote: "Paid API account required",
     paid: true,
     fastJob: "Watches for contradictions and unclear passages as you write.",
-    strongJob: "Steps in for the deeper adjudication when checks conflict.",
+    strongJob: "Steps in for the harder calls, like whether two passages really conflict.",
     sameModelJob: "Handles every check.",
     cost: "Roughly 20–40 calls per PRD session, mostly on the cheap model.",
   },
@@ -197,7 +197,7 @@ export function geminiKeyStatus(args: {
   keyTier: ModelTier;
 }): GeminiKeyState {
   const { hasFree, hasPaid, geminiTier, geminiPaidTier, keyTier } = args;
-  // Paid-field problems first — the strong adjudicator depends on that key.
+  // Paid-field problems first — the stronger model depends on that key.
   if (hasPaid && geminiPaidTier === "invalid") {
     return { cls: "invalid", node: <span>Paid key not recognized — double-check the paste.</span> };
   }
@@ -206,7 +206,7 @@ export function geminiKeyStatus(args: {
       cls: "invalid",
       node: (
         <span>
-          That paid key looks like a <strong>free-tier</strong> key — the stronger adjudicator (
+          That paid key looks like a <strong>free-tier</strong> key — the stronger model (
           <code className="key-shape">gemini-2.5-pro</code>) needs a billed key.
         </span>
       ),
@@ -217,8 +217,8 @@ export function geminiKeyStatus(args: {
       cls: "paid",
       node: (
         <span>
-          <strong>Free + paid.</strong> Cheap checks stay on the free daily budget; the deeper
-          adjudication and any overflow ride the paid key.
+          <strong>Free + paid.</strong> Cheap checks stay on the free daily budget; the harder calls
+          and any overflow ride the paid key.
         </span>
       ),
     };
@@ -245,8 +245,8 @@ export function geminiKeyStatus(args: {
       cls: "paid",
       node: (
         <span>
-          <strong>Paid key.</strong> The stronger adjudicator (
-          <code className="key-shape">gemini-2.5-pro</code>) is enabled for the deeper checks.
+          <strong>Paid key.</strong> The stronger model (
+          <code className="key-shape">gemini-2.5-pro</code>) is enabled for the harder calls.
         </span>
       ),
     };
@@ -259,7 +259,7 @@ export function geminiKeyStatus(args: {
     node: (
       <span>
         <strong>Free key only.</strong> Runs the flash-lite pool. Add a paid key for the stronger
-        adjudicator and to keep working past the daily budget.
+        model and to keep working past the daily budget.
       </span>
     ),
   };
@@ -314,21 +314,28 @@ export interface EngineOption {
   help: string;
 }
 
+// Deliberately parallel: same opening shape, same verb, same length. Both lines
+// describe an outside engine doing the reading under writtten's rules, because
+// that is what both are — the earlier split ("writtten's own checks" against the
+// agent's) implied two products competing over one feed, which is not the design
+// and which leaked into the /agent page and the connected panel too.
+//
+// The agent line explains the mechanism rather than asserting a privacy outcome.
+// A retired version claimed the document "never leaves this machine", which is
+// false on this path (the agent forwards it to whatever model it runs); its
+// replacement asserted where the document does and doesn't go, which is a
+// conclusion the reader can draw for themselves once they know it goes to a
+// process on their own computer.
 export const ENGINE_OPTIONS: EngineOption[] = [
   {
     id: "builtin",
     label: "An API key",
-    help: "writtten runs its own checks, guarded by its precision tests. Metered against your key.",
+    help: "A model provider does the reading, called from this browser with your key. writtten writes the prompts and holds them to its precision tests.",
   },
   {
     id: "agent",
     label: "Your agent",
-    // Scoped to what writtten can actually promise. The retired line claimed the
-    // document "never leaves this machine", which is false on this path — the
-    // agent forwards the writing to whatever model it runs, and /privacy has said
-    // so in print the whole time. Matches the pre-flight callout's phrasing so the
-    // two surfaces tell one story, and mirrors the key path's own trust note.
-    help: "Your agent reads it. No key, no quota — your document goes to your agent, not to a server of ours.",
+    help: "A coding agent on your computer does the reading, reached over a local connection, not a writtten server. It follows the same rules, on model access you already pay for, so there is no key to add.",
   },
 ];
 
@@ -428,7 +435,7 @@ interface ControlCenterProps {
   onApiKeyChange: (key: string) => void;
   keyTier?: ModelTier;
   onKeyTierChange?: (tier: ModelTier) => void;
-  /** Optional second Gemini key — a billed key for the stronger adjudicator +
+  /** Optional second Gemini key — a billed key for the stronger model +
    *  overflow. Only surfaced when the active provider is Gemini. */
   geminiPaidKey?: string;
   onGeminiPaidKeyChange?: (key: string) => void;
@@ -494,7 +501,7 @@ export function ControlCenter({
     () => llmLogger.subscribe(() => setInflightTier(llmLogger.getInflightTier())),
     []
   );
-  // Strong calls are brief and rare (contradiction adjudication), so hold the
+  // Strong calls are brief and rare (the harder calls), so hold the
   // strong hue for a min-visible floor once shown — otherwise a quick burst reads
   // as a flicker rather than a deliberate colour change. `displayTier` is the
   // floored view of `inflightTier`.
@@ -670,7 +677,7 @@ export function ControlCenter({
 
   // The paid field is meant for a *billed* key. Probe it the same way, purely to
   // give an honest inline check — if the user pastes a free-tier key here we say
-  // so, rather than silently under-serving the strong adjudicator. It does not
+  // so, rather than silently under-serving the stronger model. It does not
   // drive capability (a paid key present already does that at the App boundary).
   const [geminiPaidTier, setGeminiPaidTier] = useState<GeminiTier | "detecting" | "idle">("idle");
   useEffect(() => {
@@ -793,7 +800,7 @@ export function ControlCenter({
 
   // One honest read of the whole Gemini key setup — replaces the single-key tier
   // line now that there are two fields. Paid-field problems take priority (the
-  // strong adjudicator depends on it); otherwise we describe the free/paid split.
+  // stronger model depends on it); otherwise we describe the free/paid split.
   const hasFree = apiKey.trim().length > 0;
   const hasPaid = geminiPaidKey.trim().length > 0;
   const geminiStatus =
@@ -861,7 +868,7 @@ export function ControlCenter({
     agentPhrase,
     displayTier,
   });
-  const tierLabel = dotTier === "strong" ? "deeper adjudication" : dotTier === "fast" ? "quick checks" : null;
+  const tierLabel = dotTier === "strong" ? "harder calls" : dotTier === "fast" ? "quick checks" : null;
 
   /**
    * Move the slot. Picking the agent is a plain selection; leaving it is not.
@@ -1242,7 +1249,7 @@ export function ControlCenter({
                       Paid key <span className="setting-fold-tag">stored</span>
                     </>
                   ) : (
-                    "Add a paid key — unlocks the stronger adjudicator"
+                    "Add a paid key — unlocks the stronger model"
                   )}
                 </summary>
                 <div className="setting-fold-body">
@@ -1282,7 +1289,7 @@ export function ControlCenter({
                           {" · "}
                         </>
                       )}
-                      Unlocks the stronger adjudicator (
+                      Unlocks the stronger model (
                       <code className="key-shape">gemini-2.5-pro</code>) and keeps working past the
                       free daily budget. Needs billing enabled.
                     </span>
@@ -1356,7 +1363,7 @@ export function ControlCenter({
                   ))}
                 </select>
                 <label htmlFor="model-select-strong" style={{ marginTop: "var(--space-sm)" }}>
-                  Strong model <span className="model-tier-note">· rare adjudicator</span>
+                  Strong model <span className="model-tier-note">· rare, harder calls</span>
                 </label>
                 <select
                   id="model-select-strong"
@@ -1378,11 +1385,11 @@ export function ControlCenter({
 
             {/* The privacy fact is equally true for every provider: the key rides
                 straight from this browser to the provider and lives only in this
-                device's localStorage — never a server of ours. One shared line,
+                device's localStorage, never on a writtten server. One shared line,
                 not a per-provider field. */}
             <div className="trust-note" data-testid="trust-note">
               Your {meta.label} key goes straight from this browser to {meta.label}, and is stored
-              only on this device — never on a server of ours.
+              only on this device. It is never sent or stored on writtten servers.
             </div>
               </>
             )}
@@ -1492,7 +1499,7 @@ export function ControlCenter({
               <span data-testid="provider-chip">{readiness.chipText ?? modelName}</span>
             )}
             {/* Names the in-flight tier so the dot's hue is never the only signal
-                (a11y): "strong" adjudication reads on the tier-indigo dot. An agent
+                (a11y): the "harder calls" tier reads on the tier-indigo dot. An agent
                 pass has no tier, so `dotTier` is already null there. */}
             {tierLabel && (
               <span className={`tier-chip tier-${dotTier}`} data-testid="tier-chip">

@@ -58,8 +58,14 @@ export interface EngineReadiness {
 const READY: EngineReadiness = { ready: true, chipText: null, settingsNote: null };
 
 /** The one sentence, shared by both engines on purpose: the consequence is identical
- *  whichever precondition is missing, and saying it two ways would imply otherwise. */
-const NOTHING_READING = "Nothing is reading your document.";
+ *  whichever precondition is missing, and saying it two ways would imply otherwise.
+ *
+ *  The "yet" is load-bearing, not filler. This note renders directly above the engine's
+ *  help line, which says a coding agent (or a model provider) does the reading — so
+ *  without it the pair reads as a flat contradiction rather than as a state followed by
+ *  its description. "Yet" marks this as the not-configured-so-far state, which is what
+ *  it is on both tabs. */
+const NOTHING_READING = "Nothing is reading your document yet.";
 
 export function engineReadiness({
   engine,

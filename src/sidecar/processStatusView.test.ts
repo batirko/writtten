@@ -115,7 +115,7 @@ describe("processStatusView — the two kinds of idle", () => {
 
 describe("processStatusView — what stays writtten's alone", () => {
   // Tier names WHICH MODEL we called. An agent pass has none, so it must never
-  // paint the strong-adjudication hue.
+  // paint the strong-tier hue.
   it("never renders a tier hue for an agent-only pass", () => {
     expect(agentView({ agentPhrase: "reading · 0:20", displayTier: "strong" }).dotTier).toBeNull();
     expect(agentView({ agentPhrase: "reading · 0:20", displayTier: "fast" }).dotTier).toBeNull();

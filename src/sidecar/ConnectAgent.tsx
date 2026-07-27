@@ -102,7 +102,7 @@ export function ConnectAgent({
         <>
           <p className="connect-lede">
             Review with a coding agent you already run — Claude Code, Codex, or another. No
-            API key, and your document goes to your agent, not to a server of ours.
+            API key, and your draft goes to your agent, not to a writtten server.
           </p>
           <div className="connect-blocked" data-testid="connect-agent-unsupported" role="note">
             <p className="connect-blocked-text">
@@ -123,7 +123,7 @@ export function ConnectAgent({
         <>
           <p className="connect-lede">
             Review with a coding agent you already run — Claude Code, Codex, or another. No
-            API key, and your document goes to your agent, not to a server of ours.
+            API key, and your draft goes to your agent, not to a writtten server.
           </p>
           <button
             type="button"
@@ -321,15 +321,16 @@ export function ConnectAgent({
           <p className="connect-meta">
             127.0.0.1:{status.port} · sent a snapshot at every settle
           </p>
-          {/* Both halves of the old sentence went false at once. There is no
-              per-card label any more (one engine, nothing to disambiguate), and
-              the built-in checks are precisely what a connected agent replaces —
-              saying they "keep running" would promise the double-billing this
-              design exists to end. Naming the pause here, where the user chose
-              it, is the honest version. */}
+          {/* Names the other engine, not an owner. "writtten's own checks are paused"
+              framed the two paths as writtten's checks against the agent's, which is
+              not what they are: both are outside engines reading under writtten's
+              rules, and what differs is which one holds the slot. That framing had
+              spread to /agent and to the engine descriptions; it is retired in all
+              three places at once. The exclusivity itself is real and worth saying —
+              it is why nothing gets read, or paid for, twice. */}
           <span className="setting-help">
-            Its observations appear in your feed. writtten&rsquo;s own checks are paused
-            while it holds the slot.
+            Its observations appear in your feed. One engine reads at a time, so the key
+            path stays idle while your agent holds the slot.
           </span>
 
           {/* What the connection is *for* — the only place in the app that says it
@@ -356,8 +357,9 @@ export function ConnectAgent({
               ))}
             </ul>
             {/* The one real quality lever on this path, and it is not a setting: an agent
-                arrives with its working directory, while writtten's own critic sees the
-                document and nothing else. The honest edge rides in the second sentence.
+                arrives with its working directory, while a model reached through an API key
+                sees the document and nothing else. The honest edge rides in the second
+                sentence.
 
                 Phrasing note, because the first version was rejected on sight and the
                 reason generalises: it read "…the folder you started it in — so it knows

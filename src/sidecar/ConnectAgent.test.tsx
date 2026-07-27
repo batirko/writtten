@@ -398,7 +398,7 @@ describe("ConnectAgent — teardown", () => {
   describe("where the document goes", () => {
     it("the idle lede scopes the claim to writtten, not to the machine", () => {
       const text = render({ state: "idle" });
-      expect(text).toContain("goes to your agent, not to a server of ours");
+      expect(text).toContain("goes to your agent, not to a writtten server");
       expect(text).not.toMatch(/never leaves (this|your) machine/i);
     });
 
@@ -407,7 +407,7 @@ describe("ConnectAgent — teardown", () => {
         state: "idle",
         support: { supported: false, reason: "webkit_loopback" },
       });
-      expect(text).toContain("goes to your agent, not to a server of ours");
+      expect(text).toContain("goes to your agent, not to a writtten server");
       expect(text).not.toMatch(/never leaves (this|your) machine/i);
     });
   });

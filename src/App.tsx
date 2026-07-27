@@ -77,7 +77,7 @@ export default function App() {
   useEffect(() => localStorage.setItem("writtten_key_anthropic", anthropicKey), [anthropicKey]);
 
   // A second, optional Gemini key: a *billed* key that carries the stronger
-  // adjudicator (gemini-2.5-pro, 0-RPD on free) and absorbs overflow once the
+  // model (gemini-2.5-pro, 0-RPD on free) and absorbs overflow once the
   // free key's daily budget runs out. The free key above stays the everyday
   // workhorse; this rides the router's separate `paidKey` slot (free→paid
   // fallback already lives in rotation.ts). An env `VITE_GEMINI_PAID_KEY` still

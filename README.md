@@ -50,7 +50,7 @@ writtten works with three providers. Each is called directly from your browser u
 | OpenAI    | [platform.openai.com/api-keys](https://platform.openai.com/api-keys) | No, paid account | `sk-…` |
 | Anthropic | [console.anthropic.com/settings/keys](https://console.anthropic.com/settings/keys) | No, paid account | `sk-ant-…` |
 
-Gemini is the zero-config starting point, since it is the only one with a free tier. It also takes an optional second, billed key. The free key runs the frequent lightweight checks on Google's daily budget, while the paid key unlocks the stronger adjudicator (`gemini-2.5-pro`) and keeps you working after the free budget runs out for the day. One key is fine; the second is a cost and resilience convenience.
+Gemini is the zero-config starting point, since it is the only one with a free tier. It also takes an optional second, billed key. The free key runs the frequent lightweight checks on Google's daily budget, while the paid key unlocks the stronger model (`gemini-2.5-pro`) and keeps you working after the free budget runs out for the day. One key is fine; the second is a cost and resilience convenience.
 
 Keys are stored only in your browser's `localStorage` (in plaintext, the honest trade-off for a local-first BYO-key tool) and are sent only to the provider you picked. Anthropic is reached with the `anthropic-dangerous-direct-browser-access` header, the same trust posture as any browser-stored key.
 
