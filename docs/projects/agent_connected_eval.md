@@ -182,7 +182,7 @@ Chosen over `GET /doc?since=<v>` deliberately: `/doc` stays a **complete** snaps
 
 **No protocol bump, no re-paste.** The bridge script stores the pushed body wholesale (`snapshot = body`) and `/doc` returns it, so the new fields reach the agent through an _unmodified_ bridge. An existing pairing whose skill text predates the hint simply never reads the fields — graceful degradation, not skew.
 
-**Maturity band (added 2026-07-20, UX-029).** The snapshot carries `maturity`, computed by `snapshotMaturity` (`agentSnapshot.ts`) from the same `documentMaturity()` the built-in engine gates on. It answers the one question the skill never did: *what to do when you pull and find too little to review*. Without it a real session invented its own policy off `WAIT_TIMEOUT_MS` and sat silent for six minutes. Behavioural rules and the band table live in `docs/mechanics/agent-bridge.md` § _When the draft is too thin to review_.
+**Maturity band (added 2026-07-20, UX-029).** The snapshot carries `maturity`, computed by `snapshotMaturity` (`agentSnapshot.ts`) from the same `documentMaturity()` the built-in engine gates on. It answers the one question the skill never did: *what to do when you pull and find too little to review*. Without it a real session invented its own policy off `WAIT_TIMEOUT_MS` and sat silent for six minutes. **Amended 2026-07-24 (UX-053):** the band now **splits** the pass rather than suspending it — the four `DOC_GAP_TYPES` are held, everything else runs — because gating the whole agent pass on it made an agent markedly quieter than our own engine, which gates only `evaluateDocument`. Behavioural rules and the band table live in `docs/mechanics/agent-bridge.md` § _When the draft is too thin to review_.
 
 Three design points worth keeping:
 
@@ -418,11 +418,11 @@ A BYOA session has two entry states, and until UX-029 only one of them was ever 
 
 **Connect to an empty document, then write** (UX-029's path). Pair *before* typing anything, then draft live. Expected:
 
-1. The first `/doc` reports `maturity: "unformed"`, and the agent says once — in prose, to the user, never as a card — that there isn't enough to review yet and that it will review when there is. No submissions.
-2. It parks, and re-pulls `/doc` on each `/wait` return including `{"timeout": true}`. A `{"timeout": true}` alone must never trigger a review — that misreading is the whole origin of this entry.
-3. As the draft crosses out of `unformed`, `docVersion` bumps (the band is in the wake gate) and the agent runs its pass. Verify the bump specifically after a **paragraph split** and after **typing into a table**: both move the band with the prose fingerprint unchanged, and both would hang a parked agent if the gate ever loses the maturity clause.
-4. The author can override at any point — "go ahead now" produces a pass on a `unformed` document. The agent defers; it never refuses.
-5. During the park, the control-center status row reads `watching`. Expected, not a defect — see the mechanics doc's known-reading note.
+1. The first `/doc` reports `maturity: "unformed"`. The agent **reviews** — submitting `clarity`, `contradiction`, `unsupported_claim`, `undefined_jargon` as it finds them — and says once, in prose to the user and never as a card, that it is holding the four whole-document types until there is more of a draft. **Amended 2026-07-24 (UX-053):** this step used to expect *no submissions at all*, which is what made an agent quieter than our own engine on the identical document.
+2. It keeps watching, re-pulling `/doc` on each `/wait` return including `{"timeout": true}`. A `{"timeout": true}` alone must never trigger a review — that misreading is the whole origin of this entry.
+3. As the draft crosses out of `unformed`, `docVersion` bumps (the band is in the wake gate) and the held four join the pass. Verify the bump specifically after a **paragraph split** and after **typing into a table**: both move the band with the prose fingerprint unchanged, and both would strand the held types if the gate ever loses the maturity clause.
+4. The author can override at any point — "go ahead now" produces a full pass on a `unformed` document. The agent holds back; it never refuses.
+5. Below the band the control-center status row reads `holding off`, and returns to `watching` once the band moves (UX-053). The feed's empty state names which quiet it is rather than saying "Quiet while you draft" in all three cases.
 
 ### Why this is worth building (and the honest cost)
 

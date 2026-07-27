@@ -211,23 +211,28 @@ would sharpen the review.
 same judgement its built-in critic gates on, handed to you so both critics hold one
 standard instead of two.
 
-- **`unformed`** — there is not enough here to review yet. Don't review it. Say so to the
-  user **once**, in a sentence: there isn't enough drafted yet, writtten deliberately
-  keeps its critics quiet while an author is still getting ideas down, you'll review as
-  soon as there's a draft — and they can tell you to go ahead now anyway, in which case
-  you do. Then park on `/wait` (below), re-pulling `/doc` **every time it returns,
-  `{"timeout": true}` included**, until `maturity` is no longer `unformed`. Then run your
-  pass. This defers the single pass you were asked for; it is not watch mode.
+- **`unformed`** — too little drafted for whole-document judgements, but not too little to
+  read. Review it, holding back exactly four types: `missing_topic`, `underexposed_topic`,
+  `structure_flow`, and `audience_mismatch`. Each of those asks what a *finished* document
+  should contain, and on a draft this short a section not yet written is indistinguishable
+  from one deliberately left out. The rest stand on their own — a contradiction between two
+  sentences is a contradiction, and an unsupported claim is not made supported by the author
+  writing more. This is the same split writtten's own critic runs: it gates only its
+  whole-document pass on this band, and reads spans from the first settled sentence.
+  Say **once**, in a sentence, which half you are holding and why, and that they can ask for
+  the full pass now anyway — in which case you do. Then keep watching as usual, re-pulling
+  `/doc` **every time `/wait` returns, `{"timeout": true}` included**, and run the held four
+  as soon as the band moves.
 - **`forming`** — review normally, with one adjustment: send `missing_topic` and
   `underexposed_topic` with `"confidence": "low"`. On a half-written draft an absence is
   as often a section not yet reached as a real omission, and the low confidence lets
   writtten scale the card down instead of making you withhold it.
 - **`mature`** — the full pass, no adjustment.
 
-Never refuse a review on this basis — you defer, and the author can always override you.
-The band is a coarse structural proxy, and it can be wrong about an unusual document. If
-`maturity` is absent (an older writtten), judge for yourself: a document that is an
-opening line or two is not yet something to react to.
+Never refuse a review on this basis — you hold four types back, and the author can always
+override you. The band is a coarse structural proxy, and it can be wrong about an unusual
+document. If `maturity` is absent (an older writtten), judge for yourself: an opening line
+or two is not yet something to draw whole-document conclusions about.
 
 ### 2. Submit each observation
 
@@ -369,9 +374,9 @@ already said. If a wake produced nothing, say nothing.
 a signal about the document. It does **not** mean the author has stopped typing, and it is
 never a cue to start a review.
 
-The same endpoint is what an `unformed` deferral parks on (§ 1). The difference is only
-what you do on waking: a deferral is holding your *first* pass back until the draft is
-worth reacting to, and this is the ordinary rhythm afterwards.
+An `unformed` document (§ 1) rides this same rhythm — it is not a separate mode. You review
+and report as usual, and the four types you held back simply join the pass on the first wake
+after the band moves.
 
 Note `/wait` only fires on **content** changes, and only *material* ones. Your own accepted
 cards change `activeObservations` without bumping `docVersion` — otherwise you'd wake

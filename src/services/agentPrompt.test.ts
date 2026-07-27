@@ -22,6 +22,7 @@ import { fileURLToPath } from "node:url";
 import { instantiateAgentPrompt, AGENT_PROMPT_PLACEHOLDERS, type PromptVars } from "./agentPrompt";
 import { AGENT_PROTOCOL_VERSION } from "./agentBridgeClient";
 import { documentMaturity } from "./documentMaturity";
+import { DOC_GAP_TYPES } from "./priority";
 
 const paste = readFileSync(
   fileURLToPath(new URL("../../docs/skills/writtten-agent.md", import.meta.url)),
@@ -210,12 +211,48 @@ describe("what the paste must carry — because no rejection teaches it", () => 
       }
     });
 
-    it("tells the agent to hold off, say so once, and defer rather than refuse", () => {
+    it("tells the agent to say so once, and to hold back rather than refuse", () => {
       // Concept-level regexes, not exact prose — the sentences get reworded; what must
-      // survive is that all three moves are still instructed.
-      expect(paste).toMatch(/not enough here to review/i);
+      // survive is that both moves are still instructed.
       expect(paste).toMatch(/\bonce\b/i);
       expect(paste).toMatch(/never refuse/i);
+    });
+
+    // UX-053: the rule above used to defer the ENTIRE pass on `unformed`, which is not
+    // what writtten's own critic does — it gates only `evaluateDocument` on the band and
+    // evaluates spans from the first settled sentence. So a 120-word draft produced cards
+    // under the built-in engine and total silence under an agent, while this same section
+    // claimed both critics hold one standard. The band now splits the pass instead of
+    // suspending it.
+    it("holds back exactly the four whole-document types, derived from the app's own set", () => {
+      // Scoped to the `unformed` bullet, not the whole paste — every one of these four
+      // names already appears in the taxonomy table and the `forming` rule, so asserting
+      // against `paste` would pass on a document that never mentions a split at all.
+      // (Verified: this assertion fails against the pre-UX-053 text.)
+      const start = paste.indexOf("- **`unformed`**");
+      expect(start).toBeGreaterThan(-1);
+      const clause = paste.slice(start, paste.indexOf("- **`forming`**"));
+
+      // Derived from DOC_GAP_TYPES for the same reason the bands are derived from
+      // documentMaturity(): if the app ever re-scopes which types are maturity-modulated,
+      // this fails instead of leaving the paste instructing a split the app no longer makes.
+      for (const type of DOC_GAP_TYPES) {
+        expect(clause, `held type ${type} is not named in the unformed rule`).toContain(type);
+      }
+      // And nothing outside that set is named as held — a fifth type quietly added to the
+      // prose would be an agent withholding something writtten still expects.
+      const namedTypes = clause.match(/`([a-z_]+)`/g)?.map((m) => m.slice(1, -1)) ?? [];
+      const taxonomyNamed = namedTypes.filter((t) => t.includes("_") && t !== "timeout");
+      expect(new Set(taxonomyNamed)).toEqual(new Set(DOC_GAP_TYPES));
+    });
+
+    it("instructs the defect half to run rather than wait", () => {
+      // The load-bearing half of the change. Without this the paste could name the four
+      // held types and still tell the agent to sit out the whole pass.
+      expect(paste).toMatch(/not too little to\s+read/i);
+      expect(paste).toMatch(/a contradiction between two\s+sentences is a contradiction/i);
+      // And that the held four rejoin on their own, so nothing dead-ends below the band.
+      expect(paste).toMatch(/as soon as the band moves|when the band moves/i);
     });
 
     it("disarms the timeout misreading that caused the six-minute silence", () => {
