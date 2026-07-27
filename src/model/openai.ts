@@ -18,13 +18,32 @@ import type {
   ParsedResponse,
   ErrorClassification,
 } from "./provider";
+import { rung, stepDown } from "./requestCapabilities";
 
 const OPENAI_ENDPOINT = "https://api.openai.com/v1/chat/completions";
 const OPENAI_MODELS_ENDPOINT = "https://api.openai.com/v1/models";
 
 // Default per tier is `[0]`. fast = cheap/frequent; strong = capable/rare.
+// Verified live 2026-07-27: every id here answers on /v1/chat/completions at the
+// `none` reasoning rung. `gpt-5.6` is real but does NOT appear in /v1/models —
+// it is an unlisted alias, so don't "clean it up" for being absent from the picker.
 const FAST_CATALOG = ["gpt-5.4-mini", "gpt-5.4-nano", "gpt-5.4"];
 const STRONG_CATALOG = ["gpt-5.5", "gpt-5.6", "gpt-5.4"];
+
+/**
+ * Reasoning-effort rungs, cheapest first. The whole GPT-5.x family reasons, and
+ * an unbounded strong-tier sweep over a large ledger blew past our 45s cap (see
+ * strong_tier_eval_reliability.md), so we floor it. `none` is the true floor on
+ * gpt-5.4/5.5/5.6 — but it is NOT universal, and the picker offers the models
+ * that reject it:
+ *   o3 / o4-mini        → "does not support 'none'. Supported: low, medium, high, xhigh"
+ *   *-chat-latest       → "does not support 'none'. Supported: medium"
+ *   gpt-5-search-api    → "Unrecognized request argument supplied: reasoning_effort"
+ * The last rung omits the parameter entirely, which covers models that don't take
+ * it at all. (The older 5.0/5.1 line took `minimal`, which 400s on 5.4+ — that is
+ * why this is a ladder and not a single constant.)
+ */
+const REASONING_EFFORT_LADDER: (string | undefined)[] = ["none", "low", "medium", undefined];
 
 function buildRequest(model: string, req: LLMRequest, key: string): BuiltRequest {
   const body: Record<string, unknown> = {
@@ -37,17 +56,12 @@ function buildRequest(model: string, req: LLMRequest, key: string): BuiltRequest
     // sampling value with a 400 ("Only the default (1) value is supported") — this
     // was silently killing every strong-tier (contradiction/doc-quality) call on
     // gpt-5.5. Determinism is driven by the prompt + JSON mode, as with Anthropic.
-    //
-    // Floor the hidden reasoning: the whole GPT-5.x family reasons, and an
-    // unbounded strong-tier sweep over a 58-claim ledger blew past our 45s cap
-    // (see strong_tier_eval_reliability.md). `buildRequest` gets no `tier`, but
-    // capping unconditionally is safe — our evals are located-critique judgments,
-    // not open-ended reasoning — and mirrors Anthropic's `thinking:{disabled}`.
-    // NB: gpt-5.5 supports `none|low|medium|high|xhigh` (NOT `minimal`, which the
-    // older 5.0/5.1 line took and 400s here — confirmed live 2026-07-14); `none`
-    // is the true floor, matching the Anthropic-disabled / Gemini-flash-0 siblings.
-    reasoning_effort: "none",
   };
+  // Floor the hidden reasoning at the lowest rung this model accepts (see the
+  // ladder above). Capping unconditionally is safe — our evals are located-critique
+  // judgments, not open-ended reasoning — and mirrors Anthropic's `thinking:{disabled}`.
+  const effort = REASONING_EFFORT_LADDER[rung("openai", model)];
+  if (effort !== undefined) body.reasoning_effort = effort;
   // Ask for a JSON object when the eval expects structured output — mirrors the
   // Gemini `responseMimeType: application/json` path.
   if (req.json) {
@@ -84,7 +98,19 @@ function parseResponse(body: unknown): ParsedResponse {
   return { text, usage };
 }
 
-function classifyError(status: number, headers: Headers, body: string): ErrorClassification {
+function classifyError(
+  status: number,
+  headers: Headers,
+  body: string,
+  model: string
+): ErrorClassification {
+  // A 400 naming `reasoning_effort` is the model refusing our effort rung, not a
+  // bad prompt — step down and retry the same model once (see requestCapabilities.ts).
+  if (status === 400 && /reasoning_effort/i.test(body)) {
+    if (stepDown("openai", model, REASONING_EFFORT_LADDER.length)) {
+      return { retryable: true, coolDownMs: 0, renegotiate: true };
+    }
+  }
   if (status === 429) {
     // `insufficient_quota` is a hard wall (no billing / spend cap) — there is no
     // free tier to fall back to, so treat it as non-retryable with a clear body
@@ -116,8 +142,15 @@ function listModelsRequest(key: string): BuiltRequest {
 // pre-chat davinci/babbage/ada/curie families). Confirmed against a live
 // /v1/models response (2026-07-08): sora-2 and gpt-3.5-turbo-instruct were the
 // two non-chat ids that slipped through the first pass.
+//
+// 2026-07-27: `-pro` and `-codex` join them. They are text models and read like
+// the most capable thing on offer, so a user picking `gpt-5.5-pro` for the strong
+// tier is the obvious mistake — but they are not served by this endpoint at all
+// ("This is not a chat model", "only supported in v1/responses"), so no capability
+// renegotiation can rescue them; the only fix is not offering them. The `pro`
+// pattern is anchored to a token boundary so it can't eat a future `gpt-6-prose`.
 const OPENAI_NON_CHAT =
-  /embedding|whisper|tts|audio|dall-e|image|moderation|realtime|transcribe|sora|instruct|davinci|babbage|ada|curie/i;
+  /embedding|whisper|tts|audio|dall-e|image|moderation|realtime|transcribe|sora|instruct|davinci|babbage|ada|curie|codex|(?:^|[-_.])pro(?:$|[-_.])/i;
 
 function parseModelsList(body: unknown): string[] {
   const data = (body as { data?: { id?: unknown }[] })?.data;

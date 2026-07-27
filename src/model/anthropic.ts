@@ -6,9 +6,9 @@
  *
  * Browser CORS is supported via the `anthropic-dangerous-direct-browser-access`
  * header — the same trust posture as Gemini's key-in-localStorage (surfaced as a
- * plain note in the README, PR 4). Verified against the Claude API reference
- * (2026-07-07): endpoint, headers, model IDs, and the Sonnet-5 thinking/sampling
- * rules below are all pinned.
+ * plain note in the README, PR 4). Verified against the live Messages API
+ * (2026-07-27): endpoint, headers, model IDs, and the thinking/sampling rules
+ * below are all pinned against real responses.
  */
 
 import type { LLMRequest } from "./router";
@@ -18,14 +18,34 @@ import type {
   ParsedResponse,
   ErrorClassification,
 } from "./provider";
+import { rung, stepDown, seed } from "./requestCapabilities";
 
 const ANTHROPIC_ENDPOINT = "https://api.anthropic.com/v1/messages";
 const ANTHROPIC_VERSION = "2023-06-01";
 // Eval responses are small JSON classifications; this cap is generous headroom.
+// NB: on Claude 5 models `max_tokens` caps thinking AND answer together, which is
+// why leaving thinking on (below) risks a truncated answer, not just a slow one.
 const MAX_TOKENS = 4096;
 
 const FAST_CATALOG = ["claude-haiku-4-5"];
-const STRONG_CATALOG = ["claude-sonnet-5"];
+// Sonnet 5 stays the default (`[0]` seeds the routing pool). Opus 5 is the
+// stronger, pricier flagship and Opus 4.8 the prior generation — both are
+// offered in the picker and double as the failure-only fallback tail that
+// `withSelection` (registry.ts) builds from this list.
+const STRONG_CATALOG = ["claude-sonnet-5", "claude-opus-5", "claude-opus-4-8"];
+
+/**
+ * Thinking rungs, cheapest first. Our evals are located-critique judgments, not
+ * open-ended reasoning, so we want thinking off: it is billable, it adds latency,
+ * and on Claude 5 it shares the `max_tokens` budget with the answer. Every
+ * current model accepts `disabled` EXCEPT Claude Fable 5, which 400s with
+ * `"thinking.type.disabled" is not supported for this model` — it only runs in
+ * thinking mode, so it falls to rung 1 (omit the field entirely).
+ */
+const THINKING_LADDER: (Record<string, unknown> | undefined)[] = [{ type: "disabled" }, undefined];
+
+// Verified against the live API 2026-07-27 — skips the discovery round-trip.
+seed("anthropic", { "claude-fable-5": 1 });
 
 function buildRequest(model: string, req: LLMRequest, key: string): BuiltRequest {
   const body: Record<string, unknown> = {
@@ -33,15 +53,12 @@ function buildRequest(model: string, req: LLMRequest, key: string): BuiltRequest
     max_tokens: MAX_TOKENS,
     system: req.system,
     messages: [{ role: "user", content: req.user }],
-    // Deliberately NO `temperature`: Sonnet 5 rejects a non-default sampling
-    // parameter with a 400. Determinism is driven by prompt + disabled thinking.
+    // Deliberately NO `temperature`: the Claude 5 family rejects a non-default
+    // sampling parameter with a 400. Determinism comes from the prompt and from
+    // holding thinking at the lowest rung the model allows.
   };
-  // Sonnet 5 runs adaptive thinking when `thinking` is omitted — unwanted (and
-  // billable) on a deterministic span/contradiction check, so disable it. Haiku
-  // 4.5 takes no thinking config, so only set it for the Sonnet (strong) tier.
-  if (model.includes("sonnet")) {
-    body.thinking = { type: "disabled" };
-  }
+  const thinking = THINKING_LADDER[rung("anthropic", model)];
+  if (thinking) body.thinking = thinking;
 
   return {
     url: ANTHROPIC_ENDPOINT,
@@ -78,10 +95,22 @@ function parseResponse(body: unknown): ParsedResponse {
   return { text, usage };
 }
 
-function classifyError(status: number, headers: Headers): ErrorClassification {
+function classifyError(
+  status: number,
+  headers: Headers,
+  body: string,
+  model: string
+): ErrorClassification {
   if (status === 429) {
     const retryAfter = parseRetryAfter(headers);
     return { retryable: true, coolDownMs: retryAfter ?? 45_000, quotaKind: "perMinute" };
+  }
+  // A 400 naming `thinking` is the model refusing our thinking rung, not a bad
+  // prompt — step down and retry the same model once (see requestCapabilities.ts).
+  if (status === 400 && /thinking/i.test(body)) {
+    if (stepDown("anthropic", model, THINKING_LADDER.length)) {
+      return { retryable: true, coolDownMs: 0, renegotiate: true };
+    }
   }
   // 529 overloaded (and other 5xx) are transient; 400/401/403 abort with a clear
   // message for the "Ping model" decode (PR 3).
@@ -132,7 +161,11 @@ export const anthropicAdapter: ProviderAdapter = {
     freeFast: [],
     freeStrong: [],
     paidFast: [FAST_CATALOG[0]],
-    paidStrong: [STRONG_CATALOG[0]],
+    // Multi-model so a strong-tier failure (a timeout on a heavy contradiction
+    // sweep) rotates instead of dropping the call. `defaultModels` still reads
+    // `catalog.strong[0]`, so the default stays `claude-sonnet-5`; the
+    // per-selection routed pool preserves this tail (`withSelection`, registry.ts).
+    paidStrong: [...STRONG_CATALOG],
   },
   catalog: { fast: FAST_CATALOG, strong: STRONG_CATALOG },
   buildRequest,

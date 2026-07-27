@@ -57,13 +57,17 @@ const freeRegistry = new CoolDownRegistry();
 const paidRegistry = new CoolDownRegistry();
 
 /** Thrown by `callAttempt`; `retryable` tells the pool loop whether to advance to
- *  the next model or abort the whole logical call. */
+ *  the next model or abort the whole logical call. `renegotiate` is the narrower
+ *  case: the provider rejected one request knob, the adapter has already stepped
+ *  that model down a capability rung, and the SAME model should be retried. */
 class ProviderCallError extends Error {
   retryable: boolean;
-  constructor(message: string, retryable: boolean) {
+  renegotiate: boolean;
+  constructor(message: string, retryable: boolean, renegotiate = false) {
     super(message);
     this.name = "ProviderCallError";
     this.retryable = retryable;
+    this.renegotiate = renegotiate;
   }
 }
 
@@ -137,7 +141,7 @@ async function callAttempt(
 
   if (!res.ok) {
     const errText = await res.text();
-    const classification = adapter.classifyError(res.status, res.headers, errText);
+    const classification = adapter.classifyError(res.status, res.headers, errText, model);
     if (classification.coolDownMs > 0) {
       const reg = keyTier === "paid" ? paidRegistry : freeRegistry;
       reg.markUnavailable(model, classification.coolDownMs);
@@ -158,7 +162,8 @@ async function callAttempt(
     });
     throw new ProviderCallError(
       `${adapter.id} error ${res.status}: ${errText}`,
-      classification.retryable
+      classification.retryable,
+      classification.renegotiate
     );
   }
 
@@ -229,6 +234,18 @@ async function callWithRotation(
       return await callAttempt(adapter, model, req, apiKey, tier, keyTier, callId);
     } catch (e) {
       if (!(e instanceof ProviderCallError) || !e.retryable) throw e;
+      // Capability renegotiation: the adapter stepped this model down a rung, so
+      // give the SAME model one immediate retry rather than burning a pool slot.
+      // No backoff — nothing is rate-limited, the request shape was simply wrong.
+      // The ladder is finite and `stepDown` only succeeds while rungs remain, so
+      // this cannot loop; a model out of rungs reports an ordinary failure.
+      if (e.renegotiate) {
+        try {
+          return await callAttempt(adapter, model, req, apiKey, tier, keyTier, callId);
+        } catch (retryErr) {
+          if (!(retryErr instanceof ProviderCallError) || !retryErr.retryable) throw retryErr;
+        }
+      }
     }
     attempt++;
   }

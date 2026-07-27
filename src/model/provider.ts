@@ -55,6 +55,14 @@ export interface ErrorClassification {
   /** How long to bench this model in the cool-down registry; 0 = don't bench. */
   coolDownMs: number;
   quotaKind?: QuotaKind;
+  /**
+   * The provider rejected a *knob*, not the model — the adapter has stepped that
+   * model down one capability rung (`requestCapabilities.ts`) and the SAME model should
+   * be retried immediately, without advancing the pool or paying the rotation
+   * backoff. Only ever set once per model per session: the ladder is finite, so
+   * an adapter that keeps failing runs out of rungs and reports a real failure.
+   */
+  renegotiate?: boolean;
 }
 
 export interface ProviderAdapter {
@@ -78,8 +86,15 @@ export interface ProviderAdapter {
   /** Extract text (+ usage) from a parsed 2xx JSON body. */
   parseResponse(body: unknown): ParsedResponse;
   /** Map a non-2xx response to the rotation machinery's common vocabulary.
-   *  `body` is the raw response text (adapters parse it as needed). */
-  classifyError(status: number, headers: Headers, body: string): ErrorClassification;
+   *  `body` is the raw response text (adapters parse it as needed). `model` is
+   *  the model that failed — adapters need it to record a capability downgrade
+   *  and ask for a renegotiation retry (see `requestCapabilities.ts`). */
+  classifyError(
+    status: number,
+    headers: Headers,
+    body: string,
+    model: string
+  ): ErrorClassification;
   /**
    * Build the GET for this provider's live models-list endpoint. Optional: a
    * provider without one (or a keyless call) falls back to the static `catalog`.

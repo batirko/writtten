@@ -20,9 +20,38 @@ describe("adapter.parseModelsList", () => {
         { id: "sora-2", object: "model" }, // video, not chat
         { id: "sora-2-pro", object: "model" },
         { id: "gpt-3.5-turbo-instruct", object: "model" }, // completions, not chat
+        // Text models, but not served by /v1/chat/completions at all — offering
+        // them meant a user picking the most capable-sounding id got a hard 400
+        // that no capability renegotiation could rescue.
+        { id: "gpt-5.5-pro", object: "model" },
+        { id: "gpt-5.4-pro-2026-03-05", object: "model" },
+        { id: "o1-pro", object: "model" },
+        { id: "gpt-5.3-codex", object: "model" },
+        { id: "gpt-5.1-codex-mini", object: "model" },
       ],
     };
     expect(openaiAdapter.parseModelsList!(body).sort()).toEqual(["gpt-5.4-mini", "gpt-5.5"]);
+  });
+
+  it("OpenAI: keeps real chat ids that only look like the filtered ones", () => {
+    const body = {
+      data: [
+        { id: "gpt-5.6", object: "model" },
+        { id: "gpt-5.6-luna", object: "model" },
+        { id: "gpt-5.6-sol", object: "model" },
+        { id: "gpt-5.6-terra", object: "model" },
+        { id: "gpt-5.2-chat-latest", object: "model" },
+        { id: "o4-mini", object: "model" },
+      ],
+    };
+    expect(openaiAdapter.parseModelsList!(body).sort()).toEqual([
+      "gpt-5.2-chat-latest",
+      "gpt-5.6",
+      "gpt-5.6-luna",
+      "gpt-5.6-sol",
+      "gpt-5.6-terra",
+      "o4-mini",
+    ]);
   });
 
   it("Anthropic: extracts every model id (all are chat)", () => {

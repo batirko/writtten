@@ -97,6 +97,21 @@ get `tier`, but the whole GPT-5.x / Gemini-2.5 families reason, so each adapter 
   : 0 }`. The ⚠️ guard was needed: live-verified `gemini-2.5-pro` accepts `128` and rejects nothing,
   while flash variants take `0`.
 
+> **⚠️ Superseded 2026-07-27 — the floors are negotiated now, not hardcoded.** All three bullets
+> above were correct when written and all three rotted the same way: each identified its exception by
+> **substring-matching the model id**, and an id says nothing about what a model accepts. By July
+> every provider had shipped a model that broke its own rule — `includes("2.5-pro")` missed the whole
+> Gemini 3.5+ generation (thinking-mode-only, 400s on a `0` budget); `includes("sonnet")` missed
+> `claude-opus-5`, silently leaving billable adaptive thinking on _and_ letting it eat the shared
+> `max_tokens` budget; `reasoning_effort: "none"` is rejected outright by o3 / o4-mini /
+> `*-chat-latest`. Each was a hard 400 on the user's first call after picking that model in Settings.
+>
+> The floors are now **ladders** (`requestCapabilities.ts`): each adapter lists its settings cheapest
+> first, a call starts at the model's current rung, and a 400 naming that knob steps the model down a
+> rung and retries it once. Verified rungs are pre-seeded, so known models pay nothing. The intent of
+> #2 is unchanged — still floor the reasoning, still unconditional — only the mechanism for
+> discovering each model's floor changed. See `docs/mechanics/model-request-negotiation.md`.
+
 ### #4 — Failure-only paid fallback (PER-ADAPTER DATA)
 
 `callWithRotation` already advances through a multi-entry pool on any retryable error — identical
@@ -111,6 +126,10 @@ don't rotate" is enforced _only_ by single-entry pools, so this is pure data.
   default — is what actually reaches the wire.
 - **Anthropic** — only `claude-sonnet-5` in the strong catalog; the tail is empty, so it stays
   single-entry (no fallback possible). Protected by #1 + #2. Documented as a known limitation.
+  **Resolved 2026-07-27:** the strong catalog is now `["claude-sonnet-5", "claude-opus-5",
+  "claude-opus-4-8"]`, so Anthropic has a real fallback tail like the others. `claude-sonnet-5` stays
+  the default; Opus 5 is offered rather than routed (it is the stronger flagship at ~1.7× the price,
+  and the strong tier is the rare call, so the choice is the user's).
 - **Gemini** — already multi-model and doesn't route through `withSelection`'s paid override; no change.
 
 Scope: strong pools only; `paidFast` stays single-model.

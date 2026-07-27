@@ -209,13 +209,23 @@ export interface ApiStats {
  * 429s and reveals its `quotaValue`. Values reflect this project's key as shown
  * in AI Studio (most Flash variants = 20/day; pro = 0 = unavailable on free tier).
  * A dynamically parsed quotaValue always overrides these.
+ *
+ * Re-read off the free-tier AI Studio dashboard 2026-07-27; every value below
+ * still matches. The pattern worth knowing when a new model lands: **the free
+ * budget tracks the model CLASS, not the version** — each `-flash-lite` gets
+ * 500/day and 15 RPM, each `-flash` gets 20/day and 5 RPM, each `pro` gets 0.
+ * So a newer model in a class you already pool adds a *separate* bucket of the
+ * same size rather than a bigger one.
  */
 const KNOWN_DAILY_RPD: Record<string, number> = {
   "gemini-2.5-pro": 0, // no free-tier quota; excluded from pool
+  "gemini-3.1-pro-preview": 0, // likewise 0/0 on free — paid pools only
   "gemini-2.5-flash": 20,
   "gemini-3.5-flash": 20,
+  "gemini-3.6-flash": 20,
   "gemini-2.5-flash-lite": 20,
   "gemini-3.1-flash-lite": 500, // 25× higher RPD — primary workhorse
+  "gemini-3.5-flash-lite": 500, // same class, same budget — a second 500/day bucket
   "gemini-2.0-flash": 0, // no free-tier quota (confirmed in AI Studio)
   "gemini-2.0-flash-lite": 0,
 };

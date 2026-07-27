@@ -7,6 +7,7 @@ import type {
 } from "./provider";
 import { parse429 } from "./logger";
 import { createRouterForAdapter } from "./rotation";
+import { rung, stepDown, seed } from "./requestCapabilities";
 
 const GEMINI_API_BASE = "https://generativelanguage.googleapis.com/v1beta/models";
 
@@ -31,20 +32,79 @@ const GEMINI_API_BASE = "https://generativelanguage.googleapis.com/v1beta/models
  *
  * Paid pools use better models since RPD is not a constraint.
  * See docs/projects/model_rotation_and_debugging.md §2.
+ *
+ * 2026-07-27 refresh — newer models exist (gemini-3.5-flash-lite, gemini-3.6-flash,
+ * gemini-3.1-pro-preview) and all three answer live, so they join the pools.
+ *
+ * Free-tier budgets read off the AI Studio dashboard 2026-07-27, and the useful
+ * finding is that **the free budget tracks the model CLASS, not the version**:
+ * gemini-3.5-flash-lite gets the same 500 RPD / 15 RPM as gemini-3.1-flash-lite,
+ * and gemini-3.6-flash the same 20 RPD / 5 RPM as gemini-3.5-flash. Quotas are
+ * per model, so pooling both members of a class **doubles** the tier's daily
+ * budget (flash-lite: 500 → 1000/day) rather than sharing one.
+ *
+ * That parity is why the newcomers sit *behind* the incumbents rather than
+ * replacing them. With budget equal, primary-vs-fallback is no longer a quota
+ * decision — it is a **signal-quality** decision about which model writes the
+ * observations most users read, and that belongs to the eval ratchet, not to a
+ * version number. Left in the safe order until an eval says otherwise.
  */
 const FREE_FAST_POOL = [
-  "gemini-3.1-flash-lite", // 500 RPD — primary workhorse on free tier
+  "gemini-3.1-flash-lite", // 500 RPD / 15 RPM — primary workhorse on free tier
+  "gemini-3.5-flash-lite", // same class → its own 500 RPD / 15 RPM bucket
   "gemini-3.5-flash", // 20 RPD fallback
 ];
 const FREE_STRONG_POOL = [
-  "gemini-3.1-flash-lite", // 500 RPD — best available on free tier
+  "gemini-3.1-flash-lite", // 500 RPD / 15 RPM — best available on free tier
+  "gemini-3.5-flash-lite", // same class → its own 500 RPD / 15 RPM bucket
   "gemini-3.5-flash", // 20 RPD fallback
-  // gemini-2.5-pro excluded from free: 0 RPD on the free tier (limit: 0 in every 429 payload)
+  // Both pro models are 0/0 on the free tier (dashboard + a first-request 429
+  // carrying `…PerDay…-FreeTier`), so they stay out of the free pools entirely.
 ];
 
 // Paid key pools: RPD not a bottleneck, so quality ordering.
-const PAID_FAST_POOL = ["gemini-3.5-flash", "gemini-3.1-flash-lite"];
-const PAID_STRONG_POOL = ["gemini-2.5-pro", "gemini-3.5-flash", "gemini-3.1-flash-lite"];
+const PAID_FAST_POOL = ["gemini-3.5-flash", "gemini-3.1-flash-lite", "gemini-3.6-flash"];
+// gemini-3.1-pro-preview sits directly behind gemini-2.5-pro: it is the only
+// successor on offer for the deep adjudicator ahead of 2.5-pro's 2026-10-16
+// retirement, but it is preview-tagged, so it stays off the critical path until
+// a stable 3.x pro ships. Paid budgets (AI Studio, 2026-07-27) argue the same
+// way and more sharply: 3.1-pro gets 25 RPM / 250 RPD against 2.5-pro's
+// 150 RPM / 1K RPD, so it is a 6×-tighter burst budget on exactly the tier that
+// fires several strong calls in a row. That gap is the real cost of the October
+// retirement — not the model swap itself.
+const PAID_STRONG_POOL = [
+  "gemini-2.5-pro",
+  "gemini-3.1-pro-preview",
+  "gemini-3.5-flash",
+  "gemini-3.1-flash-lite",
+];
+
+/**
+ * Thinking-budget rungs, cheapest first. `0` turns thinking off outright, which
+ * is what a located-critique judgment wants — it is billable, it adds latency,
+ * and an unbounded strong-tier sweep over a large ledger blows past our request
+ * timeout (see strong_tier_eval_reliability.md).
+ *
+ * But `0` is not universally accepted, and the old rule here (`model.includes(
+ * "2.5-pro") ? 128 : 0`) encoded the assumption that only 2.5-pro refuses it.
+ * That is now false for the whole 3.5+ generation: gemini-3.5-flash-lite,
+ * gemini-3.6-flash and gemini-3.1-pro-preview all 400 on a zero budget
+ * ("Budget 0 is invalid. This model only works in thinking mode."). Rung 1 is the
+ * smallest non-zero floor those models accept.
+ *
+ * The floor is NOT free, which is why it stays rung 1 rather than becoming the
+ * single uniform value: measured 2026-07-27, gemini-3.5-flash at budget 128 spent
+ * 90 thinking tokens and took 1368ms, versus 0 tokens and 816ms at budget 0.
+ */
+const THINKING_BUDGET_LADDER = [0, 128];
+
+// Verified against the live API 2026-07-27 — skips the discovery round-trip.
+seed("gemini", {
+  "gemini-2.5-pro": 1,
+  "gemini-3.1-pro-preview": 1,
+  "gemini-3.5-flash-lite": 1,
+  "gemini-3.6-flash": 1,
+});
 
 function parseRetryDelay(headers: Headers): number | null {
   const delayStr = headers.get("retry-delay");
@@ -85,14 +145,11 @@ function buildRequest(model: string, req: LLMRequest, key: string): BuiltRequest
     thinkingConfig?: { thinkingBudget: number };
   } = {
     temperature: 0.2,
-    // Floor the hidden reasoning: the Gemini-2.5/3.x families "think" by default,
-    // and an unbounded strong-tier sweep over a large ledger can blow past our
-    // request timeout (see strong_tier_eval_reliability.md). Flash variants accept
-    // `0`; `gemini-2.5-pro` enforces a non-zero minimum, so give it a small floor
-    // rather than `0` (which 400s). `buildRequest` gets no `tier`, but capping
-    // unconditionally is safe — our evals are located-critique judgments, not
-    // open-ended reasoning — and mirrors Anthropic's `thinking:{disabled}`.
-    thinkingConfig: { thinkingBudget: model.includes("2.5-pro") ? 128 : 0 },
+    // Floor the hidden reasoning at the lowest rung this model accepts (see the
+    // ladder above). `buildRequest` gets no `tier`, but capping unconditionally is
+    // safe — our evals are located-critique judgments, not open-ended reasoning —
+    // and mirrors Anthropic's `thinking:{disabled}`.
+    thinkingConfig: { thinkingBudget: THINKING_BUDGET_LADDER[rung("gemini", model)] },
   };
   if (req.json) {
     generationConfig.responseMimeType = "application/json";
@@ -158,7 +215,20 @@ function parseModelsList(body: unknown): string[] {
     .map((name) => name.replace(/^models\//, ""));
 }
 
-function classifyError(status: number, headers: Headers, body: string): ErrorClassification {
+function classifyError(
+  status: number,
+  headers: Headers,
+  body: string,
+  model: string
+): ErrorClassification {
+  // A 400 is Gemini refusing our thinking rung, not a bad prompt. The precise
+  // form varies ("Budget 0 is invalid. This model only works in thinking mode."
+  // on a pro model, a bare "Request contains an invalid argument." on the 3.5+
+  // flash models), so gate on the status and let the finite ladder bound the
+  // damage: at most one extra request per model per session (requestCapabilities.ts).
+  if (status === 400 && stepDown("gemini", model, THINKING_BUDGET_LADDER.length)) {
+    return { retryable: true, coolDownMs: 0, renegotiate: true };
+  }
   if (status === 429) {
     const parsed = parse429(body);
     const isPerDay = parsed?.kinds.includes("perDay") ?? false;
