@@ -8,6 +8,20 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 > conventional-commit PR titles; a new version section is prepended when a release PR merges.
 > See `docs/mechanics/release_and_deploy.md`.
 
+## [0.12.0](https://github.com/batirko/writtten/compare/writtten-v0.11.0...writtten-v0.12.0) (2026-07-27)
+
+
+### Added
+
+* **byoa:** an agent stops going silent on a short draft (UX-053) ([#286](https://github.com/batirko/writtten/issues/286)) ([7e30fdc](https://github.com/batirko/writtten/commit/7e30fdcc1e37b1e9067a4a0b3df19f1d99bd3b66))
+* **feed:** say which quiet this is, in the feed and the status row (UX-053) ([#288](https://github.com/batirko/writtten/issues/288)) ([4ca8249](https://github.com/batirko/writtten/commit/4ca8249f72e3bd2d4b4d268858e340f78962749a))
+
+
+### Fixed
+
+* **byoa:** span highlights, an honest debug log, and anchoring guidance (UX-049–052, OBS-042) ([#284](https://github.com/batirko/writtten/issues/284)) ([4c2fd4e](https://github.com/batirko/writtten/commit/4c2fd4ee5c54b78593711b60159b6673d876c73d))
+* **pwa:** the update banner's Reload button can actually reload (UX-048) ([#282](https://github.com/batirko/writtten/issues/282)) ([74d2e34](https://github.com/batirko/writtten/commit/74d2e348369f0b9abbe19c5f712ed3d42f10e970))
+
 ## [0.11.0](https://github.com/batirko/writtten/compare/writtten-v0.10.2...writtten-v0.11.0) (2026-07-27)
 
 
