@@ -70,8 +70,13 @@ const EXTERNAL_TEXT_CAP = 240;
  *  sources. The cross-claim ones may carry a second quote (`conflictingAnchorText`,
  *  § _Both sides of a conflict_) but stay exempt from the evaluator's conflict
  *  lifecycle — that exemption keys on `isEvaluatorOwned`, not on the absence of
- *  `conflictingBlockId`, so the two are independent. */
-const OBSERVATION_TYPES: ReadonlySet<string> = new Set<Observation["type"]>([
+ *  `conflictingBlockId`, so the two are independent.
+ *
+ *  Exported because this set — not the evaluator's emitters — is the authority
+ *  on what may arrive anchored to a span, and the highlight-CSS guard has to
+ *  read it. Keying that guard on `addSpanObs` instead is what let five types
+ *  ship with no at-rest highlight at all (UX-049). */
+export const OBSERVATION_TYPES: ReadonlySet<string> = new Set<Observation["type"]>([
   "clarity",
   "contradiction",
   "strategic_tension",

@@ -3048,6 +3048,37 @@ body,
   border-bottom: 1px dashed var(--sem-problem-low);
 }
 
+/* The four document-gap types (UX-049). The built-in evaluator only ever emits
+   these doc-scoped, where the "Whole doc" chip stands in for a highlight — so
+   these rules fire only on a connected agent's card, which may anchor any
+   admissible type to a span. Until they existed the decoration was drawn and
+   painted nothing, and the only mark the reader ever saw was the generic
+   hovered wash below, in the contradiction hue.
+
+   Deliberately wash-free, unlike every rule above: the finding is about the
+   document and the span is where it becomes visible, not the whole of what is
+   missing. A wash would assert that this passage IS the problem. Hue carries
+   kind (opportunity blue / problem gray, per KIND_BY_TYPE in priority.ts); the
+   wash arrives on hover like everywhere else, so the C7 contrast jump holds. */
+.obs-highlight-underexposed_topic,
+.obs-highlight-missing_topic {
+  border-bottom: 2px dotted var(--sem-opp-med);
+}
+
+.obs-highlight-structure_flow,
+.obs-highlight-audience_mismatch {
+  border-bottom: 2px dotted var(--sem-problem-low);
+}
+
+/* A lens is the one type whose subject IS the quoted words — the author asked
+   for exactly this search — so it keeps a wash. In the brand hue rather than a
+   semantic one: a solicited finding is not the product asserting a defect, and
+   `user_lens` is opportunity-kind for that same reason (priority.ts). */
+.obs-highlight-user_lens {
+  background-color: color-mix(in oklch, var(--color-accent) 5%, transparent);
+  border-bottom: 2px dotted var(--color-accent);
+}
+
 .obs-highlight-hovered {
   background-color: color-mix(in oklch, var(--sem-contradiction) 28%, transparent) !important;
   border-bottom-style: solid !important;
@@ -3071,6 +3102,27 @@ body,
 .obs-highlight-undefined_jargon.obs-highlight-hovered {
   background-color: color-mix(in oklch, var(--sem-problem-low) 22%, transparent) !important;
   border-bottom-color: var(--color-ink-2) !important;
+}
+
+/* Every type below needs its own hovered rule for the same reason the at-rest
+   rules exist: without one, the generic `.obs-highlight-hovered` above answers,
+   and its wash is the contradiction hue — so an opportunity-kind card lit up in
+   the alarm colour reserved for the hero problem type (UX-049). */
+.obs-highlight-underexposed_topic.obs-highlight-hovered,
+.obs-highlight-missing_topic.obs-highlight-hovered {
+  background-color: color-mix(in oklch, var(--sem-opp-med) 25%, transparent) !important;
+  border-bottom-color: var(--sem-opp-high) !important;
+}
+
+.obs-highlight-structure_flow.obs-highlight-hovered,
+.obs-highlight-audience_mismatch.obs-highlight-hovered {
+  background-color: color-mix(in oklch, var(--sem-problem-low) 22%, transparent) !important;
+  border-bottom-color: var(--color-ink-2) !important;
+}
+
+.obs-highlight-user_lens.obs-highlight-hovered {
+  background-color: color-mix(in oklch, var(--color-accent) 20%, transparent) !important;
+  border-bottom-color: var(--color-accent-strong) !important;
 }
 
 /* Activation pulse (UX-009 / C2): a one-shot ring flash when a card is clicked
