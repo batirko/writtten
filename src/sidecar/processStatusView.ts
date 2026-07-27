@@ -44,6 +44,7 @@
  */
 
 import type { EngineId } from "../services/evalEngine";
+import type { MaturityLevel } from "../services/documentMaturity";
 
 export interface ProcessStatusInput {
   /** Which engine currently holds the slot. Only the selected one may speak. */
@@ -66,6 +67,11 @@ export interface ProcessStatusInput {
   agentPhrase: string | null;
   /** Tier of our in-flight call, floored for visibility. */
   displayTier: "fast" | "strong" | null;
+  /**
+   * The live maturity band (`docMaturitySignal`). Splits the one state `watching`
+   * was covering twice over (UX-053) — see `HOLDING_OFF`.
+   */
+  maturity: MaturityLevel;
 }
 
 export interface ProcessStatusView {
@@ -83,6 +89,42 @@ function phraseIsActive(phrase: string | null): boolean {
   return phrase !== null && phrase.startsWith("reading");
 }
 
+/**
+ * The one phrase this row gains, and it is deliberately temporary (UX-053).
+ *
+ * `watching` was carrying two opposite meanings: *a critic is attached and
+ * reacting*, and *a critic is deliberately holding the whole-document read back
+ * because there isn't enough draft yet*. An author who hit the second read it as
+ * the first and waited, which is the field report this exists to answer.
+ *
+ * Scoped as narrowly as it can be: it replaces `watching` and nothing else. A
+ * `reading` agent below the band is demonstrably reading — since the band now
+ * splits the pass rather than suspending it, the span-level half runs — so
+ * overwriting that would trade one lie for another. And past the band the phrase
+ * disappears entirely; the row returns to its ordinary vocabulary rather than
+ * accumulating a permanent extra state.
+ */
+const HOLDING_OFF = "holding off";
+
+/**
+ * Is this engine *attached and deliberately not acting* — as opposed to absent,
+ * finished, or working?
+ *
+ * Per-engine because the resting word differs (`watching` for a parked agent,
+ * `idle` for an empty queue) while the fact is the same, and both engines hold
+ * their whole-document pass below the band — so leaving the built-in path out
+ * would make one document say `holding off` with an agent and `idle` with a key.
+ *
+ * Conservative on purpose. An agent's `quiet` and `none` phases also render as
+ * `idle` here, and neither earns this phrase: `quiet` means the agent has not
+ * been heard from inside the idle window, and calling that a deliberate hold
+ * would promise a critic that may have wandered off — the exact overclaim
+ * `engineReady` was added to stop.
+ */
+function isDeliberatelyResting(engine: EngineId, resting: string): boolean {
+  return engine === "agent" ? resting === "watching" : resting === "idle";
+}
+
 export function processStatusView({
   engine,
   engineReady,
@@ -90,6 +132,7 @@ export function processStatusView({
   stalled,
   agentPhrase,
   displayTier,
+  maturity,
 }: ProcessStatusInput): ProcessStatusView {
   // Only the selected engine may claim the verb. `pass` facts survive a revoke,
   // so an unselected agent's phrase is stale by construction.
@@ -112,13 +155,21 @@ export function processStatusView({
   // configuration. It sits *above* the phrase because an agent's `pass` facts outlive
   // its connection — without this a dropped agent kept resting on `watching`, which
   // promises a critic will react the moment you type, when in fact nothing will.
+  //
+  // The band is checked LAST, below all three, and that ranking is the point: it
+  // is the weakest claim here. Work in flight, a stall, and a missing engine are
+  // each things happening right now; the band is a standing property of the
+  // document.
+  const resting = phrase ?? "idle";
   const statusText = stalled
     ? "still working…"
     : pending > 0
       ? `evaluating · ${pending}`
       : !engineReady
         ? "nothing reading"
-        : (phrase ?? "idle");
+        : maturity === "unformed" && isDeliberatelyResting(engine, resting)
+          ? HOLDING_OFF
+          : resting;
 
   return {
     anchorState,

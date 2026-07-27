@@ -12,6 +12,9 @@ function view(over: Partial<ProcessStatusInput> = {}) {
     stalled: false,
     agentPhrase: null,
     displayTier: null,
+    // Past the threshold by default: the cases below are about what a developed
+    // document says. The band-specific ones are grouped at the bottom of the file.
+    maturity: "forming",
     ...over,
   });
 }
@@ -198,6 +201,79 @@ describe("processStatusView — an engine that cannot run", () => {
     expect(view({ engineReady: false, stalled: true })).toMatchObject({
       anchorState: "stalled",
       statusText: "still working…",
+    });
+  });
+});
+
+// UX-053: `watching` meant two opposite things — *a critic is attached and
+// reacting*, and *a critic is holding the whole-document read back because there
+// isn't enough draft yet*. An author who hit the second read it as the first and
+// waited. The band splits them; these cases pin how narrowly.
+describe("below the maturity threshold — the one phrase the row gains", () => {
+  it("says a parked agent is holding off, not merely watching", () => {
+    expect(agentView({ maturity: "unformed", agentPhrase: "watching" })).toMatchObject({
+      anchorState: "idle",
+      statusText: "holding off",
+    });
+  });
+
+  it("says the same for a resting built-in engine, so one document gets one word", () => {
+    // Without this the identical draft reads `holding off` with an agent and
+    // `idle` with a key — the split the both-engines decision exists to avoid.
+    expect(view({ maturity: "unformed" })).toMatchObject({ statusText: "holding off" });
+  });
+
+  it("returns to the ordinary vocabulary once the band moves", () => {
+    // The phrase is temporary by design: past the threshold nothing lingers.
+    expect(agentView({ maturity: "forming", agentPhrase: "watching" })).toMatchObject({
+      statusText: "watching",
+    });
+    expect(view({ maturity: "mature" })).toMatchObject({ statusText: "idle" });
+  });
+
+  it("never overwrites a phrase that reports actual work", () => {
+    // The band now splits the agent's pass rather than suspending it, so an agent
+    // CAN be reading below the threshold. Claiming it is holding off would trade
+    // one lie for another.
+    expect(agentView({ maturity: "unformed", agentPhrase: "reading · 0:12" })).toMatchObject({
+      anchorState: "working",
+      statusText: "reading · 0:12",
+    });
+    expect(agentView({ maturity: "unformed", agentPhrase: "awaiting pickup" })).toMatchObject({
+      statusText: "awaiting pickup",
+    });
+  });
+
+  it("does not call an absent agent a deliberate hold", () => {
+    // `quiet` and `none` both render as the null phrase. Neither earns the word:
+    // an agent that has not been heard from may simply have wandered off, and
+    // promising a critic that isn't there is the overclaim engineReady exists to stop.
+    expect(agentView({ maturity: "unformed", agentPhrase: null })).toMatchObject({
+      statusText: "idle",
+    });
+  });
+
+  describe("stays ranked below every claim about work actually in flight", () => {
+    it("loses to a stall", () => {
+      expect(
+        agentView({ maturity: "unformed", agentPhrase: "watching", stalled: true })
+      ).toMatchObject({ statusText: "still working…" });
+    });
+
+    it("loses to our own outstanding call", () => {
+      // A call armed before an engine switch is deliberately never cancelled, so
+      // a non-zero count under the agent engine is real work, not staleness.
+      expect(
+        agentView({ maturity: "unformed", agentPhrase: "watching", pending: 3 })
+      ).toMatchObject({ statusText: "evaluating · 3" });
+    });
+
+    it("loses to a missing engine", () => {
+      // "cannot run at all" outranks "deliberately resting" — otherwise a user
+      // with no key reads a considered pause into a broken configuration.
+      expect(
+        agentView({ maturity: "unformed", agentPhrase: "watching", engineReady: false })
+      ).toMatchObject({ statusText: "nothing reading" });
     });
   });
 });

@@ -32,6 +32,7 @@ import { saveDocument, loadDocument, type Observation } from "../store/db";
 import { scheduleEval, invalidateSectionEval } from "../services/orchestrator";
 import type { EvalContext } from "../services/types";
 import { documentMaturity, type MaturityLevel } from "../services/documentMaturity";
+import { setDocMaturity } from "../model/docMaturitySignal";
 import type { ModelCapability } from "../model/capability";
 import { harness } from "../debug/harness";
 import { registerDocSnapshotReader } from "../model/docSnapshotSource";
@@ -646,6 +647,10 @@ export function Editor({
       // earn it (R2 UX-013): arm on the maturity proxy — which admits a
       // structurally-complete short draft — instead of the raw 150-word cliff.
       const maturity = getMaturity(editor);
+      // Publish the band the arm decision is about to use. The sidecar needs it to
+      // say which kind of quiet the author is looking at (UX-053); computing it a
+      // second time elsewhere would be a second answer to one question.
+      setDocMaturity(maturity);
       if (docIdleTimer.current) {
         clearTimeout(docIdleTimer.current);
       }
@@ -1275,6 +1280,10 @@ export function Editor({
         wordCount: seededWordCount,
         blockCount: blocks.length,
       });
+      // Seeding is a document change like any other, and it is the one path that
+      // can land a *mature* draft without a single keystroke — so it has to
+      // publish too, or an imported document reads as unformed until first typed in.
+      setDocMaturity(seededMaturity);
       console.log(
         `[TIMER-DEBUG] docWriter setContent done. seededWordCount=${seededWordCount}, maturity=${seededMaturity}`
       );
