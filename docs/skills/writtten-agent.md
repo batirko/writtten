@@ -241,7 +241,7 @@ curl -s -X POST -H "Authorization: Bearer {{TOKEN}}" -H "Content-Type: applicati
 |---|---|
 | `type` | One of the types above. Required. |
 | `scope` | `"span"` (anchored to a passage) or `"document"` (whole-doc). Required. |
-| `anchorText` | **Required for `span`.** A verbatim quote from the document — writtten resolves it locally to find the passage. Quote at least ~6 consecutive words, copied exactly. |
+| `anchorText` | **Required for `span`.** A verbatim quote from the document — writtten resolves it locally to find the passage. Quote at least ~6 consecutive words, copied exactly, **of the passage your observation is about** (see below). |
 | `conflictingAnchorText` | **`contradiction` and `strategic_tension` only.** A verbatim quote of the *other* passage — the one the first is in tension with. Optional, but send it whenever you can name both sides. |
 | `text` | Your observation. Required. |
 | `confidence` | Optional `"low" \| "medium" \| "high"`. A hint; writtten decides the card's final volume. |
@@ -249,6 +249,21 @@ curl -s -X POST -H "Authorization: Bearer {{TOKEN}}" -H "Content-Type: applicati
 
 You never send offsets, block ids, or any internal identifier — you don't have them, by
 design. Quotes are the only way to point at something.
+
+**Quote what your observation is about.** The reader clicks your card and lands on the
+words you quoted, so quote the words they have to re-read, not the sentence those words
+sit in. Six words from the top of the paragraph will resolve, be accepted, and send the
+author to a clause your text never mentions. writtten checks that the quote appears in
+the document, never that it is the right quote, so this one is on you.
+
+| | |
+|---|---|
+| ✅ | text: *"'instead' reads as replacement, while 'you won't need to' reads as optional."* · `anchorText`: `"to their local agentic session instead"` |
+| ❌ | same text · `anchorText`: `"The first version relied on a single type of engine"` *(the opening of the paragraph the two phrases sit in — verbatim, long enough, and about something else)* |
+
+**Two passages need a two-sided type.** A one-sided type can point at one place only, so a
+card whose text names two passages quotes half of what it says, or neither.
+`contradiction` and `strategic_tension` take a second quote; the rest do not.
 
 **Both sides of a conflict.** A contradiction is a relationship between two passages, so
 name both: `anchorText` is one side, `conflictingAnchorText` is the other, and writtten

@@ -649,7 +649,25 @@ export function startAgentBridge(deps: BridgeDeps): AgentBridgeHandle {
         // A submission counts as agent activity whatever the verdict — a burst
         // of rejections is still the agent working, and it is exactly the case a
         // debug export needs to show.
-        const payload = (env.payload ?? {}) as { type?: unknown; scope?: unknown };
+        const payload = (env.payload ?? {}) as {
+          type?: unknown;
+          scope?: unknown;
+          anchorText?: unknown;
+          conflictingAnchorText?: unknown;
+        };
+        // The quote's *size*, never the quote. Anchor relevance is the one thing
+        // about a submission the boundary deliberately does not judge — it checks
+        // that the quote resolves, not that it is the passage the text is about —
+        // so a card anchored on its own clause and one anchored on the whole
+        // paragraph produced identical rows (UX-052). Word count is what separates
+        // them. The author's prose stays out: this log family ships to production.
+        const quoteShape = (v: unknown) => {
+          if (typeof v !== "string") return undefined;
+          const words = v.trim().split(/\s+/).filter(Boolean).length;
+          return { chars: v.length, words };
+        };
+        const anchor = quoteShape(payload.anchorText);
+        const conflicting = quoteShape(payload.conflictingAnchorText);
         // ...but only an ACCEPTED one is counted for display (UX-036). The
         // timestamp re-arms decay on any verdict; the number reports what
         // actually reached the feed, so it can never claim more than the author
@@ -668,6 +686,9 @@ export function startAgentBridge(deps: BridgeDeps): AgentBridgeHandle {
           code: verdict.code,
           rule: verdict.rule,
           observationId: verdict.observationId,
+          anchorChars: anchor?.chars,
+          anchorWords: anchor?.words,
+          conflictingAnchorWords: conflicting?.words,
         });
         emit();
 

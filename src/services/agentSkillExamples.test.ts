@@ -165,4 +165,19 @@ describe("skill examples ↔ registerLint", () => {
       expect(text.length, `${type} example is ${text.length} chars`).toBeLessThanOrEqual(240);
     }
   });
+
+  // The anchoring pair (OBS-042) teaches *which passage to quote*, so both rows carry the
+  // same observation text and differ only in `anchorText`. That makes it the one ✅/❌ pair
+  // whose ❌ must ALSO lint clean — the mistake it demonstrates is the anchor, and a badly
+  // anchored card is register-perfect, which is exactly why the boundary cannot catch it.
+  // Kept out of `VERDICT_SECTIONS` for that reason; asserted here instead of by eye.
+  it("the anchoring example teaches a phrasing the boundary accepts", () => {
+    const protocol = section("Protocol");
+    const good = /^\|\s*✅\s*\|[^|]*?\*"([^"]+)"\*/m.exec(protocol);
+    expect(good, "the ✅ anchoring row is missing or reformatted").not.toBeNull();
+    expect(lintRegister(good![1], { type: "clarity" })).toEqual([]);
+    // The ❌ row deliberately reuses that text ("same text") and changes only the anchor —
+    // if it ever grows its own wording, the pair has stopped teaching what it claims to.
+    expect(protocol).toMatch(/^\|\s*❌\s*\|\s*same text/m);
+  });
 });

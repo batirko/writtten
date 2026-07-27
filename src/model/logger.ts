@@ -72,9 +72,33 @@ export interface AgentEventInfo {
   sessionId?: string;
   /** `snapshot` / `pull`: which document version travelled. */
   docVersion?: number;
+  /** `pull`: how many consecutive polls this row stands for. Absent (or 1) on a
+   *  single pull. A watching agent re-reads on a 60s cycle whether or not the
+   *  document moved, and those rows shared one buffer with the submissions —
+   *  two hours of watching evicted every card the agent had produced (UX-050).
+   *  Coalescing keeps the fact ("it kept reading, N times, up to `lastAt`")
+   *  without letting it cost N rows. */
+  repeats?: number;
+  /** `pull` (coalesced): when the most recent poll in this run arrived. The
+   *  record's own `t` stays the first one, so the pair reads as a span. */
+  lastAt?: string;
+  /** `pairing`: this row was re-emitted after the log was cleared, not a fresh
+   *  connection. Without it a carried row would claim the agent connected at
+   *  the moment the user pressed clear. */
+  carried?: boolean;
   /** `submission`: what the agent claimed, before the boundary ruled on it. */
   obsType?: string;
   scope?: string;
+  /** `submission`: the *size* of the quote the agent anchored on, never the
+   *  quote itself — an author's prose must not reach an artefact that ships to
+   *  production. Enough to tell a card anchored on the clause it discusses from
+   *  one anchored on the whole paragraph it sits in, which the row otherwise
+   *  could not distinguish (UX-052). `conflictingAnchorWords` is present only
+   *  when a conflict-type submission named its second passage, so its absence
+   *  measures how often the two-sided types arrive one-sided. */
+  anchorChars?: number;
+  anchorWords?: number;
+  conflictingAnchorWords?: number;
   /** `submission`: the boundary's verdict. */
   result?: "accepted" | "rejected";
   /** `submission`: rejection code, and the register rule when that's the code. */
@@ -430,6 +454,13 @@ class LLMLogger {
   // model, so the dot must not claim strong when a fast model answered.
   private inflightTier = new Map<string, "fast" | "strong">();
 
+  // The last pairing transition and the last session id any agent row carried.
+  // Kept outside `logs` precisely so a document clear can't take them: the
+  // bridge outlives the document, and a log with no pairing row cannot say
+  // which engine produced everything in it (UX-051).
+  private lastPairing: AgentEventInfo | null = null;
+  private lastAgentSessionId: string | undefined;
+
   // Session-level accumulators
   private _fastCalls = 0;
   private _strongCalls = 0;
@@ -585,6 +616,24 @@ class LLMLogger {
         // best-effort
       }
     }
+
+    // A clear is about the *document* — it runs from Clear workspace, from an
+    // import, and from loading the example — but the agent bridge is untouched
+    // by all three: the session continues, and the row identifying which engine
+    // is speaking went with the document's history (UX-051). Re-emit it, marked
+    // `carried` so it cannot be read as a fresh connection. The session id comes
+    // from whatever the bridge has told us most recently, because the pairing
+    // row is written on the stream opening, before `hello` names the run.
+    if (this.lastPairing?.state === "connected") {
+      this.log({
+        type: "agent",
+        agent: {
+          ...this.lastPairing,
+          sessionId: this.lastPairing.sessionId ?? this.lastAgentSessionId,
+          carried: true,
+        },
+      });
+    }
     this.notify();
   }
 
@@ -620,6 +669,38 @@ class LLMLogger {
    * empty because BYOA makes no model calls.
    */
   logAgent(info: AgentEventInfo): void {
+    if (info.event === "pairing") this.lastPairing = info;
+    if (info.sessionId) this.lastAgentSessionId = info.sessionId;
+
+    // Collapse a repeated heartbeat into the row already standing for it. A
+    // watching agent pulls every 60s at an unchanged document version, and each
+    // of those rows competed with the submissions for the same budget (UX-050).
+    // Only an *unbroken* run collapses — anything the agent actually did lands
+    // between the polls and starts a new run — so the sequence stays readable
+    // as "read N times, then submitted, then read again".
+    const newest = this.logs[0];
+    if (
+      info.event === "pull" &&
+      newest?.type === "agent" &&
+      newest.agent?.event === "pull" &&
+      newest.agent.docVersion === info.docVersion &&
+      newest.agent.sessionId === info.sessionId
+    ) {
+      // Replaced rather than mutated: the debug panel re-renders off entry
+      // identity, and an in-place edit would not reach it.
+      this.logs[0] = {
+        ...newest,
+        agent: {
+          ...newest.agent,
+          repeats: (newest.agent.repeats ?? 1) + 1,
+          lastAt: new Date().toISOString(),
+        },
+      };
+      this.schedulePersist();
+      this.notify();
+      return;
+    }
+
     this.log({ type: "agent", agent: info });
   }
 
@@ -768,6 +849,13 @@ class LLMLogger {
   /** Test-only: clear accumulated per-model quota/usage stats. */
   _resetApiStatsForTests(): void {
     this._apiStats.clear();
+  }
+
+  /** Test-only: forget the carried pairing identity. It deliberately survives
+   *  `clearLogs`, so without this it would leak across tests in one file. */
+  _resetAgentSessionForTests(): void {
+    this.lastPairing = null;
+    this.lastAgentSessionId = undefined;
   }
 }
 
