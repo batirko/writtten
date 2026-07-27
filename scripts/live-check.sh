@@ -3,9 +3,12 @@
 # Live-model sanity check for the section-eval prompt.
 #
 # Sources API keys into the shell environment WITHOUT printing them, then runs
-# the gated live harness (src/model/livecheck.live.test.ts). The harness reads
-# keys from process.env, hits each provider you have a key for, and reports the
-# model's output + a few quality signals. It never logs a key.
+# the gated live harness. The harness reads keys from process.env, hits each
+# provider you have a key for, and never logs a key. Three checks run:
+#   livecheck      — the section-eval prompt's output + quality signals
+#   poolLiveness   — does each pooled Gemini model still EXIST (404 early-warning)
+#   poolRequests   — does each pooled/offered model ACCEPT the request we build
+#                    (a 400 on a live model is invisible to poolLiveness)
 #
 # Keys live in .env.test.local (gitignored — copy .env.test.local.example):
 #   OPENAI, ANTHROPIC, GEMINI_FREE, GEMINI_PAID
@@ -58,4 +61,5 @@ LIVE_CHECK=1 LIVE_CHECK_PROVIDER="$provider" \
   npx vitest run \
     src/model/livecheck.live.test.ts \
     src/model/poolLiveness.live.test.ts \
+    src/model/poolRequests.live.test.ts \
     ${args[@]+"${args[@]}"}

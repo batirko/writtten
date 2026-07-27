@@ -1,7 +1,8 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeEach } from "vitest";
 import { openaiAdapter } from "./openai";
 import { anthropicAdapter } from "./anthropic";
 import { geminiAdapter } from "./gemini";
+import { _resetCapabilities } from "./requestCapabilities";
 import {
   resolveProvider,
   defaultModels,
@@ -12,6 +13,10 @@ import {
 import type { LLMRequest } from "./router";
 
 const req: LLMRequest = { system: "SYS", user: "USER", json: true };
+
+// Capability discovery is session-scoped and sticky by design, so clear what a
+// previous test taught it. Adapter seeds survive this (see requestCapabilities.ts).
+beforeEach(() => _resetCapabilities());
 
 describe("openai adapter", () => {
   it("builds a Bearer-authed chat-completions request with json mode", () => {
@@ -34,6 +39,35 @@ describe("openai adapter", () => {
     expect(body.reasoning_effort).toBe("none");
   });
 
+  it("steps reasoning_effort down the ladder when a model rejects the floor", () => {
+    // o3/o4-mini/*-chat-latest are offered by the picker but reject `none`.
+    const body = (model: string) =>
+      JSON.parse(openaiAdapter.buildRequest(model, req, "k").init.body as string);
+    expect(body("o4-mini").reasoning_effort).toBe("none");
+    const rejection = "Unsupported value: 'reasoning_effort' does not support 'none'";
+    expect(openaiAdapter.classifyError(400, new Headers(), rejection, "o4-mini")).toMatchObject({
+      retryable: true,
+      renegotiate: true,
+    });
+    expect(body("o4-mini").reasoning_effort).toBe("low");
+  });
+
+  it("drops reasoning_effort entirely at the end of the ladder", () => {
+    const unsupported = "Unrecognized request argument supplied: reasoning_effort";
+    for (const expected of ["low", "medium"]) {
+      openaiAdapter.classifyError(400, new Headers(), unsupported, "gpt-5-search-api");
+      const b = JSON.parse(
+        openaiAdapter.buildRequest("gpt-5-search-api", req, "k").init.body as string
+      );
+      expect(b.reasoning_effort).toBe(expected);
+    }
+    openaiAdapter.classifyError(400, new Headers(), unsupported, "gpt-5-search-api");
+    const last = JSON.parse(
+      openaiAdapter.buildRequest("gpt-5-search-api", req, "k").init.body as string
+    );
+    expect(last).not.toHaveProperty("reasoning_effort");
+  });
+
   it("parses choices[0].message.content and usage", () => {
     const { text, usage } = openaiAdapter.parseResponse({
       choices: [{ message: { content: '{"ok":true}' } }],
@@ -45,14 +79,14 @@ describe("openai adapter", () => {
 
   it("treats insufficient_quota 429 as non-retryable, plain rate-limit as retryable", () => {
     const h = new Headers({ "retry-after": "12" });
-    expect(openaiAdapter.classifyError(429, h, "insufficient_quota")).toMatchObject({
+    expect(openaiAdapter.classifyError(429, h, "insufficient_quota", "gpt-5.5")).toMatchObject({
       retryable: false,
     });
-    expect(openaiAdapter.classifyError(429, h, "rate limit")).toMatchObject({
+    expect(openaiAdapter.classifyError(429, h, "rate limit", "gpt-5.5")).toMatchObject({
       retryable: true,
       coolDownMs: 12_000,
     });
-    expect(openaiAdapter.classifyError(401, new Headers(), "bad key")).toMatchObject({
+    expect(openaiAdapter.classifyError(401, new Headers(), "bad key", "gpt-5.5")).toMatchObject({
       retryable: false,
     });
   });
@@ -71,15 +105,48 @@ describe("anthropic adapter", () => {
     expect(body.max_tokens).toBeGreaterThan(0);
   });
 
-  it("disables thinking for the sonnet (strong) model only", () => {
-    const strong = JSON.parse(
-      anthropicAdapter.buildRequest("claude-sonnet-5", req, "k").init.body as string
+  it("disables thinking on every model that accepts it, including new ones", () => {
+    // Regression: this used to key off `model.includes("sonnet")`, so Opus 5 —
+    // the flagship, now in the catalog — silently ran adaptive thinking, billing
+    // for it and sharing the max_tokens budget with the answer.
+    for (const m of ["claude-sonnet-5", "claude-opus-5", "claude-opus-4-8", "claude-haiku-4-5"]) {
+      const body = JSON.parse(anthropicAdapter.buildRequest(m, req, "k").init.body as string);
+      expect(body.thinking, m).toEqual({ type: "disabled" });
+    }
+  });
+
+  it("omits thinking for claude-fable-5, which 400s on an explicit disable", () => {
+    const body = JSON.parse(
+      anthropicAdapter.buildRequest("claude-fable-5", req, "k").init.body as string
     );
-    expect(strong.thinking).toEqual({ type: "disabled" });
-    const fast = JSON.parse(
-      anthropicAdapter.buildRequest("claude-haiku-4-5", req, "k").init.body as string
+    expect(body).not.toHaveProperty("thinking");
+  });
+
+  it("renegotiates once on a 400 that names thinking, then reports a real failure", () => {
+    const rejection = '"thinking.type.disabled" is not supported for this model';
+    // An unseeded future model starts at rung 0 (disabled) and steps down to "omit".
+    expect(
+      anthropicAdapter.classifyError(400, new Headers(), rejection, "claude-next-6")
+    ).toMatchObject({ retryable: true, renegotiate: true });
+    const after = JSON.parse(
+      anthropicAdapter.buildRequest("claude-next-6", req, "k").init.body as string
     );
-    expect(fast).not.toHaveProperty("thinking");
+    expect(after).not.toHaveProperty("thinking");
+    // Ladder exhausted — a second rejection is a genuine error, not another retry.
+    expect(
+      anthropicAdapter.classifyError(400, new Headers(), rejection, "claude-next-6")
+    ).toMatchObject({ retryable: false });
+  });
+
+  it("leaves an unrelated 400 alone (a bad prompt is not a capability problem)", () => {
+    const c = anthropicAdapter.classifyError(
+      400,
+      new Headers(),
+      "messages: text content blocks must be non-empty",
+      "claude-sonnet-5"
+    );
+    expect(c).toMatchObject({ retryable: false });
+    expect(c.renegotiate).toBeFalsy();
   });
 
   it("reads the first text block and maps usage", () => {
@@ -93,29 +160,60 @@ describe("anthropic adapter", () => {
 
   it("classifies 429 retryable (honoring retry-after) and 400 non-retryable", () => {
     expect(
-      anthropicAdapter.classifyError(429, new Headers({ "retry-after": "5" }), "")
+      anthropicAdapter.classifyError(429, new Headers({ "retry-after": "5" }), "", "claude-sonnet-5")
     ).toMatchObject({ retryable: true, coolDownMs: 5_000 });
-    expect(anthropicAdapter.classifyError(400, new Headers(), "")).toMatchObject({
+    expect(anthropicAdapter.classifyError(400, new Headers(), "", "claude-sonnet-5")).toMatchObject({
       retryable: false,
     });
-    expect(anthropicAdapter.classifyError(529, new Headers(), "")).toMatchObject({
+    expect(anthropicAdapter.classifyError(529, new Headers(), "", "claude-sonnet-5")).toMatchObject({
       retryable: true,
     });
   });
 });
 
 describe("gemini adapter", () => {
-  it("floors thinking to 0 on flash variants and to a small non-zero on 2.5-pro", () => {
-    // Flash accepts thinkingBudget: 0 (fully disabled).
-    const flash = JSON.parse(
-      geminiAdapter.buildRequest("gemini-3.1-flash-lite", req, "k").init.body as string
-    );
-    expect(flash.generationConfig.thinkingConfig).toEqual({ thinkingBudget: 0 });
-    // gemini-2.5-pro enforces a non-zero minimum, so it gets a small floor, not 0.
-    const pro = JSON.parse(
-      geminiAdapter.buildRequest("gemini-2.5-pro", req, "k").init.body as string
-    );
-    expect(pro.generationConfig.thinkingConfig).toEqual({ thinkingBudget: 128 });
+  const budgetFor = (model: string) =>
+    JSON.parse(geminiAdapter.buildRequest(model, req, "k").init.body as string).generationConfig
+      .thinkingConfig.thinkingBudget;
+
+  it("floors thinking to 0 only on models that actually accept a zero budget", () => {
+    expect(budgetFor("gemini-3.1-flash-lite")).toBe(0);
+    expect(budgetFor("gemini-3.5-flash")).toBe(0);
+  });
+
+  it("gives every thinking-mode-only model a non-zero floor, not just 2.5-pro", () => {
+    // Regression: the old rule was `model.includes("2.5-pro") ? 128 : 0`, which
+    // assumed every flash model takes a zero budget. The whole 3.5+ generation
+    // rejects it ("This model only works in thinking mode"), so each of these
+    // 400'd on the very first call once a user picked it in Settings.
+    for (const m of [
+      "gemini-2.5-pro",
+      "gemini-3.1-pro-preview",
+      "gemini-3.5-flash-lite",
+      "gemini-3.6-flash",
+    ]) {
+      expect(budgetFor(m), m).toBe(128);
+    }
+  });
+
+  it("renegotiates a zero-budget rejection for an unknown future model", () => {
+    expect(budgetFor("gemini-4-flash")).toBe(0);
+    expect(
+      geminiAdapter.classifyError(400, new Headers(), "invalid argument", "gemini-4-flash")
+    ).toMatchObject({ retryable: true, renegotiate: true });
+    expect(budgetFor("gemini-4-flash")).toBe(128);
+  });
+
+  it("still rotates on 404/503 and cools down on 429", () => {
+    expect(
+      geminiAdapter.classifyError(404, new Headers(), "no longer available", "gemini-2.5-pro")
+    ).toMatchObject({ retryable: true });
+    expect(geminiAdapter.classifyError(503, new Headers(), "", "gemini-3.5-flash")).toMatchObject({
+      retryable: true,
+    });
+    expect(
+      geminiAdapter.classifyError(429, new Headers(), "quota", "gemini-3.5-flash")
+    ).toMatchObject({ retryable: true, coolDownMs: expect.any(Number) });
   });
 });
 
@@ -149,10 +247,12 @@ describe("registry", () => {
     });
   });
 
-  it("withSelection routes the chosen model per paid tier, single-strong collapses", () => {
-    const routed = withSelection(anthropicAdapter, { strongModel: "claude-sonnet-5" });
-    // Anthropic has one strong model, so the fallback tail is empty.
-    expect(routed.pools.paidStrong).toEqual(["claude-sonnet-5"]);
+  it("withSelection routes the chosen model per paid tier, selection first", () => {
+    // Anthropic gained a strong fallback tail when Opus 5 / Opus 4.8 joined the
+    // catalog; the user's pick still leads, and the rest follow it in order.
+    const routed = withSelection(anthropicAdapter, { strongModel: "claude-opus-5" });
+    expect(routed.pools.paidStrong[0]).toBe("claude-opus-5");
+    expect(routed.pools.paidStrong).toEqual(["claude-opus-5", "claude-sonnet-5", "claude-opus-4-8"]);
     // Default fills in the fast tier when omitted.
     expect(routed.pools.paidFast).toEqual(["claude-haiku-4-5"]);
     // Free pools untouched (single-model routing only overrides the paid pools).

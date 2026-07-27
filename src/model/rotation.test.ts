@@ -82,6 +82,53 @@ describe("createRouterForAdapter — generic rotation", () => {
     expect(fetchCalls.some((u) => u.includes("big-b"))).toBe(true);
   });
 
+  it("retries the SAME model on a renegotiate, without consuming a pool slot", async () => {
+    // The adapter rejected a request knob and stepped the model down a rung; the
+    // fix belongs to this model, so rotating away from it would both lose the
+    // better model and leave the knob unfixed. Fake adapter: first call to big-a
+    // 400s asking to renegotiate, second call succeeds.
+    let seen = 0;
+    const negotiating: ProviderAdapter = {
+      ...fakeAdapter,
+      classifyError: (status) =>
+        status === 400
+          ? { retryable: true, coolDownMs: 0, renegotiate: true }
+          : { retryable: false, coolDownMs: 0 },
+    };
+    vi.stubGlobal("fetch", (url: string) => {
+      fetchCalls.push(url);
+      const first = url.includes("big-a") && seen++ === 0;
+      return Promise.resolve({
+        ok: !first,
+        status: first ? 400 : 200,
+        headers: new Headers(),
+        text: () => Promise.resolve("knob rejected"),
+        json: () => Promise.resolve({ text: "renegotiated" }),
+      } as Response);
+    });
+    const router = createRouterForAdapter(negotiating, "free", "paid");
+    await expect(router.strong(req)).resolves.toMatchObject({ text: "renegotiated" });
+    expect(fetchCalls.filter((u) => u.includes("big-a"))).toHaveLength(2);
+    expect(fetchCalls.some((u) => u.includes("big-b"))).toBe(false);
+  });
+
+  it("gives up after one renegotiation and rotates on (a model out of rungs)", async () => {
+    // `stepDown` returns false once the ladder is exhausted, so a real adapter
+    // stops asking. Pin that a still-failing model doesn't spin: it rotates on.
+    const exhausted: ProviderAdapter = {
+      ...fakeAdapter,
+      classifyError: (status) =>
+        status === 400 ? { retryable: true, coolDownMs: 0 } : { retryable: false, coolDownMs: 0 },
+    };
+    rules = [
+      { match: "big-a", status: 400, body: "still rejected" },
+      { match: "big-b", status: 200, body: '{"text":"next model"}' },
+    ];
+    const router = createRouterForAdapter(exhausted, "free", "paid");
+    await expect(router.strong(req)).resolves.toMatchObject({ text: "next model" });
+    expect(fetchCalls.filter((u) => u.includes("big-a"))).toHaveLength(1);
+  });
+
   it("aborts the pool on a non-retryable status (no fallback path)", async () => {
     // Use the no-paid-key strong path so the raw error propagates without the
     // router's free→paid fallback reshaping it. freeStrong has two models; a
