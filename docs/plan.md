@@ -18,7 +18,7 @@
 >
 > 1. **Bold title**, carrying any tracking id(s): `**Widen the section check to same-section pairs (OBS-033/UX-018)**`.
 > 2. **Provenance** — how and when it surfaced, as an **absolute date**: `field-discovered 2026-07-08`, `decided 2026-06-18 (with the user)`, `field-observed (owner)`.
-> 3. **The problem** — what's wrong and why it matters, concretely: name the real session/example that exposed it and the `file.ts:line` if known.
+> 3. **The problem** — what's wrong and why it matters, concretely: name the real session/example that exposed it and the file plus a greppable symbol (never a line number; see `CLAUDE.md` → _Repo conventions_).
 > 4. **The decision** — a **bold state marker + date** naming the chosen mechanism (and the instructive rejected alternative): `**Decided 2026-07-09 (mechanism A):** …`. The markers trace an arc a live entry walks: **Field-discovered → Decided / Design settled → Shipped**.
 > 5. **Implementation specifics** — the exact files, functions, and tokens in `code`, so the entry is self-locating without opening the PR.
 > 6. **Verification** — the guard that keeps it fixed: the ratchet fixture, unit test, or live-verify.
@@ -271,8 +271,4 @@ Only if the drafting habit has taken hold. Don't pre-build any of this — each 
 
 ## Standing rules across all phases
 
-1. **No fix-application affordances. Ever.** (The product principle — see `CLAUDE.md`.)
-2. Observations stay within the **fixed, typed taxonomy**.
-3. **No per-keystroke full-document scans;** cross-doc checks go through the claim ledger.
-4. **Quiet while generating, opinionated while revising.**
-5. **Local-first / privacy** — no required server, telemetry, or egress without a decision logged in this file.
+The five hard invariants hold in every phase. They live in one place, `CLAUDE.md` → _Hard invariants_: no fix-application affordances, a fixed typed taxonomy, no per-keystroke full-document scans, quiet while generating, and local-first privacy (any required server, telemetry, or egress needs a decision logged in this file).
