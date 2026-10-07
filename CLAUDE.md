@@ -1,309 +1,96 @@
-# [CLAUDE.md](http://CLAUDE.md)
+# CLAUDE.md
 
-> Operational guide for AI coding agents working in this repo. Read this first, every session. Product name: **writtten** (hosted at writtten.com).
+Agent guide for **writtten** (writtten.com). Area rules load from `.claude/rules/` when you work in those files.
 
 ## What this is
 
-A local-first, OSS writing tool that inverts the AI-writing paradigm. The user writes _everything themselves_ in a rich text editor. On the side, a live feed of AI-generated observations reacts to the document — flagging unclear passages, internal contradictions, unsupported claims, missing topics, and so on. The AI never writes or rewrites the user's prose. It provokes thinking; it does not do the thinking.
+A local-first, open-source writing tool that inverts the AI-writing paradigm. The user writes everything in a rich text editor. Beside it, a live feed of AI observations reacts to the document: unclear passages, internal contradictions, unsupported claims, missing topics. The AI never writes or rewrites the user's prose. It provokes thinking; it doesn't do the thinking.
 
-First persona: **Product Managers** writing PRDs, specs, comms, and decision docs.
+First persona: product managers writing PRDs, specs, comms, and decision docs.
 
-## The one principle that governs everything
+## The one principle
 
-**Provoke, don't prescribe.** The AI surfaces _observations_, never _fixes_.
+**Provoke, don't prescribe.** The AI surfaces observations, never fixes.
 
-- ✅ "This contradicts the success metric you set in §2." → user goes and thinks.
-- ❌ "Change this sentence to: …" / an "Apply suggestion" button. → the AI did the thinking.
+- ✅ "This contradicts the success metric you set in §2." The user goes and thinks.
+- ❌ "Change this sentence to: …", or an "Apply suggestion" button. The AI did the thinking.
 
-This is not a style preference. It is the product's reason to exist and its defense against becoming Grammarly-with-extra-steps. **Never add apply/auto-fix/rewrite affordances.** If a feature request implies the AI editing the user's text, stop and flag it against this principle.
+This is the product's reason to exist and its defense against becoming Grammarly with extra steps. If a request implies the AI editing the user's text, stop and flag it against this principle.
 
-The principle has a finer edge than "no apply button," and three failure modes that look like helpfulness from the inside: the **anti-taxonomy** (never surface grammar/style/surface nits), **register discipline** (locate, don't prescribe; no leading questions), and **flattery-resistant dismissal** (muting a nit ≠ silencing a true critique). The fidelity bar that governs all of this is `docs/product-requirements.md`; the substantive rules live in `docs/features.md` (_Anti-taxonomy_, _Register discipline_, _Dismissal should teach_); the scheduled work is `docs/projects/philosophy_guardrails.md` and `docs/projects/emotional_register.md`.
+The principle has a finer edge than "no apply button". Three failure modes look like helpfulness from the inside:
 
-## Document map — read what's relevant to your task
+- **Anti-taxonomy:** never surface grammar, style, or surface nits.
+- **Register discipline:** locate, don't prescribe; no leading questions.
+- **Flattery-resistant dismissal:** muting a nit isn't silencing a true critique.
 
-| File                                           | Read it when…                                                                                                                                                                                                                                                                                                                                                       |
-| ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `docs/concept.md`                              | You need the _why_ — philosophy, persona, positioning, non-goals.                                                                                                                                                                                                                                                                                                   |
-| `docs/product-requirements.md`                 | You need the _fidelity bar_ — the tiered requirements (Minimum/Good-enough/Superb) and the five load-bearing tensions that define faithfully holding the inversion. Acceptance gates derive from it in `docs/acceptance-testing/fidelity-criteria.md`.                                                                                                              |
-| `docs/features.md`                             | You're building UX, the observation taxonomy, message lifecycle, archive, export.                                                                                                                                                                                                                                                                                   |
-| `docs/architecture.md`                         | You're building the eval pipeline, claim ledger, persistence, model router, editor internals.                                                                                                                                                                                                                                                                       |
-| `docs/plan.md`                                 | You need to know what phase we're in and what's in/out of scope right now.                                                                                                                                                                                                                                                                                          |
-| `docs/plan-archive.md`                         | You need the milestone-level record of a **fully-shipped/closed** phase (0–6), the entry-style template (the Phase 6 items), or the _Parallel work lanes_ definitions. Archived off `plan.md` on 2026-07-10 for readability; not scanned by the routing-annotation contract. The live plan keeps phase 7+.                                                             |
-| `docs/projects/`                               | Deeper design docs for specific features/subsystems. Each file is a self-contained spec with status, phased plan, and per-phase todo list.                                                                                                                                                                                                                          |
-| `docs/snapshots/`                              | Point-in-time reviews of product quality, test session results, and roadmap observations. Use to capture the state of the product over time.                                                                                                                                                                                                                        |
-| `docs/mechanics/`                              | Detailed behavioural docs for implemented mechanics — how things actually work in the running system (timing, triggers, state machines). No design speculation; these describe what is built. Read before touching the relevant subsystem. **When you change code that alters a documented mechanic, update the corresponding file here as part of the same task.** |
-| `docs/logs/`                                   | Append-only field logs — the living observation logs (`prompt_quality_observations.md`, `ux_quality_observations.md`) that accumulate raw issues across test sessions until a remediation sprint drains them. Distinct from `docs/projects/` specs: logs never reach `done` and are intentionally **not** in the plan.md Projects Index. `docs/projects/quality_remediation_synthesis.md` is the analysis layer over both.                                                                                          |
-| `docs/logs/prompt_quality_observations.md` | You observe a prompt producing a false positive, false negative, or systematic misclassification during any test, harness run, or manual eval. **Append an entry to the Observation Log** — don't fix it inline unless it's trivially obvious and safe. The file accumulates until a remediation sprint is scheduled.                                               |
+The fidelity bar is `docs/product-requirements.md`. The substantive rules are in `docs/features.md` (_Anti-taxonomy_, _Register discipline_, _Dismissal should teach_).
 
-**Always check `docs/plan.md` for the current phase before adding functionality.** Scope creep is the main risk on this project. If something belongs to a later phase, say so and don't build it.
+## Hard invariants
 
-**Plan items carry required routing metadata.** Every open milestone in `docs/plan.md` ends with a `— <readiness> <complexity> · <agent>` annotation (see the Routing legend at the top of that file). When you **add** a milestone, annotate it; when you **work on** one, re-assess and update the annotation in the same change (readiness shifts most often). Drop the annotation when the item is completed (`[x]`).
+These hold in every phase. `docs/plan.md` points here rather than keeping its own copy.
 
-**Write plan items in the default entry style.** A milestone is a **living record of a decision**, not a one-line to-do — the Phase 6 entries (now in `docs/plan-archive.md`) are the template, codified as _Milestone anatomy_ at the top of `docs/plan.md`: bold title + tracking id → provenance (absolute date) → the problem (concrete, with `file.ts:line`) → a **bold state marker + date** for the decision (Field-discovered → Decided/Design settled → Shipped) → implementation specifics in `code` → the verification guard → `→ see docs/projects/…` cross-refs → routing annotation (all four axes: **readiness** 🟢🟡🟠🔴 · **estimated size** Low/Med/High · **LLM capacity** 🧠/⚙️/🔧 · **lane** where a phase runs parallel lanes). Grow an entry as work lands; keep its record inline when it goes `[x]` rather than deleting it. A trivial mechanical fix may stay terse, but this fuller form is the default.
-
-> **After ANY edit to `docs/plan.md`, run the full `npm test` — not a single test file.** `docs/plan.annotations.test.ts` is **dynamic**: it generates one test per open milestone it finds (every `- [ ]` checkbox, and every top-level `- ` bullet in any "Phase N" section and the "Discovered" section) and asserts each carries a routing annotation — plus, for open items inside a "Phase N" section, a `· Lane: <name>` tag from the known lane set (the live lane legend at the top of plan.md; keep the test's `LANE_NAMES` in sync when adding a lane) — while `[x]` items must have dropped all of it. Because the cases don't exist until your edit creates them, running a scoped test (e.g. just `projects.index.test.ts`) will pass locally and then CI goes red. Three gotchas this catches: (1) a new open milestone with no annotation; (2) a new open phase milestone with no lane tag; (3) **any non-milestone top-level `- ` bullet you add inside a phase section** (prose lists, notes) is misread as an un-annotated milestone — put such lists in a **blockquote** (`>`-prefixed lines are exempt) or nest them so they don't start at column 0.
-
-### `docs/projects/` conventions
-
-**Filenames are stable and status-free.** A project file is named for what it _is_ (`message_generation_workflow.md`), never for its status. Status is mutable metadata — encoding it in the filename breaks every reference the moment work progresses. So status lives in two places only:
-
-- **Canonical:** the file's YAML **frontmatter** `status:` field — one of `idea` · `in-progress` · `done`.
-- **Mirror:** the Projects Index table in `docs/plan.md`.
-
-`docs/projects.index.test.ts` asserts that the folder, the index table, and each file's frontmatter stay consistent — so drift fails CI rather than going unnoticed.
-
-> **Index links are load-bearing — don't let a WYSIWYG editor eat them.** Each index row's name must stay an inline link `[name](projects/name.md)`; the test rejects bare text. This de-linked once before (see the L1 milestone below) because an HTML-round-tripping WYSIWYG editor flattened links inside GFM table cells on save. **Rules of the road:** edit Markdown in **VS Code as plain text** (the repo's `.vscode/settings.json` forces `*.md` into the text editor) or in **Obsidian** (open `docs/` as a vault — it's markdown-native and never round-trips, so links/tables stay faithful). Do **not** use HTML-round-tripping WYSIWYG editors like "Markdown Studio" on link-in-table files. If the index gets de-linked anyway, `git checkout -- docs/plan.md` to restore (Prettier can't recover lost links; it only re-aligns the table once links are back). CI (`npm test`) is the backstop.
-
-| `status:`     | Meaning                                                             |
-| ------------- | ------------------------------------------------------------------- |
-| `idea`        | Design is written; not yet scheduled or started.                    |
-| `in-progress` | Actively being built (linked from current phase in `docs/plan.md`). |
-| `done`        | Fully shipped and verified.                                         |
-
-**Files are grouped by genre via the `kind:` frontmatter field.** Each project file declares a required `kind:` — one of `spec` (feature & platform build-ready specs) · `quality` (signal & philosophy quality) · `infra` (pipeline & dev infrastructure) · `research` (research & synthesis). The Projects Index in `docs/plan.md` is grouped under one `### ` sub-header per kind, and a file's row must sit under the sub-header matching its `kind`. The index test enforces both the valid `kind` and the correct grouping.
-
-**Living logs are not projects.** Append-only field logs (`prompt_quality_observations`, `ux_quality_observations`) live in `docs/logs/`, not here — they never reach `done` and are intentionally absent from the Projects Index and its completeness contract.
-
-**Each project file must contain** (in order):
-
-1. **YAML frontmatter** with `status`, `kind`, `phases` (array of plan-phase numbers it spans), and a one-line `summary`.
-2. A `## Status` block — human-readable phase scope. (Status badge is the frontmatter; don't duplicate a conflicting one here.)
-3. A `## Phased Plan` section — which plan phases this work spans and what each phase contributes.
-4. A `## Todo` section with a concrete checklist scoped per phase.
-5. The detailed design sections below.
-
-**When you create a project file** you **must**, at minimum, add a row to the **Projects Index** in `docs/plan.md` (every file in `docs/projects/` must appear there — it is a completeness contract). At maximum, when the work is scoped to specific phase milestones, **also** add a `→ see docs/projects/...` inline note on each relevant milestone line. The index guarantees discoverability; the inline links give per-milestone context. Don't add blanket "see projects/" links.
-
-## Browser testing
-
-Two browser-automation tools are available. Pick by job; fall back to the other if the chosen one misbehaves.
-
-> **2026-07-12 migration — the built-in Browser pane replaced the old claude-preview MCP.** Claude Code now ships an **in-app Browser pane** exposed as `mcp__Claude_Browser__*` tools (`preview_start`, `navigate`, `read_page`, `computer`, `form_input`, `find`, `get_page_text`, `javascript_tool`, `read_console_messages`, `read_network_requests`, `preview_logs`, `preview_list`, `preview_stop`, `tabs_*`, `resize_window`). These are **loaded by default** — no ToolSearch needed. The former `mcp__Claude_Preview__*` server no longer exists; every `preview_eval`/`preview_snapshot`/`preview_screenshot`/`preview_console_logs`/`preview_network` call maps onto a Browser-pane tool (mapping below). chrome-devtools is unchanged and still loaded via ToolSearch.
-
-> **⚠️ Parallel sessions: default to the Browser pane, not chrome-devtools.** The chrome-devtools MCP is **one shared browser with a single _global_ "selected page" pointer, shared across every concurrent session.** `isolatedContext` isolates storage/cookies but **not** the selection — so any other session's `new_page`/`select_page`/`resize_page` silently steals your selection _between your calls_, and your next `evaluate_script`/`take_snapshot`/`screenshot` runs against **another branch's app** (you'll get stale UI that looks like your change broke — it didn't; you're on the wrong page). The Browser pane is **one pane per session**, and every tool is addressed by the `tabId`/`serverId` returned from `preview_start`, so it **cannot** be hijacked by another session — that makes it the collision-proof default. Almost everything you'd reach chrome-devtools for works in `javascript_tool`: set a React-controlled input (native `value` setter + `dispatchEvent(new Event('input',{bubbles:true}))`), read the DOM, poll state. Reserve chrome-devtools for what genuinely needs it (real hover/keyboard fidelity ProseMirror rejects synthetically), and when you use it in parallel, follow the three rules in its section below.
-
-### Browser pane (built-in `mcp__Claude_Browser__*`)
-
-Loaded by default. Key tools: `preview_start`, `javascript_tool`, `read_page`, `get_page_text`, `computer`, `form_input`, `find`, `read_console_messages`, `read_network_requests`, `preview_logs`, `tabs_context`, `resize_window`.
-
-**Prefer for:** anything that drives `window.__sidecar__` — polling state (`javascript_tool` → `getState()`), waiting for `pending === 0`, inspecting the ledger or event stream, running record/replay sessions, seeding fixtures. Also quick structural snapshots (`read_page` → YAML a11y tree with `ref_N` handles; `get_page_text` for plain text), console/network inspection, screenshots, and responsive/dark-mode checks (`resize_window`).
-
-**Start the server (two distinct modes — this is new):**
-
-- **Open a tab against an already-running server:** `preview_start` with `{ url: "http://localhost:5173" }`. Use this when `npm run dev` (or a concurrent session) already owns `:5173` — the pane just opens a browser tab at that URL; it does **not** try to manage the process. This is the common case here since `:5173` is shared.
-- **Have the pane start & manage the dev server:** `preview_start` with `{ name: "writtten" }` (config in `.claude/launch.json`). This only works if the port is free — if `:5173` is already in use by an external `node`, it errors and tells you to free the port or set `autoPort`. Don't fight it; open by `url` instead.
-
-`preview_start` returns `{ serverId, tabId }`. Pass `tabId` to `javascript_tool`/`read_page`/`computer`/`navigate`; `serverId` is only for `preview_logs`/`preview_stop`. `tabs_context` lists open tabs.
-
-**`javascript_tool` is the `preview_eval` replacement — but its evaluation model differs:**
-
-- The `text` is evaluated as a **single expression**, _not_ a function body. **No top-level `await`, no top-level `return`.** To run async/polling logic, pass a self-invoking async arrow that returns a promise — the tool awaits it and serializes the result to JSON:
-  ```js
-  // ✅ correct — async IIFE expression
-  (async () => { const st = await window.__sidecar__.getState(); return st.pending; })()
-  // ❌ `await window.__sidecar__.getState()`  → "await is only valid in async functions"
-  // ❌ `return (async()=>{…})()`               → "Illegal return statement"
-  ```
-- Its stated purpose is **debugging/inspection** — use it to read state and drive `__sidecar__`, not to implement UI changes (edit source for those).
-- Keep any embedded polling loop short and break long waits into multiple calls rather than one long-running eval (same discipline the old 30-s cap forced).
-
-**Real input:** `computer` drives actual click/type/hover/scroll/key at the CDP level (more real than `eval`-injected events) — target by `ref_N` (from `read_page`/`find`) or coordinate. **Verified 2026-07-12: `computer {action:"type"}` into the ProseMirror editor produces real transactions** — the text lands in both the DOM and the `__sidecar__` block model and advances `seq` (i.e. it drives the eval pipeline, unlike `eval`-injected input). So use it as the default for typing; only reach for chrome-devtools if a specific interaction misbehaves. `form_input` sets a form/contenteditable value by `ref`. `computer {action:"screenshot"}` for visual proof.
-
----
-
-### chrome-devtools (chrome-devtools MCP)
-
-Configured globally in `~/Library/Application Support/Claude/claude_desktop_config.json`. Key tools (load via ToolSearch): `mcp__chrome-devtools__new_page`, `navigate_page`, `take_screenshot`, `take_snapshot`, `type_text`, `click`, `hover`, `wait_for`, `press_key`, `evaluate_script`, `list_console_messages`.
-
-**Prefer for:** interaction fidelity — hovering over observation cards to trigger highlights, real keyboard input into the ProseMirror editor, clicking UI elements by accessibility uid, native-dialog handling (`handle_dialog`). Also the right fallback whenever the Browser pane's `javascript_tool`/`computer` is timing out, returning unexpected results, or having its synthetic input rejected by ProseMirror.
-
-**Watch out for:** `wait_for` matches the **entire accessibility tree including history** — it can match stale text from a previous eval. Always wait for a string that will only appear _after_ the action (e.g. `"idle"` on the `[data-testid="sidecar-status"]` element, which only transitions once `pending === 0`). Use `evaluate_script` to read `window.__sidecar__` state when the snapshot is too noisy.
-
-**Global-selection theft (parallel sessions) — see the ⚠️ callout above.** If you must use chrome-devtools while other sessions are live, three rules make it survivable:
-
-1. **Do the whole flow in ONE `evaluate_script`** (open panel → act → poll → read), so there is no inter-call gap for another session to steal. Split-across-calls sequences get hijacked; single self-contained async evals don't.
-2. **Guard every eval with a port check up top:** `if (!location.href.includes('<my-port>')) return { ABORT: location.href };` — never trust output from a page that isn't yours. This is the single highest-value habit.
-3. **`select_page(<id>, bringToFront:true)` immediately before** any call you can't guard (e.g. `take_screenshot`), and re-check the returned `location.href`. Note the async-render gap too: after clicking a button that opens a React modal, `await sleep(~120ms)` before reading the DOM. Close your page and kill your dev server when done — stale pages from finished sessions pile up in the page list.
-
----
-
-### Decision table
-
-| Task                                         | Reach for                                                                                                       |
-| -------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
-| Inspect ledger / observations / event stream | **`javascript_tool`** (Browser pane)                                                                            |
-| Wait for eval to finish (`pending === 0`)    | **`javascript_tool`** polling loop, or `wait_for("[data-testid='sidecar-status']", ["idle"])` (chrome-devtools) |
-| Seed a fixture doc / ledger                  | **`javascript_tool`** → `__sidecar__.loadDoc` / `loadLedger`                                                    |
-| Record or replay LLM responses               | **`javascript_tool`** → `__sidecar__.setLlmMode` / `dumpRecordings`                                             |
-| Structural snapshot / read the DOM           | **`read_page`** (a11y tree + `ref_N`) or **`get_page_text`** (Browser pane)                                     |
-| Hover a card to trigger highlights           | **Browser pane** `computer {action:"hover"}` first; **chrome-devtools** `hover` if rejected                     |
-| Type into the editor                         | **Browser pane** `computer {action:"type"}` (verified to fire real ProseMirror transactions); chrome-devtools as backup |
-| Click a button                               | **Browser pane** `computer {action:"left_click"}` (by `ref`) — chrome-devtools is a fallback for complex UI     |
-| Screenshot / visual check                    | Either — Browser pane `computer {action:"screenshot"}` is the collision-proof default                           |
-| Native confirm dialogs                       | **chrome-devtools** `handle_dialog` (or use `__sidecar__.clear()` to skip entirely)                             |
-
-**Fallback rule:** if the primary tool returns unexpected results (stale matches, eval timeouts, synthetic events ignored), switch to the other one for that step — don't retry the same tool indefinitely. Document the switch in a comment if it affects a reproducible test.
-
-The dev server runs at **`http://localhost:5173`** (`npm run dev`). Acceptance tests live in `docs/acceptance-testing/` — each file defines the automated/human split.
-
-> **Testing a feature branch in-product → serve it on a dedicated port.** Whenever you (agent-decided) or the user want to see a feature branch running in the browser — for the user to click through, or for you to drive/observe via the browser tools — **do not** reuse the shared `:5173` (a concurrent session likely owns it, and it may be running a different branch). Instead check that branch out in its **own git worktree** (see _Working alongside parallel sessions_) and start its dev server on a **distinct port**: `npm run dev -- --port <NNNN> --strictPort`. Then hand the user the exact URL Vite prints, or point the browser tools at it. This keeps each branch's app (and its per-origin IndexedDB / `window.__sidecar__` state) isolated from other sessions. Tear the server + worktree down when done.
-
-> **Verifying a static page under `public/` → request `index.html` explicitly.** The site pages (`/agent/`, `/why/`, `/privacy/`) are real files in `public/`, but the **dev server's SPA fallback answers `/agent/` with the app**, not with the file — so the page you are trying to check never renders and the first read looks like the page is broken or your section is missing. Ask for `/agent/index.html` instead. Production is unaffected: Cloudflare Pages serves the file, which is why `/agent/` is the correct link to ship in app copy. Only the dev-time verification path differs (found 2026-07-24 while checking a new `/agent` section).
-
-## Dev harness (`window.__sidecar__`)
-
-A dev-only observability + control surface, live whenever `npm run dev` is running. See `docs/projects/agent_acceptance_harness.md` for the full spec. (Intended to be stripped from production builds — but the 2026-06-10 code audit found this only half-true: call sites are dead-code-eliminated, yet the harness module has a top-level side effect and a circular import with `db.ts`, so the module itself still ships. Tracked by `lifecycle_integrity` L7; unverifiable in `dist/` until the build is repaired — L1.)
-
-**Use it proactively — not just for acceptance testing.** Any time you're verifying that eval/ledger/feed behavior is correct (building a feature, debugging, confirming a fix), the harness is faster and more reliable than scraping the accessibility tree.
-
-### Reading state
-
-```js
-const st = await window.__sidecar__.getState();
-// st.blocks       — live editor blocks [{id, text}]
-// st.ledger       — active claim ledger entries
-// st.observations — active observation objects
-// st.pending      — in-flight evaluations; 0 means idle
-// st.seq          — monotonic event counter
-// st.activeModel  — currently active model name
-```
-
-### API quota / usage stats (diagnosing 429s)
-
-```js
-const api = window.__sidecar__.getApiStats();   // sync — no await needed
-// api.day     — Pacific date the per-day counts bucket under (RPD resets at Pacific midnight)
-// api.totals  — { requests, successes, errors, rate429 } across all models
-// api.models  — per-model, sorted most-pressured first (least remaining budget):
-//   { model, requests, successes, errors, rate429,
-//     quota429: { perDay, perMinute, inputTokens, other },  // which quota the 429s violated
-//     dailyLimit, successesToday, remainingToday,           // RPD budget tracking
-//     lastStatus, lastRetryDelayMs, avgLatencyMs }
-```
-
-The binding free-tier constraint is **requests-per-day (RPD) per model** (e.g. 20 for most Flash variants, 0 for `gemini-2.5-pro`), _not_ the RPM/TPM gauges AI Studio foregrounds — which is why 429s appear while the dashboard looks idle. `quota429` tells you which quota actually bit; `remainingToday` is the live daily budget.
-
-### Waiting for idle (the right pattern)
-
-```js
-// In the Browser pane — pass one async IIFE expression to javascript_tool
-// (no top-level await/return; the tool awaits the returned promise)
-(async () => {
-  const start = Date.now();
-  while (Date.now() - start < 25000) {
-    await new Promise(r => setTimeout(r, 1500));
-    const st = await window.__sidecar__.getState();
-    if (st.pending === 0 /* && <your condition> */) return st.pending;
-  }
-  return 'timeout';
-})()
-
-// In chrome-devtools — wait for the status chip
-wait_for('[data-testid="sidecar-status"]', ["idle"])
-```
-
-### Event stream (no stale-match problem)
-
-```js
-const events = window.__sidecar__.getEvents(sinceSeq);
-// Returns only events with seq > sinceSeq — never matches history.
-// Key event types: settle · request · response · ledger-write · observation · block-removed
-// ledger-write carries action=insert|overwrite — overwrite = the block-id collision bug
-```
-
-### Test setup (write affordances)
-
-```js
-window.__sidecar__.clear();                  // programmatic clear, no confirm modal
-window.__sidecar__.loadDoc({ blocks: [       // seed a document + trigger evaluation
-  { text: 'This will ship in Q3.' },
-  { text: "We'll launch this in Q2." },
-]});
-await window.__sidecar__.loadLedger([        // seed claims directly, no LLM round-trip
-  { blockId: 'b1', text: 'Ships in Q3.', kind: 'commitment' },
-  { blockId: 'b2', text: 'Ships in Q2.', kind: 'commitment' },
-]);
-```
-
-### Mock / record-replay LLM (quota-free, deterministic)
-
-```js
-// Record: capture real Gemini responses into a fixture
-window.__sidecar__.setLlmMode('record');
-// ... run the scenario ...
-const fixture = window.__sidecar__.dumpRecordings(); // save this JSON
-
-// Replay: serve from fixture, zero network calls, ~0ms latency
-window.__sidecar__.setLlmMode('mock');
-window.__sidecar__.loadRecordings(fixture);
-// ... run the same scenario ...
-window.__sidecar__.setLlmMode('live'); // reset when done
-```
-
-> **Resolved (was a known gap):** the contradiction `strong` call is now deterministic in mock mode — the prompt is built from stable sorted claim indices, not a DB auto-increment id, so the request hash is stable across runs. `src/services/acceptance.phase1.test.ts` and the Tier-1 eval ratchet rely on this. The earlier note that the prompt embedded a per-run auto-increment id is **stale** — corrected per the 2026-06-10 code audit (`docs/snapshots/2026-06-10_code_architecture_audit.md`, drift #4).
-
-### testid selectors (stable targeting)
-
-`[data-testid="sidecar-status"]` · `[data-testid="obs-card"]` · `[data-testid="obs-dismiss"]` · `[data-testid="provider-chip"]` · `[data-testid="clear-workspace"]` · `[data-testid="clear-confirm"]` · `[data-testid="clear-cancel"]` · `[data-testid="debug-entry"]`
-
-## Tech stack at a glance
-
-- **Language:** TypeScript end to end.
-- **Editor:** TipTap (ProseMirror). Chosen specifically for decoration + position-mapping (annotations that track their text through edits). Do not swap this without reading `docs/architecture.md` — the anchoring mechanic depends on it.
-- **App shape:** Web first, **local-first PWA**. No mandatory backend. Tauri wrapper is a possible _later_ desktop path, not now.
-- **Persistence:** Client-side (IndexedDB / SQLite-in-browser). Document, block summaries, claim ledger, and messages all live locally.
-- **LLM access:** Behind a single **model-router** interface. Free tier uses cheap/fast models; BYO-key uses stronger models. Router is a deliberate extension seam.
-
-## Design quality
-
-For any new UI component, new screen/panel, or substantive layout change, invoke the Hallmark skill before building. For pure logic changes or single-property CSS fixes, it's not needed.
-
-**Check mobile (~375px) before shipping any UI/UX change.** The product is desktop-first (there's a `MobileNote` honesty strip), but "desktop-first" is not "broken on a phone." Verify any new or changed surface at **375px** — no horizontal overflow, controls reflow, and critically **the surface is reachable by touch** (a phone has no hover and no `⌘`-shortcuts). Hover-gated reveals (`:hover` / `:focus-within`) need a touch equivalent — e.g. the feed handle and the control-center anchor are tap-to-open on touch; a `<div tabindex>` is **not** reliably focusable by tap on iOS, so don't hang a load-bearing affordance off focus alone. The mobile responsiveness rules live in the Hallmark skill (`references/responsive.md`); the app's mobile layout is the `@media (max-width: 720px)` block in `src/styles.css`.
-
-## Hard invariants (do not violate)
-
-1. **No fix-application affordances.** (See the principle above.)
-2. **Fixed observation taxonomy.** Observations come from a defined, typed list with per-type prompts — never free-form LLM chatter. See `docs/features.md`.
-3. **No per-keystroke full-document scans.** Evaluation is incremental and debounced. The cross-document checks (contradiction, missing-topic) run against the **claim ledger**, not a re-read of the whole doc. See `docs/architecture.md`.
+1. **No fix-application affordances.** No apply, auto-fix, or rewrite, ever. See the principle above.
+2. **Fixed observation taxonomy.** Observations come from a defined, typed list with per-type prompts, never free-form LLM chatter. See `docs/features.md`.
+3. **No per-keystroke full-document scans.** Evaluation is incremental and debounced. Cross-document checks (contradiction, missing topic) run against the claim ledger, not a re-read of the whole doc. See `docs/architecture.md`.
 4. **Quiet while generating, opinionated while revising.** Never critique an in-progress sentence or an under-threshold document. Silence during idea formation is a feature.
 5. **Local-first and privacy-respecting.** Don't introduce a required server, telemetry, or data egress without an explicit decision logged in `docs/plan.md`.
 
+## Scope
+
+`docs/plan.md` holds the current phase and what's in or out of scope. Check it before adding functionality. Scope creep is this project's main risk: if something belongs to a later phase, say so and don't build it. Phase 9 and _Discovered / unscheduled_ hold parked work; don't pre-build it.
+
+## Document map
+
+| File                           | Read it when…                                                                                                 |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------------- |
+| `docs/concept.md`              | You need the why: philosophy, persona, positioning, non-goals.                                                |
+| `docs/product-requirements.md` | You need the fidelity bar. Acceptance gates derive from it in `docs/acceptance-testing/fidelity-criteria.md`. |
+| `docs/features.md`             | You're building UX, the observation taxonomy, message lifecycle, archive, or export.                          |
+| `docs/architecture.md`         | You're building the eval pipeline, claim ledger, persistence, model router, or editor internals.              |
+| `docs/plan.md`                 | You need the current phase, open milestones, or the Projects Index.                                           |
+| `docs/plan-archive.md`         | You need the full record of closed Phases 0–6, or the original lane rules.                                    |
+| `docs/projects/`               | You need the design spec for a feature or subsystem.                                                          |
+| `docs/mechanics/`              | You're touching a built mechanic. These describe what runs, not designs.                                      |
+| `docs/logs/`                   | You saw a prompt misfire or a UX issue during testing.                                                        |
+| `docs/snapshots/`              | You want a point-in-time review of product quality or a test session.                                         |
+
+Two upkeep rules:
+
+- When a code change alters a documented mechanic, update its `docs/mechanics/` file in the same task.
+- When a prompt produces a false positive, false negative, or misclassification in any test or eval, append an entry to `docs/logs/prompt_quality_observations.md`. Don't fix it inline unless the fix is trivially safe. The log accumulates until a remediation sprint drains it.
+
 ## Repo conventions
 
-- Source: `src/`. Docs: `docs/`. Tests colocated as `*.test.ts`.
-- Prefer small, single-purpose modules. The eval checks, the model providers, and the export formats are each pluggable — keep those seams clean.
-- _Setup/build/test commands are a Phase 0 deliverable._ Once scaffolding exists, record the real commands here (install / dev / build / test / lint) so future sessions don't guess.
-- **Never cite code as `file.ts:NNN` in docs. Name the file plus a greppable symbol** — `isSpanSuppressed` in `evaluatorAnchoring.ts`, not `evaluator.ts:111`. A symbol survives every edit above it; a line number starts rotting the moment it's written. A 2026-07-24 sweep (#272) checked all **123** line refs in the live docs and effectively every one was stale, drifting 40–550 lines. Three failure shapes, only the first of which a "just update the number" pass would survive: the ref was in the **wrong file** (`isSpanSuppressed` was cited in `evaluator.ts`; the provider chip in `SidecarFeed.tsx` rather than `ControlCenter.tsx`); the **symbol no longer existed** (`.impact-cue`, `impactTooltip`, `CONTENT_THRESHOLD_WORDS` — say so, with the date and what replaced it); or, worst, **repointing would have been actively wrong** — `ui_interaction_mechanics.md` cited `closest(".obs-highlight[data-obs-id]")` in `Editor.tsx` as a root cause, but C9 deleted that mechanism and the identical snippet now sits in `App.tsx` guarding pin dismissal, so a mechanical repoint sends the reader to real, matching, *wrong* code. A `~` prefix does not make an approximate ref safe: the `agent-bridge.md` closure-arm table's `~:224`-style refs had all drifted ~43 lines, enough to land in the wrong function. **The stale refs still in `docs/plan-archive.md`, `docs/logs/`, and `docs/snapshots/` are deliberate** — those are frozen records (archived `[x]` milestones, append-only field logs, point-in-time reviews) whose refs are fossils of what was true when written. Don't "fix" them.
+- Source in `src/`, docs in `docs/`, tests colocated as `*.test.ts`.
+- Prefer small, single-purpose modules. The eval checks, model providers, and export formats are each pluggable; keep those seams clean.
+- The editor is TipTap (ProseMirror), chosen for decorations and position mapping. Annotation anchoring depends on it, so read `docs/architecture.md` before proposing a swap.
+- LLM access goes through the single model-router interface. It's a deliberate extension seam.
+- **In docs, cite code by file plus a greppable symbol, never `file.ts:NNN`.** Write "`isSpanSuppressed` in `evaluatorAnchoring.ts`", not "`evaluator.ts:111`". A 2026-07-24 sweep found nearly all 123 line refs in live docs stale. Some pointed at the wrong file or a deleted symbol, and repointing one by number would have landed on matching but wrong code. Leave refs in `docs/plan-archive.md`, `docs/logs/`, and `docs/snapshots/` alone: those are frozen records.
 
 ## Working alongside parallel sessions
 
-**Assume another agent may be editing this repo right now.** Work is often split into parallel [lanes](docs/plan.md#parallel-work-lanes) run in separate sessions. Never assume you're the only writer.
+Assume another agent may be editing this repo right now. Work is often split into parallel lanes (see _Parallel work lanes (live)_ in `docs/plan.md`).
 
-- **Always work on a dedicated feature branch, never directly on `main`.** Branch at the start of a task; open a PR when done. (One feature per PR — see the plan's lane map for what's safe to run concurrently.)
-- **Start in your own worktree off `origin/main` — and never inherit another session's WIP.** Before touching anything, run `git status` in the tree you were handed. If it shows uncommitted changes _you_ didn't make, they belong to a concurrent session: **do not branch on top of them, and never let them ride into your commits or PR.** Isolate your task in a fresh `git worktree` cut from `origin/main` (see the worktree note above). Working feature tasks directly in the shared `main` tree is how another session's dirty state gets entangled with yours. _(2026-07-09: a fix begun in the shared `main` tree carried another session's uncommitted docs the whole way, then blocked a checkout and had to be untangled by hand.)_
-- **Next-number IDs in append-only files collide across sessions.** The living logs' `OBS-NNN` / `UX-NNN` ids (`docs/logs/`) and `docs/plan.md` milestones are assigned as "one past the last" — but a concurrent session grabs the _same_ next number, so both land and one silently duplicates on merge. Before you assign a new id (or finalize edits to these shared append-only files), `git fetch origin main` and take the next free id from `origin/main`, **not** from your local base; then rebase before the PR and renumber if a collision slipped through. _(2026-07-09: two sessions both created `OBS-033`; the second had to renumber to OBS-034–037 and fix every cross-reference across the log, plan.md, and the calibration doc.)_
-- **Don't merge on your own initiative.** The owner's checkpoint is _before_ the PR: implement, show the running feature (live preview on a dedicated port), and get an explicit "ship it" — _then_ open the PR and merge once CI (`verify`) is green. Never run implement→PR→merge autonomously.
-- **Stay inside your lane's files.** Each Phase-6 milestone carries a `Lane` tag (see `docs/plan.md` → _Parallel work lanes_). The lanes are drawn so their **hub files don't overlap** — the big single-writer bottlenecks are `src/sidecar/SidecarFeed.tsx`, `src/styles.css`, `src/services/evaluator.ts`, `src/services/evaluatorPrompts.ts`, `src/editor/Editor.tsx`, `src/services/orchestrator.ts`. If your task needs to edit a hub file owned by a different lane, that's a signal the work isn't actually parallel-safe — flag it rather than plough in.
-- **Coordinate on the shared low-churn files.** `src/services/types.ts` (append-only-ish), `src/styles.css`, and any `db.ts` schema-version bump are touched by multiple lanes. Keep edits there minimal and localized; only one lane should bump the DB version at a time.
-- **Rebase before you finalize.** `main` may have moved under you. Rebase (or merge `main`) and re-run `npm test && npm run lint && npm run build` before opening/merging the PR.
-- **The dev server on `:5173` is shared.** Another session may already have `npm run dev` running (the preview MCP can't take over that port). Don't assume you own it; the harness state (`window.__sidecar__`) is global — `clear()` after seeding fixtures so you don't leave state for a concurrent session.
+- **Work on a feature branch in your own worktree, cut from `origin/main`.** Before touching anything, run `git status`. Uncommitted changes you didn't make belong to a concurrent session. Don't branch on top of them, and don't let them into your commits. On 2026-07-09 a fix begun in the shared `main` tree carried another session's docs all the way and had to be untangled by hand.
+- **Take next-number IDs from `origin/main`.** `OBS-NNN` and `UX-NNN` IDs in `docs/logs/`, and plan milestones, are "one past the last". Run `git fetch origin main` and take the next free ID from there, not from your local base. Renumber after rebase if a collision slipped through. On 2026-07-09 two sessions both created `OBS-033`.
+- **Don't merge on your own initiative.** The owner's checkpoint comes before the PR. Implement, show the running feature on a dedicated port, and get an explicit "ship it". Then open the PR and merge once CI (`verify`) is green.
+- **Stay inside your lane's files.** Lanes are drawn so their hub files don't overlap. The single-writer hubs are `src/sidecar/SidecarFeed.tsx`, `src/styles.css`, `src/services/evaluator.ts`, `src/services/evaluatorPrompts.ts`, `src/editor/Editor.tsx`, and `src/services/orchestrator.ts`. If your task needs another lane's hub file, the work isn't parallel-safe; flag it.
+- **Keep edits to shared files small.** Several lanes touch `src/services/types.ts` and `src/styles.css`. Only one lane bumps the `db.ts` schema version at a time.
+- **Rebase before you finalize**, then rerun `npm test && npm run lint && npm run build`.
+- **The dev server on `:5173` is shared.** Don't assume you own it. Harness state is global, so call `window.__sidecar__.clear()` after seeding fixtures.
 
 ## Commands
 
+`package.json` lists the scripts. The ones with non-obvious behavior:
+
 ```
-npm install          # install deps
-npm run dev          # dev server → http://localhost:5173
-npm run build        # tsc + vite production build → dist/
-npm test             # vitest run (single pass)
-npm run test:watch   # vitest watch mode
-npm run lint         # eslint src/
-npm run format       # prettier --write src/
+npm run dev            # dev server → http://localhost:5173 (shared; see above)
+npm test               # vitest run; CI also runs lint and build
+npm run eval:record    # re-record LLM fixtures (live calls)
+npm run live-check     # gated live harness; sources .env.test.local
+npm run release:check  # lint + test + build + live-check
 ```
 
-**Model router key (app / dev server):** copy `.env.local.example` → `.env.local` and set `VITE_GEMINI_API_KEY`. To verify the path end-to-end, paste a key into the Settings key field and read its own subtitle — verification is automatic and debounced, and the field decodes the outcome (`✓ Key verified` / `✗ Key rejected` / `✓ Key stored · not verified` when the provider is unreachable). This is the only key the running app / Vite dev server reads. _(The "Ping model" button that used to do this was removed in the 2026-07-25 settings rework — it re-ran the same check and printed the same verdict a second time.)_
+**App key.** Copy `.env.local.example` to `.env.local` and set `VITE_GEMINI_API_KEY`. It's the only key the app and dev server read. To verify a key, paste it into the Settings key field and read the field's subtitle.
 
-**Real-provider keys for tests & recording (`.env.test.local`):** a separate, gitignored file (`.env.test.local`, copy from `.env.test.local.example`) holds real provider keys — `OPENAI` · `ANTHROPIC` · `GEMINI_FREE` (weak/free tier) · `GEMINI_PAID` (billed). These are **not** read by the app — `scripts/live-check.sh` (`npm run live-check`) sources them into the shell **without printing values**, then runs the gated live harness. Reach for these whenever a task needs a real model call at a controlled tier — a live sanity check, or **re-recording a fixture at weak capability** (`GEMINI_FREE` is the same tier a keyless first-run user gets). To drive the app itself at the free tier (e.g. capturing the "See it in action" recording), launch the dev server with the free key: source `.env.test.local`, then `VITE_GEMINI_API_KEY=$GEMINI_FREE npm run dev -- --port <NNNN> --strictPort` (never echo the value). Leave `GEMINI_PAID` unset in that shell so the app stays weak-tier.
-
-## Status
-
-`docs/plan.md` is the source of truth for the current phase — check its "Current phase" marker (line 7) before adding functionality. **Public launch happened 2026-07-10** — writtten.com is live, the repo is public, and outreach has started. The current phase is **Phase 8 — "Validation & signal quality"** (V1 corpus study first — it unblocks the precision-floor recalibration, the free-vs-paid decision, and most strategic open questions), which since 2026-07-19 also carries the **bring-your-own-agent build** (`docs/projects/agent_connected_eval.md`, Lane: Platform, "Connect your agent") — **public since 2026-07-26**: the `?agent=1` preview gate is gone and `/agent` is indexable, so the condition the GTM spike was waiting on is met. `agentBridgeEnabled()` remains as a one-line kill switch, not a preview gate. **Phase 7 — "Post-launch polish & credibility" closed 2026-07-15**: every launch-residual milestone shipped (hero visual, in-app OSS link, the site legal/privacy page, branch protection, the live-check release gate, strong-tier eval reliability, the heading-cliff trio, and the OBS-034/OBS-035 doc-level prompt fixes). **Phase 9 — "Later / optional (post-traction)"** holds parked work (don't pre-build it), and concept-stage items live in _Discovered / unscheduled_. Phases 1–7 are shipped/closed (Phase 7 records kept inline in `docs/plan.md`; Phases 0–6 full records in `docs/plan-archive.md`). Don't trust this paragraph over `docs/plan.md` if they ever drift — update the plan there, then mirror the headline here.
+**Test keys.** `.env.test.local` (copy from `.env.test.local.example`, gitignored) holds real provider keys: `OPENAI`, `ANTHROPIC`, `GEMINI_FREE`, `GEMINI_PAID`. The app doesn't read it; `scripts/live-check.sh` sources it without printing values. Use these for live sanity checks or to re-record a fixture at weak capability. `GEMINI_FREE` is the tier a keyless first-run user gets. To drive the app at the free tier, source the file, then run `VITE_GEMINI_API_KEY=$GEMINI_FREE npm run dev -- --port <NNNN> --strictPort`. Never echo key values, and leave `GEMINI_PAID` unset in that shell.

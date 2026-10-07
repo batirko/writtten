@@ -1,7 +1,7 @@
 /**
  * Completeness contract for docs/projects/ and the Projects Index in plan.md.
  *
- * Enforces the conventions in CLAUDE.md → "docs/projects/ conventions":
+ * Enforces the conventions in .claude/rules/docs-contract.md → "docs/projects/":
  *   - Project filenames are status-free (no legacy `--idea/--in-progress/--done` suffix).
  *   - Every file in docs/projects/ has frontmatter with a valid `status`.
  *   - Every index row names its project as a clickable markdown link to the file.
